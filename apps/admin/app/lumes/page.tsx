@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, ArrowLeft } from 
 import Link from 'next/link';
 import { toast } from 'sonner';
 import CommentsSection from '@/components/feed/CommentsSection';
+import { cn } from '@/lib/utils';
 
 export default function LumesPage() {
   const [reels, setReels] = useState<any[]>([]);
