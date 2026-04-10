@@ -20,7 +20,7 @@ export default function LumesFeed() {
       setLoading(true);
       const { data, error } = await supabase
         .from('posts')
-        .select('*, profiles(username, full_name, avatar_url)')
+        .select('*, author:profiles!posts_user_id_fkey(username, full_name, avatar_url)')
         .eq('post_type', 'video')
         .order('created_at', { ascending: false });
 
@@ -29,9 +29,9 @@ export default function LumesFeed() {
       if (data) {
         const mapped = data.map(item => ({
           ...item,
-          author_username: item.profiles?.username || 'usuario',
-          author_name: item.profiles?.full_name || 'Usuário',
-          author_avatar: item.profiles?.avatar_url,
+          author_username: item.author?.username || 'usuario',
+          author_name: item.author?.full_name || 'Usuário',
+          author_avatar: item.author?.avatar_url,
         }));
         setReels(mapped);
       }

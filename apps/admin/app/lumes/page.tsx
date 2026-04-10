@@ -50,7 +50,7 @@ export default function LumesPage() {
 
     const { data: posts } = await supabase
       .from('posts')
-      .select('*, profiles(id, full_name, avatar_url, username)')
+      .select('*, author:profiles!posts_user_id_fkey(id, full_name, avatar_url, username)')
       .eq('post_type', 'video')
       .order('created_at', { ascending: false })
       .limit(50);
@@ -59,9 +59,9 @@ export default function LumesPage() {
       // Mapear para garantir que o autor venha preenchido
       const mapped = posts.map(p => ({
         ...p,
-        author_name: p.profiles?.full_name || 'Usuário',
-        author_avatar: p.profiles?.avatar_url,
-        author_username: p.profiles?.username || 'usuario'
+        author_name: p.author?.full_name || 'Usuário',
+        author_avatar: p.author?.avatar_url,
+        author_username: p.author?.username || 'usuario'
       }));
       setReels(mapped);
     }
