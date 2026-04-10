@@ -4,8 +4,6 @@ const config: Config = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
-    "./apps/admin/app/**/*.{js,ts,jsx,tsx,mdx}",
-    "./apps/admin/components/**/*.{js,ts,jsx,tsx,mdx}",
     "../../apps/admin/app/**/*.{js,ts,jsx,tsx,mdx}",
     "../../apps/admin/components/**/*.{js,ts,jsx,tsx,mdx}",
   ],
