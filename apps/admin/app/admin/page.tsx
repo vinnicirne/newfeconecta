@@ -33,47 +33,93 @@ const data = [
   { name: "Dom", users: 349, posts: 430 },
 ];
 
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
+
 export default function DashboardPage() {
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalPosts: 0,
+    totalLumes: 0,
+    newToday: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    // Total Users
+    const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+    
+    // Total Posts
+    const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
+    
+    // Lumes (Videos)
+    const { count: lumesCount } = await supabase
+      .from('posts')
+      .select('*', { count: 'exact', head: true })
+      .eq('post_type', 'video');
+
+    // Novos hoje (Simulado com últimos posts ou usuários se tivermos created_at)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const { count: newToday } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .gt('created_at', today.toISOString());
+
+    setStats({
+      totalUsers: userCount || 0,
+      totalPosts: postCount || 0,
+      totalLumes: lumesCount || 0,
+      newToday: newToday || 0
+    });
+    setLoading(false);
+  };
+
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, Admin</h1>
-        <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo do que está acontecendo na FéConecta hoje.</p>
+        <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatsCard 
           title="Total de Usuários" 
-          value="12.450" 
+          value={loading ? "..." : stats.totalUsers.toLocaleString()} 
           change="+12%" 
           trend="up" 
           icon={Users} 
           color="bg-whatsapp-teal" 
         />
         <StatsCard 
-          title="Novos Hoje" 
-          value="158" 
+          title="Novos (24h)" 
+          value={loading ? "..." : stats.newToday.toLocaleString()} 
           change="+5%" 
           trend="up" 
           icon={UserPlus} 
           color="bg-whatsapp-green" 
         />
         <StatsCard 
-          title="Últimos Posts" 
-          value="8.210" 
-          change="+1.2%" 
+          title="Total de Posts" 
+          value={loading ? "..." : stats.totalPosts.toLocaleString()} 
+          change={stats.totalPosts > 0 ? "+1.2%" : "0%"} 
           trend="up" 
           icon={MessageSquare} 
           color="bg-whatsapp-blue" 
         />
         <StatsCard 
-          title="Denúncias Pendentes" 
-          value="24" 
-          change="-4" 
+          title="Total de Lumes" 
+          value={loading ? "..." : stats.totalLumes.toLocaleString()} 
+          change="Novo" 
           trend="up" 
-          icon={ShieldAlert} 
-          color="bg-red-500" 
+          icon={TrendingUp} 
+          color="bg-whatsapp-tealLight" 
         />
       </div>
 

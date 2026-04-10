@@ -1,11 +1,36 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { Plus, Search, Filter, MoreHorizontal, Ban, ShieldCheck, Ghost } from "lucide-react";
+import { Plus, Search, MoreHorizontal, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import moment from "moment";
 
 export default function UsersPage() {
+  const [users, setUsers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    setLoading(true);
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (data) setUsers(data);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="pb-12">
       <PageHeader 
@@ -28,15 +53,9 @@ export default function UsersPage() {
           />
         </div>
         <div className="flex items-center gap-2">
-          <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-white/5 rounded-xl text-xs font-bold dark:text-white">
-            <Filter className="w-3 h-3" /> Filtros
+           <button onClick={fetchUsers} className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-white/5 rounded-xl text-xs font-bold dark:text-white">
+            <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} /> Atualizar
           </button>
-          <select className="bg-gray-100 dark:bg-white/5 border-none rounded-xl text-xs font-bold px-4 py-2 dark:text-white focus:ring-2 focus:ring-whatsapp-green/20">
-            <option>Todos os Status</option>
-            <option>Ativos</option>
-            <option>Banidos</option>
-            <option>Shadow Ban</option>
-          </select>
         </div>
       </div>
 
@@ -47,62 +66,49 @@ export default function UsersPage() {
             <thead className="bg-gray-50 dark:bg-white/5">
               <tr>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuário</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Role</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Username</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Data Cadastro</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 dark:divide-white/5">
-              {[
-                { name: "João Silva", email: "joao@feconecta.com", role: "admin", status: "active", date: "01 Abr 2026" },
-                { name: "Maria Santos", email: "maria@gmail.com", role: "user", status: "shadowban", date: "05 Abr 2026" },
-                { name: "Ricardo Oliveira", email: "ric@outlook.com", role: "moderator", status: "active", date: "02 Abr 2026" },
-                { name: "Ana Beatriz", email: "ana.b@fe.com", role: "user", status: "banned", date: "09 Abr 2026" },
-              ].map((user, i) => (
-                <tr key={i} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal font-bold uppercase">
-                        {user.name.charAt(0)}
+              {loading ? (
+                <tr><td colSpan={4} className="p-10 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">Carregando rebanho digital...</td></tr>
+              ) : (
+                users.map((u) => (
+                  <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-whatsapp-teal/10 flex items-center justify-center overflow-hidden border border-whatsapp-green/20">
+                          {u.avatar_url ? (
+                            <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                             <span className="text-whatsapp-teal font-black uppercase text-xs">{(u.full_name || 'U').charAt(0)}</span>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold dark:text-white">{u.full_name || 'Usuário FéConecta'}</p>
+                          <p className="text-[10px] text-gray-500 font-medium">{u.email || 'n/a'}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-bold dark:text-white">{user.name}</p>
-                        <p className="text-xs text-gray-500">{user.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "px-2 py-1 rounded-md text-[10px] font-bold uppercase",
-                      user.role === 'admin' ? "bg-purple-100 text-purple-700" : 
-                      user.role === 'moderator' ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-400"
-                    )}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className={cn(
-                      "flex items-center gap-1.5 text-xs font-medium",
-                      user.status === 'active' ? "text-whatsapp-green" : 
-                      user.status === 'shadowban' ? "text-orange-500" : "text-red-500"
-                    )}>
-                      {user.status === 'active' && <ShieldCheck className="w-3 h-3" />}
-                      {user.status === 'shadowban' && <Ghost className="w-3 h-3" />}
-                      {user.status === 'banned' && <Ban className="w-3 h-3" />}
-                      {user.status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                    {user.date}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors">
-                      <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-black text-whatsapp-teal dark:text-whatsapp-green uppercase tracking-wider">@{u.username || 'n/a'}</span>
+                    </td>
+                    <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-bold">
+                      {moment(u.created_at).format('DD MMM YYYY')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <button className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors">
+                        <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+              {users.length === 0 && !loading && (
+                <tr><td colSpan={4} className="p-10 text-center text-gray-400 text-xs font-bold">Nenhum usuário encontrado.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
