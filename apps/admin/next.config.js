@@ -3,7 +3,6 @@ const nextConfig = {
   experimental: {
     esmExternals: false,
   },
-  transpilePackages: ["@feconecta/admin"],
 };
 
 module.exports = nextConfig;

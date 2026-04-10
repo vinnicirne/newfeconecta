@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run build -w @feconecta/admin",
+  "outputDirectory": "apps/admin/.next",
+  "framework": "nextjs",
+  "installCommand": "npm install"
+}
