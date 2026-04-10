@@ -1,0 +1,10 @@
+node_modules/
+.next/
+dist/
+.expo/
+*.local
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem

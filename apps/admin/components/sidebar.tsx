@@ -1,0 +1,118 @@
+"use client";
+
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { 
+  LayoutDashboard, 
+  Users, 
+  Rss,
+  ClipboardList, 
+  MessageSquare, 
+  ShieldAlert, 
+  Settings, 
+  CreditCard,
+  Target,
+  Palette,
+  Wrench,
+  FileText,
+  Activity,
+  History,
+  HelpCircle,
+  Menu,
+  ChevronLeft,
+  UserSquare2
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const menuItems = [
+  { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
+  { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
+  { name: "Usuários", icon: Users, href: "/admin/users" },
+  { name: "Monetização", icon: CreditCard, href: "/admin/monetization" },
+  { name: "Recursos PRO", icon: Target, href: "/admin/pro-features" },
+  { name: "Design", icon: Palette, href: "/admin/design" },
+  { name: "Ferramentas", icon: Wrench, href: "/admin/tools" },
+  { name: "Páginas", icon: FileText, href: "/admin/pages" },
+  { name: "Denúncias", icon: ShieldAlert, href: "/admin/reports" },
+  { name: "Configurações API", icon: Settings, href: "/admin/api-settings" },
+  { name: "Status do Sistema", icon: Activity, href: "/admin/status" },
+  { name: "Registro Alterações", icon: History, href: "/admin/changelog" },
+  { name: "Controle de FAQ", icon: HelpCircle, href: "/admin/faq" },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const [isCollapsed, setIsCollapsed] = React.useState(false);
+
+  return (
+    <div 
+      className={cn(
+        "relative h-screen bg-whatsapp-dark text-white transition-all duration-300 flex flex-col border-r border-white/10",
+        isCollapsed ? "w-20" : "w-64"
+      )}
+    >
+      {/* Brand */}
+      <div className="p-6 flex items-center gap-3">
+        <div className="w-8 h-8 rounded-full bg-whatsapp-green flex items-center justify-center flex-shrink-0">
+          <span className="font-bold text-whatsapp-dark">F</span>
+        </div>
+        {!isCollapsed && (
+          <div className="flex flex-col">
+            <span className="font-bold text-lg leading-tight">FéConecta</span>
+            <span className="text-[10px] text-whatsapp-green uppercase tracking-wider">Um lugar de adoração</span>
+          </div>
+        )}
+      </div>
+
+      {/* Toggle */}
+      <button 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="absolute -right-3 top-20 bg-whatsapp-teal p-1 rounded-full border border-white/10 hover:bg-whatsapp-tealLight transition-colors"
+      >
+        <ChevronLeft className={cn("w-4 h-4 transition-transform", isCollapsed && "rotate-180")} />
+      </button>
+
+      {/* Menu */}
+      <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        {menuItems.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={cn(
+                "flex items-center gap-3 px-3 py-3 rounded-lg transition-all group",
+                isActive 
+                  ? "bg-whatsapp-teal text-white shadow-lg" 
+                  : "text-gray-400 hover:bg-white/5 hover:text-white"
+              )}
+            >
+              <item.icon className={cn(
+                "w-5 h-5 flex-shrink-0",
+                isActive ? "text-whatsapp-green" : "group-hover:text-whatsapp-green"
+              )} />
+              {!isCollapsed && <span className="font-medium text-sm">{item.name}</span>}
+            </Link>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-white/10">
+         <div className={cn(
+           "flex items-center gap-3 p-2 rounded-lg bg-white/5",
+           isCollapsed ? "justify-center" : ""
+         )}>
+           <div className="w-8 h-8 rounded-md bg-whatsapp-tealLight flex-shrink-0" />
+           {!isCollapsed && (
+             <div className="flex flex-col overflow-hidden">
+               <span className="text-xs font-medium truncate">Admin FéConecta</span>
+               <span className="text-[10px] text-gray-400 truncate">admin@feconecta.com.br</span>
+             </div>
+           )}
+         </div>
+      </div>
+    </div>
+  );
+}
