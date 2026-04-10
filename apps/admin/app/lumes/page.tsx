@@ -80,6 +80,16 @@ export default function LumesPage() {
     });
   }, [current]);
 
+  const handleScroll = () => {
+    const container = containerRef.current;
+    if (!container) return;
+    const idx = Math.round(container.scrollTop / window.innerHeight);
+    if (idx !== current) {
+      setCurrent(idx);
+      setShowComments(false);
+    }
+  };
+
   const togglePlay = () => {
     const v = videoRefs.current[current];
     if (!v) return;
