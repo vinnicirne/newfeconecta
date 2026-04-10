@@ -1,0 +1,13 @@
+{
+  "name": "feconecta-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=apps/admin",
+    "build": "npm run build --workspace=apps/admin",
+    "start": "npm run start --workspace=apps/admin"
+  }
+}
