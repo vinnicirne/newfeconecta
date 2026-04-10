@@ -13,11 +13,6 @@ export default function CommentsSection({ postId, user }: any) {
     // Carregamento inicial mockado
   }, [postId]);
 
-  const loadComments = async () => {
-    const data = await base44.entities.Comment.filter({ post_id: postId }, 'created_date', 50);
-    setComments(data);
-  };
-
   const send = async () => {
     if (!text.trim()) return;
     setSending(true);

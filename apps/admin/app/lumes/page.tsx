@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -182,7 +182,11 @@ export default function LumesPage() {
               {/* Painel de Informações (Esquerda) */}
               <div className="absolute bottom-10 left-4 right-20 z-10 space-y-4">
                 <div className="flex items-center gap-3">
-                  <Link href={`/profile/${reel.author_username}`} onClick={e => e.stopPropagation()} className="group">
+                  <Link
+                    href={`/profile/${reel.author_username}`}
+                    onClick={(e: MouseEvent<HTMLAnchorElement>) => e.stopPropagation()}
+                    className="group"
+                  >
                     <div className="relative">
                       <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-white ring-2 ring-whatsapp-green ring-offset-2 ring-offset-black transition-transform group-active:scale-90">
                         {reel.author_avatar ? (
