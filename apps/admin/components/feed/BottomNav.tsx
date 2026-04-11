@@ -19,11 +19,17 @@ export default function BottomNav() {
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
   const [user, setUser] = React.useState<any>(null);
 
+  // Esconde a nav em páginas de autenticação e legais
+  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy"];
+  const isHidden = hiddenRoutes.includes(pathname);
+
   React.useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setUser(user);
     });
   }, []);
+
+  if (isHidden) return null;
 
   const navItems = [
     { icon: Home, href: "/", label: "Home" },

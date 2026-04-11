@@ -19,7 +19,16 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <body className="antialiased font-sans" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet" />
+        <style dangerouslySetInnerHTML={{ __html: `
+          :root { --font-outfit: 'Outfit', sans-serif; }
+          body { font-family: var(--font-outfit); }
+        `}} />
+      </head>
+      <body className="antialiased font-sans" style={{ fontFamily: 'var(--font-outfit)' }} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

@@ -233,10 +233,19 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
           />
         )}
 
-        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-12 pb-4 bg-gradient-to-b from-black/70 to-transparent">
+        <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-12 pb-4 bg-gradient-to-b from-black/70 to-transparent z-50">
           <button onClick={handleClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white border border-white/10">
             <X className="w-6 h-6" />
           </button>
+
+          {recording && (
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-white/10 z-[100]">
+              <div 
+                className="h-full bg-red-600 transition-all duration-1000 linear" 
+                style={{ width: `${((MAX_RECORD_SECS - recordDuration) / MAX_RECORD_SECS) * 100}%` }}
+              />
+            </div>
+          )}
 
           {recording && (
             <div className="flex items-center gap-2 bg-red-500 rounded-full px-4 py-1.5 shadow-lg shadow-red-500/20">

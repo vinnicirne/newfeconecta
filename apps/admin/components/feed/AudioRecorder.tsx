@@ -49,15 +49,30 @@ export default function AudioRecorder({ open, onClose, onSubmit }: any) {
   };
 
   const handleSubmit = async () => {
+    console.log('🎤 [AudioRecorder] Iniciando submissão...');
     setUploading(true);
-    const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-    const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
-    const file_url = URL.createObjectURL(file);
-    onSubmit({ audio_url: file_url, post_type: 'audio' });
-    setAudioUrl(null);
-    setSeconds(0);
-    setUploading(false);
-    onClose();
+    try {
+      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
+      const file_url = URL.createObjectURL(file);
+      
+      console.log('🎤 [AudioRecorder] Blob gerado com sucesso:', { 
+        size: blob.size, 
+        type: blob.type,
+        blobUrl: file_url 
+      });
+
+      // IMPORTANTE: media_url deve ser a chave para casar com CreatePost
+      onSubmit({ media_url: file_url, post_type: 'audio' });
+      
+      setAudioUrl(null);
+      setSeconds(0);
+      onClose();
+    } catch (err) {
+      console.error('🎤 [AudioRecorder] Erro na submissão:', err);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;

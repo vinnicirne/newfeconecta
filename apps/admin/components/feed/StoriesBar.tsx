@@ -47,7 +47,7 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
           ) : (
             <div className="w-[72px] h-[72px] rounded-[28px] overflow-hidden bg-gray-50 dark:bg-whatsapp-dark border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center transition-all hover:border-whatsapp-green group">
               <div className="w-full h-full p-2">
-                <div className="w-full h-full rounded-[20px] overflow-hidden grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transition-all">
+                <div className="w-full h-full rounded-[20px] overflow-hidden transition-all group-hover:scale-105">
                   <Avatar src={currentUser?.avatar_url} name={currentUser?.full_name} />
                 </div>
               </div>

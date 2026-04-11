@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { 
   Users, 
   MessageSquare, 
@@ -8,7 +8,10 @@ import {
   TrendingUp, 
   ArrowUpRight,
   UserPlus,
-  Heart
+  Heart,
+  Target,
+  Repeat,
+  LayoutDashboard
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -22,6 +25,7 @@ import {
   AreaChart,
   Area 
 } from "recharts";
+import { supabase } from "@/lib/supabase";
 
 const data = [
   { name: "Seg", users: 400, posts: 240 },
@@ -33,57 +37,104 @@ const data = [
   { name: "Dom", users: 349, posts: 430 },
 ];
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-
 export default function DashboardPage() {
   const [stats, setStats] = useState({
     totalUsers: 0,
     totalPosts: 0,
     totalLumes: 0,
-    newToday: 0
+    totalReposts: 0,
+    newToday: 0,
+    hashtagCount: 0,
+    topHashtags: [] as { tag: string, count: number }[]
   });
   const [loading, setLoading] = useState(true);
 
+  const [adminName, setAdminName] = useState("Admin");
+
   useEffect(() => {
     fetchStats();
+    fetchAdminName();
   }, []);
+
+  const fetchAdminName = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .single();
+      if (profile?.full_name) setAdminName(profile.full_name);
+    }
+  };
 
   const fetchStats = async () => {
     setLoading(true);
-    // Total Users
-    const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-    
-    // Total Posts
-    const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
-    
-    // Lumes (Videos)
-    const { count: lumesCount } = await supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('post_type', 'video');
+    try {
+      // Total de Usuários reais do banco
+      const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+      
+      // Total de Posts reais
+      const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
+      
+      // Filtro para Lumes (Vídeos)
+      const { count: lumesCount } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_type', 'video');
 
-    // Novos hoje (Simulado com últimos posts ou usuários se tivermos created_at)
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const { count: newToday } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true })
-      .gt('created_at', today.toISOString());
+      // Novos perfis registrados hoje
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const { count: newToday } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .gt('created_at', today.toISOString());
 
-    setStats({
-      totalUsers: userCount || 0,
-      totalPosts: postCount || 0,
-      totalLumes: lumesCount || 0,
-      newToday: newToday || 0
-    });
-    setLoading(false);
+      // Processamento em tempo real das Hashtags
+      const { data: allPosts } = await supabase.from('posts').select('content');
+      const tagMap: Record<string, number> = {};
+      let totalTags = 0;
+
+      allPosts?.forEach(post => {
+        const hashtags = post.content?.match(/#[\wáàâãéèêíïóôõöúç]+/g);
+        if (hashtags) {
+          hashtags.forEach((tag: string) => {
+            const lowerTag = tag.toLowerCase();
+            tagMap[lowerTag] = (tagMap[lowerTag] || 0) + 1;
+            totalTags++;
+          });
+        }
+      });
+
+      const topHashtags = Object.entries(tagMap)
+        .map(([tag, count]) => ({ tag, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      // Total de Republicações (Reposts)
+      const { count: repostsCount } = await supabase.from('reposts').select('*', { count: 'exact', head: true });
+
+      setStats({
+        totalUsers: userCount || 0,
+        totalPosts: postCount || 0,
+        totalLumes: lumesCount || 0,
+        totalReposts: repostsCount || 0,
+        newToday: newToday || 0,
+        hashtagCount: totalTags,
+        topHashtags
+      });
+    } catch (err) {
+      console.error("Error fetching stats:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="space-y-8 pb-12">
       <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, Admin</h1>
+        <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, {adminName}</h1>
         <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
       </div>
 
@@ -120,6 +171,22 @@ export default function DashboardPage() {
           trend="up" 
           icon={TrendingUp} 
           color="bg-whatsapp-tealLight" 
+        />
+        <StatsCard 
+          title="# Hashtags Ativas" 
+          value={loading ? "..." : stats.hashtagCount.toLocaleString()} 
+          change={stats.hashtagCount > 0 ? "Real-time" : "Aguardando"} 
+          trend="up" 
+          icon={Target} 
+          color="bg-purple-500" 
+        />
+        <StatsCard 
+          title="Republicações" 
+          value={loading ? "..." : stats.totalReposts.toLocaleString()} 
+          change="+8%" 
+          trend="up" 
+          icon={Repeat} 
+          color="bg-orange-500" 
         />
       </div>
 
@@ -196,19 +263,30 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-8 pt-8 border-t border-white/10 text-center">
+            <div className="mt-8 pt-8 border-t border-white/10 text-center space-y-3">
+              <div className="bg-white/5 p-3 rounded-xl border border-white/10 text-left">
+                <p className="text-[10px] uppercase font-black text-whatsapp-green tracking-widest mb-1">Tags em Alta</p>
+                <div className="flex flex-wrap gap-2">
+                  {stats.topHashtags.length > 0 ? (
+                    stats.topHashtags.map(h => (
+                      <span key={h.tag} className="text-xs font-bold">{h.tag} <span className="opacity-50 font-normal">({h.count})</span></span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-white/40 italic">Nenhuma tag ainda</span>
+                  )}
+                </div>
+              </div>
               <button className="w-full bg-whatsapp-green text-whatsapp-dark font-bold py-3 rounded-xl hover:bg-opacity-90 transition-all">
                 Configurar Campanhas
               </button>
             </div>
           </div>
-          {/* Subtle decoration */}
           <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
           <div className="absolute top-0 right-0 w-20 h-20 bg-whatsapp-green/10 rounded-full blur-2xl" />
         </div>
       </div>
 
-      {/* Recent Activity Section (Example) */}
+      {/* Recent Activity Section */}
       <div className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow overflow-hidden">
         <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
           <h3 className="font-bold dark:text-white">Atividade Recente</h3>

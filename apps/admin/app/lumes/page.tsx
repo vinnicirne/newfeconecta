@@ -48,21 +48,42 @@ export default function LumesPage() {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
     setUser(profile);
 
-    const { data: posts } = await supabase
+    const { data: postsData, error: postsError } = await supabase
       .from('posts')
-      .select('*, author:profiles!posts_user_id_fkey(id, full_name, avatar_url, username)')
+      .select('*')
       .eq('post_type', 'video')
       .order('created_at', { ascending: false })
       .limit(50);
       
-    if (posts) {
-      // Mapear para garantir que o autor venha preenchido
-      const mapped = posts.map(p => ({
-        ...p,
-        author_name: p.author?.full_name || 'Usuário',
-        author_avatar: p.author?.avatar_url,
-        author_username: p.author?.username || 'usuario'
-      }));
+    if (postsError) {
+      console.error("❌ Erro ao buscar lumes:", postsError);
+      return;
+    }
+
+    if (postsData && postsData.length > 0) {
+      // 1. Buscar autores em lote
+      const userIds = [...new Set(postsData.map(p => p.author_id || p.user_id).filter(Boolean))];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, username')
+        .in('id', userIds);
+
+      const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+        acc[p.id] = p;
+        return acc;
+      }, {});
+
+      // 2. Mapear para garantir que o autor venha preenchido
+      const mapped = postsData.map(p => {
+        const author = profilesMap[p.author_id || p.user_id] || {};
+        return {
+          ...p,
+          author,
+          author_name: author.full_name || author.username || 'Usuário',
+          author_avatar: author.avatar_url,
+          author_username: author.username || 'usuario'
+        };
+      });
       setReels(mapped);
     }
   };

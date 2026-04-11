@@ -67,8 +67,10 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
 
   const handleTextSubmit = async (data: any) => {
     try {
+      const userId = user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731";
       const payload = {
-        user_id: user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731",
+        author_id: userId,
+        user_id: userId,
         content: data.content,
         post_type: 'text', // Forçado exatamente como no banco
         background_style: data.background
@@ -100,8 +102,10 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
          media_url = await uploadMedia(audioBlob, 'audio');
       }
 
+      const userId = user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731";
       const payload = {
-        user_id: user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731",
+        author_id: userId,
+        user_id: userId,
         content: data.content || '',
         media_url: media_url,
         post_type: data.post_type === 'photo' ? 'image' : 
@@ -126,8 +130,10 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
     try {
       const isVideo = file.type.startsWith('video');
       const media_url = await uploadMedia(file, isVideo ? 'videos' : 'images');
+      const userId = user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731";
       const payload = {
-        user_id: user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731",
+        author_id: userId,
+        user_id: userId,
         media_url: media_url,
         post_type: isVideo ? 'video' : 'image'
       };

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { 
   LayoutDashboard, 
   Users, 
@@ -21,11 +21,14 @@ import {
   HelpCircle,
   Menu,
   ChevronLeft,
-  UserSquare2
+  UserSquare2,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 const menuItems = [
+  { name: "Feed Social", icon: Rss, href: "/" },
   { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { name: "Usuários", icon: Users, href: "/admin/users" },
@@ -43,7 +46,13 @@ const menuItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
 
   return (
     <div 
@@ -99,7 +108,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-white/10 space-y-2">
          <div className={cn(
            "flex items-center gap-3 p-2 rounded-lg bg-white/5",
            isCollapsed ? "justify-center" : ""
@@ -112,6 +121,17 @@ export function Sidebar() {
              </div>
            )}
          </div>
+
+         <button 
+           onClick={handleLogout}
+           className={cn(
+             "w-full flex items-center gap-3 px-3 py-3 rounded-lg text-red-500 hover:bg-red-500/10 transition-all",
+             isCollapsed ? "justify-center" : ""
+           )}
+         >
+           <LogOut className="w-5 h-5 flex-shrink-0" />
+           {!isCollapsed && <span className="text-sm font-medium">Sair da Conta</span>}
+         </button>
       </div>
     </div>
   );

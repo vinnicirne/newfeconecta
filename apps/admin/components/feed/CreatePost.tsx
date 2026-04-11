@@ -44,6 +44,7 @@ export default function CreatePost({ user, onPostCreated }: any) {
   };
 
   const uploadMedia = async (file: File | Blob, path: string) => {
+    console.log(`☁️ [CreatePost] Iniciando upload para folder: ${path}...`);
     let finalFile = file;
     if (file.type.startsWith('image/')) {
        finalFile = await compressImage(file);
@@ -54,12 +55,16 @@ export default function CreatePost({ user, onPostCreated }: any) {
       .from('posts')
       .upload(`${path}/${fileName}`, finalFile);
 
-    if (error) throw error;
+    if (error) {
+      console.error('❌ [CreatePost] Erro no Supabase Storage:', error);
+      throw error;
+    }
     
     const { data: { publicUrl } } = supabase.storage
       .from('posts')
       .getPublicUrl(data.path);
       
+    console.log('🔗 [CreatePost] URL Pública obtida:', publicUrl);
     return publicUrl;
   };
 
@@ -70,6 +75,7 @@ export default function CreatePost({ user, onPostCreated }: any) {
       const userId = user?.id && user.id.length > 20 ? user.id : '296f0f37-c8b8-4ad1-855c-4625f3f14731';
       
       const { error } = await supabase.from('posts').insert({
+        author_id: userId,
         user_id: userId,
         content: data.content,
         post_type: 'text',
@@ -94,14 +100,19 @@ export default function CreatePost({ user, onPostCreated }: any) {
       
       if (mediaUrl.startsWith('blob:')) {
          const fileBlob = await fetch(mediaUrl).then(r => r.blob());
-         mediaUrl = await uploadMedia(fileBlob, data.post_type === 'photo' ? 'images' : 'videos');
+         const folder = data.post_type === 'audio' ? 'audio' : (data.post_type === 'photo' ? 'images' : 'videos');
+         mediaUrl = await uploadMedia(fileBlob, folder);
       } else if (data.blob) {
-         mediaUrl = await uploadMedia(data.blob, data.post_type === 'photo' ? 'images' : 'videos');
+         const folder = data.post_type === 'audio' ? 'audio' : (data.post_type === 'photo' ? 'images' : 'videos');
+         mediaUrl = await uploadMedia(data.blob, folder);
       }
+
+      console.log(`🚀 Preparando Post [${data.post_type}]: URL final ->`, mediaUrl);
 
       const userId = user?.id && user.id.length > 20 ? user.id : '296f0f37-c8b8-4ad1-855c-4625f3f14731';
 
       const { error } = await supabase.from('posts').insert({
+        author_id: userId,
         user_id: userId,
         content: data.caption || "",
         media_url: mediaUrl,
@@ -133,6 +144,7 @@ export default function CreatePost({ user, onPostCreated }: any) {
       const userId = user?.id && user.id.length > 20 ? user.id : '296f0f37-c8b8-4ad1-855c-4625f3f14731';
 
       const { error } = await supabase.from('posts').insert({
+        author_id: userId,
         user_id: userId,
         content: "",
         media_url: mediaUrl,
