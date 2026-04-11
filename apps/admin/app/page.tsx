@@ -9,8 +9,11 @@ import {
   UserCircle2,
   LayoutDashboard,
   Bookmark,
+  Sun,
+  Moon,
 } from "lucide-react";
 import Link from "next/link";
+import { useTheme } from "next-themes";
 import CreatePost from "@/components/feed/CreatePost";
 import PostCard from "@/components/feed/PostCard";
 import StoriesBar from "@/components/feed/StoriesBar";
@@ -27,6 +30,7 @@ export default function RootPage() {
   const [hasMore, setHasMore] = useState(true);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
+  const { theme, setTheme } = useTheme();
 
   const [showStoryCreator, setShowStoryCreator] = useState(false);
   const [viewingStoryGroup, setViewingStoryGroup] = useState<any | null>(null);
@@ -242,23 +246,32 @@ export default function RootPage() {
   }, [loading, loadingMore, hasMore, loadMorePosts]);
 
   return (
-    <div suppressHydrationWarning className="min-h-screen bg-[#080808]">
+    <div suppressHydrationWarning className="min-h-screen bg-transparent">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#080808]/80 backdrop-blur-xl border-b border-white/5">
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-[#080808]/80 backdrop-blur-xl border-b border-black/5 dark:border-white/5">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {isMounted && <div className="w-9 h-9 rounded-2xl bg-whatsapp-teal/20 flex items-center justify-center text-whatsapp-teal"><Flame className="w-5 h-5 fill-whatsapp-teal" /></div>}
-            <h1 className="text-xl font-black text-white tracking-tight">FéConecta</h1>
+            <h1 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">FéConecta</h1>
           </div>
 
           <div className="flex items-center gap-2">
             {isMounted && (
               <>
-                <button className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal"><Search className="w-5 h-5" /></button>
-                <button className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal relative"><Bell className="w-5 h-5" /><div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#080808]" /></button>
-                <Link href="/saved" className="p-2.5 bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal"><Bookmark className="w-5 h-5" /></Link>
+                <button className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal"><Search className="w-5 h-5" /></button>
+                <button className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal relative"><Bell className="w-5 h-5" /><div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#080808]" /></button>
+                <Link href="/saved" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal"><Bookmark className="w-5 h-5" /></Link>
+                
+                <button 
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all"
+                  title="Mudar Tema"
+                >
+                  {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                </button>
+
                 {currentUser?.role === 'admin' && <Link href="/admin" className="p-2.5 bg-whatsapp-teal/10 rounded-xl text-whatsapp-teal hover:bg-whatsapp-teal hover:text-white"><LayoutDashboard className="w-5 h-5" /></Link>}
-                <Link href="/profile" className="ml-1 w-9 h-9 rounded-xl overflow-hidden border border-white/10 hover:opacity-80">
+                <Link href="/profile" className="ml-1 w-9 h-9 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 hover:opacity-80">
                   {currentUser?.avatar_url ? (
                     <img src={currentUser.avatar_url} className="w-full h-full object-cover" alt="Perfil" />
                   ) : (

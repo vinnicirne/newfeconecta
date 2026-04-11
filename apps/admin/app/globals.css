@@ -71,8 +71,18 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-gray-900;
+    background-color: #EFEAE2;
     font-feature-settings: "rlig" 1, "calt" 1;
+    background-image: url('/bg-light.jpg');
+    background-repeat: repeat;
+    background-attachment: fixed;
+    background-size: 400px;
+  }
+
+  .dark body {
+    @apply bg-black text-white;
+    background-image: none;
   }
 }
 

@@ -131,7 +131,7 @@ export default function FeedPage() {
   };
 
   return (
-    <div className="pb-24 max-w-2xl mx-auto flex flex-col h-full bg-gray-50 dark:bg-whatsapp-dark">
+    <div className="pb-24 max-w-2xl mx-auto flex flex-col h-full">
       {/* Search & Top Bar (Mobile Only Style Header) */}
       <div className="sticky top-0 z-40 bg-white/80 dark:bg-whatsapp-dark/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5 p-4 flex items-center justify-between">
          <div className="flex items-center gap-3">

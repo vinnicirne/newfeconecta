@@ -263,7 +263,7 @@ export default function ProfilePage() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20 max-w-2xl mx-auto border-x border-white/5">
+    <div className="min-h-screen pb-20 max-w-2xl mx-auto border-x">
       {/* Banner Section */}
       <div className="relative h-48 w-full bg-gray-900 overflow-hidden group">
         {user?.banner_url ? (
@@ -307,8 +307,8 @@ export default function ProfilePage() {
         <div className="flex items-center justify-between gap-4 mb-6 pt-12">
           {/* Avatar with Story Ring style */}
           <div className="relative group">
-            <div className="w-[100px] h-[100px] rounded-[32px] p-[3px] bg-black">
-               <div className="w-full h-full rounded-[28px] border-4 border-black overflow-hidden bg-gray-800 shadow-2xl">
+            <div className="w-[100px] h-[100px] rounded-[32px] p-[3px] bg-white dark:bg-black">
+               <div className="w-full h-full rounded-[28px] border-4 border-white dark:border-black overflow-hidden bg-white dark:bg-gray-800 shadow-xl">
                   <img src={user?.avatar_url || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
                </div>
             </div>
@@ -335,9 +335,9 @@ export default function ProfilePage() {
         </div>
 
         {/* Info & Bio */}
-        <div className="space-y-0.5 mb-6">
+        <div className="space-y-0.5 mb-6 text-gray-800 dark:text-gray-100">
           <h2 className="font-bold text-sm tracking-tight">{user?.full_name}</h2>
-          <div className="text-sm whitespace-pre-wrap text-gray-100/90 leading-relaxed font-medium">
+          <div className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-100/90 leading-relaxed font-medium">
              {(() => {
                const content = user?.bio;
                if (!content) return null;
@@ -479,7 +479,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-3 gap-[2px]">
             {userPosts.length > 0 ? (
               userPosts.map((post) => (
-                <div key={post.id} className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5">
+                <div key={post.id} className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-100 dark:bg-gray-900 border border-black/5 dark:border-white/5">
                    {post.media_url ? (
                      <img 
                        src={post.media_url} 

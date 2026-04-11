@@ -35,6 +35,7 @@ const config: Config = {
           green: "#25D366",
           blue: "#34B7F1",
           light: "#F0F2F5",
+          chatLight: "#EFEAE2",
           dark: "#111B21",
           darkLighter: "#202C33",
         },

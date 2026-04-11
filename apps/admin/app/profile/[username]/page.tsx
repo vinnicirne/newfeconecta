@@ -103,14 +103,14 @@ export default function PublicProfilePage() {
   };
 
   if (loading) return (
-    <div className="min-h-screen bg-black flex flex-col items-center justify-center gap-4 text-white">
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4">
       <RefreshCw className="w-8 h-8 animate-spin text-whatsapp-teal" />
       <p className="text-xs font-bold uppercase tracking-widest opacity-40">Carregando Perfil...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-black text-white pb-20 max-w-2xl mx-auto border-x border-white/5">
+    <div className="min-h-screen pb-20 max-w-2xl mx-auto border-x">
       {/* Banner */}
       <div className="relative h-48 w-full bg-gray-900 overflow-hidden">
         {user?.banner_url ? (
