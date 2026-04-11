@@ -62,7 +62,7 @@ export default function SavedPostsPage() {
 
         if (postsData) {
           // 3. Hidratar autores
-          const userIds = [...new Set(postsData.map(p => p.author_id || p.user_id || p.profile_id).filter(Boolean))];
+          const userIds = Array.from(new Set(postsData.map((p: any) => p.author_id || p.user_id || p.profile_id).filter(Boolean)));
           const { data: profiles } = await supabase
             .from('profiles')
             .select('id, full_name, avatar_url, username')
