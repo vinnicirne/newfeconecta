@@ -315,7 +315,7 @@ export default function ProfilePage() {
                const content = user?.bio;
                if (!content) return null;
                const parts = content.split(/(#[\wáàâãéèêíïóôõöúç]+|@[\wáàâãéèêíïóôõöúç]+|\n)/g);
-               return parts.map((part, i) => {
+               return parts.map((part: string, i: number) => {
                  const trimmed = part.trim();
                  if (part === '\n') return <br key={i} />;
                  if (trimmed.startsWith('#')) {

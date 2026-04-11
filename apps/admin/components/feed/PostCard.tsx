@@ -221,7 +221,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
     return (
       <>
-        {parts.map((part, i) => {
+        {parts.map((part: string, i: number) => {
           const trimmed = part.trim();
           if (part === '\n' || part === '\r\n') return <br key={i} />;
 
