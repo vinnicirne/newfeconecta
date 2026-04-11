@@ -286,7 +286,7 @@ export default function RootPage() {
       if (storiesError) throw storiesError;
 
       if (storiesData && storiesData.length > 0) {
-        const userIds = [...new Set(storiesData.map(s => s.user_id).filter(Boolean))];
+        const userIds = Array.from(new Set(storiesData.map((s: any) => s.user_id).filter(Boolean)));
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
