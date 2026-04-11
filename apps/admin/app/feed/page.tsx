@@ -20,84 +20,112 @@ import StoryCreator from "@/components/feed/StoryCreator";
 import StoryViewer from "@/components/feed/StoryViewer";
 import MobilePostSheet from "@/components/feed/MobilePostSheet";
 import { cn } from "@/lib/utils";
-
-// Mock User for Feed context
-const mockCurrentUser = {
-  id: "296f0f37-c8b8-4ad1-855c-4625f3f14731",
-  email: "admin@feconecta.com.br",
-  full_name: "Admin FéConecta",
-  username: "admin",
-  avatar_url: "https://github.com/shadcn.png",
-  role: "admin"
-};
+import { supabase } from "@/lib/supabase";
 
 export default function FeedPage() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
-  const [storyGroups, setStoryGroups] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [storyGroups, setStoryGroups] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<'grid'|'list'>('list');
   const [showStoryCreator, setShowStoryCreator] = useState(false);
-  const [viewingStoryGroup, setViewingStoryGroup] = useState<any | null>(null);
+  const [viewingStoryGroup, setViewingStoryGroup] = useState<any>(null);
   const [mobilePostOpen, setMobilePostOpen] = useState(false);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('profiles').select('*').eq('id', user.id).single()
+          .then(({ data }) => setCurrentUser(data || user));
+      }
+    });
     loadData();
   }, []);
 
   const loadData = async () => {
     setLoading(true);
-    // In a real app, load from base44
-    // setPosts(await base44.entities.Post.filter({}, 'created_date', 20));
     
-    // For now, use mocks to show the UI
-    setPosts([
-      {
-        id: "1",
-        author_name: "Pastor João Silva",
-        author_avatar: "https://i.pravatar.cc/150?u=1",
-        created_date: new Date().toISOString(),
-        post_type: "text",
-        content: "Sejam bem-vindos à FéConecta! Um lugar de paz e adoração.",
-        background: "linear-gradient(135deg,#667eea,#764ba2)",
-        likes: ["admin@feconecta.com.br"],
-        comments_count: 5,
-        shares_count: 2,
-        reposts_count: 1
-      },
-      {
-        id: "2",
-        author_name: "Maria Oliveira",
-        author_avatar: "https://i.pravatar.cc/150?u=2",
-        created_date: new Date(Date.now() - 3600000).toISOString(),
-        post_type: "image",
-        media_url: "file:///c:/Users/THINKPAD/.gemini/antigravity/brain/8cf264da-3dc3-49ad-9bd1-cdbaf3529b9d/feconecta_admin_final_check_1775762163372.webp",
-        likes: [],
-        comments_count: 12,
-        shares_count: 5,
-        reposts_count: 3
-      }
-    ]);
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) return;
+    
+    const { data: postsData } = await supabase
+      .from('posts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
+    
+    const { data: repostsData } = await supabase
+      .from('reposts')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(20);
 
-    setStoryGroups([
-      {
-        author_id: "u-1",
-        author_name: "Tiago",
-        author_avatar: "https://i.pravatar.cc/150?u=3",
-        allViewed: false,
-        stories: [
-          { id: "s1", media_url: "https://images.unsplash.com/photo-1518770660439-4636190af475", media_type: "image" }
-        ]
-      },
-      {
-        author_id: "u-2",
-        author_name: "Camila",
-        author_avatar: "https://i.pravatar.cc/150?u=4",
-        allViewed: true,
-        stories: [
-          { id: "s2", media_url: "https://images.unsplash.com/photo-1515879218367-8466d910aaa4", media_type: "image" }
-        ]
+    const postsList = postsData || [];
+    const repostsList = repostsData || [];
+
+    const repostedPostIds = repostsList.map((r: any) => r.post_id);
+    const missingPostIds = repostedPostIds.filter((id: any) => !postsList.some((p: any) => p.id === id));
+
+    let missingPosts: any[] = [];
+    if (missingPostIds.length > 0) {
+      const { data } = await supabase.from('posts').select('*').in('id', missingPostIds);
+      missingPosts = data || [];
+    }
+
+    const feed: any[] = [];
+    postsList.forEach((p: any) => feed.push({ ...p, display_date: p.created_at, is_repost: false }));
+    
+    repostsList.forEach((r: any) => {
+      const originalPost = postsList.find((p: any) => p.id === r.post_id) || missingPosts.find((p: any) => p.id === r.post_id);
+      if (originalPost) {
+        feed.push({
+          ...originalPost,
+          id: `${originalPost.id}-repost-${r.profile_id}`,
+          original_post_id: originalPost.id,
+          display_date: r.created_at,
+          is_repost: true,
+          reposter_id: r.profile_id
+        });
       }
-    ]);
+    });
+
+    feed.sort((a, b) => new Date(b.display_date).getTime() - new Date(a.display_date).getTime());
+    const pagedFeed = feed.slice(0, 20);
+
+    if (pagedFeed.length > 0) {
+      const userIds = new Set<string>();
+      pagedFeed.forEach(item => {
+        if (item.user_id || item.author_id) userIds.add(item.user_id || item.author_id);
+        if (item.reposter_id) userIds.add(item.reposter_id);
+      });
+
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, username')
+        .in('id', Array.from(userIds));
+
+      const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+        acc[p.id] = p;
+        return acc;
+      }, {});
+
+      setPosts(pagedFeed.map(item => {
+        const profile = profilesMap[item.author_id || item.user_id] || {};
+        const reposter = item.is_repost ? profilesMap[item.reposter_id] : null;
+        return {
+          ...item,
+          author_name: profile.full_name || 'Usuário',
+          author_avatar: profile.avatar_url,
+          author_username: profile.username || 'usuario',
+          post_type: item.post_type || item.media_type || 'text',
+          reposted_by_name: reposter ? reposter.full_name : null
+        };
+      }));
+    } else {
+      setPosts([]);
+    }
+    
+    setStoryGroups([]);
     
     setLoading(false);
   };
@@ -128,14 +156,14 @@ export default function FeedPage() {
         {/* Stories Section */}
         <StoriesBar 
           storyGroups={storyGroups}
-          currentUser={mockCurrentUser}
+          currentUser={currentUser}
           onAddStory={() => setShowStoryCreator(true)}
           onViewGroup={(group: any) => setViewingStoryGroup(group)}
         />
 
         {/* Create Post Section (Desktop View) */}
         <div className="hidden sm:block">
-           <CreatePost user={mockCurrentUser} onPostCreated={loadData} />
+           <CreatePost user={currentUser} onPostCreated={loadData} />
         </div>
 
 
@@ -148,7 +176,7 @@ export default function FeedPage() {
             <PostCard 
               key={post.id} 
               post={post} 
-              currentUser={mockCurrentUser} 
+              currentUser={currentUser} 
               onDeleted={loadData}
               onUpdated={loadData}
             />
@@ -175,14 +203,14 @@ export default function FeedPage() {
       <MobilePostSheet 
         open={mobilePostOpen} 
         onClose={() => setMobilePostOpen(false)} 
-        user={mockCurrentUser}
+        user={currentUser}
         onPostCreated={loadData}
       />
 
       <StoryCreator 
         open={showStoryCreator} 
         onClose={() => setShowStoryCreator(false)} 
-        user={mockCurrentUser}
+        user={currentUser}
         onCreated={loadData}
       />
 
@@ -190,7 +218,7 @@ export default function FeedPage() {
         <StoryViewer 
           storyGroups={storyGroups}
           startUserIndex={storyGroups.indexOf(viewingStoryGroup)}
-          currentUser={mockCurrentUser}
+          currentUser={currentUser}
           onClose={() => setViewingStoryGroup(null)}
         />
       )}

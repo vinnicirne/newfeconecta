@@ -15,7 +15,18 @@ export default function UsersPage() {
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isFollowingSelected, setIsFollowingSelected] = useState(false);
   const PAGE_SIZE = 15;
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('profiles').select('*').eq('id', user.id).single()
+          .then(({ data }) => setCurrentUser(data || user));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     fetchUsers();
@@ -65,6 +76,44 @@ export default function UsersPage() {
     };
     return map[g] || g || "—";
   };
+
+  const checkFollowStatus = async (targetId: string) => {
+    if (!currentUser) return;
+    const { data } = await supabase
+      .from('follows')
+      .select('id')
+      .eq('follower_id', currentUser.id)
+      .eq('following_id', targetId)
+      .maybeSingle();
+    setIsFollowingSelected(!!data);
+  };
+
+  const toggleFollow = async () => {
+    if (!currentUser || !selectedUser) return;
+    const oldState = isFollowingSelected;
+    setIsFollowingSelected(!oldState);
+
+    try {
+      if (oldState) {
+        await supabase.from('follows').delete()
+          .eq('follower_id', currentUser.id)
+          .eq('following_id', selectedUser.id);
+      } else {
+        await supabase.from('follows').insert({
+          follower_id: currentUser.id,
+          following_id: selectedUser.id
+        });
+      }
+    } catch (err) {
+      setIsFollowingSelected(oldState);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedUser) {
+      checkFollowStatus(selectedUser.id);
+    }
+  }, [selectedUser, currentUser]);
 
   return (
     <div className="pb-12">
@@ -243,6 +292,20 @@ export default function UsersPage() {
                       <p className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Seguindo</p>
                     </div>
                   </div>
+
+                  {currentUser?.id !== selectedUser.id && (
+                    <button 
+                      onClick={toggleFollow}
+                      className={cn(
+                        "w-full py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 uppercase tracking-widest",
+                        isFollowingSelected 
+                          ? "bg-gray-100 dark:bg-white/5 text-gray-500 border border-gray-200 dark:border-white/10"
+                          : "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20"
+                      )}
+                    >
+                      {isFollowingSelected ? "Seguindo" : "Seguir Perfil"}
+                    </button>
+                  )}
 
                   <div className="space-y-3">
                     <h4 className="text-xs font-black uppercase tracking-widest text-gray-500">Informações do Perfil</h4>

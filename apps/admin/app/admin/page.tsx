@@ -11,7 +11,8 @@ import {
   Heart,
   Target,
   Repeat,
-  LayoutDashboard
+  LayoutDashboard,
+  Link2
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -43,6 +44,7 @@ export default function DashboardPage() {
     totalPosts: 0,
     totalLumes: 0,
     totalReposts: 0,
+    totalFollows: 0,
     newToday: 0,
     hashtagCount: 0,
     topHashtags: [] as { tag: string, count: number }[]
@@ -115,11 +117,15 @@ export default function DashboardPage() {
       // Total de Republicações (Reposts)
       const { count: repostsCount } = await supabase.from('reposts').select('*', { count: 'exact', head: true });
 
+      // Total de Conexões (Follows)
+      const { count: followsCount } = await supabase.from('follows').select('*', { count: 'exact', head: true });
+
       setStats({
         totalUsers: userCount || 0,
         totalPosts: postCount || 0,
         totalLumes: lumesCount || 0,
         totalReposts: repostsCount || 0,
+        totalFollows: followsCount || 0,
         newToday: newToday || 0,
         hashtagCount: totalTags,
         topHashtags
@@ -187,6 +193,14 @@ export default function DashboardPage() {
           trend="up" 
           icon={Repeat} 
           color="bg-orange-500" 
+        />
+        <StatsCard 
+          title="Conexões (Follows)" 
+          value={loading ? "..." : stats.totalFollows.toLocaleString()} 
+          change={stats.totalFollows > 0 ? "Ativo" : "Aguardando"} 
+          trend="up" 
+          icon={Link2} 
+          color="bg-pink-500" 
         />
       </div>
 

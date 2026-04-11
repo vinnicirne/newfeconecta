@@ -54,6 +54,17 @@ export function Sidebar() {
     router.push("/login");
   };
 
+  const [adminProfile, setAdminProfile] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        supabase.from('profiles').select('*').eq('id', user.id).single()
+          .then(({ data }) => setAdminProfile(data || user));
+      }
+    });
+  }, []);
+
   return (
     <div 
       className={cn(
@@ -113,11 +124,13 @@ export function Sidebar() {
            "flex items-center gap-3 p-2 rounded-lg bg-white/5",
            isCollapsed ? "justify-center" : ""
          )}>
-           <div className="w-8 h-8 rounded-md bg-whatsapp-tealLight flex-shrink-0" />
+           <div className="w-8 h-8 rounded-md bg-whatsapp-tealLight flex-shrink-0 overflow-hidden">
+             {adminProfile?.avatar_url && <img src={adminProfile.avatar_url} className="w-full h-full object-cover" alt="" />}
+           </div>
            {!isCollapsed && (
              <div className="flex flex-col overflow-hidden">
-               <span className="text-xs font-medium truncate">Admin FéConecta</span>
-               <span className="text-[10px] text-gray-400 truncate">admin@feconecta.com.br</span>
+               <span className="text-xs font-medium truncate">{adminProfile?.full_name || adminProfile?.email || 'Conectando...'}</span>
+               <span className="text-[10px] text-gray-400 truncate">{adminProfile?.username ? `@${adminProfile.username}` : (adminProfile?.email || 'Aguarde')}</span>
              </div>
            )}
          </div>

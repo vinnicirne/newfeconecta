@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Flame,
   Mail,
@@ -15,10 +15,14 @@ import {
   ShieldCheck,
   ChevronLeft,
   Users,
+  CheckCircle2,
+  XCircle,
+  Loader2
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function RegisterPage() {
@@ -41,6 +45,8 @@ export default function RegisterPage() {
     accepted_terms: false,
   });
 
+  const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
+  const [emailStatus, setEmailStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const updateField = (key: string, value: any) => {
@@ -55,14 +61,83 @@ export default function RegisterPage() {
     }
   };
 
+  // Verificação de username em tempo real (Debounce)
+  useEffect(() => {
+    const checkUsername = async () => {
+      const username = formData.username.trim();
+      if (username.length < 3) {
+        setUsernameStatus('idle');
+        return;
+      }
+
+      setUsernameStatus('checking');
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', username.toLowerCase())
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao checar username:', error);
+        setUsernameStatus('idle');
+      } else if (data) {
+        setUsernameStatus('taken');
+      } else {
+        setUsernameStatus('available');
+      }
+    };
+
+    const timer = setTimeout(checkUsername, 500);
+    return () => clearTimeout(timer);
+  }, [formData.username]);
+
+  // Verificação de email em tempo real
+  useEffect(() => {
+    const checkEmail = async () => {
+      const email = formData.email.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setEmailStatus('idle');
+        return;
+      }
+
+      setEmailStatus('checking');
+
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('email', email.toLowerCase())
+          .maybeSingle();
+
+        if (error) {
+          console.error('Erro ao checar email:', error);
+          setEmailStatus('idle');
+        } else if (data) {
+          setEmailStatus('taken');
+        } else {
+          setEmailStatus('available');
+        }
+      } catch (err) {
+        console.error('Erro na verificação de email:', err);
+        setEmailStatus('idle');
+      }
+    };
+
+    const timer = setTimeout(checkEmail, 800);
+    return () => clearTimeout(timer);
+  }, [formData.email]);
+
   const validateStep1 = () => {
     const errs: Record<string, string> = {};
     if (!formData.first_name.trim()) errs.first_name = "Nome é obrigatório";
     if (!formData.last_name.trim()) errs.last_name = "Sobrenome é obrigatório";
     if (!formData.username.trim()) errs.username = "Nome de usuário é obrigatório";
+    else if (usernameStatus === 'taken') errs.username = "Este nome de usuário já está em uso";
+    else if (usernameStatus === 'checking') errs.username = "Verificando disponibilidade...";
     if (!formData.birthdate) errs.birthdate = "Data de nascimento é obrigatória";
     if (!formData.gender) errs.gender = "Selecione o gênero";
-    if (!formData.church.trim()) errs.church = "Igreja é obrigatória";
+    // Igreja removida da validação obrigatória
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -90,67 +165,80 @@ export default function RegisterPage() {
   const handleRegister = async () => {
     if (!formData.accepted_terms) {
       toast.error("Você precisa aceitar os Termos de Uso e Política de Privacidade.");
+      setLoading(false);
       return;
     }
 
     setLoading(true);
+    
+    const registrationMetadata = {
+      first_name: formData.first_name.trim(),
+      last_name: formData.last_name.trim(),
+      full_name: `${formData.first_name.trim()} ${formData.last_name.trim()}`,
+      username: formData.username.toLowerCase().trim(),
+      birthdate: formData.birthdate,   // Nosso padrão
+      birth_date: formData.birthdate,  // Alias para gatilhos antigos
+      gender: formData.gender,
+      church: formData.church.trim() || null,
+    };
+    
+    console.log("🚀 Enviando para o Auth (JSON):", JSON.stringify(registrationMetadata, null, 2));
+    
     try {
-      // 1. Verifica se username já existe
-      const { data: existingUser } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("username", formData.username.toLowerCase())
-        .single();
-
-      if (existingUser) {
-        toast.error("Este nome de usuário já está em uso.");
-        setStep(1);
+      if (emailStatus === 'taken') {
+        toast.error("Este e-mail já está cadastrado.");
+        setStep(2);
         setLoading(false);
         return;
       }
 
-      // 2. Cria o usuário no Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
+        options: {
+          data: registrationMetadata
+        }
       });
 
-      if (authError) throw authError;
-
-      // 3. Cria o perfil na tabela profiles
-      if (authData.user) {
-        const profileData = {
-          id: authData.user.id,
-          full_name: `${formData.first_name.trim()} ${formData.last_name.trim()}`,
-          username: formData.username.toLowerCase().trim(),
-          email: formData.email.trim(),
-          birthdate: formData.birthdate,
-          church: formData.church.trim(),
-          gender: formData.gender,
-          accepted_terms: true,
-          accepted_terms_at: new Date().toISOString(),
-          avatar_url: null,
-          bio: null,
-          followers_count: 0,
-          following_count: 0,
-          posts_count: 0,
-        };
-
-        const { error: profileError } = await supabase
-          .from("profiles")
-          .insert(profileData);
-
-        if (profileError) throw profileError;
+      if (authError) {
+        console.error("❌ Erro Detalhado do Supabase Auth:", {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name
+        });
+        throw authError;
       }
 
-      toast.success("Conta criada com sucesso! Verifique seu e-mail para confirmar.");
-      router.push("/login");
+      if (!authData.user) throw new Error("Falha ao criar usuário (User null).");
+
+      const profileData = {
+        id: authData.user.id,
+        first_name: formData.first_name.trim(),
+        last_name: formData.last_name.trim(),
+        full_name: `${formData.first_name.trim()} ${formData.last_name.trim()}`,
+        username: formData.username.toLowerCase().trim(),
+        email: formData.email.toLowerCase().trim(),
+        birthdate: formData.birthdate,
+        church: formData.church.trim() || null,
+        gender: formData.gender,
+        accepted_terms: true,
+        accepted_terms_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("🚀 Fazendo Upsert do Perfil...", profileData);
+
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(profileData, { onConflict: 'id' });
+
+      if (profileError) throw profileError;
+
+      toast.success("Conta criada! Verifique seu e-mail.");
+      router.push("/login?registered=true");
     } catch (err: any) {
-      if (err.message?.includes("already registered")) {
-        toast.error("Este e-mail já está cadastrado.");
-      } else {
-        toast.error(err.message || "Erro ao criar conta.");
-      }
+      console.error("❌ Falha Total no Registro:", err);
+      toast.error(err.message || "Erro ao criar conta.");
     } finally {
       setLoading(false);
     }
@@ -182,13 +270,12 @@ export default function RegisterPage() {
           {[1, 2, 3].map((s) => (
             <div
               key={s}
-              className={`h-1.5 rounded-full transition-all duration-300 ${
-                s === step
+              className={`h-1.5 rounded-full transition-all duration-300 ${s === step
                   ? "w-10 bg-whatsapp-green"
                   : s < step
-                  ? "w-6 bg-whatsapp-teal"
-                  : "w-6 bg-white/10"
-              }`}
+                    ? "w-6 bg-whatsapp-teal"
+                    : "w-6 bg-white/10"
+                }`}
             />
           ))}
         </div>
@@ -245,9 +332,25 @@ export default function RegisterPage() {
                     onChange={(e) =>
                       updateField("username", e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))
                     }
-                    className={errors.username ? errorFieldClass : fieldClass}
+                    className={cn(
+                      errors.username ? errorFieldClass : fieldClass,
+                      "pr-10",
+                      usernameStatus === "available" && "border-green-500/50 focus:border-green-500/50"
+                    )}
                     placeholder="nome_usuario"
                   />
+                  {/* Ícones de Feedback */}
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center bg-transparent z-20 pointer-events-none">
+                    {usernameStatus === "checking" && (
+                      <Loader2 className="w-4 h-4 text-whatsapp-teal animate-spin" />
+                    )}
+                    {usernameStatus === "available" && formData.username.length >= 3 && (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 animate-in zoom-in duration-300" />
+                    )}
+                    {usernameStatus === "taken" && (
+                      <XCircle className="w-4 h-4 text-red-500 animate-in zoom-in duration-300" />
+                    )}
+                  </div>
                 </div>
                 {errors.username && <p className="text-red-400 text-[11px] ml-1">{errors.username}</p>}
               </div>
@@ -289,18 +392,17 @@ export default function RegisterPage() {
 
               {/* Igreja */}
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 ml-1">Igreja</label>
+                <label className="text-xs font-bold text-gray-400 ml-1">Igreja (Opcional)</label>
                 <div className="relative">
                   <Church className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                   <input
                     type="text"
                     value={formData.church}
                     onChange={(e) => updateField("church", e.target.value)}
-                    className={errors.church ? errorFieldClass : fieldClass}
-                    placeholder="Nome da sua igreja"
+                    className={fieldClass}
+                    placeholder="Nome da sua igreja (se houver)"
                   />
                 </div>
-                {errors.church && <p className="text-red-400 text-[11px] ml-1">{errors.church}</p>}
               </div>
             </div>
           )}

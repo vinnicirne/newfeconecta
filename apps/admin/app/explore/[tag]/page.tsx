@@ -120,6 +120,7 @@ export default function ExploreHashtagPage() {
                 post={{
                   ...post,
                   author_name: post.author?.full_name || post.author?.username || 'Usuário',
+                  author_username: post.author?.username || 'user',
                   author_id: post.author_id,
                   author_avatar: post.author?.avatar_url,
                   created_date: post.created_at

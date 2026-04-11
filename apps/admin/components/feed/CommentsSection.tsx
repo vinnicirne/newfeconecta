@@ -23,17 +23,40 @@ export default function CommentsSection({ postId, user }: any) {
 
   const fetchComments = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: commentsData, error } = await supabase
         .from('comments')
-        .select(`
-          *,
-          author:profile_id (id, full_name, avatar_url, username)
-        `)
+        .select('*')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      setComments(data || []);
+      
+      const rawComments = commentsData || [];
+      if (rawComments.length > 0) {
+        const userIds = Array.from(new Set(rawComments.map((c: any) => c.profile_id || c.user_id).filter(Boolean)));
+        
+        let profilesMap: Record<string, any> = {};
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, avatar_url, username')
+            .in('id', userIds);
+            
+          profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+            acc[p.id] = p;
+            return acc;
+          }, {});
+        }
+        
+        const mappedComments = rawComments.map((c: any) => ({
+          ...c,
+          author: profilesMap[c.profile_id || c.user_id] || { full_name: 'Usuário' }
+        }));
+        
+        setComments(mappedComments);
+      } else {
+        setComments([]);
+      }
     } catch (err) {
       console.error("Error fetching comments:", err);
     }

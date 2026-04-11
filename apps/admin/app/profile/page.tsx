@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { ImageCropperModal } from "@/components/profile/ImageCropperModal";
 import { CreateHighlightModal } from "@/components/profile/CreateHighlightModal";
+import { toast } from "sonner";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -21,6 +22,7 @@ export default function ProfilePage() {
   const [likedPosts, setLikedPosts] = useState<any[]>([]);
   const [savedPosts, setSavedPosts] = useState<any[]>([]);
   const [isHighlightModalOpen, setIsHighlightModalOpen] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   
   // Cropper States
   const [cropperFile, setCropperFile] = useState<string | null>(null);
@@ -37,9 +39,14 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     setLoading(true);
-    // Para teste, pegamos o usuário mock ou o real logado
     const { data: { user: authUser } } = await supabase.auth.getUser();
-    const userId = authUser?.id || '296f0f37-c8b8-4ad1-855c-4625f3f14731';
+    
+    if (!authUser) {
+      router.push('/login');
+      return;
+    }
+
+    const userId = authUser.id;
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -49,31 +56,51 @@ export default function ProfilePage() {
 
     if (profile) {
       setUser(profile);
-    } else {
-      // Se não existir o registro do admin, criamos ele agora para parar de resetar
-      const defaultData = {
-        id: userId,
-        full_name: "Jonathan Scott",
-        username: "john_scott",
-        avatar_url: "https://i.pravatar.cc/150?u=jonathan",
-        bio: "Creative/Artistic\nApaixonado por conectar pessoas através da fé.",
-        followers_count: 1251,
-        following_count: 763,
-        posts_count: 5,
-        website_url: "www.johnscott.com",
-        church: "Igreja FéConecta"
-      };
+      // Verifica se segue o perfil
+      const { data: follow } = await supabase
+        .from('follows')
+        .select('id')
+        .eq('follower_id', userId)
+        .eq('following_id', profile.id)
+        .maybeSingle();
+      setIsFollowing(!!follow);
 
-      if (userId === '296f0f37-c8b8-4ad1-855c-4625f3f14731') {
-         await supabase.from('profiles').insert(defaultData);
-      }
-      setUser(defaultData);
+    } else {
+      // Perfil não encontrado no banco
+      toast.error("Perfil não encontrado. Por favor, complete seu cadastro.");
     }
     setLoading(false);
     fetchHighlights(userId);
     fetchUserPosts(userId);
     fetchLikedPosts(userId);
     fetchSavedPosts(userId);
+  };
+
+  const toggleFollow = async () => {
+    if (!user) return;
+    const authId = (await supabase.auth.getUser()).data.user?.id;
+    if (!authId) return;
+
+    const oldFollowing = isFollowing;
+    setIsFollowing(!oldFollowing);
+
+    try {
+      if (oldFollowing) {
+        const { error } = await supabase.from('follows').delete()
+          .eq('follower_id', authId)
+          .eq('following_id', user.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('follows').insert({
+          follower_id: authId,
+          following_id: user.id
+        });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setIsFollowing(oldFollowing);
+      toast.error("Erro ao processar seguimento");
+    }
   };
 
   const fetchSavedPosts = async (userId: string) => {
@@ -344,6 +371,19 @@ export default function ProfilePage() {
           >
             Editar Perfil
           </button>
+
+          <button 
+            onClick={toggleFollow}
+            className={cn(
+              "flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 uppercase tracking-wide",
+              isFollowing 
+                ? "bg-white/5 border border-white/10 text-gray-400" 
+                : "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20"
+            )}
+          >
+            {isFollowing ? "Seguindo" : "Seguir"}
+          </button>
+
           <button className="w-10 bg-white/10 hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-white/5 active:scale-95">
             <ChevronDown className="w-4 h-4" />
           </button>

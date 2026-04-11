@@ -71,8 +71,11 @@ export default function CreatePost({ user, onPostCreated }: any) {
   const handleTextSubmit = async (data: any) => {
     setIsSubmitting(true);
     try {
-      // Use a consistent UUID for the mock admin if no real user exists
-      const userId = user?.id && user.id.length > 20 ? user.id : '296f0f37-c8b8-4ad1-855c-4625f3f14731';
+      if (!user?.id) {
+        toast.error("Você precisa estar logado para publicar.");
+        return;
+      }
+      const userId = user.id;
       
       const { error } = await supabase.from('posts').insert({
         author_id: userId,
@@ -109,7 +112,11 @@ export default function CreatePost({ user, onPostCreated }: any) {
 
       console.log(`🚀 Preparando Post [${data.post_type}]: URL final ->`, mediaUrl);
 
-      const userId = user?.id && user.id.length > 20 ? user.id : '296f0f37-c8b8-4ad1-855c-4625f3f14731';
+      if (!user?.id) {
+        toast.error("Você precisa estar logado para publicar.");
+        return;
+      }
+      const userId = user.id;
 
       const { error } = await supabase.from('posts').insert({
         author_id: userId,
@@ -141,7 +148,11 @@ export default function CreatePost({ user, onPostCreated }: any) {
       const type = file.type.startsWith('video') ? 'video' : 'image';
       const mediaUrl = await uploadMedia(file, type);
 
-      const userId = user?.id && user.id.length > 20 ? user.id : '296f0f37-c8b8-4ad1-855c-4625f3f14731';
+      if (!user?.id) {
+        toast.error("Você precisa estar logado para publicar.");
+        return;
+      }
+      const userId = user.id;
 
       const { error } = await supabase.from('posts').insert({
         author_id: userId,

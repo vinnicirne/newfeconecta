@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import CommentsSection from './CommentsSection';
@@ -10,42 +10,38 @@ import 'moment/locale/pt-br';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { useRef } from 'react';
 
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
 
 export default function PostCard({ post, currentUser, onDeleted, onUpdated }: any) {
   const [showComments, setShowComments] = useState(false);
-  const [likes, setLikes] = useState<string[]>(post.likes || []);
+  const [likes, setLikes] = useState<string[]>(Array.isArray(post.likes) ? post.likes : []);
   const [isExpanded, setIsExpanded] = useState(false);
   const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const isAudio = post.post_type === 'audio' || post.media_type === 'audio' || post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus)/i);
-    if (isAudio) {
-      console.log('🔊 Áudio Detectado:', { id: post.id, type: post.post_type, med: post.media_type, url: post.media_url });
-    }
-  }, [post.id]);
-
-  console.log(`Post [${post.id}] media_url:`, post.media_url);
-
-  const userId = currentUser?.id || currentUser?.email;
-  const isLiked = userId ? likes.includes(userId) : false;
-  const isOwner = post.author_id === currentUser?.email
-    || post.author_id === currentUser?.id
-    || currentUser?.role === 'admin';
 
   const [repostsCount, setRepostsCount] = useState(Number(post.reposts_count) || 0);
   const [isReposted, setIsReposted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [isSaved, setIsSaved] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const userId = currentUser?.id;
+  const isLiked = userId ? likes.includes(userId) : false;
+  const isAuthor = post.author_id === userId;
+  const isAdmin = currentUser?.role === 'admin';
+  const isOwner = isAuthor || isAdmin;
+
+  // Áudio
+  const isAudio = post.post_type === 'audio' ||
+    post.media_type === 'audio' ||
+    post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -70,42 +66,85 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const likeCount = likes?.length || 0;
 
   const checkIfSaved = async () => {
-    if (!currentUser) return;
+    if (!userId) return;
     const { data } = await supabase
       .from('saved_posts')
       .select('id')
       .eq('post_id', post.id)
-      .eq('user_id', currentUser.id)
+      .eq('user_id', userId)
       .maybeSingle();
     setIsSaved(!!data);
   };
 
   const checkIfReposted = async () => {
-    if (!currentUser) return;
+    if (!userId) return;
     const { data } = await supabase
       .from('reposts')
       .select('id')
       .eq('post_id', post.id)
-      .eq('profile_id', currentUser.id)
+      .eq('profile_id', userId)
       .maybeSingle();
     setIsReposted(!!data);
+  };
+
+  const checkIfFollowing = async () => {
+    if (!userId || isOwner || !post.author_id) return;
+    const { data } = await supabase
+      .from('follows')
+      .select('id')
+      .eq('follower_id', userId)
+      .eq('following_id', post.author_id)
+      .maybeSingle();
+    setIsFollowing(!!data);
   };
 
   useEffect(() => {
     checkIfReposted();
     checkIfSaved();
-  }, [post.id, currentUser]);
+    checkIfFollowing();
+  }, [post.id, userId]);
+
+  const toggleFollow = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!userId) { toast.error("Faça login para seguir"); return; }
+    if (isOwner || !post.author_id) return;
+
+    const oldFollowing = isFollowing;
+    setIsFollowing(!oldFollowing);
+
+    try {
+      if (oldFollowing) {
+        const { error } = await supabase
+          .from('follows')
+          .delete()
+          .eq('follower_id', userId)
+          .eq('following_id', post.author_id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('follows')
+          .insert({ follower_id: userId, following_id: post.author_id });
+        if (error) throw error;
+      }
+    } catch (err) {
+      setIsFollowing(oldFollowing);
+      toast.error('Erro ao atualizar seguidor.');
+    }
+  };
 
   const toggleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!currentUser) return;
+    if (!userId) { toast.error("Faça login para salvar"); return; }
+    
     const oldSaved = isSaved;
     setIsSaved(!oldSaved);
     try {
       if (oldSaved) {
-        await supabase.from('saved_posts').delete().eq('post_id', post.id).eq('user_id', currentUser.id);
+        const { error } = await supabase.from('saved_posts').delete().eq('post_id', post.id).eq('user_id', userId);
+        if (error) throw error;
       } else {
-        await supabase.from('saved_posts').insert({ post_id: post.id, user_id: currentUser.id });
+        const { error } = await supabase.from('saved_posts').insert({ post_id: post.id, user_id: userId });
+        if (error) throw error;
       }
     } catch (err) {
       setIsSaved(oldSaved);
@@ -114,30 +153,26 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   };
 
   const toggleRepost = async () => {
-    if (!currentUser) return;
+    if (!userId) { toast.error("Faça login para republicar"); return; }
 
     const oldReposted = isReposted;
     const oldLocalCount = repostsCount;
 
-    // Optimistic UI
     setIsReposted(!oldReposted);
-    setRepostsCount(oldReposted ? oldLocalCount - 1 : oldLocalCount + 1);
+    setRepostsCount(oldReposted ? Math.max(0, oldLocalCount - 1) : oldLocalCount + 1);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Não autenticado");
-
       if (oldReposted) {
         const { error } = await supabase
           .from('reposts')
           .delete()
           .eq('post_id', post.id)
-          .eq('profile_id', user.id);
+          .eq('profile_id', userId);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from('reposts')
-          .insert({ post_id: post.id, profile_id: user.id });
+          .insert({ post_id: post.id, profile_id: userId });
         if (error) throw error;
       }
     } catch (err) {
@@ -149,13 +184,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   };
 
   const toggleLike = async () => {
-    if (!currentUser) return;
+    if (!userId) { toast.error("Faça login para curtir"); return; }
 
-    // Usamos o ID do usuário para maior consistência
-    const userId = currentUser.id || currentUser.email;
-    const newLikes = isLiked ? likes.filter(e => e !== userId) : [...likes, userId];
+    const oldLikes = [...likes];
+    const newLikes = isLiked
+      ? likes.filter((id: string) => id !== userId)
+      : [...likes, userId];
 
-    // Atualização local imediata (Optimistic UI)
     setLikes(newLikes);
 
     try {
@@ -167,8 +202,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       if (error) throw error;
     } catch (err) {
       console.error("Error updating likes:", err);
-      // Revertemos em caso de erro
-      setLikes(likes);
+      setLikes(oldLikes); // revert exactly back to old array
+      toast.error("Não foi possível curtir a publicação");
     }
   };
 
@@ -197,15 +232,12 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   };
 
   const handleShare = () => {
-    const postUrl = window.location.origin + '/admin/feed/post/' + post.id;
+    const postUrl = window.location.origin + '/post/' + post.id;
     if (navigator.share) {
-      navigator.share({
-        title: 'FéConecta Post',
-        url: postUrl
-      }).catch(console.error);
+      navigator.share({ title: 'FéConecta Post', url: postUrl }).catch(console.error);
     } else {
       navigator.clipboard.writeText(postUrl);
-      toast.success("Link copiado para a área de transferência!");
+      toast.success("Link copiado!");
     }
   };
 
@@ -216,7 +248,6 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     const shouldTruncate = content.length > MAX_CHAR && !isExpanded;
     const displayContent = shouldTruncate ? content.substring(0, MAX_CHAR) + '...' : content;
 
-    // Divide o texto mantendo as quebras de linha e detectando hashtags/mensões
     const parts = displayContent.split(/(#[\wáàâãéèêíïóôõöúç]+|@[\wáàâãéèêíïóôõöúç]+|\n)/g);
 
     return (
@@ -249,6 +280,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
           return part;
         })}
+
         {content.length > MAX_CHAR && (
           <button
             onClick={(e) => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
@@ -262,7 +294,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   };
 
   return (
-    <div className="bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden whatsapp-shadow">
+    <div className="bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden">
       {/* Header */}
       {post.is_repost && (
         <div className="px-4 pt-2 -mb-1 flex items-center gap-1.5 text-[10px] text-whatsapp-green font-bold uppercase tracking-wider">
@@ -270,21 +302,48 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           <span>{post.reposted_by_name || 'Alguém'} republicou</span>
         </div>
       )}
+
       <div className="flex items-center gap-3 px-4 py-3">
-        <div className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0 border border-gray-100 dark:border-white/10">
-          {post.author_avatar
-            ? <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
-            : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-whatsapp-tealLight flex items-center justify-center text-white font-bold text-xs">{(post.author_name || 'U')[0]}</div>
-          }
-        </div>
+        <Link href={`/profile/${post.author_username}`} className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0 border border-gray-100 dark:border-white/10 hover:opacity-80 transition-opacity">
+          {post.author_avatar ? (
+            <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-whatsapp-tealLight flex items-center justify-center text-white font-bold text-xs">
+              {(post.author_name || 'U')[0]}
+            </div>
+          )}
+        </Link>
+
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold leading-tight truncate dark:text-white">{post.author_name}</p>
+          <Link href={`/profile/${post.author_username}`} className="block group/name">
+            <p className="text-sm font-bold leading-tight truncate dark:text-white group-hover/name:text-whatsapp-teal dark:group-hover/name:text-whatsapp-green transition-colors">
+              {post.author_name}
+            </p>
+          </Link>
           <div className="flex items-center gap-1.5">
-            <p className="text-[10px] text-whatsapp-teal dark:text-whatsapp-green font-medium">@{post.author_username}</p>
+            <Link href={`/profile/${post.author_username}`} className="text-[10px] text-whatsapp-teal dark:text-whatsapp-green font-medium hover:underline">
+              @{post.author_username}
+            </Link>
             <span className="text-[10px] text-gray-400">•</span>
-            <p className="text-[10px] text-gray-500 font-medium">{mounted ? moment(post.created_date).fromNow() : '...'}</p>
+            <p className="text-[10px] text-gray-500 font-medium">
+              {mounted ? moment(post.created_date || post.created_at).fromNow() : '...'}
+            </p>
           </div>
         </div>
+
+        {!isAuthor && (
+          <button
+            onClick={toggleFollow}
+            className={cn(
+              "text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full border transition-all active:scale-95",
+              isFollowing
+                ? "border-gray-300 dark:border-white/20 text-gray-400 dark:text-gray-500"
+                : "border-whatsapp-teal text-whatsapp-teal dark:border-whatsapp-green dark:text-whatsapp-green hover:bg-whatsapp-teal hover:text-white dark:hover:bg-whatsapp-green dark:hover:text-whatsapp-dark"
+            )}
+          >
+            {isFollowing ? 'Seguindo' : 'Seguir'}
+          </button>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -310,64 +369,55 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </DropdownMenu>
       </div>
 
-      {/* Content */}
-      <div className="px-4 py-2">
-        {post.post_type === 'text' && (
-          <div
-            className="rounded-2xl p-6 text-center"
-            style={{
-              background: post.background || 'transparent',
-              color: post.background ? 'white' : 'inherit'
-            }}
-          >
-            <div className={cn(
-              "text-lg font-bold leading-relaxed",
-              post.background ? "text-white" : "text-gray-900 dark:text-gray-100"
-            )}>
-              {renderContent(post.content)}
+      {/* ==================== CONTENT - CORRIGIDO ==================== */}
+      <div className="px-4 py-3">
+        {/* Texto principal - Agora funciona para posts normais */}
+        {post.content && (
+          <div className="text-[15.2px] leading-relaxed text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
+            {renderContent(post.content)}
+          </div>
+        )}
+
+        {/* Imagem */}
+        {post.media_url &&
+          (post.post_type === 'image' ||
+            post.post_type === 'photo' ||
+            post.media_type === 'image') && (
+            <div className="rounded-2xl overflow-hidden mt-3 border border-white/10">
+              <img
+                src={post.media_url}
+                className="w-full h-auto object-cover max-h-[520px]"
+                alt="Imagem do post"
+              />
             </div>
-          </div>
-        )}
+          )}
 
-        {(post.post_type === 'image' || post.post_type === 'photo') && post.media_url && !post.media_url.startsWith('blob:') && (
-          <div className="rounded-2xl overflow-hidden mb-2">
-            <img src={post.media_url} className="w-full h-auto object-cover max-h-[500px]" alt="" />
-          </div>
-        )}
+        {/* Vídeo */}
+        {post.media_url &&
+          (post.post_type === 'video' || post.media_type === 'video') && (
+            <div className="rounded-2xl overflow-hidden mt-3">
+              <video
+                controls
+                className="w-full rounded-2xl"
+                src={post.media_url}
+              />
+            </div>
+          )}
 
-        {post.post_type === 'video' && post.media_url && (
-          <div className="rounded-2xl overflow-hidden mb-2 bg-black aspect-[9/16] flex items-center justify-center relative">
-            <video
-              controls
-              autoPlay
-              muted
-              loop
-              playsInline
-              webkit-playsinline="true"
-              preload="auto"
-              disablePictureInPicture
-              controlsList="nopictureinpicture"
-              className="w-full h-full object-cover"
-            >
-              <source src={post.media_url} />
-              Seu navegador não suporta vídeos.
-            </video>
-          </div>
-        )}
-
-        {/* Áudio - Player Moderno com Waveform Vibrante */}
-        {post.media_url && (post.post_type === 'audio' || post.media_type === 'audio' || post.media_url.match(/\.(mp3|wav|m4a|ogg|aac|weba)(\?|$)/i)) && (
-          <div className="bg-[#111b21] p-4 rounded-2xl border border-white/5 shadow-2xl mt-2 overflow-hidden relative group transition-all hover:bg-[#182229]">
-            <style dangerouslySetInnerHTML={{ __html: `
+        {/* Áudio */}
+        {isAudio && post.media_url && (
+          <div className="bg-[#111b21] p-4 rounded-2xl border border-white/5 shadow-2xl mt-3 overflow-hidden relative group transition-all hover:bg-[#182229]">
+            <style dangerouslySetInnerHTML={{
+              __html: `
               @keyframes audio-wave-anim {
                 0%, 100% { height: 6px; }
                 50% { height: 24px; }
               }
               .wave-bar-anim { animation: audio-wave-anim 0.8s ease-in-out infinite; }
             `}} />
-            
+
             <div className="flex items-center gap-4 relative z-10">
-              <button 
+              <button
                 onClick={toggleAudio}
                 className="w-11 h-11 rounded-full bg-whatsapp-teal flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 transition-transform active:scale-90 hover:scale-105"
               >
@@ -376,13 +426,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
               <div className="flex-1 flex items-center gap-[3px] h-10">
                 {[...Array(30)].map((_, i) => (
-                  <div 
+                  <div
                     key={i}
                     className={cn(
                       "w-[3px] rounded-full transition-all duration-300",
                       isPlaying ? "wave-bar-anim bg-whatsapp-teal" : "h-[6px] bg-whatsapp-teal/30"
                     )}
-                    style={{ 
+                    style={{
                       animationDelay: `${i * 0.05}s`,
                       backgroundColor: audioProgress > (i / 30) * 100 ? '#00A884' : undefined,
                       opacity: audioProgress > (i / 30) * 100 ? 1 : 0.3
@@ -396,9 +446,9 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               </span>
             </div>
 
-            <audio 
+            <audio
               ref={audioRef}
-              src={post.media_url} 
+              src={post.media_url}
               onTimeUpdate={() => audioRef.current && setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)}
               onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
               className="hidden"
@@ -426,7 +476,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             className="flex items-center gap-1.5 text-gray-400 hover:text-whatsapp-teal transition-all"
           >
             <MessageCircle className="w-5 h-5" />
-            <span className="text-xs font-bold">{post.comments_count || 0}</span>
+            <span className="text-xs font-bold">{commentCount}</span>
           </button>
 
           <button
@@ -453,9 +503,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </button>
       </div>
 
-      {showComments && (
-        <CommentsSection postId={post.id} user={currentUser} />
-      )}
+      {showComments && <CommentsSection postId={post.id} user={currentUser} />}
     </div>
   );
 }
