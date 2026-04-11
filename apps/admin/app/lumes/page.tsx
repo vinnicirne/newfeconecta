@@ -62,7 +62,7 @@ export default function LumesPage() {
 
     if (postsData && postsData.length > 0) {
       // 1. Buscar autores em lote
-      const userIds = [...new Set(postsData.map(p => p.author_id || p.user_id).filter(Boolean))];
+      const userIds = Array.from(new Set(postsData.map((p: any) => p.author_id || p.user_id).filter(Boolean)));
       const { data: profiles } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, username')

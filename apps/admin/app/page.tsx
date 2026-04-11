@@ -151,7 +151,7 @@ export default function RootPage() {
 
       if (postsData && postsData.length > 0) {
         // 2. Extrair todos os IDs de usuários únicos
-        const userIds = [...new Set(postsData.map(p => p.author_id || p.user_id || p.profile_id).filter(Boolean))];
+        const userIds = Array.from(new Set(postsData.map((p: any) => p.author_id || p.user_id || p.profile_id).filter(Boolean)));
         
         // 3. Buscar perfis em lote
         const { data: profiles, error: profilesError } = await supabase
@@ -206,7 +206,7 @@ export default function RootPage() {
         console.error("❌ Erro ao carregar mais posts:", postsError);
       } else if (postsData && postsData.length > 0) {
         // 2. Buscar perfis para os novos posts
-        const userIds = [...new Set(postsData.map(p => p.author_id || p.user_id || p.profile_id).filter(Boolean))];
+        const userIds = Array.from(new Set(postsData.map((p: any) => p.author_id || p.user_id || p.profile_id).filter(Boolean)));
         
         const { data: profiles } = await supabase
           .from('profiles')
