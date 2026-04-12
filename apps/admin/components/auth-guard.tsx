@@ -47,7 +47,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       } catch (err) {
         // Erro silencioso para rotas públicas (usuário não logado é esperado aqui)
         const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
-        
+
         if (!isPublicRoute) {
           await supabase.auth.signOut();
           router.replace("/login");
@@ -81,7 +81,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         <div className="w-16 h-16 rounded-full bg-whatsapp-teal/10 flex items-center justify-center mb-4">
           <Loader2 className="w-8 h-8 text-whatsapp-teal animate-spin" />
         </div>
-        <span className="text-sm font-bold text-gray-400 uppercase tracking-[0.3em] animate-pulse">Protegendo Conexão</span>
+        <span className="text-sm font-bold text-gray-400 uppercase tracking-[0.3em] animate-pulse">Carregando...</span>
       </div>
     );
   }

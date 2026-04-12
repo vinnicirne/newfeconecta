@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark } from 'lucide-react';
+import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import CommentsSection from './CommentsSection';
 import { supabase } from '@/lib/supabase';
@@ -20,7 +20,33 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [isExpanded, setIsExpanded] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // VIEWS FEATURE
+  const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
+  const hasViewedRef = useRef(false);
+
+  useEffect(() => {
+    setViewsCount(Number(post.views_count) || 0);
+  }, [post.views_count]);
+
+  const handlePlayMedia = async () => {
+    if (hasViewedRef.current) return;
+    hasViewedRef.current = true;
+    
+    setViewsCount(prev => prev + 1);
+
+    try {
+      await supabase.rpc('increment_view', { p_post_id: post.id });
+    } catch (e) {
+      console.error("Erro ao computar visualização", e);
+    }
+  };
+
   const [repostsCount, setRepostsCount] = useState(Number(post.reposts_count) || 0);
+
+  useEffect(() => {
+    setRepostsCount(Number(post.reposts_count) || 0);
+  }, [post.reposts_count]);
+
   const [isReposted, setIsReposted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
@@ -43,6 +69,11 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     post.media_type === 'audio' ||
     post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
 
+  // Vídeo
+  const isVideo = post.post_type === 'video' ||
+    post.media_type === 'video' ||
+    post.media_url?.match(/\.(mp4|webm|mov|mkv)/i);
+
   const toggleAudio = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (audioRef.current) {
@@ -50,6 +81,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         audioRef.current.pause();
       } else {
         audioRef.current.play();
+        handlePlayMedia(); // Aciona o gatilho viral 
       }
       setIsPlaying(!isPlaying);
     }
@@ -248,7 +280,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     const shouldTruncate = content.length > MAX_CHAR && !isExpanded;
     const displayContent = shouldTruncate ? content.substring(0, MAX_CHAR) + '...' : content;
 
-    const parts = displayContent.split(/(#[\wáàâãéèêíïóôõöúç]+|@[\wáàâãéèêíïóôõöúç]+|\n)/g);
+    const parts = displayContent.split(/(#[\wáàâãéèêíïóôõöúç-]+|@[\w.-]+|\n)/g);
 
     return (
       <>
@@ -262,6 +294,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               <Link
                 key={i}
                 href={`/explore/${tag}`}
+                onClick={(e) => e.stopPropagation()}
                 className="text-whatsapp-teal dark:text-whatsapp-green hover:underline cursor-pointer font-medium"
               >
                 {part}
@@ -272,9 +305,14 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           if (trimmed.startsWith('@')) {
             const username = trimmed.substring(1);
             return (
-              <a key={i} href={`/profile/${username}`} className="text-whatsapp-teal dark:text-whatsapp-green hover:underline font-bold">
+              <Link 
+                key={i} 
+                href={`/profile/${username}`} 
+                onClick={(e) => e.stopPropagation()}
+                className="text-whatsapp-teal dark:text-whatsapp-green hover:underline font-bold"
+              >
                 {part}
-              </a>
+              </Link>
             );
           }
 
@@ -393,13 +431,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           )}
 
         {/* Vídeo */}
-        {post.media_url &&
-          (post.post_type === 'video' || post.media_type === 'video') && (
-            <div className="rounded-2xl overflow-hidden mt-3">
+        {post.media_url && isVideo && (
+            <div className="rounded-2xl overflow-hidden mt-3 max-h-[550px] bg-black flex justify-center">
               <video
                 controls
-                className="w-full rounded-2xl"
+                className="w-full h-auto max-h-[550px]"
                 src={post.media_url}
+                onPlay={handlePlayMedia}
               />
             </div>
           )}
@@ -489,6 +527,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             <Repeat className="w-5 h-5" />
             <span className="text-xs font-bold">{repostsCount}</span>
           </button>
+
+          {(isAudio || isVideo) && (
+            <div className="flex items-center gap-1.5 text-gray-400 border-l border-gray-200 dark:border-white/10 pl-4 ml-1">
+              <Eye className="w-5 h-5" />
+              <span className="text-xs font-bold">{viewsCount}</span>
+            </div>
+          )}
         </div>
 
         <button

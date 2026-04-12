@@ -20,12 +20,15 @@ export default function TextEditorModal({ open, onClose, onSubmit }: any) {
   const [content, setContent] = useState('');
   const [bg, setBg] = useState<string | null>(null);
 
-  const handleSubmit = () => {
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const handleSubmit = async () => {
     if (!content.trim()) return;
-    onSubmit({ content, background: bg, post_type: 'text' });
+    setIsPublishing(true);
+    await onSubmit({ content, background: bg, post_type: 'text' });
     setContent('');
     setBg(null);
-    onClose();
+    setIsPublishing(false);
   };
 
   return (
@@ -75,8 +78,10 @@ export default function TextEditorModal({ open, onClose, onSubmit }: any) {
           </div>
 
           <div className="flex gap-3">
-            <Button variant="ghost" onClick={onClose} className="flex-1 rounded-2xl">Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={!content.trim()} className="flex-[2] rounded-2xl shadow-lg shadow-whatsapp-teal/20">Publicar Agora</Button>
+            <Button variant="ghost" onClick={onClose} disabled={isPublishing} className="flex-1 rounded-2xl">Cancelar</Button>
+            <Button onClick={handleSubmit} disabled={!content.trim() || isPublishing} className="flex-[2] rounded-2xl shadow-lg shadow-whatsapp-teal/20">
+              {isPublishing ? "Publicando..." : "Publicar Agora"}
+            </Button>
           </div>
         </div>
       </DialogContent>

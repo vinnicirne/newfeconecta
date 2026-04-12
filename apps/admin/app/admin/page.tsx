@@ -12,7 +12,8 @@ import {
   Target,
   Repeat,
   LayoutDashboard,
-  Link2
+  Link2,
+  Eye
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -45,6 +46,7 @@ export default function DashboardPage() {
     totalLumes: 0,
     totalReposts: 0,
     totalFollows: 0,
+    totalViews: 0,
     newToday: 0,
     hashtagCount: 0,
     topHashtags: [] as { tag: string, count: number }[]
@@ -120,12 +122,17 @@ export default function DashboardPage() {
       // Total de Conexões (Follows)
       const { count: followsCount } = await supabase.from('follows').select('*', { count: 'exact', head: true });
 
+      // Total de Visualizações acumuladas (Audios e Vídeos)
+      const { data: viewsData } = await supabase.from('posts').select('views_count');
+      const totalViews = viewsData?.reduce((acc, curr) => acc + (Number(curr.views_count) || 0), 0) || 0;
+
       setStats({
         totalUsers: userCount || 0,
         totalPosts: postCount || 0,
         totalLumes: lumesCount || 0,
         totalReposts: repostsCount || 0,
         totalFollows: followsCount || 0,
+        totalViews: totalViews,
         newToday: newToday || 0,
         hashtagCount: totalTags,
         topHashtags
@@ -201,6 +208,14 @@ export default function DashboardPage() {
           trend="up" 
           icon={Link2} 
           color="bg-pink-500" 
+        />
+        <StatsCard 
+          title="Visualizações" 
+          value={loading ? "..." : stats.totalViews.toLocaleString()} 
+          change="Real-time" 
+          trend="up" 
+          icon={Eye} 
+          color="bg-blue-600" 
         />
       </div>
 

@@ -7,7 +7,7 @@ import {
   Home, 
   PlusSquare, 
   PlaySquare, 
-  ShoppingBag, 
+  Search, 
   UserCircle2 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -20,7 +20,7 @@ export default function BottomNav() {
   const [user, setUser] = React.useState<any>(null);
 
   // Esconde a nav em páginas de autenticação e legais
-  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy"];
+  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy", "/messages"];
   const isHidden = hiddenRoutes.includes(pathname);
 
   React.useEffect(() => {
@@ -33,15 +33,15 @@ export default function BottomNav() {
 
   const navItems = [
     { icon: Home, href: "/", label: "Home" },
-    { icon: PlaySquare, href: "/lumes", label: "Lumes" },
+    { icon: Search, href: "/explore", label: "Explorar" },
     { icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
-    { icon: ShoppingBag, href: "/shop", label: "Loja" },
+    { icon: PlaySquare, href: "/lumes", label: "Lumes" },
     { icon: UserCircle2, href: "/profile", label: "Perfil" },
   ];
 
   return (
     <>
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-whatsapp-dark/80 backdrop-blur-xl border-t border-gray-100 dark:border-white/5 px-6 py-3 z-[100]">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-whatsapp-dark/80 backdrop-blur-xl border-t border-gray-100 dark:border-white/5 py-3 z-[100] px-6">
       <div className="flex items-center justify-between max-w-md mx-auto">
         {navItems.map((item) => {
           const isActive = pathname === item.href;

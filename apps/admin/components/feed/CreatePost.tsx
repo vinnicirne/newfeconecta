@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from 'react';
-import { Type, Image, Camera, Mic } from 'lucide-react';
+import { Type, Image, Camera, Mic, X } from 'lucide-react';
 import TextEditorModal from './TextEditorModal';
 import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
@@ -15,6 +15,8 @@ export default function CreatePost({ user, onPostCreated }: any) {
   const [cameraOpen, setCameraOpen] = useState(false);
   const [audioOpen, setAudioOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const compressImage = (file: File | Blob): Promise<Blob> => {
@@ -70,9 +72,11 @@ export default function CreatePost({ user, onPostCreated }: any) {
 
   const handleTextSubmit = async (data: any) => {
     setIsSubmitting(true);
+    setUploadProgress(90);
+    const toastId = toast.loading("Publicando...", { duration: 10000 });
     try {
       if (!user?.id) {
-        toast.error("Você precisa estar logado para publicar.");
+        toast.error("Você precisa estar logado para publicar.", { id: toastId });
         return;
       }
       const userId = user.id;
@@ -82,22 +86,30 @@ export default function CreatePost({ user, onPostCreated }: any) {
         user_id: userId,
         content: data.content,
         post_type: 'text',
+        background: data.background || null
       });
 
       if (error) throw error;
-      toast.success("Publicação enviada com sucesso!");
+      setUploadProgress(100);
+      toast.success("Publicação enviada com sucesso!", { id: toastId });
       onPostCreated?.();
       setTextOpen(false);
     } catch (err: any) {
+      setUploadProgress(0);
       console.error("Error creating text post:", err);
-      toast.error(`Erro ao publicar texto: ${err.message || 'Verifique se a tabela "posts" e o perfil existem.'}`);
+      toast.error(`Erro ao publicar texto: ${err.message}`, { id: toastId });
     } finally {
-      setIsSubmitting(false);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setUploadProgress(0);
+      }, 300);
     }
   };
 
   const handleMediaSubmit = async (data: any) => {
     setIsSubmitting(true);
+    setUploadProgress(90);
+    const toastId = toast.loading("Preparando publicação...", { duration: 20000 });
     try {
       let mediaUrl = data.media_url || "";
       
@@ -113,7 +125,7 @@ export default function CreatePost({ user, onPostCreated }: any) {
       console.log(`🚀 Preparando Post [${data.post_type}]: URL final ->`, mediaUrl);
 
       if (!user?.id) {
-        toast.error("Você precisa estar logado para publicar.");
+        toast.error("Você precisa estar logado para publicar.", { id: toastId });
         return;
       }
       const userId = user.id;
@@ -127,50 +139,67 @@ export default function CreatePost({ user, onPostCreated }: any) {
       });
 
       if (error) throw error;
-      toast.success("Mídia publicada com sucesso!");
+      setUploadProgress(100);
+      toast.success("Mídia publicada com sucesso!", { id: toastId });
       onPostCreated?.();
       setCameraOpen(false);
       setAudioOpen(false);
     } catch (err: any) {
+      setUploadProgress(0);
       console.error("Error creating media post:", err);
-      toast.error(`Erro ao enviar mídia: ${err.message || 'Verifique se o bucket "posts" existe e é público.'}`);
+      toast.error(`Erro ao enviar mídia: ${err.message}`, { id: toastId });
     } finally {
-      setIsSubmitting(false);
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setUploadProgress(0);
+      }, 300);
     }
   };
 
-  const handleGallery = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [pendingMedia, setPendingMedia] = useState<any>(null);
+  const [caption, setCaption] = useState("");
+
+  const handleGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const type = file.type.startsWith('video') ? 'video' : 'image';
+    const url = URL.createObjectURL(file);
+    setPendingMedia({ file, type, url });
+  };
+
+  const submitPendingPost = async () => {
+    if (!pendingMedia || !user?.id) return;
     
     setIsSubmitting(true);
+    setUploadProgress(90);
+    const toastId = toast.loading("Publicando seu poster...");
+    
     try {
-      const type = file.type.startsWith('video') ? 'video' : 'image';
-      const mediaUrl = await uploadMedia(file, type);
-
-      if (!user?.id) {
-        toast.error("Você precisa estar logado para publicar.");
-        return;
-      }
-      const userId = user.id;
-
+      const mediaUrl = await uploadMedia(pendingMedia.file, pendingMedia.type === 'video' ? 'videos' : 'images');
+      
       const { error } = await supabase.from('posts').insert({
-        author_id: userId,
-        user_id: userId,
-        content: "",
+        author_id: user.id,
+        user_id: user.id,
+        content: caption,
         media_url: mediaUrl,
-        post_type: type,
+        post_type: pendingMedia.type,
       });
 
       if (error) throw error;
-      toast.success("Arquivo enviado com sucesso!");
+      
+      setUploadProgress(100);
+      toast.success("Poster publicado com sucesso!", { id: toastId });
+      setPendingMedia(null);
+      setCaption("");
       onPostCreated?.();
-    } catch (err) {
-      console.error("Error uploading gallery file:", err);
-      toast.error("Erro ao enviar arquivo.");
+    } catch (err: any) {
+      setUploadProgress(0);
+      toast.error(`Erro ao publicar: ${err.message}`, { id: toastId });
     } finally {
-      setIsSubmitting(false);
-      if (fileRef.current) fileRef.current.value = "";
+      setTimeout(() => {
+        setIsSubmitting(false);
+        setUploadProgress(0);
+      }, 300);
     }
   };
 
@@ -183,6 +212,16 @@ export default function CreatePost({ user, onPostCreated }: any) {
 
   return (
     <>
+      {/* Barra de Progresso Global Progressiva */}
+      <div 
+        className={cn(
+          "fixed top-0 left-0 h-1 bg-whatsapp-green z-[99999] shadow-[0_0_10px_rgba(37,211,102,0.8)]",
+          uploadProgress === 0 ? "w-0 opacity-0 duration-0" : 
+          uploadProgress === 90 ? "w-[90%] opacity-100 ease-out duration-[15000ms]" : 
+          "w-full opacity-100 ease-out duration-300"
+        )}
+      />
+
       <div className={cn(
         "bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 rounded-2xl p-4 mx-4 mb-6 shadow-sm whatsapp-shadow transition-opacity",
         isSubmitting && "opacity-50 pointer-events-none"
@@ -195,27 +234,69 @@ export default function CreatePost({ user, onPostCreated }: any) {
             }
           </div>
           <button
-            onClick={() => setTextOpen(true)}
+            onClick={() => setIsExpanded(!isExpanded)}
             className="flex-1 text-left bg-gray-50 dark:bg-whatsapp-dark hover:bg-gray-100 dark:hover:bg-white/5 rounded-2xl px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400 transition-all font-medium border border-gray-100 dark:border-white/5"
           >
             {isSubmitting ? "Publicando..." : "O que você está pensando?"}
           </button>
         </div>
-        <div className="grid grid-cols-4 gap-2">
-          {actions.map(({ icon: Icon, label, color, onClick }) => (
-            <button
-              key={label}
-              onClick={onClick}
-              disabled={isSubmitting}
-              className="flex flex-col items-center gap-1.5 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all group"
-            >
-              <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-transform group-active:scale-90", color)}>
-                 <Icon className="w-5 h-5" />
-              </div>
-              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{label}</span>
-            </button>
-          ))}
-        </div>
+
+        {/* Pré-visualização de Mídia Pendente (Galeria) */}
+        {pendingMedia && (
+          /* ... código da pré-visualização ... */
+          <div className="mb-4 animate-in fade-in slide-in-from-top-2 duration-300">
+             <div className="relative rounded-2xl overflow-hidden bg-black/5 dark:bg-black/20 border border-gray-100 dark:border-white/5">
+                <button 
+                  onClick={() => setPendingMedia(null)}
+                  className="absolute top-2 right-2 z-10 w-8 h-8 rounded-full bg-black/40 backdrop-blur-md text-white flex items-center justify-center hover:bg-black/60 transition-all"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                
+                {pendingMedia.type === 'image' ? (
+                  <img src={pendingMedia.url} className="w-full max-h-[300px] object-contain" alt="" />
+                ) : (
+                  <video src={pendingMedia.url} className="w-full max-h-[300px]" controls />
+                )}
+
+                <div className="p-3 bg-white/50 dark:bg-whatsapp-darkLighter/50 backdrop-blur-md">
+                   <textarea 
+                     placeholder="Escreva uma legenda..."
+                     value={caption}
+                     onChange={(e) => setCaption(e.target.value)}
+                     className="w-full bg-transparent border-none focus:ring-0 text-sm text-gray-800 dark:text-white placeholder:text-gray-400 resize-none min-h-[60px]"
+                   />
+                   <div className="flex justify-end">
+                      <button 
+                        onClick={submitPendingPost}
+                        disabled={isSubmitting}
+                        className="px-6 py-2 bg-whatsapp-green text-whatsapp-dark font-black text-xs uppercase tracking-widest rounded-full hover:bg-whatsapp-teal transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                      >
+                        {isSubmitting ? "Publicando..." : "Publicar"}
+                      </button>
+                   </div>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {(isExpanded || pendingMedia) && (
+          <div className="grid grid-cols-4 gap-2 pt-2 border-t border-gray-100 dark:border-white/5 animate-in slide-in-from-top-2 duration-300">
+            {actions.map(({ icon: Icon, label, color, onClick }) => (
+              <button
+                key={label}
+                onClick={onClick}
+                disabled={isSubmitting}
+                className="flex flex-col items-center gap-1.5 py-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all group"
+              >
+                <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-transform group-active:scale-90", color)}>
+                   <Icon className="w-5 h-5" />
+                </div>
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{label}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <input type="file" ref={fileRef} className="hidden" onChange={handleGallery} accept="image/*,video/*" />

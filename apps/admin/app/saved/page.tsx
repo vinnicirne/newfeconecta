@@ -51,12 +51,12 @@ export default function SavedPostsPage() {
       if (savedIds && savedIds.length > 0) {
         const ids = savedIds.map(s => s.post_id);
 
-        // 2. Buscar dados dos posts da VIEW
+        // 2. Buscar dados dos posts da tabela base
         const { data: postsData, error: postsError } = await supabase
-          .from('feed_posts')
+          .from('posts')
           .select('*')
           .in('id', ids)
-          .order('display_date', { ascending: false });
+          .order('created_at', { ascending: false });
 
         if (postsError) throw postsError;
 

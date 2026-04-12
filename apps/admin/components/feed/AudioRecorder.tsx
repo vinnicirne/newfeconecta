@@ -48,28 +48,22 @@ export default function AudioRecorder({ open, onClose, onSubmit }: any) {
     else { audioElRef.current.play(); setPlaying(true); }
   };
 
+  const [caption, setCaption] = useState("");
+
   const handleSubmit = async () => {
-    console.log('🎤 [AudioRecorder] Iniciando submissão...');
     setUploading(true);
     try {
       const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
       const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
-      const file_url = URL.createObjectURL(file);
+      const fileUrl = URL.createObjectURL(file);
       
-      console.log('🎤 [AudioRecorder] Blob gerado com sucesso:', { 
-        size: blob.size, 
-        type: blob.type,
-        blobUrl: file_url 
-      });
-
-      // IMPORTANTE: media_url deve ser a chave para casar com CreatePost
-      onSubmit({ media_url: file_url, post_type: 'audio' });
+      await onSubmit({ media_url: fileUrl, post_type: 'audio', caption });
       
       setAudioUrl(null);
       setSeconds(0);
-      onClose();
+      setCaption("");
     } catch (err) {
-      console.error('🎤 [AudioRecorder] Erro na submissão:', err);
+      console.error('Audio submit error:', err);
     } finally {
       setUploading(false);
     }
@@ -86,6 +80,16 @@ export default function AudioRecorder({ open, onClose, onSubmit }: any) {
             <Mic className={`w-10 h-10 ${recording ? 'text-red-500' : 'text-muted-foreground'}`} />
           </div>
           <span className="text-2xl font-mono font-bold dark:text-white">{fmt(seconds)}</span>
+          {audioUrl && (
+            <div className="w-full animate-in fade-in slide-in-from-top-2">
+              <textarea 
+                placeholder="Legenda para o áudio (opcional)..."
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                className="w-full bg-gray-50 dark:bg-whatsapp-dark border border-gray-100 dark:border-white/5 rounded-xl p-3 text-sm resize-none focus:ring-1 focus:ring-whatsapp-green outline-none min-h-[80px]"
+              />
+            </div>
+          )}
           {audioUrl && <audio ref={audioElRef} src={audioUrl} onEnded={() => setPlaying(false)} className="hidden" />}
           <div className="flex gap-3 w-full">
             {!audioUrl ? (

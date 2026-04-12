@@ -53,7 +53,13 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
               </div>
             </div>
           )}
-          <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-whatsapp-green flex items-center justify-center border-4 border-white dark:border-whatsapp-dark shadow-lg">
+          <div 
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddStory();
+            }}
+            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-whatsapp-green flex items-center justify-center border-4 border-white dark:border-whatsapp-dark shadow-lg hover:scale-110 active:scale-95 transition-all cursor-pointer z-10"
+          >
             <Plus className="w-3 h-3 text-whatsapp-dark font-bold" />
           </div>
         </div>
@@ -62,8 +68,8 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
         </span>
       </button>
 
-      {/* Others */}
-      {storyGroups.map((group: any) => (
+      {/* Others (Filtrando o Usuário Atual para evitar duplicidade) */}
+      {storyGroups.filter((g: any) => g.author_id !== currentUser?.id).map((group: any) => (
         <button
           key={group.author_id}
           onClick={() => onViewGroup(group)}

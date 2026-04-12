@@ -169,18 +169,14 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
     }
   };
 
+  const [caption, setCaption] = useState("");
+
   const handlePublish = async () => {
     setUploading(true);
     if (!captured) return;
-    if (captured.type === 'photo') {
-      const file_url = captured.url;
-      onSubmit({ media_url: file_url, post_type: 'image' });
-    } else {
-      const file_url = captured.url;
-      onSubmit({ media_url: file_url, post_type: 'video' });
-    }
+    const type = captured.type === 'photo' ? 'image' : 'video';
+    await onSubmit({ media_url: captured.url, post_type: type, caption });
     setUploading(false);
-    handleClose();
   };
 
   const handleClose = () => {
@@ -269,6 +265,18 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
               </div>
             )}
           </button>
+        )}
+
+        {captured && (
+          <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center p-12 bg-black/20 pointer-events-none">
+             <textarea 
+               autoFocus
+               placeholder="Escreva uma legenda..."
+               value={caption}
+               onChange={(e) => setCaption(e.target.value)}
+               className="w-full bg-transparent text-white text-2xl font-bold text-center placeholder:text-white/40 border-none outline-none resize-none pointer-events-auto drop-shadow-lg"
+             />
+          </div>
         )}
       </div>
 

@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { toast } from 'sonner';
 import moment from 'moment';
 import { cn } from '@/lib/utils';
+import Link from 'next/link';
 
 export default function CommentsSection({ postId, user }: any) {
   const [comments, setComments] = useState<any[]>([]);
@@ -173,11 +174,12 @@ export default function CommentsSection({ postId, user }: any) {
               )}
             </div>
             <p className="text-xs dark:text-gray-200 leading-normal">
-              {c.content.split(/(@[\w.-]+)/g).map((part: string, i: number) => 
-                part.startsWith('@') 
-                  ? <span key={i} className="text-whatsapp-teal dark:text-whatsapp-green font-bold cursor-pointer hover:underline">{part}</span>
-                  : part
-              )}
+              {c.content.split(/(#[\wáàâãéèêíïóôõöúç-]+|@[\w.-]+|\n)/g).map((part: string, i: number) => {
+                if (part === '\n' || part === '\r\n') return <br key={i} />;
+                if (part.startsWith('@')) return <Link key={i} href={`/profile/${part.substring(1)}`} className="text-whatsapp-teal dark:text-whatsapp-green font-bold cursor-pointer hover:underline">{part}</Link>;
+                if (part.startsWith('#')) return <Link key={i} href={`/explore/${part.substring(1)}`} className="text-whatsapp-teal dark:text-whatsapp-green font-medium cursor-pointer hover:underline">{part}</Link>;
+                return part;
+              })}
             </p>
             
             {hasLikes && (

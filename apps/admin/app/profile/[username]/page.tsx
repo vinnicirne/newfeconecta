@@ -3,13 +3,14 @@
 import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
-  Grid, ChevronDown, Globe, Instagram, MessageCircle, 
-  Linkedin, Youtube, UserSquare2, PlaySquare, Heart, 
-  ArrowLeft, RefreshCw 
+  Grid, ChevronDown, Globe, Instagram, MessageCircle, MessageSquare,
+  Linkedin, Youtube, UserSquare2, PlaySquare, Flame, 
+  ArrowLeft, RefreshCw, Mic 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import PostCard from "@/components/feed/PostCard";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -19,6 +20,7 @@ export default function PublicProfilePage() {
   const [user, setUser] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'grid' | 'lumes' | 'likes'>('grid');
   const [userPosts, setUserPosts] = useState<any[]>([]);
@@ -176,6 +178,15 @@ export default function PublicProfilePage() {
               {isFollowing ? "Seguindo" : "Seguir"}
             </button>
           )}
+          <button 
+            onClick={() => router.push(`/messages?userId=${user.id}`)}
+            className="flex-1 bg-white/10 hover:bg-white/15 flex items-center justify-center gap-2 rounded-xl transition-all border border-white/5 active:scale-95 text-sm font-bold uppercase tracking-wide"
+            title="Enviar Mensagem"
+          >
+            <MessageSquare className="w-4 h-4 text-gray-300" />
+            Chat
+          </button>
+
           <button className="w-10 bg-white/10 flex items-center justify-center rounded-xl border border-white/5">
             <ChevronDown className="w-4 h-4" />
           </button>
@@ -190,15 +201,32 @@ export default function PublicProfilePage() {
           <PlaySquare className="w-6 h-6" />
         </button>
         <button onClick={() => setView('likes')} className={cn("flex-1 flex justify-center items-center", view === 'likes' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
-          <Heart className="w-6 h-6" />
+          <Flame className="w-6 h-6" />
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-[2px]">
         {userPosts.map((post) => (
-          <div key={post.id} className="aspect-square relative bg-gray-900">
+          <div 
+            key={post.id} 
+            onClick={() => setSelectedPost(post)}
+            className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
+          >
             {post.media_url ? (
-              <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" />
+              (post.post_type === 'audio' || post.media_url.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i)) ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
+                   <div className="w-10 h-10 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
+                      <Mic className="w-5 h-5 text-whatsapp-teal" />
+                   </div>
+                   <div className="flex gap-[1.5px] h-2 items-end">
+                      {[1,2,3,4].map(i => (
+                        <div key={i} className="w-[3px] bg-whatsapp-teal/40 rounded-full" style={{ height: `${30 + Math.random() * 70}%` }} />
+                      ))}
+                   </div>
+                </div>
+              ) : (
+                <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" />
+              )
             ) : (
               <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
             )}
@@ -210,6 +238,16 @@ export default function PublicProfilePage() {
           </div>
         )}
       </div>
+      {selectedPost && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm transition-all" onClick={() => setSelectedPost(null)}>
+           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
+              <PostCard 
+                post={{...selectedPost, author_name: user?.full_name, author_username: user?.username, author_avatar: user?.avatar_url}} 
+                currentUser={currentUser} 
+              />
+           </div>
+        </div>
+      )}
     </div>
   );
 }

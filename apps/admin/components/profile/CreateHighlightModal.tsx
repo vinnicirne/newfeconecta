@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Plus, Camera, Save } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -9,13 +9,26 @@ interface CreateHighlightModalProps {
   onClose: () => void;
   userId: string;
   onSuccess: (highlight: any) => void;
+  initialData?: any;
 }
 
-export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess }: CreateHighlightModalProps) {
+export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess, initialData }: CreateHighlightModalProps) {
   const [label, setLabel] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
+
+  // Sincroniza o estado quando o initialData muda (Crucial para Edição)
+  useEffect(() => {
+    if (isOpen) {
+      setLabel(initialData?.highlight_title || "");
+      setPreview(initialData?.highlight_cover_url || initialData?.media_url || null);
+      setFile(null); // Limpa o arquivo anterior
+      if (typeof window !== "undefined") {
+        (window as any).editingHighlightId = initialData?.id || null;
+      }
+    }
+  }, [initialData, isOpen]);
 
   if (!isOpen) return null;
 
@@ -28,32 +41,47 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess }: Cre
   };
 
   const handleSave = async () => {
-    if (!label || !file) {
+    if (!label || !file && !preview) {
       alert("Preencha o nome e selecione uma imagem");
       return;
     }
 
     setIsSaving(true);
     try {
-      // 1. Upload da Capa
-      const fileName = `highlight_${userId}_${Date.now()}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file);
+      let publicUrl = preview;
 
-      if (uploadError) throw uploadError;
+      // 1. Upload da Capa se houver novo arquivo
+      if (file) {
+        const fileName = `highlight_cover_${userId}_${Date.now()}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, file);
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(uploadData.path);
+        if (uploadError) throw uploadError;
 
-      // 2. Salvar no Banco
+        const { data: { publicUrl: newUrl } } = supabase.storage
+          .from('avatars')
+          .getPublicUrl(uploadData.path);
+        
+        publicUrl = newUrl;
+      }
+
+      // 2. Salvar na tabela de STORIES (Unificada)
+      const storyData = {
+        author_id: userId,
+        highlight_title: label,
+        highlight_cover_url: publicUrl,
+        is_highlight: true,
+        media_type: 'image',
+        media_url: publicUrl, // Mantém compatibilidade
+      };
+
       const { data: highlight, error: dbError } = await supabase
-        .from('highlights')
-        .insert({
-          user_id: userId,
-          label,
-          cover_url: publicUrl
+        .from('stories')
+        .upsert({
+          ...(userId && { author_id: userId }), // Apenas para segurança
+          ...storyData,
+          id: (window as any).editingHighlightId // Se estiver editando
         })
         .select()
         .single();
@@ -62,12 +90,8 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess }: Cre
 
       onSuccess(highlight);
       onClose();
-      // Reset
-      setLabel("");
-      setFile(null);
-      setPreview(null);
     } catch (err: any) {
-      alert("Erro ao criar destaque: " + err.message);
+      alert("Erro ao salvar destaque: " + err.message);
     } finally {
       setIsSaving(false);
     }
@@ -82,7 +106,7 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess }: Cre
           <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors">
             <X className="w-5 h-5 text-gray-400" />
           </button>
-          <h2 className="text-lg font-bold">Novo Destaque</h2>
+          <h2 className="text-lg font-bold">{initialData ? "Editar Destaque" : "Novo Destaque"}</h2>
           <div className="w-9" />
         </div>
 
@@ -121,7 +145,7 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess }: Cre
             disabled={isSaving}
             className="w-full bg-white text-black py-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-gray-200 transition-all active:scale-95 disabled:opacity-50"
           >
-            {isSaving ? "Criando..." : <><Save className="w-4 h-4" /> Criar Destaque</>}
+            {isSaving ? "Salvando..." : <><Save className="w-4 h-4" /> {initialData ? "Salvar Alterações" : "Criar Destaque"}</>}
           </button>
         </div>
       </div>
