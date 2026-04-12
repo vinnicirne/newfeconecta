@@ -12,9 +12,12 @@ import {
   Sun,
   Moon,
   Menu,
+  MessageSquare,
+  MoreVertical,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
 import CreatePost from "@/components/feed/CreatePost";
 import PostCard from "@/components/feed/PostCard";
@@ -25,6 +28,7 @@ import StoryViewer from "@/components/feed/StoryViewer";
 import { supabase } from "@/lib/supabase";
 
 export default function RootPage() {
+  const router = useRouter();
   const [posts, setPosts] = useState<any[]>([]);
   const [storyGroups, setStoryGroups] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -408,7 +412,28 @@ export default function RootPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto pb-24">
+      <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr,672px,1fr] xl:grid-cols-[280px,1fr,320px] gap-0 lg:gap-8 pb-24">
+        {/* Lado Esquerdo - Menu/Perfil (Oculto em Mobile, visível em XL) */}
+        <div className="hidden xl:block sticky top-20 h-fit p-4 space-y-4">
+           <Link href="/profile" className="flex items-center gap-3 p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all group">
+              <div className="w-10 h-10 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform">
+                 <img src={currentUser?.avatar_url || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-sm font-bold dark:text-white">{currentUser?.full_name}</span>
+                 <span className="text-[10px] text-gray-500 uppercase font-black tracking-tighter">Ver meu perfil</span>
+              </div>
+           </Link>
+           <nav className="space-y-1">
+              <button onClick={() => router.push('/')} className="w-full flex items-center gap-4 p-4 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</button>
+              <button onClick={() => router.push('/messages')} className="w-full flex items-center gap-4 p-4 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all"><MessageSquare className="w-5 h-5" /> Mensagens</button>
+              <button onClick={() => router.push('/profile')} className="w-full flex items-center gap-4 p-4 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all"><Bookmark className="w-5 h-5" /> Salvos</button>
+           </nav>
+        </div>
+
+        {/* Centro - Feed Principal */}
+        <div className="w-full max-w-2xl mx-auto lg:mx-0">
+
         <StoriesBar 
           storyGroups={storyGroups} 
           myStoryGroup={storyGroups.find(g => g.author_id === currentUser?.id)}
@@ -451,6 +476,41 @@ export default function RootPage() {
               <RefreshCw className="w-6 h-6 animate-spin text-whatsapp-teal" />
             </div>
           )}
+        </div>
+      </div>
+
+     {/* Lado Direito - Contatos Online */}
+        <div className="hidden lg:block sticky top-20 h-[calc(100vh-100px)] p-4 overflow-y-auto no-scrollbar">
+           <div className="flex items-center justify-between mb-6 px-2">
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-500">Contatos Online</h3>
+              <div className="flex gap-2">
+                 <Search className="w-4 h-4 text-gray-500 cursor-pointer hover:text-whatsapp-green transition-colors" />
+                 <MoreVertical className="w-4 h-4 text-gray-500 cursor-pointer hover:text-whatsapp-green transition-colors" />
+              </div>
+           </div>
+
+           <div className="space-y-1">
+              {/* Simulando contatos online baseada em quem o usuário segue */}
+              {storyGroups.filter(g => g.author_id !== currentUser?.id).map(contact => (
+                <Link 
+                  key={contact.id} 
+                  href={`/messages?userId=${contact.author_id}`}
+                  className="flex items-center gap-3 p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all group"
+                >
+                   <div className="relative">
+                      <div className="w-9 h-9 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform">
+                         <img src={contact.author_avatar || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
+                      </div>
+                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-white dark:border-[#080808]" />
+                   </div>
+                   <span className="text-sm font-medium dark:text-gray-200 group-hover:text-whatsapp-green transition-colors">{contact.author_name}</span>
+                </Link>
+              ))}
+              
+              {storyGroups.length <= 1 && (
+                 <p className="text-[10px] text-gray-500 px-2 italic uppercase font-bold tracking-tighter">Acompanhe seus amigos aqui</p>
+              )}
+           </div>
         </div>
       </div>
 

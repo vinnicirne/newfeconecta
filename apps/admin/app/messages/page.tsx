@@ -47,7 +47,7 @@ export default function MessagesPage() {
               id: otherUser.id,
               name: otherUser.full_name,
               avatar: otherUser.avatar_url,
-              lastMessage: m.content,
+              lastMessage: m.content.includes('supabase') && m.content.startsWith('http') ? '📷 Foto' : m.content,
               time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               unread: m.receiver_id === user.id && !m.is_read ? 1 : 0
             });
@@ -67,7 +67,7 @@ export default function MessagesPage() {
               id: profile.id,
               name: profile.full_name,
               avatar: profile.avatar_url,
-              lastMessage: 'Iniciar conversa...',
+              lastMessage: profile.last_message?.includes('supabase') ? '📷 Foto' : 'Iniciar conversa...',
               time: '',
               unread: 0
             });
@@ -161,8 +161,28 @@ export default function MessagesPage() {
       .or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false });
 
+    const convMap = new Map();
+
+    // Prioriza o chat selecionado se ele ainda não tiver mensagens
+    if (selectedId && !msgs?.some(m => m.sender_id === selectedId || m.receiver_id === selectedId)) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('id', selectedId)
+        .single();
+      if (profile) {
+        convMap.set(profile.id, {
+          id: profile.id,
+          name: profile.full_name,
+          avatar: profile.avatar_url,
+          lastMessage: 'Iniciar conversa...',
+          time: '',
+          unread: 0
+        });
+      }
+    }
+
     if (msgs) {
-      const convMap = new Map();
       msgs.forEach(m => {
         const otherUser = m.sender_id === currentUser.id ? m.receiver : m.sender;
         if (!otherUser) return;
@@ -171,14 +191,14 @@ export default function MessagesPage() {
             id: otherUser.id,
             name: otherUser.full_name,
             avatar: otherUser.avatar_url,
-            lastMessage: m.content,
+            lastMessage: m.content.includes('supabase') && m.content.startsWith('http') ? '📷 Foto' : m.content,
             time: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             unread: m.receiver_id === currentUser.id && !m.is_read ? 1 : 0
           });
         }
       });
-      setConversations(Array.from(convMap.values()));
     }
+    setConversations(Array.from(convMap.values()));
   };
 
   const handleSendMessage = async (e?: React.FormEvent, customContent?: string) => {
@@ -269,6 +289,31 @@ export default function MessagesPage() {
            </div>
         </div>
 
+        {/* Lista de Ativos Agora (Online) - Carrossel Horizontal */}
+        <div className="py-4 border-b border-gray-100 dark:border-white/5 bg-white dark:bg-[#111b21]">
+           <div className="px-4 mb-2 flex items-center justify-between">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ativos Agora</span>
+           </div>
+           <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1">
+              {/* Simulando ativos baseada nas conversas */}
+              {conversations.map((chat) => (
+                <div 
+                  key={`active-${chat.id}`} 
+                  onClick={() => setSelectedId(chat.id)}
+                  className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-all min-w-[60px]"
+                >
+                   <div className="relative">
+                      <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-whatsapp-green/20 p-0.5">
+                         <img src={chat.avatar} className="w-full h-full object-cover rounded-[14px]" alt="" />
+                      </div>
+                      <div className="absolute bottom-0 right-0 w-4 h-4 bg-whatsapp-green rounded-full border-[3px] border-white dark:border-[#111b21]" />
+                   </div>
+                   <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 truncate w-14 text-center">{chat.name.split(' ')[0]}</span>
+                </div>
+              ))}
+           </div>
+        </div>
+
         {/* Lista */}
         <div className="flex-1 overflow-y-auto custom-scrollbar">
            {conversations.map((chat) => (
@@ -280,8 +325,12 @@ export default function MessagesPage() {
                   selectedId === chat.id ? "bg-gray-100 dark:bg-[#2a3942]" : ""
                 )}
               >
-                 <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
-                    <img src={chat.avatar} className="w-full h-full object-cover" alt="" />
+                 <div className="relative w-12 h-12 flex-shrink-0">
+                    <div className="w-full h-full rounded-full overflow-hidden border border-black/5 dark:border-white/5">
+                       <img src={chat.avatar} className="w-full h-full object-cover" alt="" />
+                    </div>
+                    {/* Indicador Online - Simulado para todos os contatos ativos */}
+                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-whatsapp-green rounded-full border-[3px] border-white dark:border-[#111b21]" />
                  </div>
                  <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline mb-1">
@@ -320,8 +369,11 @@ export default function MessagesPage() {
                   <button onClick={() => setSelectedId(null)} className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-full">
                      <ArrowLeft className="w-5 h-5 text-gray-400" />
                   </button>
-                  <div className="w-10 h-10 rounded-full border border-white/10 overflow-hidden">
-                     <img src={selectedChat?.avatar} className="w-full h-full object-cover" alt="" />
+                  <div className="relative w-10 h-10 flex-shrink-0">
+                      <div className="w-full h-full rounded-full border border-black/5 dark:border-white/10 overflow-hidden">
+                         <img src={selectedChat?.avatar} className="w-full h-full object-cover" alt="" />
+                      </div>
+                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-white dark:border-[#202c33]" />
                   </div>
                   <div>
                      <h2 className="font-bold text-sm sm:text-base leading-none text-gray-900 dark:text-white">{selectedChat?.name}</h2>
