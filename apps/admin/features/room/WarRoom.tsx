@@ -74,7 +74,9 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       }
 
       try {
-        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${user.full_name}&avatar=${user.avatar_url || ''}`);
+        const nameParam = encodeURIComponent(user.full_name || user.id);
+        const avatarParam = encodeURIComponent(user.avatar_url || '');
+        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${nameParam}&avatar=${avatarParam}`);
         const { token } = await res.json();
         setToken(token);
       } catch (err) {
