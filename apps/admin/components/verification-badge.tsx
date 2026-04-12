@@ -9,11 +9,13 @@ interface VerificationBadgeProps {
   role?: string;
   className?: string;
   size?: "xs" | "sm" | "md" | "lg";
+  showLabel?: boolean;
 }
 
-export function VerificationBadge({ role, className, size = "md" }: VerificationBadgeProps) {
+export function VerificationBadge({ role, className, size = "md", showLabel = false }: VerificationBadgeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const label = role || "Verificado";
+  const displayLabel = showLabel || isHovered;
 
   const getStyle = (l: string) => {
     const low = l.toLowerCase();
@@ -92,7 +94,7 @@ export function VerificationBadge({ role, className, size = "md" }: Verification
         boxShadow: style.glow
       }}
       initial={false}
-      animate={{ width: isHovered ? "auto" : "fit-content" }}
+      animate={{ width: displayLabel ? "auto" : "fit-content" }}
     >
       <div className="flex items-center gap-1.5 px-0.5">
         <div className="relative flex items-center justify-center">
@@ -102,7 +104,7 @@ export function VerificationBadge({ role, className, size = "md" }: Verification
         </div>
 
         <AnimatePresence>
-          {isHovered && (
+          {displayLabel && (
             <motion.span
               initial={{ opacity: 0, x: -5, width: 0 }}
               animate={{ opacity: 1, x: 0, width: "auto" }}
