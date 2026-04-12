@@ -17,7 +17,8 @@ import {
   CheckCircle2,
   Camera,
   Layout,
-  Smartphone
+  Smartphone,
+  Mic
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -166,6 +167,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
            {[
              { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
+             { name: 'Sala de Guerra', status: 'Ativo', icon: Mic, desc: 'Intercessão ao vivo e em áudio' },
              { name: 'Layout Triplo', status: 'Ativo', icon: Layout, desc: 'Sidebar de contatos online' },
              { name: 'Identidade Visual', status: 'Integrado', icon: Users, desc: 'Edição de Banner e Avatar' },
              { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Barra de usuários ativos' },

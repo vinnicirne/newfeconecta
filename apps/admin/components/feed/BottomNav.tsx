@@ -7,7 +7,7 @@ import {
   Home, 
   PlusSquare, 
   PlaySquare, 
-  Search, 
+  Mic, 
   UserCircle2 
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ export default function BottomNav() {
 
   const navItems = [
     { icon: Home, href: "/", label: "Home" },
-    { icon: Search, href: "/explore", label: "Explorar" },
+    { icon: Mic, href: "/room", label: "Guerra" },
     { icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
     { icon: PlaySquare, href: "/lumes", label: "Lumes" },
     { icon: UserCircle2, href: "/profile", label: "Perfil" },
