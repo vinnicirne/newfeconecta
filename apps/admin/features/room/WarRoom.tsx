@@ -326,7 +326,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any, user: any
                     className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 self-start max-w-[80%]"
                   >
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-whatsapp-teal truncate">{msg.profiles?.full_name || 'Intercessor'}:</span>
+                      <span className="text-[10px] font-black text-whatsapp-teal truncate">{msg.user_name || 'Intercessor'}:</span>
                       <span className="text-xs text-white/90">{msg.content}</span>
                     </div>
                   </motion.div>
@@ -461,7 +461,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any, user: any
                 <div key={m.id} className="max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300">
                   <div className="bg-[#1a1a1a]/80 backdrop-blur-xl px-4 py-2 rounded-2xl rounded-bl-none shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-white/5">
                     <span className="text-[10px] font-bold text-[#25D366] block mb-0.5">
-                      {m.profiles?.full_name || m.user_name || 'Intercessor'}
+                      {m.user_name || 'Intercessor'}
                     </span>
                     <p className="text-xs text-white leading-relaxed">
                       {m.content}
