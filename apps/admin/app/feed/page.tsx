@@ -101,7 +101,7 @@ export default function FeedPage() {
 
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, full_name, avatar_url, username')
+        .select('id, full_name, avatar_url, username, is_verified, verification_label')
         .in('id', Array.from(userIds));
 
       const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
@@ -117,6 +117,8 @@ export default function FeedPage() {
           author_name: profile.full_name || 'Usuário',
           author_avatar: profile.avatar_url,
           author_username: profile.username || 'usuario',
+          is_verified: profile.is_verified,
+          verification_label: profile.verification_label,
           post_type: item.post_type || item.media_type || 'text',
           reposted_by_name: reposter ? reposter.full_name : null
         };

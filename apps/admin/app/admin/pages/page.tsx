@@ -18,7 +18,9 @@ export default function StaticPagesPage() {
   const pages = [
     { title: "Termos de Uso", slug: "/terms", status: "published", updated: "há 2 dias", type: "legal" },
     { title: "Política de Privacidade", slug: "/privacy", status: "published", updated: "há 5 dias", type: "legal" },
-    { title: "Sobre a FéConecta", slug: "/about", status: "draft", updated: "há 1h", type: "content" },
+    { title: "Política de Cookies", slug: "/cookies", status: "published", updated: "hoje", type: "legal" },
+    { title: "Publicidade", slug: "/advertising", status: "published", updated: "agora", type: "content" },
+    { title: "Sobre a FéConecta", slug: "/about", status: "published", updated: "hoje", type: "content" },
     { title: "Diretrizes da Comunidade", slug: "/guidelines", status: "published", updated: "há 1 mês", type: "legal" },
   ];
 

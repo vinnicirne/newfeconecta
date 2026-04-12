@@ -3,7 +3,35 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Grid, ChevronDown, Plus, Camera, Globe, Instagram, MessageCircle, MessageSquare, Linkedin, Youtube, Settings2, UserSquare2, PlaySquare, Flame, Bookmark, ArrowLeft, Menu, LogOut, Mic, Music, X, Heart } from "lucide-react";
+import { 
+  Grid, 
+  ChevronDown, 
+  Plus, 
+  Camera, 
+  Globe, 
+  Instagram, 
+  MessageCircle, 
+  MessageSquare, 
+  Linkedin, 
+  Youtube, 
+  Settings2, 
+  UserSquare2, 
+  PlaySquare, 
+  Flame, 
+  Bookmark, 
+  ArrowLeft, 
+  Menu, 
+  LogOut, 
+  Mic, 
+  Music, 
+  X, 
+  Heart,
+  ShieldCheck,
+  Check,
+  Share2,
+  Copy,
+  CheckCircle2
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
@@ -13,6 +41,9 @@ import { toast } from "sonner";
 import PostCard from "@/components/feed/PostCard";
 import StoryViewer from "@/components/feed/StoryViewer";
 import StoryCreator from "@/components/feed/StoryCreator";
+import { VerificationModal } from "@/components/profile/VerificationModal";
+import { VerificationBadge } from "@/components/verification-badge";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -31,6 +62,9 @@ export default function ProfilePage() {
   const [userStories, setUserStories] = useState<any[]>([]);
   const [isStoryViewerOpen, setIsStoryViewerOpen] = useState(false);
   const [isStoryCreatorOpen, setIsStoryCreatorOpen] = useState(false);
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Cropper States
   const [cropperFile, setCropperFile] = useState<string | null>(null);
@@ -457,7 +491,15 @@ export default function ProfilePage() {
 
         {/* Info & Bio */}
         <div className="space-y-0.5 mb-6 text-gray-800 dark:text-gray-100">
-          <h2 className="font-bold text-sm tracking-tight">{user?.full_name}</h2>
+          <h2 className="font-bold text-sm tracking-tight flex items-center gap-2">
+            {user?.full_name}
+            {user?.is_verified && (
+              <VerificationBadge 
+                role={user.verification_label || 'Verificado'} 
+                size="md"
+              />
+            )}
+          </h2>
           <div className="text-sm whitespace-pre-wrap text-gray-700 dark:text-gray-100/90 leading-relaxed font-medium">
             {(() => {
               const content = user?.bio;
@@ -502,9 +544,49 @@ export default function ProfilePage() {
             Chat
           </button>
  
-          <button className="w-10 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-black/5 dark:border-white/5 active:scale-95 text-gray-900 dark:text-white">
-            <ChevronDown className="w-4 h-4" />
-          </button>
+          <DropdownMenu.Root>
+            <DropdownMenu.Trigger asChild>
+              <button className="w-10 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-black/5 dark:border-white/5 active:scale-95 text-gray-900 dark:text-white focus:outline-none">
+                <ChevronDown className="w-4 h-4" />
+              </button>
+            </DropdownMenu.Trigger>
+
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content 
+                className="z-[60] min-w-[200px] bg-white dark:bg-whatsapp-darkLighter rounded-2xl p-2 shadow-2xl border border-gray-100 dark:border-white/5 animate-in fade-in zoom-in duration-200"
+                sideOffset={8}
+                align="end"
+              >
+                <DropdownMenu.Item
+                  onClick={() => setIsVerificationModalOpen(true)}
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm font-bold text-gray-700 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all outline-none cursor-pointer group"
+                >
+                  <div className={cn(
+                    "w-8 h-8 rounded-lg flex items-center justify-center transition-colors",
+                    user?.is_verified ? "bg-whatsapp-green/10 text-whatsapp-green" : "bg-whatsapp-teal/10 text-whatsapp-teal"
+                  )}>
+                    {user?.is_verified ? <Check className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="uppercase tracking-wide text-[10px] text-gray-400">Status Ministerial</span>
+                    {user?.is_verified ? "Perfil Verificado" : "Solicitar Verificação"}
+                  </div>
+                </DropdownMenu.Item>
+
+                <DropdownMenu.Separator className="h-[1px] bg-gray-100 dark:bg-white/5 my-1" />
+                
+                <DropdownMenu.Item
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="flex items-center gap-3 px-3 py-2.5 text-sm font-bold text-gray-700 dark:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all outline-none cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-gray-100 dark:bg-white/10 flex items-center justify-center text-gray-400">
+                    <Share2 className="w-4 h-4" />
+                  </div>
+                  Compartilhar Perfil
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu.Root>
         </div>
 
         {/* Social Links Row */}
@@ -772,6 +854,16 @@ export default function ProfilePage() {
         )}
       </div>
 
+      <VerificationModal
+        isOpen={isVerificationModalOpen}
+        onClose={() => setIsVerificationModalOpen(false)}
+        user={user}
+        onRequested={() => {
+          setIsVerificationModalOpen(false);
+          toast.success("Solicitação enviada!");
+        }}
+      />
+
       <EditProfileModal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
@@ -894,6 +986,69 @@ export default function ProfilePage() {
                   <p className="text-[10px] font-black uppercase tracking-widest">Nenhum perfil aqui</p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Share Modal - Premium Implementation */}
+      {isShareModalOpen && (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md" onClick={() => setIsShareModalOpen(false)}>
+          <div className="w-full max-w-sm bg-white dark:bg-whatsapp-darkLighter rounded-[32px] overflow-hidden border border-gray-100 dark:border-white/5 shadow-2xl animate-in zoom-in duration-300" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+              <h3 className="font-black uppercase tracking-widest text-xs dark:text-gray-400">Compartilhar Perfil</h3>
+              <button onClick={() => setIsShareModalOpen(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-all">
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-8 flex flex-col items-center gap-8">
+              {/* QR Code Container */}
+              <div className="relative group">
+                <div className="w-48 h-48 bg-white p-4 rounded-3xl shadow-xl transition-transform group-hover:scale-105 duration-500">
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(window.location.origin + '/profile/' + user?.username)}&bgcolor=FFFFFF&color=000000`} 
+                    className="w-full h-full object-contain"
+                    alt="Perfil QR Code"
+                  />
+                </div>
+                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-whatsapp-green text-whatsapp-dark text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">
+                  Escanear
+                </div>
+              </div>
+
+              {/* Link Box */}
+              <div className="w-full space-y-4">
+                <div className="flex flex-col gap-1 text-center">
+                  <p className="text-sm font-bold dark:text-white">@{user?.username}</p>
+                  <p className="text-[10px] text-gray-500 uppercase font-bold tracking-widest">Link do seu perfil</p>
+                </div>
+                
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-black/20 p-2 rounded-2xl border border-gray-100 dark:border-white/5">
+                  <div className="flex-1 truncate text-xs text-gray-500 dark:text-gray-400 font-medium px-2">
+                    {window.location.origin}/profile/{user?.username}
+                  </div>
+                  <button 
+                    onClick={() => {
+                      const url = `${window.location.origin}/profile/${user?.username}`;
+                      navigator.clipboard.writeText(url);
+                      setCopied(true);
+                      toast.success("Link copiado!");
+                      setTimeout(() => setCopied(false), 2000);
+                    }}
+                    className={cn(
+                      "w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-90",
+                      copied ? "bg-whatsapp-green text-whatsapp-dark" : "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20"
+                    )}
+                  >
+                    {copied ? <CheckCircle2 className="w-5 h-5" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 dark:bg-black/10 flex justify-center">
+               <p className="text-[10px] text-gray-400 font-medium italic">Seu perfil será aberto diretamente para quem escanear.</p>
             </div>
           </div>
         </div>

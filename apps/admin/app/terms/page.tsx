@@ -2,17 +2,22 @@
 
 import React from "react";
 import { Flame, ArrowLeft } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function TermsPage() {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">
       {/* Header */}
       <div className="sticky top-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-white/5">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-          <Link href="/register" className="p-2 hover:bg-white/5 rounded-xl transition-colors">
+          <button 
+            onClick={() => router.back()}
+            className="p-2 hover:bg-white/5 rounded-xl transition-colors"
+          >
             <ArrowLeft className="w-5 h-5" />
-          </Link>
+          </button>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-whatsapp-teal to-whatsapp-green flex items-center justify-center">
               <Flame className="w-5 h-5 text-white fill-white" />

@@ -11,7 +11,9 @@ import {
   ShieldAlert, 
   Search,
   Zap,
-  Ghost
+  Ghost,
+  Layout,
+  ShieldCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -64,6 +66,22 @@ export default function ToolsPage() {
       color: "text-whatsapp-teal",
       bg: "bg-whatsapp-teal/10",
       action: "Verificar Lista"
+    },
+    { 
+      title: "UX & Interatividade", 
+      description: "Gerencie o comportamento de ampliação de mídia e curtidas por cliques duplos (Fast Like).",
+      icon: Layout,
+      color: "text-pink-500",
+      bg: "bg-pink-500/10",
+      action: "Configurar UX"
+    },
+    { 
+      title: "Gestão de Verificados", 
+      description: "Analise solicitações pendentes e gerencie selos de autenticidade para líderes.",
+      icon: ShieldCheck,
+      color: "text-yellow-500",
+      bg: "bg-yellow-500/10",
+      action: "Ver Solicitações"
     }
   ];
 

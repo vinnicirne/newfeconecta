@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import PostCard from "@/components/feed/PostCard";
+import { VerificationBadge } from "@/components/verification-badge";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -157,7 +158,15 @@ export default function PublicProfilePage() {
         </div>
 
         <div className="space-y-0.5 mb-6">
-          <h2 className="font-bold text-sm tracking-tight">{user?.full_name}</h2>
+          <div className="flex items-center gap-1.5 overflow-hidden">
+            <h2 className="font-bold text-sm tracking-tight truncate">{user?.full_name}</h2>
+            {user?.is_verified && (
+              <VerificationBadge 
+                role={user?.verification_label || 'Verificado'} 
+                size="sm" 
+              />
+            )}
+          </div>
           <p className="text-sm text-gray-100/90 leading-relaxed">{user?.bio}</p>
           {user?.church && <p className="text-xs text-whatsapp-green font-bold uppercase tracking-wider mt-1">{user.church}</p>}
         </div>

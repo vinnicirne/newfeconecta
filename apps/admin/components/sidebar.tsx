@@ -22,7 +22,11 @@ import {
   Menu,
   ChevronLeft,
   UserSquare2,
-  LogOut
+  LogOut,
+  ShieldCheck,
+  ScrollText,
+  Cookie,
+  Megaphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -32,6 +36,7 @@ const menuItems = [
   { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { name: "Usuários", icon: Users, href: "/admin/users" },
+  { name: "Verificações", icon: ShieldCheck, href: "/admin/verifications" },
   { name: "Monetização", icon: CreditCard, href: "/admin/monetization" },
   { name: "Recursos PRO", icon: Target, href: "/admin/pro-features" },
   { name: "Design", icon: Palette, href: "/admin/design" },
@@ -42,6 +47,11 @@ const menuItems = [
   { name: "Status do Sistema", icon: Activity, href: "/admin/status" },
   { name: "Registro Alterações", icon: History, href: "/admin/changelog" },
   { name: "Controle de FAQ", icon: HelpCircle, href: "/admin/faq" },
+  { name: "Privacidade", icon: ShieldCheck, href: "/privacy" },
+  { name: "Termos de Uso", icon: ScrollText, href: "/terms" },
+  { name: "Cookies", icon: Cookie, href: "/cookies" },
+  { name: "Publicidade", icon: Megaphone, href: "/advertising" },
+  { name: "Sobre Nós", icon: Users, href: "/about" },
 ];
 
 export function Sidebar() {

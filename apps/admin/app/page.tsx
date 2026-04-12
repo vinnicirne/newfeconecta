@@ -14,6 +14,11 @@ import {
   Menu,
   MessageSquare,
   MoreVertical,
+  ShieldCheck,
+  ScrollText,
+  Cookie,
+  Megaphone,
+  Users
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -79,7 +84,7 @@ export default function RootPage() {
         const newPost = payload.new;
         const { data: profile } = await supabase
           .from('profiles')
-          .select('id, full_name, username, avatar_url')
+          .select('id, full_name, username, avatar_url, is_verified, verification_label')
           .eq('id', newPost.user_id)
           .single();
         const mapped = mapPost(newPost, { [newPost.user_id]: profile || {} });
@@ -125,6 +130,8 @@ export default function RootPage() {
       comments_count: post.comments_count || 0,
       reposts_count: post.reposts_count || 0,
       views_count: post.views_count || 0,
+      is_verified: profile.is_verified,
+      verification_label: profile.verification_label,
     };
 
     console.log("🔍 POST MAPEADO →", {
@@ -202,7 +209,7 @@ export default function RootPage() {
 
       const { data: profilesData } = await supabase
         .from('profiles')
-        .select('id, full_name, username, avatar_url')
+        .select('id, full_name, username, avatar_url, is_verified, verification_label')
         .in('id', Array.from(userIds));
 
       const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
@@ -232,6 +239,8 @@ export default function RootPage() {
           comments_count: item.comments_count || 0,
           reposts_count: item.reposts_count || 0,
           is_repost: item.is_repost,
+          is_verified: profile.is_verified,
+          verification_label: profile.verification_label,
           reposted_by_name: reposter ? reposter.full_name : null,
           reposted_by_id: item.reposter_id
         };
@@ -265,7 +274,7 @@ export default function RootPage() {
         const userIds = Array.from(new Set(morePosts.map(p => p.user_id)));
         const { data: profilesData } = await supabase
           .from('profiles')
-          .select('id, full_name, username, avatar_url')
+          .select('id, full_name, username, avatar_url, is_verified, verification_label')
           .in('id', userIds);
           
         const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
@@ -385,6 +394,38 @@ export default function RootPage() {
                     </div>
                     <span className="text-[10px] uppercase font-bold text-gray-400">{theme === 'dark' ? 'Claro' : 'Escuro'}</span>
                   </DropdownMenuItem>
+
+                  <div className="my-1 border-t border-gray-100 dark:border-white/5" />
+
+                  <Link href="/about">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      <Users className="w-4 h-4 mr-3 text-gray-400" /> Sobre Nós
+                    </DropdownMenuItem>
+                  </Link>
+
+                  <Link href="/privacy">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      <ShieldCheck className="w-4 h-4 mr-3 text-gray-400" /> Privacidade
+                    </DropdownMenuItem>
+                  </Link>
+
+                  <Link href="/terms">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      <ScrollText className="w-4 h-4 mr-3 text-gray-400" /> Termos de Uso
+                    </DropdownMenuItem>
+                  </Link>
+
+                  <Link href="/cookies">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      <Cookie className="w-4 h-4 mr-3 text-gray-400" /> Cookies
+                    </DropdownMenuItem>
+                  </Link>
+
+                  <Link href="/advertising">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                      <Megaphone className="w-4 h-4 mr-3 text-gray-400" /> Publicidade
+                    </DropdownMenuItem>
+                  </Link>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}

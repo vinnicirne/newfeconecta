@@ -10,6 +10,7 @@ import 'moment/locale/pt-br';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { VerificationBadge } from '@/components/verification-badge';
 
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
@@ -19,6 +20,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [likes, setLikes] = useState<string[]>(Array.isArray(post.likes) ? post.likes : []);
   const [isExpanded, setIsExpanded] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [showLikeAnim, setShowLikeAnim] = useState(false);
 
   // VIEWS FEATURE
   const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
@@ -242,6 +245,16 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     }
   };
 
+  const handleDoubleClickLike = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isLiked) {
+      toggleLike();
+    }
+    // Sempre mostrar animação no double click para feedback visual
+    setShowLikeAnim(true);
+    setTimeout(() => setShowLikeAnim(false), 800);
+  };
+
   const handleDelete = async () => {
     toast("Deseja excluir esta publicação?", {
       action: {
@@ -357,8 +370,16 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
         <div className="flex-1 min-w-0">
           <Link href={`/profile/${post.author_username}`} className="block group/name">
-            <p className="text-sm font-bold leading-tight truncate text-gray-900 dark:text-white group-hover/name:text-whatsapp-teal dark:group-hover/name:text-whatsapp-green transition-colors">
+            <p 
+              className="text-sm font-bold leading-tight truncate flex items-center gap-1.5 transition-colors"
+              style={{ color: post.is_verified ? '#ffffff' : undefined }}
+            >
               {post.author_name}
+                <VerificationBadge 
+                  role={post.verification_label || 'Verificado'} 
+                  size="sm" 
+                  className="ml-1"
+                />
             </p>
           </Link>
           <div className="flex items-center gap-1.5">
@@ -424,24 +445,45 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           (post.post_type === 'image' ||
             post.post_type === 'photo' ||
             post.media_type === 'image') && (
-            <div className="rounded-2xl overflow-hidden mt-3 border border-white/10">
+            <div 
+              className="rounded-2xl overflow-hidden mt-3 border border-white/10 cursor-zoom-in relative group"
+              onClick={() => setLightboxUrl(post.media_url)}
+              onDoubleClick={handleDoubleClickLike}
+            >
               <img
                 src={post.media_url}
-                className="w-full h-auto object-cover max-h-[520px]"
+                className="w-full h-auto object-cover max-h-[520px] transition-transform duration-500 group-hover:scale-[1.02]"
                 alt="Imagem do post"
               />
+              
+              {/* Like Animation Overlay */}
+              {showLikeAnim && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                  <Flame className="w-24 h-24 text-orange-500 fill-orange-500 drop-shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-in zoom-in duration-300 animate-out fade-out fade-mode-forwards" />
+                  <Flame className="absolute w-24 h-24 text-orange-500/50 animate-ping duration-700" />
+                </div>
+              )}
             </div>
           )}
 
         {/* Vídeo */}
         {post.media_url && isVideo && (
-            <div className="rounded-2xl overflow-hidden mt-3 max-h-[550px] bg-black flex justify-center">
+            <div 
+              className="rounded-2xl overflow-hidden mt-3 max-h-[550px] bg-black flex justify-center relative group"
+              onDoubleClick={handleDoubleClickLike}
+            >
               <video
                 controls
                 className="w-full h-auto max-h-[550px]"
                 src={post.media_url}
                 onPlay={handlePlayMedia}
               />
+              {/* Like Animation for Video */}
+              {showLikeAnim && (
+                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                  <Flame className="w-24 h-24 text-orange-500 fill-orange-500 drop-shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-in zoom-in spin-in duration-300" />
+                </div>
+              )}
             </div>
           )}
 
@@ -552,6 +594,116 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       </div>
 
       {showComments && <CommentsSection postId={post.id} user={currentUser} />}
+
+      {/* Lightbox / Media Expansion */}
+      {lightboxUrl && (
+        <div 
+          className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-300"
+          onClick={() => setLightboxUrl(null)}
+        >
+          {/* Top Bar: Author Info & Close */}
+          <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent z-10">
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20">
+                 <img src={post.author_avatar || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
+               </div>
+               <div className="flex flex-col">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold text-white">{post.author_name}</span>
+                    {post.is_verified && (
+                      <VerificationBadge 
+                        role={post.verification_label || 'Verificado'} 
+                        size="xs" 
+                      />
+                    )}
+                  </div>
+                  <span className="text-[10px] text-whatsapp-green font-bold uppercase tracking-tighter">@{post.author_username}</span>
+               </div>
+            </div>
+            <button 
+              className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-all backdrop-blur-md border border-white/10"
+              onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
+            >
+              <span className="text-xl">✕</span>
+            </button>
+          </div>
+          
+          <div className="relative max-w-full max-h-[80vh] flex items-center justify-center p-4">
+            <img 
+              src={lightboxUrl} 
+              className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in duration-300 pointer-events-auto cursor-default"
+              alt="Expanded view"
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickLike(e); }}
+            />
+            
+            {/* Double Click Like Animation in Lightbox */}
+            {showLikeAnim && (
+              <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                <Flame className="w-32 h-32 text-orange-500 fill-orange-500 drop-shadow-[0_0_30px_rgba(249,115,22,0.8)] animate-in zoom-in duration-300" />
+                <Flame className="absolute w-32 h-32 text-orange-500/50 animate-ping duration-700" />
+              </div>
+            )}
+          </div>
+
+          {/* Floating Interaction Bar */}
+          <div 
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl flex items-center gap-8 shadow-2xl animate-in slide-in-from-bottom duration-500"
+            onClick={(e) => e.stopPropagation()}
+          >
+             <button
+                onClick={(e) => { e.stopPropagation(); toggleLike(); }}
+                className={cn(
+                  "flex flex-col items-center gap-1 transition-all active:scale-125",
+                  isLiked ? "text-orange-500" : "text-white"
+                )}
+              >
+                <Flame className={cn("w-6 h-6", isLiked && "fill-orange-500")} />
+                <span className="text-[10px] font-bold">{likes.length || 0}</span>
+              </button>
+
+              <button
+                onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); setShowComments(true); }}
+                className="flex flex-col items-center gap-1 text-white hover:text-whatsapp-teal transition-all"
+              >
+                <MessageCircle className="w-6 h-6" />
+                <span className="text-[10px] font-bold">{commentCount}</span>
+              </button>
+
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleRepost(); }}
+                className={cn(
+                  "flex flex-col items-center gap-1 transition-all active:scale-125",
+                  isReposted ? "text-whatsapp-green" : "text-white"
+                )}
+              >
+                <Repeat className="w-6 h-6" />
+                <span className="text-[10px] font-bold">{repostsCount}</span>
+              </button>
+
+              <button
+                onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                className="flex flex-col items-center gap-1 text-white hover:text-whatsapp-teal transition-all"
+              >
+                <Share2 className="w-6 h-6" />
+                <span className="text-[10px] font-bold italic uppercase tracking-tighter">Share</span>
+              </button>
+
+              <div className="w-px h-8 bg-white/10 mx-2" />
+
+              <button
+                onClick={(e) => { e.stopPropagation(); toggleSave(); }}
+                className={cn(
+                  "flex flex-col items-center gap-1 transition-all active:scale-125",
+                  isSaved ? "text-whatsapp-teal" : "text-white"
+                )}
+              >
+                <Bookmark className={cn("w-6 h-6", isSaved && "fill-whatsapp-teal")} />
+                <span className="text-[10px] uppercase font-bold">{isSaved ? 'Salvo' : 'Save'}</span>
+              </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
