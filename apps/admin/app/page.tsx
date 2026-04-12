@@ -417,7 +417,7 @@ export default function RootPage() {
           onViewGroup={(group: any) => setViewingStoryGroup(group)} 
         />
 
-        <div className="hidden sm:block mt-2 px-4">
+        <div className="mt-2 px-4">
           <CreatePost user={currentUser} onPostCreated={() => loadInitialPosts(true)} />
         </div>
 
