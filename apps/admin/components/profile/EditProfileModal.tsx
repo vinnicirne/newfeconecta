@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { X, Save, Instagram, Linkedin, Youtube, Globe, MessageCircle, Calendar, Shield, ShieldOff, User, Church } from "lucide-react";
+import { X, Save, Instagram, Linkedin, Youtube, Globe, MessageCircle, Calendar, Shield, ShieldOff, User, Church, Camera } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -22,12 +22,19 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
     birthdate: "",
     birthdate_public: false,
     church: "",
+    avatar_url: "",
+    banner_url: "",
     instagram_url: "",
     whatsapp_url: "",
     linkedin_url: "",
     youtube_url: "",
     website_url: "",
   });
+ 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState("");
+  const [bannerPreview, setBannerPreview] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
 
@@ -42,12 +49,18 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
         birthdate: user.birthdate || "",
         birthdate_public: user.birthdate_public ?? false,
         church: user.church || "",
+        avatar_url: user.avatar_url || "",
+        banner_url: user.banner_url || "",
         instagram_url: user.instagram_url || "",
         whatsapp_url: user.whatsapp_url || "",
         linkedin_url: user.linkedin_url || "",
         youtube_url: user.youtube_url || "",
         website_url: user.website_url || "",
       });
+      setAvatarPreview(user.avatar_url || "");
+      setBannerPreview(user.banner_url || "");
+      setAvatarFile(null);
+      setBannerFile(null);
     }
   }, [isOpen, user]);
 
@@ -56,11 +69,45 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const userId = user?.id || '296f0f37-c8b8-4ad1-855c-4625f3f14731';
+      const userId = user?.id;
+      if (!userId) throw new Error("Usuário não identificado");
+
+      let currentAvatarUrl = formData.avatar_url;
+      let currentBannerUrl = formData.banner_url;
+
+      // 1. Upload de Avatar se houver novo arquivo
+      if (avatarFile) {
+        const fileExt = avatarFile.name.split('.').pop();
+        const fileName = `${userId}-avatar-${Math.random()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('avatars')
+          .upload(fileName, avatarFile);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        currentAvatarUrl = publicUrl;
+      }
+
+      // 2. Upload de Banner se houver novo arquivo
+      if (bannerFile) {
+        const fileExt = bannerFile.name.split('.').pop();
+        const fileName = `${userId}-banner-${Math.random()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage
+          .from('avatars') // Usando o mesmo bucket de avatars para simplificar, mas em pasta diferente ou bucket banners se existir
+          .upload(fileName, bannerFile);
+        if (uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
+        currentBannerUrl = publicUrl;
+      }
       
-      // Limpa os dados: transforma strings vazias em null para o banco de dados não reclamar
+      const updatePayload = {
+        ...formData,
+        avatar_url: currentAvatarUrl,
+        banner_url: currentBannerUrl
+      };
+
+      // Limpa os dados
       const cleanedData = Object.fromEntries(
-        Object.entries(formData).map(([key, value]) => [
+        Object.entries(updatePayload).map(([key, value]) => [
           key, 
           value === "" ? null : value
         ])
@@ -74,12 +121,29 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
       if (error) throw error;
       
       toast.success("Perfil atualizado com sucesso!");
-      onUpdate({ ...user, ...formData });
+      onUpdate({ ...user, ...updatePayload });
       onClose();
     } catch (err: any) {
       toast.error("Erro ao salvar perfil: " + err.message);
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (type === 'avatar') {
+          setAvatarFile(file);
+          setAvatarPreview(reader.result as string);
+        } else {
+          setBannerFile(file);
+          setBannerPreview(reader.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -106,6 +170,52 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
         {/* Form Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
           
+          {/* Identidade Visual */}
+          <section className="space-y-6">
+            <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">Identidade Visual</h3>
+            
+            <div className="relative">
+              {/* Banner Selector */}
+              <div className="relative h-32 sm:h-40 bg-white/5 rounded-3xl border border-white/10 overflow-hidden group">
+                {bannerPreview ? (
+                  <img src={bannerPreview} className="w-full h-full object-cover" alt="Banner" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-gray-600">
+                    <Globe className="w-8 h-8 opacity-20" />
+                  </div>
+                )}
+                <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                  <div className="bg-white/10 backdrop-blur-md p-3 rounded-full border border-white/20">
+                    <Camera className="w-6 h-6 text-white" />
+                  </div>
+                  <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'banner')} className="hidden" />
+                </label>
+              </div>
+
+              {/* Avatar Selector */}
+              <div className="absolute -bottom-6 left-6 group">
+                <div className="relative w-24 h-24 rounded-[32px] bg-[#0f0f0f] p-1.5 shadow-2xl">
+                  <div className="w-full h-full rounded-[26px] bg-white/5 border border-white/10 overflow-hidden">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} className="w-full h-full object-cover" alt="Avatar" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-600">
+                        <User className="w-8 h-8" />
+                      </div>
+                    )}
+                  </div>
+                  <label className="absolute inset-0 bg-black/40 rounded-[26px] left-1.5 top-1.5 right-1.5 bottom-1.5 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Camera className="w-5 h-5 text-white" />
+                    <input type="file" accept="image/*" onChange={(e) => handleImageChange(e, 'avatar')} className="hidden" />
+                  </label>
+                </div>
+              </div>
+            </div>
+            <div className="pt-8 px-1">
+               <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">Dica: Use fotos nítidas para o seu banner.</p>
+            </div>
+          </section>
+
           {/* Informações Básicas */}
           <section className="space-y-4">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">Informações de Conta</h3>
