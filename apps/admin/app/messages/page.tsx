@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Search, Send, MessageSquare, ArrowLeft, Phone, Video, Info, MoreVertical, Check, CheckCheck } from 'lucide-react';
+import { Search, Send, MessageSquare, ArrowLeft, Phone, Video, Info, MoreVertical, Check, CheckCheck, Camera, Image, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -16,6 +16,10 @@ export default function MessagesPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [message, setMessage] = useState('');
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const loadConversations = async () => {
@@ -177,19 +181,19 @@ export default function MessagesPage() {
     }
   };
 
-  const handleSendMessage = async (e?: React.FormEvent) => {
+  const handleSendMessage = async (e?: React.FormEvent, customContent?: string) => {
     e?.preventDefault();
-    if (!message.trim() || !selectedId || !currentUser) return;
+    const contentToSend = customContent || message;
+    if (!contentToSend.trim() || !selectedId || !currentUser) return;
 
-    const content = message;
-    setMessage('');
+    if (!customContent) setMessage('');
 
     const { data, error } = await supabase
       .from('direct_messages')
       .insert({
         sender_id: currentUser.id,
         receiver_id: selectedId,
-        content: content
+        content: contentToSend
       })
       .select()
       .single();
@@ -197,6 +201,36 @@ export default function MessagesPage() {
     if (error) {
       console.error("Erro ao enviar:", error);
       alert("Falha ao enviar mensagem.");
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, useCamera = false) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser || !selectedId) return;
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
+      const filePath = `chat-media/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars') // Usando bucket existente para simplificar
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      await handleSendMessage(undefined, publicUrl);
+    } catch (err: any) {
+      console.error("Erro no upload:", err);
+      alert("Erro ao enviar imagem.");
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -322,7 +356,18 @@ export default function MessagesPage() {
                         : "self-start bg-white dark:bg-[#202c33] text-gray-900 dark:text-gray-200 rounded-tl-none border-gray-100 dark:border-white/5"
                     )}
                   >
-                     {m.content}
+                     {m.content.match(/\.(jpeg|jpg|gif|png|webp)/i) || m.content.startsWith('https://') && m.content.includes('supabase') ? (
+                        <div className="mb-1 rounded-lg overflow-hidden border border-black/10">
+                           <img 
+                             src={m.content} 
+                             alt="Imagem enviada" 
+                             className="max-w-full h-auto max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                             onClick={() => window.open(m.content, '_blank')}
+                           />
+                        </div>
+                     ) : (
+                        m.content
+                     )}
                      <div className={cn(
                        "text-[9px] text-right mt-1 opacity-60 font-medium flex items-center justify-end gap-1",
                        m.sender_id === currentUser?.id ? "text-whatsapp-green" : "text-gray-500"
@@ -343,21 +388,61 @@ export default function MessagesPage() {
 
             {/* Input Area */}
             <div className="p-3 sm:p-4 bg-gray-50 dark:bg-[#202c33] border-t border-gray-200 dark:border-white/5 pb-6">
-               <form onSubmit={handleSendMessage} className="flex items-center gap-3 max-w-5xl mx-auto">
+               <input 
+                 type="file" 
+                 ref={fileInputRef} 
+                 onChange={(e) => handleFileUpload(e)} 
+                 className="hidden" 
+                 accept="image/*" 
+               />
+               <input 
+                 type="file" 
+                 ref={cameraInputRef} 
+                 onChange={(e) => handleFileUpload(e, true)} 
+                 className="hidden" 
+                 accept="image/*" 
+                 capture="environment" 
+               />
+               
+               <form onSubmit={(e) => handleSendMessage(e)} className="flex items-center gap-2 sm:gap-3 max-w-5xl mx-auto">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    <button 
+                      type="button"
+                      disabled={isUploading}
+                      onClick={() => cameraInputRef.current?.click()}
+                      className="p-2 sm:p-3 text-gray-500 hover:text-whatsapp-green hover:bg-white/5 rounded-xl transition-all"
+                    >
+                      <Camera className="w-5 h-5 sm:w-6 h-6" />
+                    </button>
+                    <button 
+                      type="button"
+                      disabled={isUploading}
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2 sm:p-3 text-gray-500 hover:text-whatsapp-green hover:bg-white/5 rounded-xl transition-all"
+                    >
+                      <Image className="w-5 h-5 sm:w-6 h-6" />
+                    </button>
+                  </div>
+
                   <div className="flex-1 relative">
                      <input 
                        type="text" 
-                       placeholder="Digite uma mensagem"
+                       placeholder={isUploading ? "Enviando imagem..." : "Digite uma mensagem"}
                        value={message}
+                       disabled={isUploading}
                        onChange={(e) => setMessage(e.target.value)}
                        className="w-full bg-white dark:bg-[#2a3942] rounded-xl py-3 px-5 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900 dark:text-white border border-gray-200 dark:border-transparent focus:border-whatsapp-green/30 transition-all shadow-sm"
                      />
                   </div>
                   <button 
-                    disabled={!message.trim()}
+                    disabled={(!message.trim() && !isUploading) || isUploading}
                     className="w-12 h-12 rounded-xl bg-whatsapp-green flex items-center justify-center text-whatsapp-dark active:scale-95 transition-all shadow-[0_4px_10px_rgba(37,211,102,0.3)] disabled:opacity-50 disabled:grayscale"
                   >
-                     <Send className="w-5 h-5 fill-current" />
+                     {isUploading ? (
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                     ) : (
+                        <Send className="w-5 h-5 fill-current" />
+                     )}
                   </button>
                </form>
             </div>
