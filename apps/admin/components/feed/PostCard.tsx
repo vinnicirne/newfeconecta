@@ -354,7 +354,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
         <div className="flex-1 min-w-0">
           <Link href={`/profile/${post.author_username}`} className="block group/name">
-            <p className="text-sm font-bold leading-tight truncate dark:text-white group-hover/name:text-whatsapp-teal dark:group-hover/name:text-whatsapp-green transition-colors">
+            <p className="text-sm font-bold leading-tight truncate text-gray-900 dark:text-white group-hover/name:text-whatsapp-teal dark:group-hover/name:text-whatsapp-green transition-colors">
               {post.author_name}
             </p>
           </Link>
@@ -362,8 +362,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             <Link href={`/profile/${post.author_username}`} className="text-[10px] text-whatsapp-teal dark:text-whatsapp-green font-medium hover:underline">
               @{post.author_username}
             </Link>
-            <span className="text-[10px] text-gray-400">•</span>
-            <p className="text-[10px] text-gray-500 font-medium">
+            <span className="text-[10px] text-gray-400 dark:text-gray-500">•</span>
+            <p className="text-[10px] text-gray-600 dark:text-gray-400 font-medium">
               {mounted ? moment(post.created_date || post.created_at).fromNow() : '...'}
             </p>
           </div>
@@ -502,45 +502,45 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             onClick={toggleLike}
             className={cn(
               "flex items-center gap-1.5 transition-all active:scale-125",
-              isLiked ? "text-orange-500" : "text-gray-400"
+              isLiked ? "text-orange-500" : "text-gray-500 dark:text-gray-400"
             )}
           >
             <Flame className={cn("w-5 h-5", isLiked && "fill-orange-500")} />
             <span className="text-xs font-bold">{likes.length || 0}</span>
           </button>
-
+ 
           <button
             onClick={() => setShowComments(!showComments)}
-            className="flex items-center gap-1.5 text-gray-400 hover:text-whatsapp-teal transition-all"
+            className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-all"
           >
             <MessageCircle className="w-5 h-5" />
             <span className="text-xs font-bold">{commentCount}</span>
           </button>
-
+ 
           <button
             onClick={toggleRepost}
             className={cn(
               "flex items-center gap-1.5 transition-all active:scale-125",
-              isReposted ? "text-whatsapp-green" : "text-gray-400"
+              isReposted ? "text-whatsapp-green" : "text-gray-500 dark:text-gray-400"
             )}
           >
             <Repeat className="w-5 h-5" />
             <span className="text-xs font-bold">{repostsCount}</span>
           </button>
-
+ 
           {(isAudio || isVideo) && (
-            <div className="flex items-center gap-1.5 text-gray-400 border-l border-gray-200 dark:border-white/10 pl-4 ml-1">
+            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-white/10 pl-4 ml-1">
               <Eye className="w-5 h-5" />
               <span className="text-xs font-bold">{viewsCount}</span>
             </div>
           )}
         </div>
-
+ 
         <button
           onClick={toggleSave}
           className={cn(
             "flex items-center gap-1.5 transition-all active:scale-125",
-            isSaved ? "text-whatsapp-teal" : "text-gray-400 font-bold"
+            isSaved ? "text-whatsapp-teal" : "text-gray-500 dark:text-gray-400 font-bold"
           )}
         >
           <Bookmark className={cn("w-5 h-5", isSaved && "fill-whatsapp-teal")} />

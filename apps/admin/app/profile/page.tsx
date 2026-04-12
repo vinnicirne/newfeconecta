@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Grid, ChevronDown, Plus, Camera, Globe, Instagram, MessageCircle, MessageSquare, Linkedin, Youtube, Settings2, UserSquare2, PlaySquare, Flame, Bookmark, ArrowLeft, Menu, LogOut, Mic, Music, X } from "lucide-react";
+import { Grid, ChevronDown, Plus, Camera, Globe, Instagram, MessageCircle, MessageSquare, Linkedin, Youtube, Settings2, UserSquare2, PlaySquare, Flame, Bookmark, ArrowLeft, Menu, LogOut, Mic, Music, X, Heart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
@@ -435,22 +435,22 @@ export default function ProfilePage() {
 
           <div className="flex-1 flex justify-around text-center pt-8">
             <div className="flex flex-col cursor-default">
-              <span className="font-bold text-lg leading-none">{userPosts.length || 0}</span>
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Publicações</span>
+              <span className="font-bold text-lg leading-none dark:text-white text-gray-900">{userPosts.length || 0}</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">Publicações</span>
             </div>
             <button 
               onClick={() => fetchConnections('followers', user.id)}
               className="flex flex-col hover:opacity-70 active:scale-95 transition-all"
             >
-              <span className="font-bold text-lg leading-none">{user?.followers_count?.toLocaleString() || 0}</span>
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Seguidores</span>
+              <span className="font-bold text-lg leading-none dark:text-white text-gray-900">{user?.followers_count?.toLocaleString() || 0}</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">Seguidores</span>
             </button>
             <button 
               onClick={() => fetchConnections('following', user.id)}
               className="flex flex-col hover:opacity-70 active:scale-95 transition-all"
             >
-              <span className="font-bold text-lg leading-none">{user?.following_count?.toLocaleString() || 0}</span>
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Seguindo</span>
+              <span className="font-bold text-lg leading-none dark:text-white text-gray-900">{user?.following_count?.toLocaleString() || 0}</span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">Seguindo</span>
             </button>
           </div>
         </div>
@@ -488,22 +488,21 @@ export default function ProfilePage() {
         <div className="flex gap-2 mb-6">
           <button
             onClick={() => setIsEditModalOpen(true)}
-            className="flex-1 bg-white/10 hover:bg-white/15 py-2 rounded-xl text-sm font-bold transition-all border border-white/5 active:scale-95 uppercase tracking-wide"
+            className="flex-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 py-2 rounded-xl text-sm font-bold transition-all border border-black/5 dark:border-white/5 active:scale-95 uppercase tracking-wide text-gray-900 dark:text-white"
           >
             Editar Perfil
           </button>
-
+ 
           <button
             onClick={() => window.location.href = '/messages'}
-            className="flex-1 bg-white/10 hover:bg-white/15 flex items-center justify-center gap-2 rounded-xl transition-all border border-white/5 active:scale-95 text-sm font-bold uppercase tracking-wide"
+            className="flex-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center gap-2 rounded-xl transition-all border border-black/5 dark:border-white/5 active:scale-95 text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-white"
             title="Mensagens"
           >
-            <MessageSquare className="w-4 h-4 text-gray-300" />
+            <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-300" />
             Chat
           </button>
-
-
-          <button className="w-10 bg-white/10 hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-white/5 active:scale-95">
+ 
+          <button className="w-10 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-black/5 dark:border-white/5 active:scale-95 text-gray-900 dark:text-white">
             <ChevronDown className="w-4 h-4" />
           </button>
         </div>
@@ -535,7 +534,7 @@ export default function ProfilePage() {
                   )}
                   title={link.label}
                 >
-                  <link.icon className="w-5 h-5 text-gray-400 group-hover:text-inherit transition-colors" />
+                  <link.icon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-inherit transition-colors" />
                 </a>
               ))}
               <button className="w-11 h-11 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-500 hover:text-white hover:bg-white/10 transition-all active:scale-90">
@@ -559,7 +558,7 @@ export default function ProfilePage() {
                 <Plus className="w-4 h-4 text-whatsapp-dark" />
               </div>
             </div>
-            <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase">Adicionar</span>
+            <span className="text-[10px] font-black text-gray-600 dark:text-gray-400 tracking-widest uppercase">Adicionar</span>
           </div>
 
           {highlights.map((h: any) => (
@@ -593,7 +592,7 @@ export default function ProfilePage() {
                   <Settings2 className="w-3.5 h-3.5 text-gray-400" />
                 </button>
               </div>
-              <span className="text-[10px] font-black text-gray-200 tracking-widest uppercase truncate w-20 text-center">{h.title}</span>
+              <span className="text-[10px] font-black text-gray-700 dark:text-gray-200 tracking-widest uppercase truncate w-20 text-center">{h.title}</span>
             </div>
           ))}
         </div>
@@ -612,7 +611,7 @@ export default function ProfilePage() {
             onClick={() => setView(tab.id as any)}
             className={cn(
               "flex-1 flex justify-center items-center transition-all",
-              view === tab.id ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500"
+              view === tab.id ? "text-gray-900 dark:text-white border-t-2 border-gray-900 dark:border-white -mt-[2px]" : "text-gray-400 dark:text-gray-500"
             )}
           >
             <tab.icon className={cn("w-6 h-6", view === tab.id && "fill-current")} />

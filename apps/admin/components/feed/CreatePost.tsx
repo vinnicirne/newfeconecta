@@ -292,7 +292,7 @@ export default function CreatePost({ user, onPostCreated }: any) {
                 <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-transform group-active:scale-90", color)}>
                    <Icon className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">{label}</span>
+                <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-tighter">{label}</span>
               </button>
             ))}
           </div>
