@@ -69,27 +69,30 @@ export default function RootPage() {
     init();
 
     const channel = supabase
-      .channel('feed-changes')
+      .channel('unified-feed-updates')
+      // FEED POSTS REALTIME
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
         const newPost = payload.new;
-        
-        // Busca apenas o perfil do autor do novo post para não onerar o banco
         const { data: profile } = await supabase
           .from('profiles')
           .select('id, full_name, username, avatar_url')
           .eq('id', newPost.user_id)
           .single();
-          
         const mapped = mapPost(newPost, { [newPost.user_id]: profile || {} });
-        
-        setPosts(prev => {
-          // Evita duplicatas se o post já foi adicionado via optimistic UI ou reload manual
-          if (prev.some(p => p.id === mapped.id)) return prev;
-          return [mapped, ...prev];
-        });
+        setPosts(prev => (prev.some(p => p.id === mapped.id) ? prev : [mapped, ...prev]));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
-        setPosts(prev => prev.filter(p => p.id !== payload.old.id));
+        setPosts(prev => prev.filter(p => (p.id !== payload.old.id && p.unique_key !== payload.old.id)));
+      })
+      // STORIES REALTIME
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, () => {
+        loadStories(); // Recarrega grupos de stories na inserção
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'stories' }, (payload) => {
+        setStoryGroups(prev => prev.map(group => ({
+          ...group,
+          stories: group.stories.filter((s: any) => s.id !== payload.old.id)
+        })).filter(group => group.stories.length > 0)); 
       })
       .subscribe();
 
@@ -427,7 +430,7 @@ export default function RootPage() {
                     post={post}
                     currentUser={currentUser}
                     onDeleted={(id: string) => setPosts(prev => prev.filter(p => p.id !== id))}
-                    onUpdated={(updated: any) => setPosts(prev => prev.map(p => p.id === updated.id ? mapPost(updated, {}) : p))}
+                    onUpdated={(updated: any) => setPosts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))}
                   />
                 </div>
 

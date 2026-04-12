@@ -36,6 +36,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
     try {
       await supabase.rpc('increment_view', { p_post_id: post.id });
+      onUpdated?.({ ...post, views_count: viewsCount + 1 });
     } catch (e) {
       console.error("Erro ao computar visualização", e);
     }
@@ -207,6 +208,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           .insert({ post_id: post.id, profile_id: userId });
         if (error) throw error;
       }
+      onUpdated?.({ ...post, reposts_count: oldReposted ? Math.max(0, oldLocalCount - 1) : oldLocalCount + 1 });
     } catch (err) {
       console.error("Error toggling repost:", err);
       setIsReposted(oldReposted);
@@ -232,6 +234,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         .eq('id', post.id);
 
       if (error) throw error;
+      onUpdated?.({ ...post, likes: newLikes, likes_count: newLikes.length, views_count: viewsCount });
     } catch (err) {
       console.error("Error updating likes:", err);
       setLikes(oldLikes); // revert exactly back to old array

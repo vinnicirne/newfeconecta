@@ -22,8 +22,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkAuth = async () => {
       try {
         setLoading(true);
-        // getUser() é mais lento porém MUITO mais seguro que getSession()
-        const { data: { user }, error } = await supabase.auth.getUser();
+        // getSession() é instantâneo e usa o storage local, evitando logouts por oscilação de rede
+        const { data: { session }, error } = await supabase.auth.getSession();
+        const user = session?.user;
 
         if (error) throw error;
 
@@ -49,7 +50,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
 
         if (!isPublicRoute) {
-          await supabase.auth.signOut();
+          // REMOVIDO: signOut agressivo para evitar deslogar usuário por erro de rede
           router.replace("/login");
           setAuthorized(false);
         } else {
