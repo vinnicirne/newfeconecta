@@ -152,7 +152,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
            .getPublicUrl(data.path);
            
          mediaUrl = publicUrl;
-         mediaType = mode === 'photo' ? 'photo' : 'video';
+         mediaType = (mode === 'photo' ? 'image' : 'video') as any;
       } else {
          mediaType = 'text';
          setUploadProgress(100);
