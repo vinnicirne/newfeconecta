@@ -294,7 +294,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               <Link
                 key={i}
                 href={`/explore/${tag}`}
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 className="text-whatsapp-teal dark:text-whatsapp-green hover:underline cursor-pointer font-medium"
               >
                 {part}
@@ -308,7 +308,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               <Link 
                 key={i} 
                 href={`/profile/${username}`} 
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 className="text-whatsapp-teal dark:text-whatsapp-green hover:underline font-bold"
               >
                 {part}
