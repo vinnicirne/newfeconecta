@@ -692,7 +692,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               <div className="w-px h-8 bg-white/10 mx-2" />
 
               <button
-                onClick={(e) => { e.stopPropagation(); toggleSave(); }}
+                onClick={(e) => { e.stopPropagation(); toggleSave(e); }}
                 className={cn(
                   "flex flex-col items-center gap-1 transition-all active:scale-125",
                   isSaved ? "text-whatsapp-teal" : "text-white"
