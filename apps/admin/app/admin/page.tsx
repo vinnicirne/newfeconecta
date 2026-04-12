@@ -13,7 +13,11 @@ import {
   Repeat,
   LayoutDashboard,
   Link2,
-  Eye
+  Eye,
+  CheckCircle2,
+  Camera,
+  Layout,
+  Smartphone
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -150,6 +154,38 @@ export default function DashboardPage() {
         <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, {adminName}</h1>
         <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
       </div>
+ 
+      {/* Controle de Funcionalidades do Sistema - EXIGÊNCIA OBRIGATÓRIA */}
+      <section className="bg-whatsapp-green/10 border border-whatsapp-green/20 rounded-2xl p-6 whatsapp-shadow">
+        <div className="flex items-center justify-between mb-4">
+           <h2 className="text-sm font-black uppercase tracking-widest text-whatsapp-green flex items-center gap-2">
+             <LayoutDashboard className="w-4 h-4" /> Gestão de Recursos Ativos
+           </h2>
+           <span className="text-[10px] bg-whatsapp-green text-whatsapp-dark px-2 py-0.5 rounded-md font-black uppercase">Ciclo de Estabilização v2</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+           {[
+             { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
+             { name: 'Layout Triplo', status: 'Ativo', icon: Layout, desc: 'Sidebar de contatos online' },
+             { name: 'Identidade Visual', status: 'Integrado', icon: Users, desc: 'Edição de Banner e Avatar' },
+             { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Barra de usuários ativos' },
+           ].map((feature) => (
+             <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
+                <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">
+                   <feature.icon className="w-4 h-4" />
+                </div>
+                <div>
+                   <h4 className="text-xs font-bold dark:text-white">{feature.name}</h4>
+                   <p className="text-[10px] text-gray-500 mb-1">{feature.desc}</p>
+                   <div className="flex items-center gap-1.5">
+                      <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
+                      <span className="text-[9px] font-black uppercase text-whatsapp-green">{feature.status}</span>
+                   </div>
+                </div>
+             </div>
+           ))}
+        </div>
+      </section>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
