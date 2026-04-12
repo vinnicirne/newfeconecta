@@ -203,34 +203,34 @@ export default function MessagesPage() {
   const selectedChat = conversations.find(c => c.id === selectedId);
 
   return (
-    <div className="flex h-screen bg-[#0b141a] text-gray-100 overflow-hidden">
+    <div className="flex h-screen bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 overflow-hidden">
       {/* Sidebar - Lista de Conversas */}
       <div className={cn(
-        "w-full md:w-[350px] lg:w-[400px] border-r border-white/5 flex flex-col transition-all",
+        "w-full md:w-[350px] lg:w-[400px] border-r border-gray-200 dark:border-white/5 flex flex-col transition-all bg-white dark:bg-[#111b21]",
         selectedId ? "hidden md:flex" : "flex"
       )}>
         {/* Header Sidebar */}
-        <div className="p-4 bg-[#202c33] flex items-center justify-between">
+        <div className="p-4 bg-gray-50 dark:bg-[#202c33] flex items-center justify-between border-b border-gray-200 dark:border-transparent">
            <div className="flex items-center gap-3">
               <button 
                 onClick={() => router.push('/profile')}
-                className="p-2 hover:bg-white/10 rounded-full transition-all"
+                className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-all text-gray-600 dark:text-gray-300"
               >
                  <ArrowLeft className="w-5 h-5" />
               </button>
-              <h1 className="text-xl font-bold">Conversas</h1>
+              <h1 className="text-xl font-bold dark:text-white text-gray-900">Conversas</h1>
            </div>
            <MessageSquare className="w-5 h-5 text-gray-400" />
         </div>
 
         {/* Busca */}
-        <div className="p-3 bg-[#0b141a]">
+        <div className="p-3 bg-white dark:bg-[#0b141a]">
            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input 
                 type="text" 
                 placeholder="Pesquisar mensagens"
-                className="w-full bg-[#202c33] rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none placeholder:text-gray-500"
+                className="w-full bg-gray-100 dark:bg-[#202c33] rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900 dark:text-white"
               />
            </div>
         </div>
@@ -242,8 +242,8 @@ export default function MessagesPage() {
                 key={chat.id}
                 onClick={() => setSelectedId(chat.id)}
                 className={cn(
-                  "flex items-center gap-3 p-4 cursor-pointer hover:bg-[#202c33] transition-all",
-                  selectedId === chat.id ? "bg-[#2a3942]" : ""
+                  "flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#202c33] transition-all border-b border-gray-50 dark:border-transparent",
+                  selectedId === chat.id ? "bg-gray-100 dark:bg-[#2a3942]" : ""
                 )}
               >
                  <div className="w-12 h-12 rounded-full overflow-hidden flex-shrink-0">
@@ -268,7 +268,7 @@ export default function MessagesPage() {
 
       {/* Main Chat Area */}
       <div className={cn(
-        "flex-1 flex flex-col bg-[#0b141a] relative",
+        "flex-1 flex flex-col bg-gray-50 dark:bg-[#0b141a] relative transition-colors",
         !selectedId ? "hidden md:flex items-center justify-center italic text-gray-500" : "flex"
       )}>
         {!selectedId ? (
@@ -281,7 +281,7 @@ export default function MessagesPage() {
         ) : (
           <>
             {/* Header Chat */}
-            <div className="sticky top-0 z-20 p-4 bg-[#202c33]/95 backdrop-blur-md border-b border-white/5 flex items-center justify-between shadow-lg">
+            <div className="sticky top-0 z-20 p-4 bg-white/95 dark:bg-[#202c33]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 flex items-center justify-between shadow-sm dark:shadow-lg">
                <div className="flex items-center gap-3">
                   <button onClick={() => setSelectedId(null)} className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-full">
                      <ArrowLeft className="w-5 h-5 text-gray-400" />
@@ -290,7 +290,7 @@ export default function MessagesPage() {
                      <img src={selectedChat?.avatar} className="w-full h-full object-cover" alt="" />
                   </div>
                   <div>
-                     <h2 className="font-bold text-sm sm:text-base leading-none text-white">{selectedChat?.name}</h2>
+                     <h2 className="font-bold text-sm sm:text-base leading-none text-gray-900 dark:text-white">{selectedChat?.name}</h2>
                      <span className="text-[10px] text-whatsapp-green font-bold flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
                         online
@@ -309,17 +309,17 @@ export default function MessagesPage() {
                 backgroundImage: `url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')`,
                 backgroundSize: '400px',
                 backgroundBlendMode: 'overlay',
-                backgroundColor: '#0b141a'
+                backgroundColor: 'transparent'
               }}
             >
                {messages.map((m: any) => (
                   <div 
                     key={m.id}
                     className={cn(
-                      "max-w-[85%] sm:max-w-[75%] p-3 px-4 rounded-2xl text-[13px] sm:text-sm shadow-md border animate-in fade-in slide-in-from-bottom-2 duration-300",
+                      "max-w-[85%] sm:max-w-[75%] p-3 px-4 rounded-2xl text-[13px] sm:text-sm shadow-sm border animate-in fade-in slide-in-from-bottom-2 duration-300",
                       m.sender_id === currentUser?.id 
                         ? "self-end bg-[#005c4b] text-white rounded-tr-none border-[#005c4b]" 
-                        : "self-start bg-[#202c33] text-gray-200 rounded-tl-none border-white/5"
+                        : "self-start bg-white dark:bg-[#202c33] text-gray-900 dark:text-gray-200 rounded-tl-none border-gray-100 dark:border-white/5"
                     )}
                   >
                      {m.content}
@@ -342,7 +342,7 @@ export default function MessagesPage() {
             </div>
 
             {/* Input Area */}
-            <div className="p-3 sm:p-4 bg-[#202c33] border-t border-white/5 pb-6">
+            <div className="p-3 sm:p-4 bg-gray-50 dark:bg-[#202c33] border-t border-gray-200 dark:border-white/5 pb-6">
                <form onSubmit={handleSendMessage} className="flex items-center gap-3 max-w-5xl mx-auto">
                   <div className="flex-1 relative">
                      <input 
@@ -350,7 +350,7 @@ export default function MessagesPage() {
                        placeholder="Digite uma mensagem"
                        value={message}
                        onChange={(e) => setMessage(e.target.value)}
-                       className="w-full bg-[#2a3942] rounded-xl py-3 px-5 text-sm focus:outline-none placeholder:text-gray-500 text-white border border-transparent focus:border-whatsapp-green/30 transition-all shadow-inner"
+                       className="w-full bg-white dark:bg-[#2a3942] rounded-xl py-3 px-5 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900 dark:text-white border border-gray-200 dark:border-transparent focus:border-whatsapp-green/30 transition-all shadow-sm"
                      />
                   </div>
                   <button 
