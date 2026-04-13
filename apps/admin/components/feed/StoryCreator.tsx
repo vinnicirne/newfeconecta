@@ -26,6 +26,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
   const colors = ['#00A884', '#128C7E', '#7E57C2', '#EC407A', '#FF7043', '#26A69A', '#42A5F5'];
 
+  const handleClose = () => {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+    onClose();
+  };
+
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
     streamRef.current = null;
@@ -35,10 +40,15 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (mode === 'text') return; // Don't start camera for text mode
     stopCamera();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1080 }, height: { ideal: 1920 } },
-        audio: true,
-      });
+      const constraints = {
+        video: {
+          width: { ideal: 720 },
+          height: { ideal: 1280 },
+          facingMode
+        },
+        audio: true
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.muted = true; }
     } catch (e) {
@@ -80,10 +90,10 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (!streamRef.current) return;
     chunksRef.current = [];
     
-    const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=vp9,opus';
+    const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
     
     try {
-      const recorder = new MediaRecorder(streamRef.current, { mimeType, videoBitsPerSecond: 4000000 });
+      const recorder = new MediaRecorder(streamRef.current, { mimeType, videoBitsPerSecond: 1000000 });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
@@ -230,6 +240,18 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
         {preview?.type === 'image' && <img src={preview.url} className="absolute inset-0 w-full h-full object-cover" alt="" />}
         {preview?.type === 'video' && <video src={preview.url} autoPlay loop playsInline className="absolute inset-0 w-full h-full object-cover" />}
         
+        {/* Barra de Progresso da Gravação */}
+        {recording && (
+          <div className="absolute top-10 left-0 right-0 z-[320] px-4">
+            <div className="h-1.5 w-full bg-white/20 rounded-full overflow-hidden border border-black/10">
+              <div 
+                className="h-full bg-red-500 transition-all duration-1000 ease-linear"
+                style={{ width: `${(recordDuration / 30) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+        
         {/* Overlay Text (Disponível em todos os modos agora) */}
         {(mode === 'text' || preview) && (
           <div className={cn(
@@ -270,7 +292,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
         />
 
         <div className="absolute top-0 left-0 right-0 z-[400] flex items-center justify-between p-6 pt-12 bg-gradient-to-b from-black/50 to-transparent">
-          <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-md">
+          <button onClick={handleClose} className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-md">
             <X />
           </button>
           
@@ -325,19 +347,28 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                    )}
                  </button>
               ) : (
-                 <button 
-                   onPointerDown={handleAction}
-                   className={cn(
-                     "w-22 h-22 rounded-full border-4 flex items-center justify-center transition-all active:scale-90",
-                     recording ? "border-red-500 scale-110 shadow-[0_0_30px_rgba(239,68,68,0.4)]" : "border-white shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                 <div className="flex flex-col items-center">
+                   {recording && (
+                     <div className="mb-4 bg-red-600 px-3 py-1 rounded-full animate-pulse shadow-lg border border-white/20">
+                       <span className="text-white text-[10px] font-black font-mono">
+                         00:{recordDuration.toString().padStart(2, '0')}
+                       </span>
+                     </div>
                    )}
-                 >
-                   {recording ? (
-                     <div className="w-8 h-8 rounded-sm bg-red-500 animate-pulse" />
-                   ) : (
-                     <div className={cn("w-16 h-16 rounded-full", mode === 'video' ? "bg-red-500" : "bg-white")} />
-                   )}
-                 </button>
+                   <button 
+                     onPointerDown={handleAction}
+                     className={cn(
+                       "w-22 h-22 rounded-full border-4 flex items-center justify-center transition-all active:scale-90",
+                       recording ? "border-red-500 scale-110 shadow-[0_0_30px_rgba(239,68,68,0.4)]" : "border-white shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                     )}
+                   >
+                     {recording ? (
+                       <div className="w-8 h-8 rounded-sm bg-red-500 animate-pulse" />
+                     ) : (
+                       <div className={cn("w-16 h-16 rounded-full", mode === 'video' ? "bg-red-500" : "bg-white")} />
+                     )}
+                   </button>
+                 </div>
               )}
             </div>
 
@@ -359,7 +390,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
             </button>
 
             <div className="flex items-center justify-center w-full">
-               <button onClick={() => setPreview(null)} className="flex items-center gap-3 text-white/50 hover:text-white transition-all group">
+               <button 
+                 onClick={() => {
+                   if (preview?.url) URL.revokeObjectURL(preview.url);
+                   setPreview(null);
+                 }} 
+                 className="flex items-center gap-3 text-white/50 hover:text-white transition-all group"
+               >
                   <div className="p-2 rounded-full bg-white/5 group-hover:bg-white/10">
                     <RotateCcw size={18} />
                   </div>
