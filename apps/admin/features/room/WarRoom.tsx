@@ -12,6 +12,7 @@ import {
   useLocalParticipant,
   useRoomContext,
   useDataChannel,
+  StartAudio,
 } from "@livekit/components-react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -63,9 +64,9 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
         const userName = user.full_name || user.username || "Intercessor";
         const userAvatar = user.avatar_url || "";
         const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${encodeURIComponent(userName)}&avatar=${encodeURIComponent(userAvatar)}`);
-        
+
         if (!res.ok) throw new Error("Falha ao obter token");
-        
+
         const { token: tk } = await res.json();
         setToken(tk);
       } catch (err) {
@@ -91,13 +92,15 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
   return (
     <LiveKitRoom
       video={false}
-      audio={true}
+      audio={roomData?.creator_id === user?.id}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+      connectOptions={{ autoSubscribe: true }}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
       <WarRoomInterface roomData={roomData} user={user} onExit={onExit} />
       <RoomAudioRenderer />
+      <StartAudio label="Clique para Sintonizar Áudio" className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-md flex items-center justify-center text-primary font-black uppercase tracking-widest text-xs" />
     </LiveKitRoom>
   );
 }
@@ -111,7 +114,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [remainingTime, setRemainingTime] = useState("");
-  const [myRole, setMyRole] = useState<'creator' | 'admin' | 'listener' | 'speaker' | 'none'>('none');
+  const [myRole, setMyRole] = useState<'creator' | 'admin' | 'listener' | 'speaker' | 'none'>(roomData?.creator_id === user?.id ? 'creator' : 'none');
   const [showModeration, setShowModeration] = useState(false);
   const [showMicTest, setShowMicTest] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
@@ -119,16 +122,20 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
   const [showChatOverlay, setShowChatOverlay] = useState(false);
 
   const [dbParticipants, setDbParticipants] = useState<any[]>([]);
-  const { send } = useDataChannel("reactions", (data) => {
-    try {
-      const msg = JSON.parse(new TextDecoder().decode(data.payload));
-      if (msg.type === 'reaction') {
-        handleAddReaction(msg.emoji, false);
+  const { send, lastMessage } = useDataChannel("reactions");
+
+  useEffect(() => {
+    if (lastMessage) {
+      try {
+        const msg = JSON.parse(new TextDecoder().decode(lastMessage.payload));
+        if (msg.type === 'reaction') {
+          handleAddReaction(msg.emoji, false);
+        }
+      } catch (e) {
+        console.error("Erro ao processar reação:", e);
       }
-    } catch (e) {
-      console.error("Erro ao processar reação:", e);
     }
-  });
+  }, [lastMessage]);
 
   function handleAddReaction(emoji: string, broadcast = true) {
     const id = Date.now();
@@ -300,13 +307,13 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       if (diff <= 0) {
         setRemainingTime("00:00");
         clearInterval(tInterval);
-        
+
         // Só expulsa se realmente estiver marcado como encerrado ou se passou muito tempo (buffer de 5 min)
         if (roomData.status === 'ended' || Math.abs(diff) > 300000) {
           if (roomData.creator_id === user.id && roomData.status !== 'ended') {
-            await supabase.from('rooms').update({ 
-              status: 'ended', 
-              ended_at: new Date().toISOString() 
+            await supabase.from('rooms').update({
+              status: 'ended',
+              ended_at: new Date().toISOString()
             }).eq('id', roomData.id);
           }
           toast.error("O tempo do clamor acabou! 🙏");
@@ -316,7 +323,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       }
 
       const dur = moment.duration(diff);
-      setRemainingTime(`${dur.minutes()}:${dur.seconds() < 10 ? '0' : ''}${dur.seconds()}`);
+      setRemainingTime(`${Math.floor(dur.asMinutes())}:${dur.seconds() < 10 ? '0' : ''}${dur.seconds()}`);
     }, 1000);
 
     const fetchMessages = async () => {
@@ -356,7 +363,12 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
             setPendingRequests(prev => prev.filter(r => r.id !== (p.new as any).id));
           }
         }
-        if ((p.new as any).user_id === user.id && (p.new as any).status === 'approved') setMyRole('speaker');
+        if ((p.new as any).user_id === user.id && (p.new as any).status === 'approved') {
+          setMyRole('speaker');
+          toast.success("Seu microfone foi liberado! 🎤", {
+            description: "Clique no microfone para começar a interceder.",
+          });
+        }
       }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomData.id}` }, async (p) => {
         const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', (p.new as any).user_id).single();
         const msg = { ...(p.new as any), user_name: data?.full_name || 'Intercessor', avatar_url: data?.avatar_url };
@@ -364,7 +376,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       }).subscribe();
 
     return () => { clearInterval(tInterval); supabase.removeChannel(sc); };
-  }, [roomData?.id, user.id]);
+  }, [roomData?.id, user.id, roomData?.creator_id, roomData?.created_at, roomData?.duration_minutes]);
 
   useEffect(() => { if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -385,12 +397,16 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
   };
 
   useEffect(() => {
+    // A ativação automática é bloqueada por políticas de autoplay do navegador.
+    // O microfone agora deve ser ativado manualmente pelo usuário através do botão de mic.
     const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
-    localParticipant.setMicrophoneEnabled(canSpeak);
+    if (!canSpeak && localParticipant.isMicrophoneEnabled) {
+      localParticipant.setMicrophoneEnabled(false);
+    }
   }, [myRole, localParticipant]);
 
-  const activeLeader = participants.find(p => p.identity === roomData.creator_id) || participants[0] || localParticipant;
-  const leaderMeta = JSON.parse(activeLeader?.metadata || '{}');
+  const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant.identity === roomData.creator_id ? localParticipant : null);
+  const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
 
   const handleExit = () => {
     if (myRole === 'creator') {
@@ -399,9 +415,9 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         action: {
           label: "Encerrar",
           onClick: async () => {
-            await supabase.from('rooms').update({ 
-               status: 'ended', 
-               ended_at: new Date().toISOString() 
+            await supabase.from('rooms').update({
+              status: 'ended',
+              ended_at: new Date().toISOString()
             }).eq('id', roomData.id);
             onExit();
           },
@@ -503,19 +519,33 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
           <div className="relative group">
             <div className="size-32 rounded-full border-4 border-primary avatar-glow flex items-center justify-center bg-surface-container-low overflow-hidden relative z-10">
               <img
-                src={leaderMeta.avatar || (Array.isArray(roomData?.profiles) ? roomData.profiles[0]?.avatar_url : roomData?.profiles?.avatar_url) || "https://github.com/shadcn.png"}
+                src={(Array.isArray(roomData?.profiles) ? roomData.profiles[0]?.avatar_url : roomData?.profiles?.avatar_url) || leaderMeta.avatar || "https://github.com/shadcn.png"}
                 className="absolute inset-0 w-full h-full object-cover"
                 alt=""
               />
             </div>
-            {activeLeader?.isSpeaking && (
+            {creatorInLive?.isSpeaking && (
               <div className="absolute -inset-3 rounded-full border border-primary/20 animate-ping opacity-20" />
             )}
           </div>
 
           <div className="absolute right-4 flex flex-col gap-3">
-            <button onClick={() => setShowMicTest(true)} className="size-12 rounded-full glass-panel flex items-center justify-center border border-white/10 hover:bg-surface-container-highest active:scale-95 transition-all">
-              <Mic size={20} />
+            <button
+              onClick={() => {
+                const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
+                if (canSpeak) {
+                  localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled);
+                } else {
+                  setShowMicTest(true);
+                }
+              }}
+              className={cn(
+                "size-12 rounded-full glass-panel flex items-center justify-center border transition-all active:scale-95",
+                localParticipant.isMicrophoneEnabled ? "border-primary bg-primary/10 text-primary shadow-lg shadow-primary/20" : "border-white/10 hover:bg-surface-container-highest"
+              )}
+              title={myRole === 'listener' ? "Testar Microfone" : (localParticipant.isMicrophoneEnabled ? "Mutar" : "Ativar Microfone")}
+            >
+              {localParticipant.isMicrophoneEnabled ? <Mic size={20} /> : (myRole === 'listener' ? <Mic size={20} /> : <MicOff size={20} />)}
             </button>
             <button onClick={async () => { setRequestStatus('pending'); await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' }); toast.info("Pedido enviado"); }} className={cn("size-12 rounded-full glass-panel flex items-center justify-center border border-white/10 transition-all", requestStatus === 'pending' && "bg-primary/20 border-primary animate-pulse")}>
               <Hand size={20} />
@@ -538,7 +568,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
 
         <div className="flex items-end justify-center gap-1.5 h-8 mb-6">
           {[...Array(9)].map((_, i) => (
-            <motion.div key={i} animate={{ height: activeLeader?.isSpeaking ? [8, 12 + Math.random() * 16, 8] : [8, 10, 8] }} transition={{ repeat: Infinity, duration: 0.4 + (i * 0.1) }} className="w-1.5 bg-primary rounded-full shadow-[0_0_10px_#3fff8b]" />
+            <motion.div key={i} animate={{ height: creatorInLive?.isSpeaking ? [8, 12 + Math.random() * 16, 8] : [8, 10, 8] }} transition={{ repeat: Infinity, duration: 0.4 + (i * 0.1) }} className="w-1.5 bg-primary rounded-full shadow-[0_0_10px_#3fff8b]" />
           ))}
         </div>
 
@@ -620,7 +650,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         {/* Input de mensagem */}
         <div className="relative flex items-center gap-2">
           {/* Mobile Chat Trigger */}
-          <button 
+          <button
             onClick={() => setShowChatOverlay(true)}
             className="md:hidden size-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"
           >
@@ -632,7 +662,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              onFocus={() => { if(window.innerWidth < 768) setShowChatOverlay(true); }}
+              onFocus={() => { if (window.innerWidth < 768) setShowChatOverlay(true); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && chatInput.trim()) {
                   handleSendMessage(chatInput);
@@ -657,10 +687,10 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       </div>
 
       <MicCheckModal show={showMicTest} onClose={() => setShowMicTest(false)} />
-      <ChatOverlay 
-        show={showChatOverlay} 
-        onClose={() => setShowChatOverlay(false)} 
-        messages={messages} 
+      <ChatOverlay
+        show={showChatOverlay}
+        onClose={() => setShowChatOverlay(false)}
+        messages={messages}
         onSendMessage={handleSendMessage}
         myRole={myRole}
       />
@@ -679,15 +709,16 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         }}
         showChatOverlay={showChatOverlay}
         onToggleChatOverlay={() => setShowChatOverlay(!showChatOverlay)}
+        localParticipant={localParticipant}
       />
     </div>
   );
 }
 
-function ChatOverlay({ show, onClose, messages, onSendMessage, myRole }: { 
-  show: boolean; 
-  onClose: () => void; 
-  messages: any[]; 
+function ChatOverlay({ show, onClose, messages, onSendMessage, myRole }: {
+  show: boolean;
+  onClose: () => void;
+  messages: any[];
   onSendMessage: (c: string) => void;
   myRole: string;
 }) {
@@ -735,7 +766,7 @@ function ChatOverlay({ show, onClose, messages, onSendMessage, myRole }: {
             placeholder="Digite sua mensagem de fé..."
             className="w-full bg-white/5 border border-white/10 rounded-full py-4.5 px-6 text-sm text-white outline-none focus:ring-1 focus:ring-primary/50"
           />
-          <button 
+          <button
             onClick={() => { if (input.trim()) { onSendMessage(input); setInput(""); } }}
             className="absolute right-2 top-1.5 p-3 bg-primary text-black rounded-full shadow-lg active:scale-90 transition-all"
           >
@@ -785,7 +816,7 @@ function MicCheckModal({ show, onClose }: { show: boolean, onClose: () => void }
   );
 }
 
-function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipants, myRole, pendingRequests, onApprove, onDeny, showChatOverlay, onToggleChatOverlay }: {
+function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipants, myRole, pendingRequests, onApprove, onDeny, showChatOverlay, onToggleChatOverlay, localParticipant }: {
   show: boolean,
   onClose: () => void,
   roomId: string,
@@ -796,7 +827,8 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
   onApprove: (r: any) => void,
   onDeny: (id: string) => void,
   showChatOverlay?: boolean,
-  onToggleChatOverlay?: () => void
+  onToggleChatOverlay?: () => void,
+  localParticipant: any
 }) {
   const [tab, setTab] = useState<'invite' | 'users' | 'requests'>('users');
   const [s, setS] = useState("");
@@ -880,6 +912,14 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
         <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
           {tab === 'users' && (
             <>
+              <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-3xl flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn("size-3 rounded-full animate-pulse", localParticipant.isMicrophoneEnabled ? "bg-primary" : "bg-red-500")} />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-white">Status do seu Microfone</p>
+                </div>
+                <p className="text-[10px] font-bold text-primary">{localParticipant.isMicrophoneEnabled ? "ATIVO" : "MUTADO"}</p>
+              </div>
+
               {(myRole === 'creator' || myRole === 'admin') && (
                 <div className="flex gap-2 mb-6 p-1 bg-surface-container-low rounded-3xl border border-on-surface/5">
                   <button onClick={openChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-2xl transition-all">
