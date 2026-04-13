@@ -93,7 +93,7 @@ export function WarRoomSettings({
 
         <div className="flex px-8 gap-6 border-b border-white/5">
           <button onClick={() => setTab('users')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'users' ? "text-[#3fff8b]" : "text-white/40")}>
-            Participantes ({dbParticipants.length})
+            Membros ({dbParticipants.length})
             {tab === 'users' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#3fff8b]" />}
           </button>
           {(myRole === 'creator' || myRole === 'admin') && (
@@ -104,11 +104,11 @@ export function WarRoomSettings({
             </button>
           )}
           <button onClick={() => setTab('invite')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'invite' ? "text-[#3fff8b]" : "text-white/40")}>
-            Buscar e Convidar
+            Convidar
             {tab === 'invite' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#3fff8b]" />}
           </button>
           <button onClick={() => onToggleChatOverlay?.()} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ml-auto", showChatOverlay ? "text-[#3fff8b]" : "text-white/40")}>
-            Chat Overlay: {showChatOverlay ? 'ON' : 'OFF'}
+            Chat: {showChatOverlay ? 'ON' : 'OFF'}
           </button>
         </div>
 
