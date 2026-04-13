@@ -2,9 +2,40 @@
 
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Mic, Users, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
+import moment from "moment";
+import { Mic, Users, ArrowRight, Clock } from "lucide-react";
+
+function RoomTimer({ createdAt, duration }: { createdAt: string, duration: number }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const tick = () => {
+      const end = moment(createdAt).add(duration, 'minutes');
+      const diff = end.diff(moment());
+      if (diff <= 0) {
+        setTimeLeft("00:00");
+        return;
+      }
+      const dur = moment.duration(diff);
+      const mins = Math.floor(dur.asMinutes());
+      const secs = dur.seconds();
+      setTimeLeft(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [createdAt, duration]);
+
+  return (
+    <div className="flex items-center gap-1 text-[10px] font-black text-orange-500 uppercase">
+      <Clock size={12} />
+      <span>{timeLeft}</span>
+    </div>
+  );
+}
 
 export default function LiveRoomsBar() {
   const [rooms, setRooms] = useState<any[]>([]);
@@ -16,9 +47,14 @@ export default function LiveRoomsBar() {
         .from('rooms')
         .select('*, profiles(full_name, avatar_url)')
         .eq('status', 'active')
+        .is('ended_at', null)
         .order('created_at', { ascending: false })
         .limit(5);
-      setRooms(data || []);
+      const activeRooms = (data || []).filter(room => {
+        const end = moment(room.created_at).add(room.duration_minutes, 'minutes');
+        return end.isAfter(moment());
+      });
+      setRooms(activeRooms);
     };
     fetchRooms();
 
@@ -64,11 +100,11 @@ export default function LiveRoomsBar() {
             </div>
             
             <div className="flex items-center justify-between bg-gray-50 dark:bg-white/5 px-3 py-2 rounded-2xl">
+               <RoomTimer createdAt={room.created_at} duration={room.duration_minutes} />
                <div className="flex items-center gap-1.5 text-[10px] font-black text-whatsapp-teal uppercase">
-                 <Users size={12} />
-                 <span>Entrar agora</span>
+                 <span>Entrar</span>
+                 <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
                </div>
-               <ArrowRight size={14} className="text-gray-400 group-hover:text-whatsapp-teal transition-colors" />
             </div>
           </motion.div>
         ))}

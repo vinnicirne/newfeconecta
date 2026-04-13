@@ -2,11 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  X, Mic, MicOff, MessageCircle, Send, Users,
-  Settings, ArrowLeft, Heart, Flame,
-  ChevronDown, PhoneOff, Shield, UserPlus, Trash,
-  MessageSquare, Clock as ClockIcon, Crown, UserMinus, ShieldAlert, Share2,
-  Volume2, VolumeX, Headphones, PlayCircle, Search, Mail
+  X, Mic, MicOff, Send, ArrowLeft, Hand, UserPlus, Clock as ClockIcon, Search, PhoneOff, Check, Ban, Headphones, VolumeX, Users, Trash2, ShieldAlert, ShieldOff, Link
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -35,6 +31,7 @@ interface ChatMessage {
   user_name: string;
   content: string;
   created_at: string;
+  avatar_url?: string;
 }
 
 interface Reaction {
@@ -44,7 +41,6 @@ interface Reaction {
   offset: number;
 }
 
-// --- Main Component ---
 export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
   const [token, setToken] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<any>(null);
@@ -52,68 +48,47 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
 
   useEffect(() => {
     async function init() {
-      const { data: room, error: roomError } = await supabase.from('rooms').select('*, profiles(full_name, avatar_url)').eq('id', roomId).single();
+      const { data: room, error: roomError } = await supabase.from('rooms').select('*, profiles:creator_id(full_name, avatar_url)').eq('id', roomId).single();
       if (roomError || !room) { toast.error("Sala não encontrada"); onExit(); return; }
       setRoomData(room);
 
       const isCreator = room.creator_id === user.id;
-      // GARANTE QUE O CRIADOR SEMPRE TENHA PRIVILÉGIO (UPSERT)
-      // OUTROS USUÁRIOS APENAS INSERT (PRESERVA ROLE SE JÁ EXISTIR)
       if (isCreator) {
-        await supabase.from('participants').upsert({
-          room_id: roomId,
-          user_id: user.id,
-          role: 'creator'
-        }, { onConflict: 'room_id,user_id' });
+        await supabase.from('participants').upsert({ room_id: roomId, user_id: user.id, role: 'creator' }, { onConflict: 'room_id,user_id' });
       } else {
-        await supabase.from('participants').insert({
-          room_id: roomId,
-          user_id: user.id,
-          role: 'listener'
-        });
+        await supabase.from('participants').upsert({ room_id: roomId, user_id: user.id, role: 'listener' }, { onConflict: 'room_id,user_id' });
       }
 
       try {
-        const nameParam = encodeURIComponent(user.full_name || user.id);
-        const avatarParam = encodeURIComponent(user.avatar_url || '');
-        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${nameParam}&avatar=${avatarParam}`);
-        const { token } = await res.json();
-        setToken(token);
+        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${encodeURIComponent(user.full_name)}&avatar=${encodeURIComponent(user.avatar_url || '')}`);
+        const { token: tk } = await res.json();
+        setToken(tk);
       } catch (err) {
-        toast.error("Erro ao conectar ao servidor de áudio");
+        toast.error("Erro sintonizando clamor");
       } finally {
         setLoading(false);
       }
     }
     init();
-
-    const statusChannel = supabase.channel(`room-status-${roomId}`)
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
-        (payload) => {
-          if (payload.new.status === 'ended' || payload.new.status === 'closed') {
-            toast.info("A sala de oração foi encerrada.");
-            onExit();
-          }
-        }
-      ).subscribe();
-    return () => { supabase.removeChannel(statusChannel); };
-  }, [roomId, user.id, onExit]);
+  }, [roomId, user.id]);
 
   if (loading || !token) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#0f0f0f] flex flex-col items-center justify-center gap-6">
-        <div className="w-16 h-16 rounded-full border-4 border-whatsapp-teal/20 animate-spin border-t-whatsapp-teal" />
-        <p className="text-white font-bold opacity-50 uppercase tracking-widest text-xs">Entrando na oração...</p>
+      <div className="fixed inset-0 z-50 bg-[#0e0e0e] flex flex-col items-center justify-center gap-6">
+        <div className="w-16 h-16 rounded-full border-4 border-[#3fff8b]/20 animate-spin border-t-[#3fff8b]" />
+        <p className="text-[#3fff8b] font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Sintonizando Canal de Oração...</p>
       </div>
     );
   }
 
   return (
     <LiveKitRoom
-      video={false} audio={true} token={token}
-      serverUrl="wss://feconecta-y82v2tn0.livekit.cloud"
+      video={false}
+      audio={true}
+      token={token}
+      serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
       onDisconnected={onExit}
-      className="fixed inset-0 z-[100] bg-[#0c0c0c] flex flex-col overflow-hidden text-white"
+      className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
       <WarRoomInterface roomData={roomData} user={user} onExit={onExit} />
       <RoomAudioRenderer />
@@ -121,390 +96,557 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
   );
 }
 
-// --- Interface UI ---
-function WarRoomInterface({ roomData, user, onExit }: { roomData: any, user: any, onExit: () => void }) {
+function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any; onExit: () => void }) {
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
   const room = useRoomContext();
+
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [showChat, setShowChat] = useState(true);
-  const [showModeration, setShowModeration] = useState(false);
-  const [showMicTest, setShowMicTest] = useState(false);
-  const [requestStatus, setRequestStatus] = useState<'none' | 'pending' | 'approved'>('none');
   const [reactions, setReactions] = useState<Reaction[]>([]);
   const [remainingTime, setRemainingTime] = useState("");
   const [myRole, setMyRole] = useState<'creator' | 'admin' | 'listener' | 'speaker' | 'none'>('none');
+  const [showModeration, setShowModeration] = useState(false);
+  const [showMicTest, setShowMicTest] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [requestStatus, setRequestStatus] = useState<'none' | 'pending' | 'approved'>('none');
+
+  const [dbParticipants, setDbParticipants] = useState<any[]>([]);
+  const { send } = useDataChannel("reactions", (data) => {
+    try {
+      const msg = JSON.parse(new TextDecoder().decode(data.payload));
+      if (msg.type === 'reaction') {
+        handleAddReaction(msg.emoji, false);
+      }
+    } catch (e) {
+      console.error("Erro ao processar reação:", e);
+    }
+  });
+
+  function handleAddReaction(emoji: string, broadcast = true) {
+    const id = Date.now();
+    const xPos = Math.random() * 65 + 17;        // centralizado (15% a 82%)
+    const xOffset = (Math.random() - 0.5) * 180; // variação lateral mais suave
+
+    setReactions(prev => [...prev.slice(-12), {
+      id,
+      emoji,
+      x: xPos,
+      offset: xOffset
+    }]);
+
+    // Remove automaticamente após 4 segundos
+    setTimeout(() => {
+      setReactions(prev => prev.filter(r => r.id !== id));
+    }, 4200);
+
+    // Envia para outros usuários via LiveKit DataChannel
+    if (broadcast && send) {
+      send(
+        new TextEncoder().encode(
+          JSON.stringify({ type: 'reaction', emoji })
+        ),
+        { reliable: false }
+      );
+    }
+  }
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  const { send } = useDataChannel("reactions");
-
-  // Refs para estabilidade de conexão
-  const onExitRef = useRef(onExit);
-  useEffect(() => { onExitRef.current = onExit; }, [onExit]);
-
   useEffect(() => {
-    if (!roomData) return;
-    const interval = setInterval(() => {
-      const start = moment(roomData.created_at);
-      const end = start.clone().add(roomData.duration_minutes, 'minutes');
-      const now = moment();
-      const diff = end.diff(now);
-      
-      if (diff <= 0) { 
-        clearInterval(interval); 
-        // Só encerra se a sala estiver realmente ativa para evitar loops de refresh
-        if (roomData.creator_id === user.id && roomData.status === 'active') {
-          handleEndRoom(); 
-        } else {
-          onExitRef.current();
-        }
-        return; 
-      }
-      
-      const duration = moment.duration(diff);
-      const h = Math.floor(duration.asHours());
-      const m = duration.minutes();
-      const s = duration.seconds();
-      setRemainingTime(h > 0 ? `${h}h ${m}m` : `${m}:${s < 10 ? '0' : ''}${s}`);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [roomData?.id, user.id]);
+    const fontLink = document.createElement("link");
+    fontLink.href = "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap";
+    fontLink.rel = "stylesheet";
+    document.head.appendChild(fontLink);
 
-  const handleEndRoom = async () => {
-    try {
-      await supabase.from('rooms').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', roomData.id);
-      onExit();
-    } catch (e) { toast.error("Erro ao encerrar sala"); }
-  };
+    const tailScript = document.createElement("script");
+    tailScript.src = "https://cdn.tailwindcss.com?plugins=forms,container-queries";
+    tailScript.onload = () => {
+      // @ts-ignore
+      if (window.tailwind) {
+        // @ts-ignore
+        window.tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              colors: {
+                "surface-container-highest": "var(--surface-highest, #262626)",
+                "surface-container-high": "var(--surface-high, #201f1f)",
+                "surface-container-low": "var(--surface-low, #131313)",
+                "surface": "var(--surface, #0e0e0e)",
+                "background": "#0a0a0a",
+                "primary": "#3fff8b",
+                "on-surface": "hsl(var(--foreground))",
+                "on-surface-variant": "#adaaaa",
+              },
+              borderRadius: { DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px" },
+              fontFamily: { headline: ["Plus Jakarta Sans"], body: ["Manrope"] }
+            }
+          }
+        };
+      }
+    };
+    document.head.appendChild(tailScript);
+
+    const style = document.createElement("style");
+    style.innerHTML = `
+      :root {
+        --surface-low: #ffffff;
+        --surface: #f8f9fa;
+        --glass: rgba(255, 255, 255, 0.7);
+      }
+      .dark {
+        --surface-low: #0f0f0f;
+        --surface: #0a0a0a;
+        --glass: rgba(18, 18, 18, 0.8);
+      }
+      .emerald-glow { box-shadow: 0 0 40px 0 rgba(63, 255, 139, 0.12); }
+      .avatar-glow { box-shadow: 0 0 12px 0 rgba(63, 255, 139, 0.4); }
+      .glass-panel { background: var(--glass); backdrop-filter: blur(20px); }
+      .primary-gradient { background: linear-gradient(135deg, #3fff8b 0%, #13ea79 100%); }
+      .chat-mask {
+        mask-image: linear-gradient(to top, black 85%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to top, black 85%, transparent 100%);
+      }
+      .reaction-explosion {
+        text-shadow: 
+          0 0 20px rgba(63, 255, 139, 0.8),
+          0 0 40px rgba(63, 255, 139, 0.4);
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(fontLink);
+      document.head.removeChild(tailScript);
+      document.head.removeChild(style);
+    };
+  }, []);
 
   useEffect(() => {
     if (!roomData?.id) return;
-    const fetchRole = async () => {
-      const { data } = await supabase.from('participants').select('role').eq('room_id', roomData.id).eq('user_id', user.id).maybeSingle();
-      if (data) setMyRole(data.role as any);
-      else if (roomData.creator_id === user.id) setMyRole('creator');
-    };
-    fetchRole();
+    const setupUserRole = async () => {
+      if (!roomData?.id) return;
+      const isLeader = roomData.creator_id === user.id;
 
-    // Canal seguro: Identidade única por sala e usuário
-    const sc = supabase.channel(`roles-${roomData.id}-${user.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'participants', 
-        filter: `user_id=eq.${user.id}` 
-      }, async (p) => {
-        if (p.eventType === 'DELETE') {
-          // CONTRA-PROVA: Verifica se sumiu DESTA sala antes de expulsar
-          const { data: stillPresent } = await supabase
-            .from('participants')
-            .select('id')
-            .eq('room_id', roomData.id)
-            .eq('user_id', user.id)
-            .maybeSingle();
-            
-          if (!stillPresent && roomData.creator_id !== user.id) {
-            toast.error("Sua sessão nesta sala foi encerrada.");
-            onExitRef.current();
-          }
-        } else if (p.new && p.new.room_id === roomData.id) {
-          setMyRole(p.new.role);
-          if (p.new.role === 'speaker') setRequestStatus('approved');
+      // 1. Garante que o criador sempre tenha o cargo de 'creator' no banco
+      if (isLeader) {
+        await supabase.from('participants').upsert(
+          { room_id: roomData.id, user_id: user.id, role: 'creator' },
+          { onConflict: 'room_id,user_id' }
+        );
+        setMyRole('creator');
+      } else {
+        // 2. Busca se o usuário já tem um cargo salvo (Admin, Listener, etc)
+        const { data: p } = await supabase.from('participants')
+          .select('role')
+          .eq('room_id', roomData.id)
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (p) {
+          setMyRole(p.role as any);
+        } else {
+          // 3. Se for a primeira vez e não tiver cargo, entra como listener
+          await supabase.from('participants').insert({
+            room_id: roomData.id,
+            user_id: user.id,
+            role: 'listener'
+          });
+          setMyRole('listener');
         }
+      }
+
+      // 4. Se for líder, busca pedidos pendentes
+      if (isLeader) {
+        const { data: reqs } = await supabase.from('requests')
+          .select('*, profiles:user_id(full_name, avatar_url)')
+          .eq('room_id', roomData.id)
+          .eq('status', 'pending');
+        if (reqs) setPendingRequests(reqs);
+      }
+    };
+    setupUserRole();
+
+    const fetchDBMembers = async () => {
+      const { data } = await supabase.from('participants').select('*, profiles(*)').eq('room_id', roomData.id);
+      if (data) setDbParticipants(data);
+    };
+    fetchDBMembers();
+
+    const tInterval = setInterval(async () => {
+      const end = moment(roomData.created_at).add(roomData.duration_minutes || 60, 'minutes');
+      const diff = end.diff(moment());
+
+      if (diff <= 0) {
+        setRemainingTime("00:00");
+        clearInterval(tInterval);
+        // Se for o criador, marca no banco que acabou
+        if (roomData.creator_id === user.id) {
+          await supabase.from('rooms').update({ 
+            status: 'ended', 
+            ended_at: new Date().toISOString() 
+          }).eq('id', roomData.id);
+        }
+        toast.error("O tempo do clamor acabou! 🙏");
+        setTimeout(onExit, 2000);
+        return;
+      }
+
+      const dur = moment.duration(diff);
+      setRemainingTime(`${dur.minutes()}:${dur.seconds() < 10 ? '0' : ''}${dur.seconds()}`);
+    }, 1000);
+
+    const fetchMessages = async () => {
+      const { data } = await supabase.from('messages')
+        .select('*, profiles:user_id(full_name, avatar_url)')
+        .eq('room_id', roomData.id)
+        .order('created_at', { ascending: true })
+        .limit(20);
+
+      if (data) {
+        setMessages(data.map(m => {
+          const profile = Array.isArray((m as any).profiles) ? (m as any).profiles[0] : (m as any).profiles;
+          return {
+            ...m,
+            user_name: profile?.full_name || 'Intercessor',
+            avatar_url: profile?.avatar_url
+          };
+        }));
+      }
+    };
+    fetchMessages();
+
+    const sc = supabase.channel(`war-room-v3-${roomData.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomData.id}` }, (p) => {
+        if (p.new.status === 'ended') {
+          toast.info("A sala foi encerrada.");
+          onExit();
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `room_id=eq.${roomData.id}` }, fetchDBMembers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'requests', filter: `room_id=eq.${roomData.id}` }, async (p) => {
+        if (isLeader) {
+          if (p.eventType === 'INSERT') {
+            const { data } = await supabase.from('profiles').select('*').eq('id', p.new.user_id).single();
+            setPendingRequests(prev => [...prev, { ...p.new, profiles: data }]);
+          } else {
+            setPendingRequests(prev => prev.filter(r => r.id !== p.new.id));
+          }
+        }
+        if (p.new.user_id === user.id && p.new.status === 'approved') setMyRole('speaker');
+      }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomData.id}` }, async (p) => {
+        const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', p.new.user_id).single();
+        const msg = { ...p.new, user_name: data?.full_name || 'Intercessor', avatar_url: data?.avatar_url };
+        setMessages(prev => [...prev, msg]);
       }).subscribe();
-      
-    return () => { supabase.removeChannel(sc); };
+
+    return () => { clearInterval(tInterval); supabase.removeChannel(sc); };
   }, [roomData?.id, user.id]);
 
-  useEffect(() => {
-    const handleData = (payload: Uint8Array, participant: any) => {
-      if (participant?.identity === user.id) return;
-      try {
-        const data = JSON.parse(new TextDecoder().decode(payload));
-        if (data.type === 'reaction') handleAddReaction(data.emoji, false);
-      } catch (e) { }
-    };
-    room.on('dataReceived', handleData);
-    return () => { room.off('dataReceived', handleData); };
-  }, [room, user.id]);
+  useEffect(() => { if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  useEffect(() => {
-    if (!roomData) return;
-    const fetchMsgs = async () => {
-      const { data } = await supabase.from('messages').select('*, profiles(full_name)').eq('room_id', roomData.id).order('created_at', { ascending: true }).limit(50);
-      if (data) setMessages(data.map(m => ({ id: m.id, user_id: m.user_id, user_name: m.profiles?.full_name || 'Intercessor', content: m.content, created_at: m.created_at })));
-    };
-    fetchMsgs();
-    const sc = supabase.channel(`chat-${roomData.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomData.id}` }, async (p) => {
-      const { data } = await supabase.from('profiles').select('full_name').eq('id', p.new.user_id).single();
-      setMessages(prev => [...prev, { id: p.new.id, user_id: p.new.user_id, user_name: data?.full_name || 'Intercessor', content: p.new.content, created_at: p.new.created_at }]);
-    }).subscribe();
-    return () => { supabase.removeChannel(sc); };
-  }, [roomData?.id]);
-
-  useEffect(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), [messages]);
-
-  const handleAddReaction = (emoji: string, broadcast = true) => {
-    const id = Date.now();
-    const xPos = Math.random() * 70 + 15;
-    const xOffset = (Math.random() - 0.5) * 200;
-
-    setReactions(prev => [...prev.slice(-15), { id, emoji, x: xPos, offset: xOffset }]);
-    setTimeout(() => setReactions(prev => prev.filter(r => r.id !== id)), 4000);
-    if (broadcast) send(new TextEncoder().encode(JSON.stringify({ type: 'reaction', emoji })), { reliable: false });
+  const handleSendMessage = async (content: string) => {
+    if (!content.trim()) return;
+    await supabase.from('messages').insert({ room_id: roomData.id, user_id: user.id, content });
+    setChatInput("");
   };
 
-  const handleSendMessage = async (content: string) => { if (content.trim()) await supabase.from('messages').insert({ room_id: roomData.id, user_id: user.id, content }); };
-
-  const handleRequestToSpeak = async () => {
-    if (requestStatus === 'pending') return;
-    setRequestStatus('pending');
-    await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' });
-    toast.success("Pedido enviado!");
+  const approveReq = async (r: any) => {
+    setPendingRequests(prev => prev.filter(req => req.id !== r.id));
+    await supabase.from('requests').update({ status: 'approved' }).eq('id', r.id);
+    await supabase.from('participants').upsert(
+      { room_id: roomData.id, user_id: r.user_id, role: 'speaker' },
+      { onConflict: 'room_id,user_id' }
+    );
+    toast.success("Intercessor aprovado! 🎤");
   };
 
-  useEffect(() => { if (myRole === 'creator' || myRole === 'admin' || myRole === 'speaker') localParticipant.setMicrophoneEnabled(true); else localParticipant.setMicrophoneEnabled(false); }, [myRole]);
+  useEffect(() => {
+    const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
+    localParticipant.setMicrophoneEnabled(canSpeak);
+  }, [myRole, localParticipant]);
+
+  const activeLeader = participants.find(p => p.identity === roomData.creator_id) || participants[0] || localParticipant;
+  const leaderMeta = JSON.parse(activeLeader?.metadata || '{}');
+
+  const handleExit = () => {
+    if (myRole === 'creator') {
+      toast("Deseja encerrar o clamor para todos?", {
+        description: "Isso encerrará a conexão de todos os participantes.",
+        action: {
+          label: "Encerrar",
+          onClick: async () => {
+            await supabase.from('rooms').update({ 
+               status: 'ended', 
+               ended_at: new Date().toISOString() 
+            }).eq('id', roomData.id);
+            onExit();
+          },
+        },
+      });
+    } else {
+      onExit();
+    }
+  };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0c0c0c] overflow-hidden text-white pb-20 lg:pb-0">
-      {/* Header - Compact */}
-      <div className="p-3 lg:p-4 flex items-center justify-between z-30 flex-shrink-0 bg-gradient-to-b from-black/80 to-transparent">
-        <button onClick={onExit} className="p-2.5 bg-white/10 rounded-2xl border border-white/10 active:scale-90 transition-all"><ArrowLeft size={20} /></button>
-        <div className="text-center">
-          <h2 className="text-xs font-black uppercase tracking-widest text-white/90">{roomData.name}</h2>
-          <div className="flex items-center justify-center gap-1.5 mt-0.5">
-            <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-[8px] text-gray-400 font-bold uppercase tracking-[0.2em]">Intercessão em Tempo Real</span>
+    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-background text-on-surface font-body antialiased">
+
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[300] w-full max-w-[280px] flex flex-col gap-4 pointer-events-none">
+        <AnimatePresence>
+          {pendingRequests.map(req => (
+            <motion.div key={req.id} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="p-6 bg-[#1a1a1a]/95 backdrop-blur-3xl border border-[#3fff8b]/30 rounded-[2.5rem] flex flex-col items-center text-center gap-4 pointer-events-auto shadow-2xl">
+              <img src={req.profiles?.avatar_url || "https://github.com/shadcn.png"} className="w-16 h-16 rounded-full border-2 border-[#3fff8b] object-cover" alt="" />
+              <div>
+                <p className="text-xs font-black uppercase text-white truncate max-w-[200px]">{req.profiles?.full_name}</p>
+                <p className="text-[9px] font-bold text-[#3fff8b] uppercase tracking-widest mt-1">Quer interceder na sala</p>
+              </div>
+              <div className="flex gap-3 w-full">
+                <button onClick={() => approveReq(req)} className="flex-1 py-3 bg-[#3fff8b] text-[#0e0e0e] rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all">Aprovar</button>
+                <button onClick={async () => {
+                  setPendingRequests(prev => prev.filter(p => p.id !== req.id));
+                  await supabase.from('requests').update({ status: 'denied' }).eq('id', req.id);
+                }} className="p-3 bg-white/5 text-red-500 rounded-full border border-red-500/10"><Ban size={18} /></button>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      <div className="flex items-center justify-between px-6 py-4 z-20">
+        <button onClick={handleExit} className="flex items-center justify-center size-10 rounded-full hover:bg-surface-container-high transition-colors">
+          <ArrowLeft size={20} />
+        </button>
+        <div className="flex flex-col items-center">
+          <h1 className="font-headline font-extrabold text-sm tracking-tight uppercase text-center">
+            {roomData?.name || "Intercessão Sagrada"}
+          </h1>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <div className="size-1.5 rounded-full bg-primary animate-pulse" />
+            <p className="text-primary text-[10px] font-bold tracking-widest uppercase">Ao Vivo</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {(myRole === 'creator' || myRole === 'admin') && (
+        <button onClick={handleExit} className="flex items-center justify-center size-11 rounded-full hover:bg-surface-container-highest transition-all active:scale-90">
+          <X size={24} />
+        </button>
+      </div>
+
+      <div className="flex-1 flex flex-col items-center pt-2 px-6 overflow-hidden relative">
+        {/* Floating Reactions Explosion Layer */}
+        <div className="absolute inset-0 pointer-events-none z-[60] overflow-hidden">
+          <AnimatePresence>
+            {reactions.map((r) => (
+              <motion.div
+                key={r.id}
+                initial={{
+                  y: 100,
+                  opacity: 0,
+                  scale: 0.4
+                }}
+                animate={{
+                  y: -window.innerHeight * 0.75,
+                  x: [0, r.offset, 0],
+                  opacity: [0, 1, 1, 0],
+                  scale: [0.6, 1.8, 1.4, 0.8]
+                }}
+                exit={{ opacity: 0 }}
+                transition={{
+                  duration: 3.8,
+                  ease: "easeOut"
+                }}
+                className="absolute bottom-40 text-5xl drop-shadow-2xl pointer-events-none reaction-explosion"
+                style={{
+                  left: `${r.x}%`,
+                  filter: "drop-shadow(0 0 12px rgba(63, 255, 139, 0.6))"
+                }}
+              >
+                {r.emoji}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        {/* Timer */}
+        <div className="flex flex-col items-center gap-0.5 mb-2">
+          <span className="font-headline font-extrabold text-5xl tracking-tighter text-on-surface italic">
+            {remainingTime || "00:00"}
+          </span>
+          <p className="font-label text-on-surface-variant text-[10px] uppercase tracking-[0.2em] font-semibold">
+            Tempo de Clamor
+          </p>
+        </div>
+
+        <div className="relative w-full flex justify-center items-center mb-2">
+          <div className="relative group">
+            <div className="size-32 rounded-full border-4 border-primary avatar-glow flex items-center justify-center bg-surface-container-low overflow-hidden relative z-10">
+              <img
+                src={leaderMeta.avatar || (Array.isArray(roomData?.profiles) ? roomData.profiles[0]?.avatar_url : roomData?.profiles?.avatar_url) || "https://github.com/shadcn.png"}
+                className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity"
+                alt=""
+              />
+              <div className="relative z-10 flex flex-col items-center gap-1 text-center">
+                <p className="font-headline font-bold text-xs tracking-[0.2em] text-white uppercase drop-shadow-md">
+                  Líder em Oração
+                </p>
+              </div>
+            </div>
+            {activeLeader?.isSpeaking && (
+              <div className="absolute -inset-3 rounded-full border border-primary/20 animate-ping opacity-20" />
+            )}
+          </div>
+
+          <div className="absolute right-4 flex flex-col gap-3">
+            <button onClick={() => setShowMicTest(true)} className="size-12 rounded-full glass-panel flex items-center justify-center border border-white/10 hover:bg-surface-container-highest active:scale-95 transition-all">
+              <Mic size={20} />
+            </button>
+            <button onClick={async () => { setRequestStatus('pending'); await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' }); toast.info("Pedido enviado"); }} className={cn("size-12 rounded-full glass-panel flex items-center justify-center border border-white/10 transition-all", requestStatus === 'pending' && "bg-primary/20 border-primary animate-pulse")}>
+              <Hand size={20} />
+            </button>
             <button
               onClick={() => setShowModeration(true)}
-              className="p-2 lg:p-3 bg-red-600/20 text-red-500 rounded-xl hover:bg-red-600/30 transition-all border border-red-600/30 flex items-center gap-2"
+              className="size-12 rounded-full glass-panel flex items-center justify-center border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all text-primary shadow-lg shadow-primary/20 relative"
+              title="Gestão da Sala"
             >
-              <Shield size={16} />
-              <span className="hidden lg:inline text-[9px] font-black uppercase tracking-widest">Painel</span>
-            </button>
-          )}
-          <div className="flex flex-col items-end gap-1 text-right">
-            <div className="bg-whatsapp-teal/20 px-2.5 py-1 rounded-full border border-whatsapp-teal/30 flex items-center gap-1.5">
-              <ClockIcon size={10} className="text-whatsapp-teal" />
-              <span className="text-[10px] font-black text-whatsapp-teal">{remainingTime || "--:--"}</span>
-            </div>
-            <button onClick={() => setShowMicTest(true)} className="p-1.5 bg-white/10 rounded-xl border border-white/10 text-white hover:bg-whatsapp-teal transition-all flex items-center gap-1">
-              <Volume2 size={14} />
-              <span className="text-[8px] font-black uppercase hidden lg:inline">Testar Mic</span>
+              <Users size={20} />
+              {pendingRequests.length > 0 && (
+                <span className="absolute -top-1 -right-1 size-4 bg-red-500 rounded-full border-2 border-[#0e0e0e] flex items-center justify-center">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative text-[8px] font-black text-white">{pendingRequests.length}</span>
+                </span>
+              )}
             </button>
           </div>
+        </div>
+
+        <div className="flex items-end justify-center gap-1.5 h-8 mb-6">
+          {[...Array(9)].map((_, i) => (
+            <motion.div key={i} animate={{ height: activeLeader?.isSpeaking ? [8, 12 + Math.random() * 16, 8] : [8, 10, 8] }} transition={{ repeat: Infinity, duration: 0.4 + (i * 0.1) }} className="w-1.5 bg-primary rounded-full shadow-[0_0_10px_#3fff8b]" />
+          ))}
+        </div>
+
+        {/* Participants Avatars (DB Synced) */}
+        <div className="flex items-center justify-center -space-x-3 mb-2">
+          {dbParticipants.slice(0, 3).map((p, i) => {
+            const isOnline = participants.some(lp => lp.identity === p.user_id);
+            return (
+              <div key={i} className={cn("relative transition-all", !isOnline && "opacity-40 grayscale")}>
+                <img
+                  src={(Array.isArray(p.profiles) ? p.profiles[0]?.avatar_url : p.profiles?.avatar_url) || "https://github.com/shadcn.png"}
+                  className={cn("size-12 rounded-full border-2 object-cover shadow-xl", isOnline ? "border-primary avatar-glow" : "border-white/10")}
+                  alt=""
+                />
+              </div>
+            );
+          })}
+          <div className="size-12 rounded-full border-2 border-surface bg-surface-container-highest flex items-center justify-center">
+            <span className="text-primary text-xs font-bold">+{Math.max(0, dbParticipants.length - 3)}</span>
+          </div>
+        </div>
+
+        <div className="w-full max-w-[320px] flex flex-col gap-1.5 mb-1 shrink-0">
+          <div className="flex gap-3">
+            <button onClick={() => { handleAddReaction("🙏"); handleSendMessage("Amém! 🙏"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center emerald-glow shadow-xl active:scale-95 transition-all">
+              <span className="font-headline font-extrabold text-[#0e0e0e] text-xs tracking-widest uppercase italic">Amém</span>
+            </button>
+            <button onClick={() => { handleAddReaction("🙌"); handleSendMessage("Glória! 🙌"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center emerald-glow shadow-xl active:scale-95 transition-all">
+              <span className="font-headline font-extrabold text-[#0e0e0e] text-xs tracking-widest uppercase italic">Glória</span>
+            </button>
+          </div>
+          <div className="flex justify-between px-4">
+            {["🙏", "👏", "🔥", "❤️"].map((e) => (
+              <button key={e} onClick={() => { handleAddReaction(e); handleSendMessage(e); }} className="size-10 rounded-full glass-panel flex items-center justify-center border border-white/5 active:scale-90 transition-all text-xl">{e}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Área do Chat - w-full para evitar centralização feia */}
+        <div className="w-full flex-1 overflow-y-auto chat-mask space-y-4 pb-4 px-2 no-scrollbar">
+          {messages.slice(-8).map((m) => (
+            <div key={m.id} className="flex items-start gap-3">
+              <div
+                className="size-7 rounded-full bg-cover bg-center flex-shrink-0 border border-white/10"
+                style={{
+                  backgroundImage: `url(${m.avatar_url || 'https://github.com/shadcn.png'})`
+                }}
+              />
+
+              <div className="flex-1 group/msg relative">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <p className="text-[11px] font-bold text-primary/80">
+                    {m.user_name}
+                  </p>
+                  {(myRole === 'creator' || myRole === 'admin') && (
+                    <button
+                      onClick={async () => {
+                        await supabase.from('messages').delete().eq('id', m.id);
+                        setMessages(prev => prev.filter(msg => msg.id !== m.id));
+                      }}
+                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 hover:text-red-500 rounded"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-on-surface/90 leading-relaxed bg-surface-container-low/50 p-2.5 rounded-r-2xl rounded-bl-2xl border border-white/5">
+                  {m.content}
+                </p>
+              </div>
+            </div>
+          ))}
+          <div ref={chatEndRef} className="h-4" />
         </div>
       </div>
 
-      {/* Main Body Area: Column on mobile, Row on Desktop */}
-      <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
+      {/* Footer Fixo - pb-24 para subir o input acima da barra global do app */}
+      <div className="w-full px-6 pt-4 pb-24 bg-gradient-to-t from-surface via-surface to-transparent border-t border-white/5 z-[110]">
+        {/* Input de mensagem */}
+        <div className="relative flex items-center gap-2">
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && chatInput.trim()) {
+                  handleSendMessage(chatInput);
+                }
+              }}
+              placeholder="Envie sua intercessão..."
+              className="w-full bg-surface-container-high border-none rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface-variant/50 outline-none"
+            />
 
-        {/* Left/Middle Column: Speaker + Action Bar */}
-        <div className="flex-1 flex flex-col min-h-0 relative">
-
-          <div className="flex-1 flex flex-col items-center justify-center relative z-10 p-4">
-            {(() => {
-              const activeParticipant = participants.find(p => p.identity === roomData.creator_id)
-                || (localParticipant.identity === roomData.creator_id ? localParticipant : null)
-                || participants[0]
-                || localParticipant;
-              return <SpeakerDisplay participant={activeParticipant} roomData={roomData} />;
-            })()}
-
-            {/* Floating Chat Overlay */}
-            <div className="absolute bottom-4 left-4 right-4 max-h-[160px] overflow-hidden pointer-events-none flex flex-col gap-2 z-20">
-              <AnimatePresence>
-                {messages.slice(-3).map((msg, i) => (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, x: -20, y: 10 }}
-                    animate={{ opacity: 1, x: 0, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 self-start max-w-[80%]"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-black text-whatsapp-teal truncate">{msg.user_name || 'Intercessor'}:</span>
-                      <span className="text-xs text-white/90">{msg.content}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+            <button
+              onClick={() => {
+                if (chatInput.trim()) {
+                  handleSendMessage(chatInput);
+                }
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors active:scale-95"
+            >
+              <Send size={18} className="text-primary" />
+            </button>
           </div>
-
-          {/* Floating Reactions Explosion */}
-          <div className="absolute inset-0 pointer-events-none z-[60] overflow-hidden">
-            <AnimatePresence>
-              {reactions.map(r => (
-                <motion.div
-                  key={r.id}
-                  initial={{ y: 0, opacity: 0, scale: 0.5 }}
-                  animate={{ y: -window.innerHeight, x: [0, r.offset, 0], opacity: [0, 1, 1, 0], scale: [0.5, 3, 3, 1] }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 4, ease: "easeOut" }}
-                  className="absolute bottom-40 text-4xl lg:text-5xl drop-shadow-2xl"
-                  style={{ left: `${r.x}%` }}
-                >
-                  {r.emoji}
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-
-          {/* Consolidated Footer: Participants + Reactions + Actions */}
-          <div className="p-4 lg:p-6 bg-gradient-to-t from-black via-black/90 to-transparent z-30 flex flex-col gap-4">
-            {/* Quick Reactions (Aesthetics from reference) */}
-            <div className="flex gap-2 justify-center">
-              <button
-                onClick={() => { handleAddReaction("🙏"); handleSendMessage("Amém! 🙏"); }}
-                className="bg-white/10 px-4 py-2 rounded-full text-[10px] font-black uppercase text-white border border-white/10 flex items-center gap-2 active:scale-95 transition-all"
-              >
-                Amém 🙏
-              </button>
-              <button
-                onClick={() => { handleAddReaction("🙌"); handleSendMessage("Glória! 🙌"); }}
-                className="bg-white/10 px-4 py-2 rounded-full text-[10px] font-black uppercase text-white border border-white/10 flex items-center gap-2 active:scale-95 transition-all"
-              >
-                Glória 🙌
-              </button>
-            </div>
-
-            {/* Participants bar - Overlapping Stack */}
-            <div className="px-6 py-2 z-20 flex items-center justify-center -space-x-3">
-              {participants.slice(0, 6).map((p, idx) => (
-                <div key={p.sid} className="relative transition-transform hover:translate-y-[-4px]" style={{ zIndex: 10 - idx }}>
-                  <ParticipantCircle participant={p} />
-                </div>
-              ))}
-              {participants.length > 6 && (
-                <div className="w-10 h-10 lg:w-12 lg:h-12 rounded-full bg-white/10 border-2 border-black flex items-center justify-center text-[10px] font-bold z-0">
-                  +{participants.length - 6}
-                </div>
-              )}
-              <button
-                onClick={() => setShowModeration(true)}
-                className="w-10 h-10 lg:w-12 lg:h-12 shrink-0 rounded-full border-2 border-dashed border-white/10 flex items-center justify-center text-gray-600 hover:text-white transition-all"
-              >
-                <UserPlus size={20} />
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              {["🙏", "🙌", "🔥", "❤️"].map(e => (
-                <button
-                  key={e}
-                  onClick={() => { handleAddReaction(e); handleSendMessage(e); }}
-                  className="flex-1 bg-white/10 dark:bg-white/5 py-2.5 rounded-xl border border-white/10 text-lg lg:text-xl active:scale-90 transition-all shadow-lg"
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {myRole === 'creator' || myRole === 'admin' || requestStatus === 'approved' ? (
-                <button
-                  onClick={() => localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled)}
-                  className={cn(
-                    "flex-1 py-4 rounded-full font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-2xl transition-all border border-white/10",
-                    localParticipant.isMicrophoneEnabled
-                      ? "bg-gradient-to-r from-red-600 to-red-500 text-white"
-                      : "bg-gradient-to-r from-whatsapp-teal to-whatsapp-green text-black"
-                  )}
-                >
-                  {localParticipant.isMicrophoneEnabled ? <MicOff size={18} /> : <Mic size={18} />}
-                  {localParticipant.isMicrophoneEnabled ? "Ativo" : "Falar agora"}
-                </button>
-              ) : (
-                <button
-                  onClick={handleRequestToSpeak}
-                  disabled={requestStatus === 'pending'}
-                  className="flex-1 py-4 bg-gradient-to-r from-whatsapp-teal to-whatsapp-green text-black rounded-full font-black text-[10px] uppercase tracking-widest active:scale-95 disabled:opacity-50 shadow-2xl"
-                >
-                  Pedir para falar
-                </button>
-              )}
-
-              <button
-                onClick={() => setShowChat(!showChat)}
-                className={cn(
-                  "w-12 h-12 lg:w-14 lg:h-14 rounded-full border border-white/10 flex items-center justify-center transition-all bg-white/5",
-                  showChat ? "bg-whatsapp-teal text-black" : "text-white hover:bg-white/10"
-                )}
-              >
-                <MessageSquare size={18} />
-              </button>
-
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column: Chat Dinâmico Real */}
-        <div className={cn(
-          "bg-[#0a0a0a]/98 lg:bg-[#0a0a0a] border-l border-white/5 transition-all duration-500 flex flex-col z-50 backdrop-blur-3xl shadow-2xl",
-          "lg:relative lg:h-full lg:w-80 lg:translate-x-0 lg:opacity-100",
-          "fixed bottom-0 left-0 right-0",
-          showChat ? "h-[75vh] opacity-100 translate-y-0" : "h-0 opacity-0 translate-y-full overflow-hidden"
-        )}>
-          {/* Header do Chat */}
-          <div className="p-4 border-b border-white/5 flex items-center justify-between shrink-0 bg-black/20">
-            <span className="text-[10px] font-black uppercase tracking-widest text-whatsapp-teal">Chat de Intercessão</span>
-            <button onClick={() => setShowChat(false)} className="text-gray-500 hover:text-white p-1"><X size={16} /></button>
-          </div>
-
-          <div className="flex-1 overflow-y-auto no-scrollbar p-4">
-            <div className="flex flex-col justify-end min-h-full gap-2 pb-4">
-              {messages.map(m => (
-                <div key={m.id} className="max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300">
-                  <div className="bg-[#1a1a1a]/80 backdrop-blur-xl px-4 py-2 rounded-2xl rounded-bl-none shadow-[0_4px_20px_rgba(0,0,0,0.4)] border border-white/5">
-                    <span className="text-[10px] font-bold text-[#25D366] block mb-0.5">
-                      {m.user_name || 'Intercessor'}
-                    </span>
-                    <p className="text-xs text-white leading-relaxed">
-                      {m.content}
-                    </p>
-                  </div>
-                </div>
-              ))}
-              <div ref={chatEndRef} />
-            </div>
-          </div>
-
-          {/* Input do Chat: Fixo na Base */}
-          <form
-            onSubmit={(e) => { e.preventDefault(); if (chatInput.trim()) { handleSendMessage(chatInput); setChatInput(""); } }}
-            className="p-4 pb-12 lg:pb-4 border-t border-white/5 bg-black/60 backdrop-blur-md shrink-0"
-          >
-            <div className="flex items-center gap-2">
-              <input
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Escreva um comentário..."
-                className="flex-1 bg-white/5 border border-white/10 rounded-full px-5 py-3 text-xs focus:outline-none focus:border-whatsapp-teal transition-all text-white placeholder:text-gray-600"
-              />
-              <button
-                type="submit"
-                className="w-11 h-11 bg-whatsapp-teal rounded-full flex items-center justify-center text-black active:scale-95 transition-all shadow-lg hover:bg-whatsapp-green shrink-0"
-              >
-                <Send size={16} />
-              </button>
-            </div>
-          </form>
         </div>
       </div>
 
       <MicCheckModal show={showMicTest} onClose={() => setShowMicTest(false)} />
-      <ModerationPanel show={showModeration} onClose={() => setShowModeration(false)} roomData={roomData} user={user} onExit={onExit} />
+      <WarRoomSettings
+        show={showModeration}
+        onClose={() => setShowModeration(false)}
+        roomId={roomData.id}
+        dbParticipants={dbParticipants}
+        liveParticipants={participants}
+        myRole={myRole}
+        pendingRequests={pendingRequests}
+        onApprove={approveReq}
+        onDeny={async (id) => {
+          setPendingRequests(prev => prev.filter(r => r.id !== id));
+          await supabase.from('requests').update({ status: 'denied' }).eq('id', id);
+        }}
+      />
     </div>
   );
 }
-
-// --- Sub-Components ---
 
 function MicCheckModal({ show, onClose }: { show: boolean, onClose: () => void }) {
   const [level, setLevel] = useState(0);
@@ -518,349 +660,275 @@ function MicCheckModal({ show, onClose }: { show: boolean, onClose: () => void }
       streamRef.current = s;
       const ctx = new AudioContext();
       const ana = ctx.createAnalyser();
-      const src = ctx.createMediaStreamSource(s);
-      src.connect(ana);
+      ctx.createMediaStreamSource(s).connect(ana);
       const arr = new Uint8Array(ana.frequencyBinCount);
-      const upd = () => { if (ana) { ana.getByteFrequencyData(arr); setLevel(arr.reduce((a, b) => a + b) / arr.length); if (show) requestAnimationFrame(upd); } };
-      upd();
-    }).catch(e => toast.error("Não foi possível acessar o mic"));
+      const up = () => { if (show && ana) { ana.getByteFrequencyData(arr); setLevel(arr.reduce((a, b) => a + b) / arr.length); requestAnimationFrame(up); } };
+      up();
+    });
   }, [show]);
 
   useEffect(() => { if (audioRef.current && streamRef.current) audioRef.current.srcObject = isLoopback ? streamRef.current : null; }, [isLoopback]);
 
+  if (!show) return null;
   return (
-    <AnimatePresence>
-      {show && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-black"
-          />
-
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="relative w-full max-w-[360px] bg-neutral-900 border border-white/20 rounded-[32px] p-8 shadow-2xl overflow-hidden z-[1001]"
-          >
-            <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
-              <X size={20} />
-            </button>
-
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 rounded-2xl bg-whatsapp-green/10 flex items-center justify-center mx-auto mb-4">
-                <Mic className="text-whatsapp-green" size={32} />
-              </div>
-              <h4 className="font-black uppercase tracking-tight text-white text-lg">Teste de Áudio</h4>
-              <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Sua voz está sendo captada?</p>
-            </div>
-
-            <div className="space-y-6">
-              <div className="h-5 bg-black/40 rounded-full overflow-hidden flex items-center px-1 border border-white/5">
-                <motion.div
-                  className="h-2.5 bg-whatsapp-green rounded-full shadow-[0_0_20px_rgba(37,211,102,0.6)]"
-                  animate={{ width: `${Math.min(100, level * 3)}%` }}
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 gap-4">
-                <button
-                  onClick={() => setIsLoopback(!isLoopback)}
-                  className={cn(
-                    "w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 border transition-all",
-                    isLoopback ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-white/5 text-gray-400 border-white/5"
-                  )}
-                >
-                  {isLoopback ? <VolumeX size={16} /> : <Headphones size={16} />}
-                  {isLoopback ? "Desativar Retorno" : "Ouvir Retorno"}
-                </button>
-
-                <button
-                  onClick={onClose}
-                  className="w-full py-4 bg-whatsapp-green text-black rounded-2xl font-black text-[11px] uppercase shadow-[0_4px_20px_rgba(37,211,102,0.4)] active:scale-95 transition-all"
-                >
-                  Concluir Teste
-                </button>
-              </div>
-            </div>
-            <audio ref={audioRef} autoPlay className="hidden" />
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function ModerationPanel({ show, onClose, roomData, user, onExit }: { show: boolean, onClose: () => void, roomData: any, user: any, onExit: () => void }) {
-  const [requests, setRequests] = useState<any[]>([]);
-  const [participantsList, setParticipantsList] = useState<any[]>([]);
-  const [inviteSearch, setInviteSearch] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isEnding, setIsEnding] = useState(false);
-
-  useEffect(() => {
-    if (!show || !roomData) return;
-    const fetchData = async () => {
-      const { data: q } = await supabase.from('requests').select('*, profiles(*)').eq('room_id', roomData.id).eq('status', 'pending');
-      const { data: p } = await supabase.from('participants').select('*, profiles(*)').eq('room_id', roomData.id);
-      if (q) setRequests(q); if (p) setParticipantsList(p);
-    };
-    fetchData();
-    const sc = supabase.channel(`mod-${roomData.id}`).on('postgres_changes', { event: '*', schema: 'public', table: 'requests', filter: `room_id=eq.${roomData.id}` }, fetchData).on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `room_id=eq.${roomData.id}` }, fetchData).subscribe();
-    return () => { supabase.removeChannel(sc); };
-  }, [show, roomData?.id]);
-
-  const handleSearchUsers = async () => {
-    if (inviteSearch.length < 3) return;
-    const { data } = await supabase.from('profiles').select('*').ilike('username', `%${inviteSearch}%`).limit(5);
-    setSearchResults(data || []);
-  };
-
-  const inviteUser = async (profile: any) => {
-    const inviteLink = `${window.location.origin}/room/${roomData.id}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title: 'Sala de Oração', text: `Participe da oração: ${roomData.name}`, url: inviteLink });
-      } catch (err) {
-        navigator.clipboard.writeText(inviteLink);
-        toast.success("Link copiado!");
-      }
-    } else {
-      navigator.clipboard.writeText(inviteLink);
-      toast.success(`@${profile.username} convidado! Link copiado.`);
-    }
-  };
-
-  const handleEndRoom = async () => {
-    if (isEnding) return;
-    setIsEnding(true);
-    try {
-      toast.loading("Encerrando sala...");
-      await supabase.from('rooms').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', roomData.id);
-      onExit();
-    } catch (e) { toast.error("Erro ao encerrar"); setIsEnding(false); }
-  };
-
-  return (
-    <AnimatePresence>
-      {show && (
-        <div className="fixed inset-0 z-[1005] flex justify-end">
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="relative w-80 bg-[#0f0f0f] border-l border-white/10 h-full p-6 flex flex-col shadow-2xl">
-            <div className="flex items-center justify-between mb-8">
-              <h4 className="font-black uppercase tracking-widest text-[10px] text-gray-500 font-black">Painel de Controle</h4>
-              <button onClick={onClose} className="p-2 bg-white/5 rounded-xl"><X size={16} /></button>
-            </div>
-
-            <div className="flex-1 space-y-8 overflow-y-auto no-scrollbar">
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-whatsapp-teal uppercase">Convidar por Usuário</label>
-                <div className="relative">
-                  <input value={inviteSearch} onChange={(e) => setInviteSearch(e.target.value)} onKeyUp={(e) => e.key === 'Enter' && handleSearchUsers()} type="text" placeholder="Buscar @username..." className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 pl-10 text-xs text-white outline-none focus:border-whatsapp-teal/50" />
-                  <Search size={14} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" />
-                </div>
-                {searchResults.length === 0 && inviteSearch.length >= 3 && <p className="text-[10px] text-red-500 text-center">Usuário não encontrado</p>}
-                {searchResults.map(p => (
-                  <div key={p.id} className="flex items-center justify-between bg-white/5 p-3 rounded-2xl border border-white/5">
-                    <div className="flex items-center gap-3">
-                      <img src={p.avatar_url || "https://github.com/shadcn.png"} className="w-8 h-8 rounded-lg" alt="" />
-                      <p className="text-xs font-bold truncate max-w-[80px]">@{p.username}</p>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        onClick={async () => {
-                          await supabase.from('participants').insert({ room_id: roomData.id, user_id: p.id, role: 'listener' });
-                          toast.success(`@${p.username} adicionado!`);
-                        }}
-                        className="p-2 bg-whatsapp-teal text-white rounded-lg"
-                      >
-                        <UserPlus size={14} />
-                      </button>
-                      <button onClick={() => inviteUser(p)} className="p-2 bg-white/5 text-gray-400 rounded-lg"><Share2 size={14} /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-gray-500 uppercase">Pedidos Pendentes ({requests.length})</label>
-                {requests.map(r => (
-                  <div key={r.id} className="bg-white/5 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-                    <span className="text-xs font-bold">{r.profiles?.full_name}</span>
-                    <button onClick={async () => {
-                      await supabase.from('requests').update({ status: 'approved' }).eq('id', r.id);
-                      await supabase.from('participants').update({ role: 'speaker' }).eq('room_id', roomData.id).eq('user_id', r.user_id);
-                      toast.success("Mic liberado");
-                    }} className="px-3 py-1.5 bg-whatsapp-teal rounded-xl text-[8px] font-black">APROVAR</button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-gray-500 uppercase">Intercessores Online</label>
-                {participantsList.filter(p => p.user_id !== user.id).map(p => (
-                  <div key={p.id} className="bg-white/5 p-3 rounded-2xl border border-white/5 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <img src={p.profiles?.avatar_url || "https://github.com/shadcn.png"} className="w-8 h-8 rounded-lg" alt="" />
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold truncate max-w-[70px]">{p.profiles?.full_name}</span>
-                        <span className="text-[8px] text-gray-500 uppercase font-black">{p.role}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      {p.role === 'listener' && (
-                        <button onClick={async () => {
-                          await supabase.from('participants').update({ role: 'speaker' }).eq('id', p.id);
-                          toast.success("Promovido a Speaker");
-                        }} className="p-2 bg-whatsapp-teal/20 text-whatsapp-teal rounded-lg"><Mic size={14} /></button>
-                      )}
-                      {(p.role === 'speaker' || p.role === 'listener') && (
-                        <button onClick={async () => {
-                          await supabase.from('participants').update({ role: 'admin' }).eq('id', p.id);
-                          toast.success("Promovido a Admin");
-                        }} className="p-2 bg-orange-500/20 text-orange-500 rounded-lg"><Shield size={14} /></button>
-                      )}
-                      <button onClick={async () => { await supabase.from('participants').delete().eq('room_id', roomData.id).eq('user_id', p.user_id); toast.error("Removido"); }} className="p-2 text-red-500 bg-white/5 rounded-lg"><UserMinus size={14} /></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-white/5 space-y-2">
-              <button
-                onClick={handleEndRoom}
-                disabled={isEnding}
-                className={cn(
-                  "w-full py-4 rounded-2xl font-black text-[9px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2",
-                  isEnding ? "bg-gray-500/10 text-gray-500 border-gray-500/20" : "bg-red-600/10 text-red-600 border-red-600/20 hover:bg-red-600/20"
-                )}
-              >
-                <PhoneOff size={14} className={isEnding ? "animate-pulse" : ""} /> {isEnding ? "Encerrando..." : "Encerrar Sala de Guerra"}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-function SpeakerDisplay({ participant, roomData }: { participant: any, roomData: any }) {
-  const isSpeaking = participant?.isSpeaking || false;
-  const [imgError, setImgError] = useState(false);
-
-  let metadata: any = {};
-  try {
-    const rawMeta = participant?.metadata;
-    metadata = rawMeta ? JSON.parse(rawMeta) : {};
-  } catch (e) {
-    metadata = {};
-  }
-
-  const avatarUrl = metadata?.avatar || roomData?.profiles?.avatar_url;
-  const hasAvatar = avatarUrl && avatarUrl !== "null" && avatarUrl !== "" && !imgError;
-  const name = participant?.name || roomData?.profiles?.full_name || "Intercessor";
-  const isCreatorInRoom = (participant?.identity === roomData?.creator_id) || (participant?.name === roomData?.profiles?.full_name);
-
-  const circleSize = "w-32 h-32 lg:w-48 lg:h-48";
-
-  return (
-    <div className="flex flex-col items-center">
-      <div className={cn("relative mb-6 flex items-center justify-center", circleSize)}>
-        {/* NOVO: Ondas Sonoras Estilosas (Pedestal de Áudio) */}
-        <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-full flex items-end justify-center gap-[2px] h-14 pointer-events-none z-0">
-          {[...Array(24)].map((_, i) => {
-            const distanceFromCenter = Math.abs(i - 12);
-            const maxHeight = Math.max(8, 48 - distanceFromCenter * 3);
-
-            return (
-              <motion.div
-                key={i}
-                animate={{
-                  height: isSpeaking ? [4, maxHeight, 8, maxHeight * 0.7, 4] : 4,
-                  opacity: isSpeaking ? [0.4, 1, 0.4] : 0.1
-                }}
-                transition={{
-                  repeat: Infinity,
-                  duration: 0.5 + Math.random() * 0.5,
-                  delay: i * 0.02
-                }}
-                className="w-1 bg-gradient-to-t from-whatsapp-green via-whatsapp-green/40 to-transparent rounded-full shadow-[0_0_15px_rgba(37,211,102,0.4)]"
-              />
-            );
-          })}
-        </div>
-
-        <AnimatePresence>
-          {isSpeaking && (
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1.15, opacity: [0, 0.3, 0] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-              className="absolute inset-0 rounded-full border-[6px] border-[#25D366] z-0"
-            />
-          )}
-        </AnimatePresence>
-
-        <div className={cn(
-          circleSize,
-          "rounded-full p-2 border-4 bg-black shadow-2xl relative z-10 transition-all duration-300 flex items-center justify-center overflow-hidden",
-          isSpeaking ? "border-[#25D366] scale-105 shadow-[0_0_40px_rgba(37,211,102,0.4)]" : "border-white/30"
-        )}>
-          {hasAvatar ? (
-            <img src={avatarUrl} onError={() => setImgError(true)} className="w-full h-full rounded-full object-cover" alt={name} />
-          ) : (
-            <div className="flex flex-col items-center justify-center text-white/50">
-              <Users size={60} className="lg:w-20 lg:h-20" />
-            </div>
-          )}
-          <div className="absolute -bottom-1 -right-1 lg:-bottom-2 lg:-right-2 w-9 h-9 lg:w-12 lg:h-12 bg-black rounded-full border-2 lg:border-4 border-[#25D366] flex items-center justify-center shadow-xl">
-            <Mic size={16} className={cn("lg:w-5 lg:h-5 transition-all text-[#25D366]", isSpeaking ? "animate-pulse" : "opacity-30")} />
-          </div>
-        </div>
-      </div>
-
-      <div className="text-center relative pt-4 min-h-[80px]">
-        <AnimatePresence>
-          {isSpeaking && (
-            <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 5 }}
-              className="absolute -top-1 left-1/2 -translate-x-1/2 bg-[#25D366] text-black px-3 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest shadow-lg z-20"
-            >
-              Falando...
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <h3 className="text-lg lg:text-2xl font-black uppercase tracking-tight text-white leading-tight">{name}</h3>
-        <p className="text-[9px] text-gray-500 font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-1 mt-1">
-          {isCreatorInRoom ? "Líder em oração" : "Intercessor Ativo"}
-          <Mic size={10} className="text-[#25D366]" />
-        </p>
+    <div className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6">
+      <div className="w-full max-w-sm bg-[#131313] rounded-[3rem] p-10 flex flex-col items-center gap-6 border border-white/5">
+        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 shadow-[0_0_20px_#3fff8b33]"><Mic size={32} className="text-primary" /></div>
+        <h3 className="text-white font-black uppercase text-[10px] tracking-[0.3em]">Calibrando Voz</h3>
+        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden"><motion.div animate={{ width: `${level * 3}%` }} className="h-full bg-primary shadow-[0_0_10px_#3fff8b]" /></div>
+        <button onClick={() => setIsLoopback(!isLoopback)} className={cn("w-full py-4 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2", isLoopback ? "bg-primary border-primary text-black" : "bg-white/5 border-white/10 text-white/50")}>
+          {isLoopback ? "Escutando Retorno" : "Testar Retorno"} <Headphones size={14} />
+        </button>
+        <button onClick={onClose} className="w-full py-4.5 bg-primary text-black rounded-full font-black text-[10px] uppercase shadow-2xl">Está ok!</button>
+        <audio ref={audioRef} autoPlay className="hidden" />
       </div>
     </div>
   );
 }
 
-function ParticipantCircle({ participant }: { participant: any }) {
-  const { isSpeaking } = participant;
-  const metadata = participant?.metadata ? JSON.parse(participant.metadata) : {};
-  const avatar = metadata.avatar || "https://github.com/shadcn.png";
+function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipants, myRole, pendingRequests, onApprove, onDeny }: {
+  show: boolean,
+  onClose: () => void,
+  roomId: string,
+  dbParticipants: any[],
+  liveParticipants: any[],
+  myRole: string,
+  pendingRequests: any[],
+  onApprove: (r: any) => void,
+  onDeny: (id: string) => void
+}) {
+  const [tab, setTab] = useState<'invite' | 'users' | 'requests'>('users');
+  const [s, setS] = useState("");
+  const [res, setRes] = useState<any[]>([]);
+  const inviteLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/room/${roomId}`;
+
+  const copyInvite = () => {
+    navigator.clipboard.writeText(inviteLink);
+    toast.success("Link copiado! 🙏");
+  };
+
+  const handleSearch = async () => {
+    if (s.length > 2) {
+      const { data } = await supabase.from('profiles').select('*').ilike('username', `%${s}%`).limit(5);
+      setRes(data || []);
+    }
+  };
+
+  const updateRole = async (userId: string, newRole: string) => {
+    const { error } = await supabase.from('participants').update({ role: newRole }).eq('user_id', userId).eq('room_id', roomId);
+    if (!error) toast.success(`Cargo atualizado para ${newRole}`);
+  };
+
+  const silenceUser = async (userId: string) => {
+    const { error } = await supabase.from('participants').update({ role: 'listener' }).eq('user_id', userId).eq('room_id', roomId);
+    if (!error) toast.info("Usuário silenciado");
+  };
+
+  const openChat = async () => {
+    const { error } = await supabase.from('participants').update({ role: 'speaker' }).eq('room_id', roomId).eq('role', 'listener');
+    if (!error) toast.success("Microfones liberados para todos! 🎤");
+  };
+
+  const closeChat = async () => {
+    const { error } = await supabase.from('participants').update({ role: 'listener' }).eq('room_id', roomId).not('role', 'in', '("creator","admin")');
+    if (!error) toast.info("Todos foram silenciados.");
+  };
+
+  const kickUser = async (userId: string) => {
+    await supabase.from('participants').delete().eq('user_id', userId).eq('room_id', roomId);
+    toast.error("Usuário removido da sala");
+  };
+
+  if (!show) return null;
 
   return (
-    <div className="relative shrink-0">
-      <div className={cn("w-12 h-12 rounded-full p-0.5 border-2 transition-all", isSpeaking ? "border-whatsapp-teal scale-105 shadow-[0_0_15px_rgba(37,211,102,0.3)]" : "border-white/5")}>
-        <img src={avatar} className="w-full h-full rounded-full object-cover" alt="" />
-      </div>
-      <div className={cn("absolute -bottom-1 -right-1 p-1 rounded-full border border-black shadow-md", isSpeaking ? "bg-whatsapp-teal" : "bg-gray-800")}>
-        {participant.isMicrophoneEnabled ? <Mic size={10} className="text-white" /> : <MicOff size={10} className="text-gray-400" />}
-      </div>
+    <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="w-full max-w-lg bg-[#131313] rounded-[2.5rem] border border-white/5 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl"
+      >
+        <div className="px-8 pt-8 pb-4 flex items-center justify-between">
+          <h2 className="text-white font-black uppercase text-xs tracking-[0.2em]">Painel de Gestão</h2>
+          <button onClick={onClose} className="size-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="flex px-8 gap-6 border-b border-white/5">
+          <button onClick={() => setTab('users')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'users' ? "text-primary" : "text-white/30")}>
+            Participantes ({dbParticipants.length})
+            {tab === 'users' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          </button>
+          {(myRole === 'creator' || myRole === 'admin') && (
+            <button onClick={() => setTab('requests')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'requests' ? "text-primary" : "text-white/30")}>
+              Pedidos ({pendingRequests.length})
+              {tab === 'requests' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+              {pendingRequests.length > 0 && <div className="absolute top-0 -right-2 size-1.5 bg-red-500 rounded-full animate-pulse" />}
+            </button>
+          )}
+          <button onClick={() => setTab('invite')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'invite' ? "text-primary" : "text-white/30")}>
+            Buscar e Convidar
+            {tab === 'invite' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
+          {tab === 'users' && (
+            <>
+              {(myRole === 'creator' || myRole === 'admin') && (
+                <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-3xl border border-white/5">
+                  <button onClick={openChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-2xl transition-all">
+                    Liberar Todos
+                  </button>
+                  <button onClick={closeChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-white/40 hover:bg-red-500/10 hover:text-red-400 rounded-2xl transition-all">
+                    Silenciar Todos
+                  </button>
+                </div>
+              )}
+
+              {dbParticipants.map((p) => {
+                const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
+                const isOnline = liveParticipants.some(lp => lp.identity === p.user_id);
+                return (
+                  <div key={p.id} className="flex items-center justify-between group bg-white/5 p-4 rounded-3xl border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full object-cover border border-white/10" alt="" />
+                        {isOnline && <div className="absolute -bottom-0.5 -right-0.5 size-3 bg-primary rounded-full border-2 border-[#131313]" />}
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-white">{profile?.full_name}</p>
+                        <p className="text-[9px] text-primary/60 font-black uppercase tracking-tighter">{p.role}</p>
+                      </div>
+                    </div>
+
+                    {(myRole === 'creator' || myRole === 'admin') && p.user_id !== dbParticipants.find(dp => dp.role === 'creator')?.user_id && (
+                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => updateRole(p.user_id, (p.role === 'admin' || p.role === 'speaker') ? 'listener' : 'speaker')}
+                          className={cn(
+                            "p-2.5 rounded-full transition-all",
+                            (p.role === 'admin' || p.role === 'speaker')
+                              ? "bg-primary/20 text-primary hover:bg-red-500/20 hover:text-red-500"
+                              : "bg-white/5 text-white/30 hover:bg-primary/20 hover:text-primary"
+                          )}
+                          title="Abrir/Fechar Microfone"
+                        >
+                          {(p.role === 'admin' || p.role === 'speaker') ? <Mic size={16} /> : <MicOff size={16} />}
+                        </button>
+
+                        <button
+                          onClick={() => updateRole(p.user_id, p.role === 'admin' ? 'listener' : 'admin')}
+                          className={cn(
+                            "p-2.5 rounded-full transition-all",
+                            p.role === 'admin' ? "bg-blue-500/20 text-blue-400" : "bg-white/5 text-white/30 hover:text-blue-400"
+                          )}
+                          title="Tornar Administrador"
+                        >
+                          {p.role === 'admin' ? <ShieldAlert size={16} /> : <ShieldOff size={16} />}
+                        </button>
+
+                        <button onClick={() => kickUser(p.user_id)} className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-500 transition-all" title="Remover da sala">
+                          <Ban size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </>
+          )}
+
+          {tab === 'requests' && (
+            <div className="space-y-4 py-4">
+              {pendingRequests.length === 0 ? (
+                <div className="text-center py-20 opacity-20">
+                  <Hand size={40} className="mx-auto mb-4" />
+                  <p className="text-[10px] font-black uppercase tracking-widest">Ninguém na fila ainda</p>
+                </div>
+              ) : (
+                pendingRequests.map((r) => {
+                  const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+                  return (
+                    <div key={r.id} className="flex items-center justify-between bg-white/5 p-4 rounded-3xl border border-white/5">
+                      <div className="flex items-center gap-3">
+                        <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full border border-white/10" alt="" />
+                        <div>
+                          <p className="text-[11px] font-bold text-white">{profile?.full_name}</p>
+                          <p className="text-[9px] text-primary/60 font-black uppercase tracking-widest">Pedindo para falar</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => onDeny(r.id)} className="p-3 rounded-full bg-white/5 text-white/30 hover:bg-red-500/10 hover:text-red-500 transition-all">
+                          <X size={16} />
+                        </button>
+                        <button onClick={() => onApprove(r)} className="p-3 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-black transition-all">
+                          <Check size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+
+          {tab === 'invite' && (
+            <div className="space-y-6">
+              <div className="relative group">
+                <input
+                  value={s}
+                  onChange={e => setS(e.target.value)}
+                  onKeyUp={e => e.key === 'Enter' && handleSearch()}
+                  placeholder="Pesquisar @username para convidar..."
+                  className="w-full bg-white/5 border border-white/5 focus:border-primary/30 rounded-2xl py-4 px-6 text-xs text-white placeholder:text-white/20 outline-none transition-all"
+                />
+                <button onClick={handleSearch} className="absolute right-2 top-1.5 p-2.5 bg-primary text-[#0e0e0e] rounded-xl shadow-lg active:scale-90 transition-all">
+                  <Search size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {res.map(u => (
+                  <div key={u.id} className="flex items-center justify-between p-4 bg-white/5 rounded-3xl border border-white/5 hover:border-primary/20 transition-all group">
+                    <div className="flex items-center gap-3">
+                      <img src={u.avatar_url || "https://github.com/shadcn.png"} className="w-10 h-10 rounded-2xl object-cover grayscale group-hover:grayscale-0 transition-all" alt="" />
+                      <p className="text-[11px] font-black uppercase tracking-widest">@{u.username}</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        const { error } = await supabase.from('participants').insert({ room_id: roomId, user_id: u.id, role: 'listener' });
+                        if (error) toast.error("Usuário já está no grupo");
+                        else toast.success(`${u.username} foi convocado! 🙏`);
+                      }}
+                      className="p-3 bg-white/5 text-primary hover:bg-primary hover:text-[#0e0e0e] rounded-2xl border border-primary/20 transition-all"
+                    >
+                      <UserPlus size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex flex-col items-center justify-center py-6 text-center gap-4 bg-white/5 rounded-3xl p-6 border border-white/5">
+                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+                  <Link size={20} className="text-primary" />
+                </div>
+                <div className="max-w-[240px]">
+                  <p className="text-white text-xs font-bold mb-1">Link Sagrado</p>
+                  <p className="text-white/40 text-[9px] leading-relaxed">Qualquer pessoa com este link pode ver o clamor.</p>
+                </div>
+                <button
+                  onClick={copyInvite}
+                  className="w-full py-3.5 bg-primary text-[#0e0e0e] rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl"
+                >
+                  Copiar Link
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
     </div>
   );
 }

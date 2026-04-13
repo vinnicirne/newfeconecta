@@ -17,6 +17,38 @@ const DURATIONS = [
   { label: "24 horas", value: 1440, premium: true },
 ];
 
+import moment from "moment";
+
+function RoomTimer({ createdAt, duration }: { createdAt: string, duration: number }) {
+  const [timeLeft, setTimeLeft] = useState("");
+
+  useEffect(() => {
+    const tick = () => {
+      const end = moment(createdAt).add(duration, 'minutes');
+      const diff = end.diff(moment());
+      if (diff <= 0) {
+        setTimeLeft("00:00");
+        return;
+      }
+      const dur = moment.duration(diff);
+      const mins = Math.floor(dur.asMinutes());
+      const secs = dur.seconds();
+      setTimeLeft(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [createdAt, duration]);
+
+  return (
+    <div className="flex items-center gap-1 text-[10px] text-orange-500 font-black uppercase ml-2">
+      <Clock size={12} />
+      <span>{timeLeft}</span>
+    </div>
+  );
+}
+
 export default function RoomsListPage() {
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,9 +76,14 @@ export default function RoomsListPage() {
       .from('rooms')
       .select('*, profiles(full_name, avatar_url)')
       .eq('status', 'active')
+      .is('ended_at', null)
       .order('created_at', { ascending: false });
     
-    setRooms(data || []);
+    const activeRooms = (data || []).filter(room => {
+      const end = moment(room.created_at).add(room.duration_minutes, 'minutes');
+      return end.isAfter(moment());
+    });
+    setRooms(activeRooms);
     setLoading(false);
   };
 
@@ -143,10 +180,7 @@ export default function RoomsListPage() {
                      <Users size={12} />
                      <span>Entrar na Sala</span>
                    </div>
-                   <div className="flex items-center gap-1 text-[10px] text-orange-500 font-black uppercase ml-2">
-                     <Clock size={12} />
-                     <span>{room.duration_minutes}m</span>
-                   </div>
+                   <RoomTimer createdAt={room.created_at} duration={room.duration_minutes} />
                 </div>
               </div>
 
