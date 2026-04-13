@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   ScrollText,
   Cookie,
-  Megaphone
+  Megaphone,
+  Mic
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -36,6 +37,7 @@ const menuItems = [
   { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { name: "Usuários", icon: Users, href: "/admin/users" },
+  { name: "Salas de Guerra", icon: Mic, href: "/admin/rooms" },
   { name: "Verificações", icon: ShieldCheck, href: "/admin/verifications" },
   { name: "Monetização", icon: CreditCard, href: "/admin/monetization" },
   { name: "Recursos PRO", icon: Target, href: "/admin/pro-features" },

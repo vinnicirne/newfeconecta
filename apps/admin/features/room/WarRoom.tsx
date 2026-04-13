@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  X, Mic, MicOff, Send, ArrowLeft, Hand, UserPlus, Clock as ClockIcon, Search, PhoneOff, Check, Ban, Headphones, VolumeX, Users, Trash2, ShieldAlert, ShieldOff, Link
+  X, Mic, MicOff, Send, ArrowLeft, Hand, UserPlus, Clock as ClockIcon, Search, PhoneOff, Check, Ban, Headphones, VolumeX, Users, Trash2, ShieldAlert, ShieldOff, Link, Share2
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -43,6 +43,10 @@ interface Reaction {
   offset: number;
 }
 
+import { ChatOverlay } from "./ChatOverlay";
+import { MicCheckModal } from "./MicCheckModal";
+import { WarRoomSettings } from "./WarRoomSettings";
+
 export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
   const [token, setToken] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<any>(null);
@@ -73,7 +77,6 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       } catch (err) {
         console.error("Erro token:", err);
         toast.error("Erro sintonizando clamor. Tente novamente.");
-        // Não chamamos onExit aqui para permitir retry manual ou apenas ficar no loading
       } finally {
         setLoading(false);
       }
@@ -150,8 +153,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
   function handleAddReaction(emoji: string, broadcast = true) {
     const id = Date.now();
-    const xPos = Math.random() * 65 + 17;        // centralizado (15% a 82%)
-    const xOffset = (Math.random() - 0.5) * 180; // variação lateral mais suave
+    const xPos = Math.random() * 65 + 17;
+    const xOffset = (Math.random() - 0.5) * 180;
 
     setReactions(prev => [...prev.slice(-12), {
       id,
@@ -160,12 +163,10 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
       offset: xOffset
     }]);
 
-    // Remove automaticamente após 4 segundos
     setTimeout(() => {
       setReactions(prev => prev.filter(r => r.id !== id));
     }, 4200);
 
-    // Envia para outros usuários via LiveKit DataChannel
     if (broadcast && send) {
       send(
         new TextEncoder().encode(
@@ -223,15 +224,6 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         --war-text-dim: #adaaaa;
         --war-glass: rgba(18, 18, 18, 0.8);
       }
-      .light {
-        --war-bg: #efeae2;
-        --war-surface: #ffffff;
-        --war-surface-low: #ffffff;
-        --war-surface-high: #d1d7db;
-        --war-text: #111b21;
-        --war-text-dim: #667781;
-        --war-glass: rgba(255, 255, 255, 0.9);
-      }
       .emerald-glow { box-shadow: 0 0 40px 0 rgba(63, 255, 139, 0.12); }
       .avatar-glow { box-shadow: 0 0 12px 0 rgba(63, 255, 139, 0.4); }
       .glass-panel { background: var(--glass); backdrop-filter: blur(20px); }
@@ -262,7 +254,6 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     const setupUserRole = async () => {
       if (!roomData?.id) return;
 
-      // 1. Garante que o criador sempre tenha o cargo de 'creator' no banco
       if (isLeader) {
         await supabase.from('participants').upsert(
           { room_id: roomData.id, user_id: user.id, role: 'creator' },
@@ -270,7 +261,6 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         );
         setMyRole('creator');
       } else {
-        // 2. Busca se o usuário já tem um cargo salvo (Admin, Listener, etc)
         const { data: p } = await supabase.from('participants')
           .select('role')
           .eq('room_id', roomData.id)
@@ -280,7 +270,6 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         if (p) {
           setMyRole(p.role as any);
         } else {
-          // 3. Se for a primeira vez e não tiver cargo, entra como listener
           await supabase.from('participants').insert({
             room_id: roomData.id,
             user_id: user.id,
@@ -290,7 +279,6 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         }
       }
 
-      // 4. Se for líder, busca pedidos pendentes
       if (isLeader) {
         const { data: reqs } = await supabase.from('requests')
           .select('*, profiles:user_id(full_name, avatar_url)')
@@ -380,12 +368,10 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
           setMyRole('speaker');
           toast.success("Seu microfone foi liberado! 🎤");
 
-          // Força ativação com delay de 600ms para estabilizar
           setTimeout(async () => {
             if (localParticipant) {
               try {
                 await localParticipant.setMicrophoneEnabled(true);
-                console.log("✅ Microfone liberado via aprovação");
               } catch (e) {
                 console.error("Erro na ativação pós-aprovação:", e);
               }
@@ -421,49 +407,24 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
   useEffect(() => {
     if (!localParticipant) return;
-
     const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
 
     const enableMic = async () => {
       try {
         if (canSpeak) {
-          // Delay maior + force para garantir que a conexão esteja pronta
           await new Promise(resolve => setTimeout(resolve, 1200));
           await localParticipant.setMicrophoneEnabled(true);
-          console.log("✅ Microfone ativado COM DELAY");
         } else {
           await localParticipant.setMicrophoneEnabled(false);
-          console.log("🔇 Microfone desativado (listener)");
         }
       } catch (err: any) {
         console.error("❌ Erro ao controlar microfone:", err);
-        if (err.message?.includes("permission")) {
-          toast.error("Permissão de microfone negada pelo navegador.");
-        } else {
-          toast.error("Não foi possível ativar o microfone.");
-        }
       }
     };
-
     enableMic();
   }, [myRole, localParticipant]);
 
-  useEffect(() => {
-    if (localParticipant) {
-      console.log("📊 Local Participant Status:", {
-        identity: localParticipant.identity,
-        isMicrophoneEnabled: localParticipant.isMicrophoneEnabled,
-        audioPublications: Array.from(localParticipant.audioTrackPublications.values()).map(pub => ({
-          sid: pub.trackSid,
-          isMuted: pub.isMuted,
-          isSubscribed: pub.isSubscribed,
-          track: !!pub.track
-        }))
-      });
-    }
-  }, [localParticipant, myRole, localParticipant?.isMicrophoneEnabled]);
-
-  const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant.identity === roomData.creator_id ? localParticipant : null);
+  const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant?.identity === roomData.creator_id ? localParticipant : null);
   const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
 
   const handleExit = () => {
@@ -492,8 +453,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
   };
 
   return (
-    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-background text-on-surface font-body antialiased">
-
+    <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0a0a0a] text-white font-body antialiased">
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[300] w-full max-w-[280px] flex flex-col gap-4 pointer-events-none">
         {!canPlayAudio && (
           <button 
@@ -530,51 +490,40 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
       </div>
 
       <div className="flex items-center justify-between px-6 py-4 z-20">
-        <button onClick={handleExit} className="flex items-center justify-center size-10 rounded-full hover:bg-surface-container-high transition-colors">
+        <button onClick={handleExit} className="flex items-center justify-center size-10 rounded-full hover:bg-white/10 transition-colors">
           <ArrowLeft size={20} />
         </button>
         <div className="flex flex-col items-center">
-          <h1 className="font-headline font-extrabold text-sm tracking-tight uppercase text-center">
+          <h1 className="font-headline font-extrabold text-sm tracking-tight uppercase text-center text-white">
             {roomData?.name || "Intercessão Sagrada"}
           </h1>
           <div className="flex items-center gap-1.5 mt-0.5">
-            <div className="size-1.5 rounded-full bg-primary animate-pulse" />
-            <p className="text-primary text-[10px] font-bold tracking-widest uppercase">Ao Vivo</p>
+            <div className="size-1.5 rounded-full bg-[#3fff8b] animate-pulse" />
+            <p className="text-[#3fff8b] text-[10px] font-bold tracking-widest uppercase">Ao Vivo</p>
           </div>
         </div>
-        <button onClick={handleExit} className="flex items-center justify-center size-11 rounded-full hover:bg-surface-container-highest transition-all active:scale-90">
+        <button onClick={handleExit} className="flex items-center justify-center size-11 rounded-full hover:bg-white/10 transition-all active:scale-90 text-white">
           <X size={24} />
         </button>
       </div>
 
       <div className="flex-1 flex flex-col items-center pt-2 px-6 overflow-hidden relative">
-        {/* Floating Reactions Explosion Layer */}
         <div className="absolute inset-0 pointer-events-none z-[60] overflow-hidden">
           <AnimatePresence>
             {reactions.map((r) => (
               <motion.div
                 key={r.id}
-                initial={{
-                  y: 100,
-                  opacity: 0,
-                  scale: 0.4
-                }}
+                initial={{ y: 100, opacity: 0, scale: 0.4 }}
                 animate={{
-                  y: -window.innerHeight * 0.75,
+                  y: -800,
                   x: [0, r.offset, 0],
                   opacity: [0, 1, 1, 0],
                   scale: [0.6, 1.8, 1.4, 0.8]
                 }}
                 exit={{ opacity: 0 }}
-                transition={{
-                  duration: 3.8,
-                  ease: "easeOut"
-                }}
+                transition={{ duration: 3.8, ease: "easeOut" }}
                 className="absolute bottom-40 text-5xl drop-shadow-2xl pointer-events-none reaction-explosion"
-                style={{
-                  left: `${r.x}%`,
-                  filter: "drop-shadow(0 0 12px rgba(63, 255, 139, 0.6))"
-                }}
+                style={{ left: `${r.x}%`, filter: "drop-shadow(0 0 12px rgba(63, 255, 139, 0.6))" }}
               >
                 {r.emoji}
               </motion.div>
@@ -582,19 +531,18 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
           </AnimatePresence>
         </div>
 
-        {/* Timer */}
         <div className="flex flex-col items-center gap-0.5 mb-2">
-          <span className="font-headline font-extrabold text-5xl tracking-tighter text-on-surface italic">
+          <span className="font-headline font-extrabold text-5xl tracking-tighter text-white italic">
             {remainingTime || "00:00"}
           </span>
-          <p className="font-label text-on-surface-variant text-[10px] uppercase tracking-[0.2em] font-semibold">
+          <p className="font-label text-white/40 text-[10px] uppercase tracking-[0.2em] font-semibold">
             Tempo de Clamor
           </p>
         </div>
 
         <div className="relative w-full flex justify-center items-center mb-2">
           <div className="relative group">
-            <div className="size-32 rounded-full border-4 border-primary avatar-glow flex items-center justify-center bg-surface-container-low overflow-hidden relative z-10">
+            <div className="size-32 rounded-full border-4 border-[#3fff8b] avatar-glow flex items-center justify-center bg-[#0f0f0f] overflow-hidden relative z-10">
               <img
                 src={(Array.isArray(roomData?.profiles) ? roomData.profiles[0]?.avatar_url : roomData?.profiles?.avatar_url) || leaderMeta.avatar || "https://github.com/shadcn.png"}
                 className="absolute inset-0 w-full h-full object-cover"
@@ -602,7 +550,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
               />
             </div>
             {creatorInLive?.isSpeaking && (
-              <div className="absolute -inset-3 rounded-full border border-primary/20 animate-ping opacity-20" />
+              <div className="absolute -inset-3 rounded-full border border-[#3fff8b]/20 animate-ping opacity-20" />
             )}
           </div>
 
@@ -610,87 +558,93 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
             <button
               onClick={async () => {
                 if (!localParticipant) return;
-
                 const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
-
-                if (!canSpeak) {
-                  setShowMicTest(true);
-                  return;
-                }
-
+                if (!canSpeak) { setShowMicTest(true); return; }
                 try {
                   const newState = !localParticipant.isMicrophoneEnabled;
                   await localParticipant.setMicrophoneEnabled(newState);
-                  console.log(`Microfone manual: ${newState ? 'LIGADO' : 'DESLIGADO'}`);
-                  
-                  toast.info(newState ? "🎤 Microfone ATIVADO" : "🔇 Microfone MUTADO", {
-                    description: newState ? "Sua voz agora está sendo enviada" : ""
-                  });
+                  toast.info(newState ? "🎤 Microfone ATIVADO" : "🔇 Microfone MUTADO");
                 } catch (err) {
-                  console.error(err);
                   toast.error("Falha ao mudar microfone");
                 }
               }}
               className={cn(
                 "size-12 rounded-full glass-panel flex items-center justify-center border transition-all active:scale-95 text-xl",
                 localParticipant?.isMicrophoneEnabled 
-                  ? "border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20" 
-                  : "border-white/10 hover:bg-surface-container-highest"
+                  ? "border-[#3fff8b] bg-[#3fff8b] text-[#0e0e0e] shadow-lg shadow-[#3fff8b]/40" 
+                  : "border-[#3fff8b]/30 bg-[#3fff8b]/10 text-[#3fff8b]"
               )}
-              title={myRole === 'listener' ? "Testar Microfone" : (localParticipant.isMicrophoneEnabled ? "Mutar" : "Ativar Microfone")}
             >
-              {localParticipant.isMicrophoneEnabled ? <Mic size={20} /> : (myRole === 'listener' ? <Mic size={20} /> : <MicOff size={20} />)}
+              {localParticipant?.isMicrophoneEnabled ? <Mic size={20} /> : (myRole === 'listener' ? <Mic size={20} /> : <MicOff size={20} />)}
             </button>
-            <button onClick={async () => { setRequestStatus('pending'); await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' }); toast.info("Pedido enviado"); }} className={cn("size-12 rounded-full glass-panel flex items-center justify-center border border-white/10 transition-all", requestStatus === 'pending' && "bg-primary/20 border-primary animate-pulse")}>
+            <button 
+              onClick={async () => { setRequestStatus('pending'); await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' }); toast.info("Pedido enviado"); }} 
+              className={cn(
+                "size-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 text-[#3fff8b] transition-all", 
+                requestStatus === 'pending' && "bg-[#3fff8b]/40 animate-pulse border-[#3fff8b]"
+              )}
+            >
               <Hand size={20} />
             </button>
-            <button
-              onClick={() => setShowModeration(true)}
-              className="size-12 rounded-full glass-panel flex items-center justify-center border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all text-primary shadow-lg shadow-primary/20 relative"
-              title="Gestão da Sala"
-            >
+            <button onClick={() => setShowModeration(true)} className="size-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 hover:bg-[#3fff8b]/20 active:scale-95 transition-all text-[#3fff8b] relative">
               <Users size={20} />
               {pendingRequests.length > 0 && (
                 <span className="absolute -top-1 -right-1 size-4 bg-red-500 rounded-full border-2 border-[#0e0e0e] flex items-center justify-center">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                   <span className="relative text-[8px] font-black text-white">{pendingRequests.length}</span>
                 </span>
               )}
+            </button>
+            <button 
+              onClick={() => {
+                const shareData = {
+                  title: roomData?.name || "War Room FéConecta",
+                  text: `Venha participar deste clamor conosco! 🙏 ${roomData?.name || ''}`,
+                  url: window.location.href,
+                };
+                if (navigator.share) {
+                  navigator.share(shareData).catch(console.error);
+                } else {
+                  navigator.clipboard.writeText(shareData.url);
+                  toast.success("Link de intercessão copiado! 🙏");
+                }
+              }}
+              className="size-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 hover:bg-[#3fff8b]/20 active:scale-95 transition-all text-[#3fff8b]"
+            >
+              <Share2 size={20} />
             </button>
           </div>
         </div>
 
         <div className="flex items-end justify-center gap-1.5 h-8 mb-6">
           {[...Array(9)].map((_, i) => (
-            <motion.div key={i} animate={{ height: creatorInLive?.isSpeaking ? [8, 12 + Math.random() * 16, 8] : [8, 10, 8] }} transition={{ repeat: Infinity, duration: 0.4 + (i * 0.1) }} className="w-1.5 bg-primary rounded-full shadow-[0_0_10px_#3fff8b]" />
+            <motion.div key={i} animate={{ height: creatorInLive?.isSpeaking ? [8, 12 + Math.random() * 16, 8] : [8, 10, 8] }} transition={{ repeat: Infinity, duration: 0.4 + (i * 0.1) }} className="w-1.5 bg-[#3fff8b] rounded-full shadow-[0_0_10px_#3fff8b]" />
           ))}
         </div>
 
-        {/* Participants Avatars (DB Synced) */}
         <div className="flex items-center justify-center -space-x-3 mb-2">
           {dbParticipants.slice(0, 3).map((p, i) => {
-            const isOnline = participants.some(lp => lp.identity?.toString() === p.user_id?.toString()) || localParticipant.identity?.toString() === p.user_id?.toString();
+            const isOnline = participants.some(lp => lp.identity === p.user_id) || localParticipant?.identity === p.user_id;
             return (
               <div key={i} className={cn("relative transition-all", !isOnline ? "opacity-40 grayscale" : "opacity-100 saturate-150")}>
                 <img
                   src={(Array.isArray(p.profiles) ? p.profiles[0]?.avatar_url : p.profiles?.avatar_url) || "https://github.com/shadcn.png"}
-                  className={cn("size-12 rounded-full border-2 object-cover shadow-xl", isOnline ? "border-primary avatar-glow" : "border-white/10")}
+                  className={cn("size-12 rounded-full border-2 object-cover shadow-xl", isOnline ? "border-[#3fff8b] avatar-glow" : "border-white/10")}
                   alt=""
                 />
               </div>
             );
           })}
-          <div className="size-12 rounded-full border-2 border-surface bg-surface-container-highest flex items-center justify-center">
-            <span className="text-primary text-xs font-bold">+{Math.max(0, dbParticipants.length - 3)}</span>
+          <div className="size-12 rounded-full border-2 border-[#0e0e0e] bg-[#1a1a1a] flex items-center justify-center">
+            <span className="text-[#3fff8b] text-xs font-bold">+{Math.max(0, dbParticipants.length - 3)}</span>
           </div>
         </div>
 
         <div className="w-full max-w-[320px] flex flex-col gap-1.5 mb-1 shrink-0">
           <div className="flex gap-3">
-            <button onClick={() => { handleAddReaction("🙏"); handleSendMessage("Amém! 🙏"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center emerald-glow shadow-xl active:scale-95 transition-all">
+            <button onClick={() => { handleAddReaction("🙏"); handleSendMessage("Amém! 🙏"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all">
               <span className="font-headline font-extrabold text-[#0e0e0e] text-xs tracking-widest uppercase italic">Amém</span>
             </button>
-            <button onClick={() => { handleAddReaction("🙌"); handleSendMessage("Glória! 🙌"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center emerald-glow shadow-xl active:scale-95 transition-all">
+            <button onClick={() => { handleAddReaction("🙌"); handleSendMessage("Glória! 🙌"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all">
               <span className="font-headline font-extrabold text-[#0e0e0e] text-xs tracking-widest uppercase italic">Glória</span>
             </button>
           </div>
@@ -701,35 +655,18 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
           </div>
         </div>
 
-        {/* Área do Chat - w-full para evitar centralização feia */}
         <div className="w-full flex-1 overflow-y-auto chat-mask space-y-4 pb-4 px-2 no-scrollbar">
           {messages.slice(-8).map((m) => (
             <div key={m.id} className="flex items-start gap-3">
-              <div
-                className="size-7 rounded-full bg-cover bg-center flex-shrink-0 border border-white/10"
-                style={{
-                  backgroundImage: `url(${m.avatar_url || 'https://github.com/shadcn.png'})`
-                }}
-              />
-
+              <div className="size-7 rounded-full bg-cover bg-center flex-shrink-0 border border-white/10" style={{ backgroundImage: `url(${m.avatar_url || 'https://github.com/shadcn.png'})` }} />
               <div className="flex-1 group/msg relative">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <p className="text-[11px] font-bold text-primary/80">
-                    {m.user_name}
-                  </p>
+                  <p className="text-[11px] font-bold text-[#3fff8b]/80">{m.user_name}</p>
                   {(myRole === 'creator' || myRole === 'admin') && (
-                    <button
-                      onClick={async () => {
-                        await supabase.from('messages').delete().eq('id', m.id);
-                        setMessages(prev => prev.filter(msg => msg.id !== m.id));
-                      }}
-                      className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 hover:text-red-500 rounded"
-                    >
-                      <Trash2 size={10} />
-                    </button>
+                    <button onClick={async () => { await supabase.from('messages').delete().eq('id', m.id); setMessages(prev => prev.filter(msg => msg.id !== m.id)); }} className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-1 hover:text-red-500 rounded text-white/30"><Trash2 size={10} /></button>
                   )}
                 </div>
-                <p className="text-xs text-on-surface font-medium leading-relaxed bg-surface-container-low p-3 rounded-r-2xl rounded-bl-2xl border border-on-surface/5">
+                <p className="text-xs text-white font-medium leading-relaxed bg-[#0f0f0f] p-3 rounded-r-2xl rounded-bl-2xl border border-white/5">
                   {m.content}
                 </p>
               </div>
@@ -739,55 +676,26 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         </div>
       </div>
 
-      {/* Footer Fixo - pb-24 para subir o input acima da barra global do app */}
-      <div className="w-full px-6 pt-4 pb-24 bg-gradient-to-t from-surface via-surface to-transparent border-t border-white/5 z-[110]">
-        {/* Input de mensagem */}
+      <div className="w-full px-6 pt-4 pb-24 bg-gradient-to-t from-[#0e0e0e] via-[#0e0e0e] to-transparent border-t border-white/5 z-[110]">
         <div className="relative flex items-center gap-2">
-          {/* Mobile Chat Trigger */}
-          <button
-            onClick={() => setShowChatOverlay(true)}
-            className="md:hidden size-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"
-          >
-            <Users size={18} />
-          </button>
-
+          <button onClick={() => setShowChatOverlay(true)} className="md:hidden size-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-[#3fff8b] transition-colors"><Users size={18} /></button>
           <div className="flex-1 relative">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               onFocus={() => { if (window.innerWidth < 768) setShowChatOverlay(true); }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && chatInput.trim()) {
-                  handleSendMessage(chatInput);
-                }
-              }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && chatInput.trim()) handleSendMessage(chatInput); }}
               placeholder="Envie sua intercessão..."
-              className="w-full bg-surface-container-low border border-white/10 rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface/40 outline-none text-on-surface"
+              className="w-full bg-[#0f0f0f] border border-white/10 rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-[#3fff8b]/50 placeholder:text-white/20 outline-none text-white"
             />
-
-            <button
-              onClick={() => {
-                if (chatInput.trim()) {
-                  handleSendMessage(chatInput);
-                }
-              }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors active:scale-95"
-            >
-              <Send size={18} className="text-primary" />
-            </button>
+            <button onClick={() => { if (chatInput.trim()) handleSendMessage(chatInput); }} className="absolute right-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-[#3fff8b]/10 flex items-center justify-center hover:bg-[#3fff8b]/20 transition-colors active:scale-95"><Send size={18} className="text-[#3fff8b]" /></button>
           </div>
         </div>
       </div>
 
       <MicCheckModal show={showMicTest} onClose={() => setShowMicTest(false)} />
-      <ChatOverlay
-        show={showChatOverlay}
-        onClose={() => setShowChatOverlay(false)}
-        messages={messages}
-        onSendMessage={handleSendMessage}
-        myRole={myRole}
-      />
+      <ChatOverlay show={showChatOverlay} onClose={() => setShowChatOverlay(false)} messages={messages} onSendMessage={handleSendMessage} myRole={myRole} />
       <WarRoomSettings
         show={showModeration}
         onClose={() => setShowModeration(false)}
@@ -798,375 +706,13 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         pendingRequests={pendingRequests}
         onApprove={approveReq}
         onDeny={async (id) => {
-          setPendingRequests(prev => prev.filter(r => r.id !== id));
+          setPendingRequests(prev => prev.filter(p => p.id !== id));
           await supabase.from('requests').update({ status: 'denied' }).eq('id', id);
         }}
         showChatOverlay={showChatOverlay}
         onToggleChatOverlay={() => setShowChatOverlay(!showChatOverlay)}
         localParticipant={localParticipant}
       />
-    </div>
-  );
-}
-
-function ChatOverlay({ show, onClose, messages, onSendMessage, myRole }: {
-  show: boolean;
-  onClose: () => void;
-  messages: any[];
-  onSendMessage: (c: string) => void;
-  myRole: string;
-}) {
-  const [input, setInput] = useState("");
-  const endRef = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages, show]);
-
-  if (!show) return null;
-
-  return (
-    <div className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-xl flex flex-col pt-12">
-      <div className="flex items-center justify-between px-8 py-4 border-b border-white/5">
-        <h3 className="text-white font-black uppercase text-[10px] tracking-[0.3em]">Intercessões ao Vivo</h3>
-        <button onClick={onClose} className="size-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-          <X size={20} className="text-white" />
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
-        {messages.map((m) => (
-          <div key={m.id} className="flex items-start gap-4">
-            <img src={m.avatar_url || 'https://github.com/shadcn.png'} className="size-9 rounded-full border border-white/10" alt="" />
-            <div className="flex-1">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-[11px] font-bold text-primary/80">{m.user_name}</p>
-                <p className="text-[9px] text-white/30 uppercase font-bold">{moment(m.created_at).format('HH:mm')}</p>
-              </div>
-              <p className="text-sm text-white leading-relaxed bg-white/5 p-4 rounded-2xl rounded-tl-none border border-white/5">
-                {m.content}
-              </p>
-            </div>
-          </div>
-        ))}
-        <div ref={endRef} />
-      </div>
-
-      <div className="p-8 bg-black/40 border-t border-white/5 pb-12">
-        <div className="relative">
-          <input
-            autoFocus
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && input.trim()) { onSendMessage(input); setInput(""); } }}
-            placeholder="Digite sua mensagem de fé..."
-            className="w-full bg-white/5 border border-white/10 rounded-full py-4.5 px-6 text-sm text-white outline-none focus:ring-1 focus:ring-primary/50"
-          />
-          <button
-            onClick={() => { if (input.trim()) { onSendMessage(input); setInput(""); } }}
-            className="absolute right-2 top-1.5 p-3 bg-primary text-black rounded-full shadow-lg active:scale-90 transition-all"
-          >
-            <Send size={18} />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MicCheckModal({ show, onClose }: { show: boolean, onClose: () => void }) {
-  const [level, setLevel] = useState(0);
-  const [isLoopback, setIsLoopback] = useState(false);
-  const streamRef = useRef<MediaStream | null>(null);
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (!show) { streamRef.current?.getTracks().forEach(t => t.stop()); return; }
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(s => {
-      streamRef.current = s;
-      const ctx = new AudioContext();
-      const ana = ctx.createAnalyser();
-      ctx.createMediaStreamSource(s).connect(ana);
-      const arr = new Uint8Array(ana.frequencyBinCount);
-      const up = () => { if (show && ana) { ana.getByteFrequencyData(arr); setLevel(arr.reduce((a, b) => a + b) / arr.length); requestAnimationFrame(up); } };
-      up();
-    });
-  }, [show]);
-
-  useEffect(() => { if (audioRef.current && streamRef.current) audioRef.current.srcObject = isLoopback ? streamRef.current : null; }, [isLoopback]);
-
-  if (!show) return null;
-  return (
-    <div className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6">
-      <div className="w-full max-w-sm bg-[#131313] rounded-[3rem] p-10 flex flex-col items-center gap-6 border border-white/5">
-        <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20 shadow-[0_0_20px_#3fff8b33]"><Mic size={32} className="text-primary" /></div>
-        <h3 className="text-white font-black uppercase text-[10px] tracking-[0.3em]">Calibrando Voz</h3>
-        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden"><motion.div animate={{ width: `${level * 3}%` }} className="h-full bg-primary shadow-[0_0_10px_#3fff8b]" /></div>
-        <button onClick={() => setIsLoopback(!isLoopback)} className={cn("w-full py-4 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all flex items-center justify-center gap-2", isLoopback ? "bg-primary border-primary text-black" : "bg-white/5 border-white/10 text-white/50")}>
-          {isLoopback ? "Escutando Retorno" : "Testar Retorno"} <Headphones size={14} />
-        </button>
-        <button onClick={onClose} className="w-full py-4.5 bg-primary text-black rounded-full font-black text-[10px] uppercase shadow-2xl">Está ok!</button>
-        <audio ref={audioRef} autoPlay className="hidden" />
-      </div>
-    </div>
-  );
-}
-
-function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipants, myRole, pendingRequests, onApprove, onDeny, showChatOverlay, onToggleChatOverlay, localParticipant }: {
-  show: boolean,
-  onClose: () => void,
-  roomId: string,
-  dbParticipants: any[],
-  liveParticipants: any[],
-  myRole: string,
-  pendingRequests: any[],
-  onApprove: (r: any) => void,
-  onDeny: (id: string) => void,
-  showChatOverlay?: boolean,
-  onToggleChatOverlay?: () => void,
-  localParticipant: any
-}) {
-  const [tab, setTab] = useState<'invite' | 'users' | 'requests'>('users');
-  const [s, setS] = useState("");
-  const [res, setRes] = useState<any[]>([]);
-  const inviteLink = `${typeof window !== 'undefined' ? window.location.origin : ''}/room/${roomId}`;
-
-  const copyInvite = () => {
-    navigator.clipboard.writeText(inviteLink);
-    toast.success("Link copiado! 🙏");
-  };
-
-  const handleSearch = async () => {
-    if (s.length > 2) {
-      const { data } = await supabase.from('profiles').select('*').ilike('username', `%${s}%`).limit(5);
-      setRes(data || []);
-    }
-  };
-
-  const updateRole = async (userId: string, newRole: string) => {
-    const { error } = await supabase.from('participants').update({ role: newRole }).eq('user_id', userId).eq('room_id', roomId);
-    if (!error) toast.success(`Cargo atualizado para ${newRole}`);
-  };
-
-  const silenceUser = async (userId: string) => {
-    const { error } = await supabase.from('participants').update({ role: 'listener' }).eq('user_id', userId).eq('room_id', roomId);
-    if (!error) toast.info("Usuário silenciado");
-  };
-
-  const openChat = async () => {
-    const { error } = await supabase.from('participants').update({ role: 'speaker' }).eq('room_id', roomId).eq('role', 'listener');
-    if (!error) toast.success("Microfones liberados para todos! 🎤");
-  };
-
-  const closeChat = async () => {
-    const { error } = await supabase.from('participants').update({ role: 'listener' }).eq('room_id', roomId).not('role', 'in', '("creator","admin")');
-    if (!error) toast.info("Todos foram silenciados.");
-  };
-
-  const kickUser = async (userId: string) => {
-    await supabase.from('participants').delete().eq('user_id', userId).eq('room_id', roomId);
-    toast.error("Usuário removido da sala");
-  };
-
-  if (!show) return null;
-
-  return (
-    <div className="fixed inset-0 z-[1000] bg-black/80 backdrop-blur-xl flex items-center justify-center p-4">
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-lg bg-surface rounded-[2.5rem] border border-on-surface/5 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl"
-      >
-        <div className="px-8 pt-8 pb-4 flex items-center justify-between">
-          <h2 className="text-on-surface font-black uppercase text-xs tracking-[0.2em]">Painel de Gestão</h2>
-          <button onClick={onClose} className="size-8 rounded-full bg-surface-container-low flex items-center justify-center hover:bg-surface-container-high transition-colors">
-            <X size={18} className="text-on-surface" />
-          </button>
-        </div>
-
-        <div className="flex px-8 gap-6 border-b border-white/5">
-          <button onClick={() => setTab('users')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'users' ? "text-primary" : "text-on-surface-variant")}>
-            Participantes ({dbParticipants.length})
-            {tab === 'users' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
-          </button>
-          {(myRole === 'creator' || myRole === 'admin') && (
-            <button onClick={() => setTab('requests')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'requests' ? "text-primary" : "text-on-surface-variant")}>
-              Pedidos ({pendingRequests.length})
-              {tab === 'requests' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
-              {pendingRequests.length > 0 && <div className="absolute top-0 -right-2 size-1.5 bg-red-500 rounded-full animate-pulse" />}
-            </button>
-          )}
-          <button onClick={() => setTab('invite')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'invite' ? "text-primary" : "text-on-surface-variant")}>
-            Buscar e Convidar
-            {tab === 'invite' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
-          </button>
-          <button onClick={() => onToggleChatOverlay?.()} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ml-auto", showChatOverlay ? "text-primary" : "text-on-surface-variant")}>
-            Chat Overlay: {showChatOverlay ? 'ON' : 'OFF'}
-          </button>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 no-scrollbar">
-          {tab === 'users' && (
-            <>
-              <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-3xl flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className={cn("size-3 rounded-full animate-pulse", localParticipant.isMicrophoneEnabled ? "bg-primary" : "bg-red-500")} />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-white">Status do seu Microfone</p>
-                </div>
-                <p className="text-[10px] font-bold text-primary">{localParticipant.isMicrophoneEnabled ? "ATIVO" : "MUTADO"}</p>
-              </div>
-
-              {(myRole === 'creator' || myRole === 'admin') && (
-                <div className="flex gap-2 mb-6 p-1 bg-surface-container-low rounded-3xl border border-on-surface/5">
-                  <button onClick={openChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-2xl transition-all">
-                    Liberar Todos
-                  </button>
-                  <button onClick={closeChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-red-500/10 hover:text-red-400 rounded-2xl transition-all">
-                    Silenciar Todos
-                  </button>
-                </div>
-              )}
-
-              {dbParticipants.map((p) => {
-                const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
-                const isOnline = liveParticipants.some(lp => lp.identity === p.user_id);
-                return (
-                  <div key={p.id} className="flex items-center justify-between group bg-surface-container-low p-4 rounded-3xl border border-white/5">
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full object-cover border border-white/10" alt="" />
-                        {isOnline && <div className="absolute -bottom-0.5 -right-0.5 size-3 bg-primary rounded-full border-2 border-[#131313]" />}
-                      </div>
-                      <div>
-                        <p className="text-[11px] font-bold text-white">{profile?.full_name}</p>
-                        <p className="text-[9px] text-primary/60 font-black uppercase tracking-tighter">{p.role}</p>
-                      </div>
-                    </div>
-
-                    {(myRole === 'creator' || myRole === 'admin') && p.user_id !== dbParticipants.find(dp => dp.role === 'creator')?.user_id && (
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={() => updateRole(p.user_id, (p.role === 'admin' || p.role === 'speaker') ? 'listener' : 'speaker')}
-                          className={cn(
-                            "p-2.5 rounded-full transition-all",
-                            (p.role === 'admin' || p.role === 'speaker')
-                              ? "bg-primary/20 text-primary hover:bg-red-500/20 hover:text-red-500"
-                              : "bg-white/5 text-white/30 hover:bg-primary/20 hover:text-primary"
-                          )}
-                          title="Abrir/Fechar Microfone"
-                        >
-                          {(p.role === 'admin' || p.role === 'speaker') ? <Mic size={16} /> : <MicOff size={16} />}
-                        </button>
-
-                        <button
-                          onClick={() => updateRole(p.user_id, p.role === 'admin' ? 'listener' : 'admin')}
-                          className={cn(
-                            "p-2.5 rounded-full transition-all",
-                            p.role === 'admin' ? "bg-blue-500/20 text-blue-400" : "bg-white/5 text-white/30 hover:text-blue-400"
-                          )}
-                          title="Tornar Administrador"
-                        >
-                          {p.role === 'admin' ? <ShieldAlert size={16} /> : <ShieldOff size={16} />}
-                        </button>
-
-                        <button onClick={() => kickUser(p.user_id)} className="p-2.5 rounded-full bg-white/5 hover:bg-red-500/20 text-white/50 hover:text-red-500 transition-all" title="Remover da sala">
-                          <Ban size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </>
-          )}
-
-          {tab === 'requests' && (
-            <div className="space-y-4 py-4">
-              {pendingRequests.length === 0 ? (
-                <div className="text-center py-20 opacity-20">
-                  <Hand size={40} className="mx-auto mb-4" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Ninguém na fila ainda</p>
-                </div>
-              ) : (
-                pendingRequests.map((r) => {
-                  const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
-                  return (
-                    <div key={r.id} className="flex items-center justify-between bg-surface-container-low p-4 rounded-3xl border border-white/5">
-                      <div className="flex items-center gap-3">
-                        <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full border border-white/10" alt="" />
-                        <div>
-                          <p className="text-[11px] font-bold text-white">{profile?.full_name}</p>
-                          <p className="text-[9px] text-primary/60 font-black uppercase tracking-widest">Pedindo para falar</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button onClick={() => onDeny(r.id)} className="p-3 rounded-full bg-white/5 text-white/30 hover:bg-red-500/10 hover:text-red-500 transition-all">
-                          <X size={16} />
-                        </button>
-                        <button onClick={() => onApprove(r)} className="p-3 rounded-full bg-primary/10 text-primary hover:bg-primary hover:text-black transition-all">
-                          <Check size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          )}
-
-          {tab === 'invite' && (
-            <div className="space-y-6">
-              <div className="relative group">
-                <input
-                  value={s}
-                  onChange={e => setS(e.target.value)}
-                  onKeyUp={e => e.key === 'Enter' && handleSearch()}
-                  placeholder="Pesquisar @username para convidar..."
-                  className="w-full bg-white/5 border border-white/5 focus:border-primary/30 rounded-2xl py-4 px-6 text-xs text-white placeholder:text-white/20 outline-none transition-all"
-                />
-                <button onClick={handleSearch} className="absolute right-2 top-1.5 p-2.5 bg-primary text-[#0e0e0e] rounded-xl shadow-lg active:scale-90 transition-all">
-                  <Search size={18} />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {res.map(u => (
-                  <div key={u.id} className="flex items-center justify-between p-4 bg-white/5 rounded-3xl border border-white/5 hover:border-primary/20 transition-all group">
-                    <div className="flex items-center gap-3">
-                      <img src={u.avatar_url || "https://github.com/shadcn.png"} className="w-10 h-10 rounded-2xl object-cover transition-all" alt="" />
-                      <p className="text-[11px] font-black uppercase tracking-widest">@{u.username}</p>
-                    </div>
-                    <button
-                      onClick={async () => {
-                        const { error } = await supabase.from('participants').insert({ room_id: roomId, user_id: u.id, role: 'listener' });
-                        if (error) toast.error("Usuário já está no grupo");
-                        else toast.success(`${u.username} foi convocado! 🙏`);
-                      }}
-                      className="p-3 bg-white/5 text-primary hover:bg-primary hover:text-[#0e0e0e] rounded-2xl border border-primary/20 transition-all"
-                    >
-                      <UserPlus size={18} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-col items-center justify-center py-6 text-center gap-4 bg-white/5 rounded-3xl p-6 border border-white/5">
-                <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-                  <Link size={20} className="text-primary" />
-                </div>
-                <div className="max-w-[240px]">
-                  <p className="text-white text-xs font-bold mb-1">Link Sagrado</p>
-                  <p className="text-white/40 text-[9px] leading-relaxed">Qualquer pessoa com este link pode ver o clamor.</p>
-                </div>
-                <button
-                  onClick={copyInvite}
-                  className="w-full py-3.5 bg-primary text-[#0e0e0e] rounded-full font-black text-[10px] uppercase tracking-widest shadow-xl"
-                >
-                  Copiar Link
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </motion.div>
     </div>
   );
 }
