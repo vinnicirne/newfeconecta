@@ -34,6 +34,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [floatingEmojis, setFloatingEmojis] = useState<any[]>([]);
   const [currentMediaDuration, setCurrentMediaDuration] = useState(PHOTO_DURATION);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
    const handleHighlightToggle = async () => {
      const isMarking = !story.is_highlight;
@@ -160,6 +161,17 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     startTimer();
     return clearTimer;
   }, [userIdx, storyIdx, currentMediaDuration, startTimer, paused]);
+
+  // 3. Sincronização de Play/Pause do Vídeo Nativo
+  useEffect(() => {
+    if (story?.media_type === 'video' && videoRef.current) {
+      if (paused) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play().catch(() => {});
+      }
+    }
+  }, [paused, story?.media_type, storyIdx]);
 
   const togglePause = () => {
     if (paused) {
@@ -315,6 +327,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
           {story.media_type === 'video' && (
             <>
               <video 
+                ref={videoRef}
                 src={story.media_url} 
                 autoPlay 
                 playsInline 
