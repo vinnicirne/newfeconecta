@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { VerificationBadge } from '@/components/verification-badge';
+import { NotificationService } from '@/lib/notifications';
 
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
@@ -162,14 +163,11 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           .insert({ follower_id: userId, following_id: post.author_id });
         if (error) throw error;
 
-        // Notificação de Novo Seguidor
-        if (userId !== post.author_id) {
-          await supabase.from('notifications').insert({
-            recipient_id: post.author_id,
-            sender_id: userId,
-            type: 'follow'
-          });
-        }
+        await NotificationService.notify({
+          recipientId: post.author_id,
+          senderId: userId,
+          type: 'follow'
+        });
       }
     } catch (err) {
       setIsFollowing(oldFollowing);
@@ -190,7 +188,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       } else {
         const { error } = await supabase.from('saved_posts').insert({ post_id: post.id, user_id: userId });
         if (error) throw error;
-      }
+       }
     } catch (err) {
       setIsSaved(oldSaved);
       toast.error("Erro ao salvar publicação.");
@@ -220,15 +218,12 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           .insert({ post_id: post.id, profile_id: userId });
         if (error) throw error;
 
-        // Notificação de Republicação
-        if (userId !== post.author_id) {
-          await supabase.from('notifications').insert({
-            recipient_id: post.author_id,
-            sender_id: userId,
-            type: 'repost',
-            post_id: post.id
-          });
-        }
+        await NotificationService.notify({
+          recipientId: post.author_id,
+          senderId: userId,
+          type: 'repost',
+          postId: post.id
+        });
       }
       onUpdated?.({ ...post, reposts_count: oldReposted ? Math.max(0, oldLocalCount - 1) : oldLocalCount + 1 });
     } catch (err) {
@@ -257,13 +252,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
       if (error) throw error;
 
-      // Notificação de Curtida (Apenas se for novo Like)
-      if (!isLiked && userId !== post.author_id) {
-        await supabase.from('notifications').insert({
-          recipient_id: post.author_id,
-          sender_id: userId,
+      // Notificação Centralizada (Apenas se for novo Like)
+      if (!isLiked) {
+        await NotificationService.notify({
+          recipientId: post.author_id,
+          senderId: userId,
           type: 'like',
-          post_id: post.id
+          postId: post.id
         });
       }
 

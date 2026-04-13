@@ -1,12 +1,13 @@
 "use client";
 
 import { useRef, useState } from 'react';
-import { Type, Image, Camera, Mic, X } from 'lucide-react';
+import { Type, Image, Camera, Mic, X, Send, Smile, Paperclip } from 'lucide-react';
 import TextEditorModal from './TextEditorModal';
 import CameraModal from './CameraModal';
 import AudioRecorder from './AudioRecorder';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { NotificationService } from '@/lib/notifications';
 
 import { toast } from 'sonner';
 
@@ -95,6 +96,10 @@ export default function CreatePost({ user, onPostCreated }: any) {
       const { error } = await supabase.from('posts').insert(postPayload);
 
       if (error) throw error;
+      
+      // Parsear Menções
+      await NotificationService.parseMentions(data.content, userId);
+      
       setUploadProgress(100);
       toast.success("Publicação enviada com sucesso!", { id: toastId });
       onPostCreated?.();
@@ -144,6 +149,12 @@ export default function CreatePost({ user, onPostCreated }: any) {
       });
 
       if (error) throw error;
+      
+      // Parsear Menções na legenda
+      if (data.caption) {
+        await NotificationService.parseMentions(data.caption, userId);
+      }
+
       setUploadProgress(100);
       toast.success("Mídia publicada com sucesso!", { id: toastId });
       onPostCreated?.();
