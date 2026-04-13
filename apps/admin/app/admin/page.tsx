@@ -172,10 +172,10 @@ export default function DashboardPage() {
              { name: 'Identidade Visual', status: 'Integrado', icon: Users, desc: 'Edição de Banner e Avatar' },
              { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Barra de usuários ativos' },
              { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação de 30s' },
-           ].map((feature) => (
+           ].map(({ icon: Icon, ...feature }) => (
              <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">
-                   <feature.icon className="w-4 h-4" />
+                   <Icon className="w-4 h-4" />
                 </div>
                 <div>
                    <h4 className="text-xs font-bold dark:text-white">{feature.name}</h4>
