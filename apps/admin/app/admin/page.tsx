@@ -18,7 +18,8 @@ import {
   Camera,
   Layout,
   Smartphone,
-  Mic
+  Mic,
+  Image
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
