@@ -336,16 +336,16 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       .on('postgres_changes', { event: '*', schema: 'public', table: 'requests', filter: `room_id=eq.${roomData.id}` }, async (p) => {
         if (isLeader) {
           if (p.eventType === 'INSERT') {
-            const { data } = await supabase.from('profiles').select('*').eq('id', p.new.user_id).single();
-            setPendingRequests(prev => [...prev, { ...p.new, profiles: data }]);
+            const { data } = await supabase.from('profiles').select('*').eq('id', (p.new as any).user_id).single();
+            setPendingRequests(prev => [...prev, { ...(p.new as any), profiles: data }]);
           } else {
-            setPendingRequests(prev => prev.filter(r => r.id !== p.new.id));
+            setPendingRequests(prev => prev.filter(r => r.id !== (p.new as any).id));
           }
         }
-        if (p.new.user_id === user.id && p.new.status === 'approved') setMyRole('speaker');
+        if ((p.new as any).user_id === user.id && (p.new as any).status === 'approved') setMyRole('speaker');
       }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomData.id}` }, async (p) => {
-        const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', p.new.user_id).single();
-        const msg = { ...p.new, user_name: data?.full_name || 'Intercessor', avatar_url: data?.avatar_url };
+        const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', (p.new as any).user_id).single();
+        const msg = { ...(p.new as any), user_name: data?.full_name || 'Intercessor', avatar_url: data?.avatar_url };
         setMessages(prev => [...prev, msg]);
       }).subscribe();
 
