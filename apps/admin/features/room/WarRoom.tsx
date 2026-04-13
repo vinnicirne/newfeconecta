@@ -102,7 +102,6 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
         }
       }}
       connectOptions={{ autoSubscribe: true }}
-      onDisconnected={() => onExit()}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
       <WarRoomInterface roomData={roomData} setRoomData={setRoomData} user={user} onExit={onExit} />
@@ -320,12 +319,13 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
             status: 'ended',
             ended_at: new Date().toISOString()
           }).eq('id', roomData.id);
+          
+          toast.error("O tempo do clamor acabou! 🙏");
+          setTimeout(() => onExit(), 1500);
+        } else if (roomData.status === 'ended') {
+          toast.error("O tempo do clamor acabou! 🙏");
+          setTimeout(() => onExit(), 1500);
         }
-
-        toast.error("O tempo do clamor acabou! 🙏");
-        setTimeout(() => {
-          onExit();
-        }, 1500);
         return;
       }
 
