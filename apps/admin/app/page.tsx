@@ -134,6 +134,7 @@ export default function RootPage() {
       views_count: post.views_count || 0,
       is_verified: profile.is_verified,
       verification_label: profile.verification_label,
+      background: post.background,
     };
 
     console.log("🔍 POST MAPEADO →", {
@@ -244,7 +245,8 @@ export default function RootPage() {
           is_verified: profile.is_verified,
           verification_label: profile.verification_label,
           reposted_by_name: reposter ? reposter.full_name : null,
-          reposted_by_id: item.reposter_id
+          reposted_by_id: item.reposter_id,
+          background: item.background
         };
       });
 

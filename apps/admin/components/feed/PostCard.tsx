@@ -431,12 +431,22 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </DropdownMenu>
       </div>
 
-      {/* ==================== CONTENT - CORRIGIDO ==================== */}
+      {/* ==================== CONTENT ==================== */}
       <div className="px-4 py-3">
-        {/* Texto principal - Agora funciona para posts normais */}
+        {/* Texto principal com Suporte a Background Premium */}
         {post.content && (
-          <div className="text-[15.2px] leading-relaxed text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">
-            {renderContent(post.content)}
+          <div 
+            className={cn(
+              "text-[15.2px] leading-relaxed whitespace-pre-wrap break-words transition-all mb-2",
+              post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
+            )}
+            style={{ background: post.background || undefined }}
+          >
+            <span className={cn(
+              post.background ? "text-white text-2xl font-black drop-shadow-md" : "text-gray-900 dark:text-gray-100"
+            )}>
+              {renderContent(post.content)}
+            </span>
           </div>
         )}
 

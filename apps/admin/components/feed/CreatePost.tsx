@@ -81,13 +81,18 @@ export default function CreatePost({ user, onPostCreated }: any) {
       }
       const userId = user.id;
       
-      const { error } = await supabase.from('posts').insert({
+      const postPayload: any = {
         author_id: userId,
         user_id: userId,
         content: data.content,
         post_type: 'text',
-        background: data.background || null
-      });
+      };
+
+      if (data.background) {
+        postPayload.background = data.background;
+      }
+
+      const { error } = await supabase.from('posts').insert(postPayload);
 
       if (error) throw error;
       setUploadProgress(100);
