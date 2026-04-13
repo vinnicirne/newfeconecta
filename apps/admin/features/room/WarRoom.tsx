@@ -116,6 +116,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
   const [showMicTest, setShowMicTest] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [requestStatus, setRequestStatus] = useState<'none' | 'pending' | 'approved'>('none');
+  const [showChatOverlay, setShowChatOverlay] = useState(false);
 
   const [dbParticipants, setDbParticipants] = useState<any[]>([]);
   const { send } = useDataChannel("reactions", (data) => {
@@ -619,11 +620,20 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       <div className="w-full px-6 pt-4 pb-24 bg-gradient-to-t from-surface via-surface to-transparent border-t border-white/5 z-[110]">
         {/* Input de mensagem */}
         <div className="relative flex items-center gap-2">
+          {/* Mobile Chat Trigger */}
+          <button 
+            onClick={() => setShowChatOverlay(true)}
+            className="md:hidden size-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors"
+          >
+            <Users size={18} />
+          </button>
+
           <div className="flex-1 relative">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
+              onFocus={() => { if(window.innerWidth < 768) setShowChatOverlay(true); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && chatInput.trim()) {
                   handleSendMessage(chatInput);
@@ -648,6 +658,13 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       </div>
 
       <MicCheckModal show={showMicTest} onClose={() => setShowMicTest(false)} />
+      <ChatOverlay 
+        show={showChatOverlay} 
+        onClose={() => setShowChatOverlay(false)} 
+        messages={messages} 
+        onSendMessage={handleSendMessage}
+        myRole={myRole}
+      />
       <WarRoomSettings
         show={showModeration}
         onClose={() => setShowModeration(false)}
@@ -661,7 +678,72 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
           setPendingRequests(prev => prev.filter(r => r.id !== id));
           await supabase.from('requests').update({ status: 'denied' }).eq('id', id);
         }}
+        showChatOverlay={showChatOverlay}
+        onToggleChatOverlay={() => setShowChatOverlay(!showChatOverlay)}
       />
+    </div>
+  );
+}
+
+function ChatOverlay({ show, onClose, messages, onSendMessage, myRole }: { 
+  show: boolean; 
+  onClose: () => void; 
+  messages: any[]; 
+  onSendMessage: (c: string) => void;
+  myRole: string;
+}) {
+  const [input, setInput] = useState("");
+  const endRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (endRef.current) endRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages, show]);
+
+  if (!show) return null;
+
+  return (
+    <div className="fixed inset-0 z-[1000] bg-black/90 backdrop-blur-xl flex flex-col pt-12">
+      <div className="flex items-center justify-between px-8 py-4 border-b border-white/5">
+        <h3 className="text-white font-black uppercase text-[10px] tracking-[0.3em]">Intercessões ao Vivo</h3>
+        <button onClick={onClose} className="size-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
+          <X size={20} className="text-white" />
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
+        {messages.map((m) => (
+          <div key={m.id} className="flex items-start gap-4">
+            <img src={m.avatar_url || 'https://github.com/shadcn.png'} className="size-9 rounded-full border border-white/10" alt="" />
+            <div className="flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[11px] font-bold text-primary/80">{m.user_name}</p>
+                <p className="text-[9px] text-white/30 uppercase font-bold">{moment(m.created_at).format('HH:mm')}</p>
+              </div>
+              <p className="text-sm text-white leading-relaxed bg-white/5 p-4 rounded-2xl rounded-tl-none border border-white/5">
+                {m.content}
+              </p>
+            </div>
+          </div>
+        ))}
+        <div ref={endRef} />
+      </div>
+
+      <div className="p-8 bg-black/40 border-t border-white/5 pb-12">
+        <div className="relative">
+          <input
+            autoFocus
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && input.trim()) { onSendMessage(input); setInput(""); } }}
+            placeholder="Digite sua mensagem de fé..."
+            className="w-full bg-white/5 border border-white/10 rounded-full py-4.5 px-6 text-sm text-white outline-none focus:ring-1 focus:ring-primary/50"
+          />
+          <button 
+            onClick={() => { if (input.trim()) { onSendMessage(input); setInput(""); } }}
+            className="absolute right-2 top-1.5 p-3 bg-primary text-black rounded-full shadow-lg active:scale-90 transition-all"
+          >
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -713,7 +795,9 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
   myRole: string,
   pendingRequests: any[],
   onApprove: (r: any) => void,
-  onDeny: (id: string) => void
+  onDeny: (id: string) => void,
+  showChatOverlay?: boolean,
+  onToggleChatOverlay?: () => void
 }) {
   const [tab, setTab] = useState<'invite' | 'users' | 'requests'>('users');
   const [s, setS] = useState("");
@@ -788,6 +872,9 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
           <button onClick={() => setTab('invite')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'invite' ? "text-primary" : "text-on-surface-variant")}>
             Buscar e Convidar
             {tab === 'invite' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
+          </button>
+          <button onClick={() => onToggleChatOverlay?.()} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative ml-auto", showChatOverlay ? "text-primary" : "text-on-surface-variant")}>
+            Chat Overlay: {showChatOverlay ? 'ON' : 'OFF'}
           </button>
         </div>
 
