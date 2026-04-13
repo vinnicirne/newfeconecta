@@ -25,6 +25,8 @@ interface Notification {
   id: string;
   type: 'like' | 'comment' | 'follow' | 'repost' | 'story_reaction' | 'mention';
   content?: string;
+  post_id?: string;
+  story_id?: string;
   is_read: boolean;
   created_at: string;
   sender: {
