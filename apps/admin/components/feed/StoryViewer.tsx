@@ -31,8 +31,9 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
    const [highlightTitle, setHighlightTitle] = useState('Destaque');
    const [highlightCover, setHighlightCover] = useState<string | null>(null);
    const [coverFile, setCoverFile] = useState<File | null>(null);
-   const [isUploadingCover, setIsUploadingCover] = useState(false);
-   const [floatingEmojis, setFloatingEmojis] = useState<any[]>([]);
+  const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [floatingEmojis, setFloatingEmojis] = useState<any[]>([]);
+  const [currentMediaDuration, setCurrentMediaDuration] = useState(PHOTO_DURATION);
 
    const handleHighlightToggle = async () => {
      const isMarking = !story.is_highlight;
@@ -129,21 +130,21 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
 
   const startTimer = useCallback(() => {
     clearTimer();
-    const currentDuration = story?.media_type === 'video' ? VIDEO_DURATION : PHOTO_DURATION;
+    const duration = story?.media_type === 'video' ? currentMediaDuration : PHOTO_DURATION;
     lastTick.current = Date.now();
     timerRef.current = setInterval(() => {
       if (!lastTick.current || paused) return;
       const now = Date.now();
       elapsed.current += now - lastTick.current;
       lastTick.current = now;
-      const pct = Math.min((elapsed.current / currentDuration) * 100, 100);
+      const pct = Math.min((elapsed.current / duration) * 100, 100);
       setProgress(pct);
       if (pct >= 100) {
         clearTimer();
         advance();
       }
     }, 50);
-  }, [advance, story]);
+  }, [advance, story, currentMediaDuration, paused]);
 
   useEffect(() => {
     if (!story) return;
@@ -311,7 +312,17 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
           )}
           {story.media_type === 'video' && (
             <>
-              <video src={story.media_url} autoPlay playsInline muted={false} className="w-full h-full object-cover" />
+              <video 
+                src={story.media_url} 
+                autoPlay 
+                playsInline 
+                muted={false} 
+                className="w-full h-full object-cover" 
+                onLoadedMetadata={(e) => {
+                  const duration = e.currentTarget.duration * 1000;
+                  setCurrentMediaDuration(Math.min(duration, VIDEO_DURATION));
+                }}
+              />
               {story.content && (
                 <div className="absolute inset-0 flex items-center justify-center p-12 text-center pointer-events-none">
                   <h2 className="text-white text-3xl font-bold leading-tight break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] px-4">
@@ -378,7 +389,10 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
         {/* Interaction Areas - Global Swipe & Pause */}
         <div 
           className="absolute inset-0 z-15 flex touch-none"
-          onPointerDown={handleTouchStart}
+          onPointerDown={(e) => {
+            handleTouchStart(e);
+            handlePointerDown();
+          }}
           onPointerUp={(e) => {
             const clientX = e.clientX;
             const width = e.currentTarget.clientWidth;
