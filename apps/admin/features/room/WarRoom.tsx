@@ -95,17 +95,24 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       audio={roomData?.creator_id === user?.id}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+      options={{
+        publishDefaults: {
+          audioPreset: 'speech',
+          stopMicTrackOnMute: true,
+        }
+      }}
       connectOptions={{ autoSubscribe: true }}
+      onDisconnected={() => onExit()}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
-      <WarRoomInterface roomData={roomData} user={user} onExit={onExit} />
+      <WarRoomInterface roomData={roomData} setRoomData={setRoomData} user={user} onExit={onExit} />
       <RoomAudioRenderer />
       <StartAudio label="Clique para Sintonizar Áudio" className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-md flex items-center justify-center text-primary font-black uppercase tracking-widest text-xs" />
     </LiveKitRoom>
   );
 }
 
-function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any; onExit: () => void }) {
+function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: any; setRoomData: React.Dispatch<any>; user: any; onExit: () => void }) {
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
   const room = useRoomContext();
@@ -308,17 +315,17 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         setRemainingTime("00:00");
         clearInterval(tInterval);
 
-        // Só expulsa se realmente estiver marcado como encerrado ou se passou muito tempo (buffer de 5 min)
-        if (roomData.status === 'ended' || Math.abs(diff) > 300000) {
-          if (roomData.creator_id === user.id && roomData.status !== 'ended') {
-            await supabase.from('rooms').update({
-              status: 'ended',
-              ended_at: new Date().toISOString()
-            }).eq('id', roomData.id);
-          }
-          toast.error("O tempo do clamor acabou! 🙏");
-          setTimeout(onExit, 2000);
+        if (roomData.creator_id === user.id && roomData.status !== 'ended') {
+          await supabase.from('rooms').update({
+            status: 'ended',
+            ended_at: new Date().toISOString()
+          }).eq('id', roomData.id);
         }
+
+        toast.error("O tempo do clamor acabou! 🙏");
+        setTimeout(() => {
+          onExit();
+        }, 1500);
         return;
       }
 
@@ -349,8 +356,9 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
     const sc = supabase.channel(`war-room-v3-${roomData.id}`)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms', filter: `id=eq.${roomData.id}` }, (p) => {
         if (p.new.status === 'ended') {
+          setRoomData((prev: any) => ({ ...prev, ...p.new }));
           toast.info("A sala foi encerrada.");
-          onExit();
+          setTimeout(() => onExit(), 1000);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: `room_id=eq.${roomData.id}` }, fetchDBMembers)
@@ -397,12 +405,22 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
   };
 
   useEffect(() => {
-    // A ativação automática é bloqueada por políticas de autoplay do navegador.
-    // O microfone agora deve ser ativado manualmente pelo usuário através do botão de mic.
+    if (!localParticipant) return;
     const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
-    if (!canSpeak && localParticipant.isMicrophoneEnabled) {
-      localParticipant.setMicrophoneEnabled(false);
-    }
+
+    const syncMic = async () => {
+      try {
+        if (!canSpeak && localParticipant.isMicrophoneEnabled) {
+          await localParticipant.setMicrophoneEnabled(false);
+        } else if (canSpeak && (myRole === 'creator' || myRole === 'admin') && !localParticipant.isMicrophoneEnabled) {
+          await localParticipant.setMicrophoneEnabled(true);
+        }
+      } catch (err) {
+        console.error("Erro ao configurar microfone:", err);
+        toast.error("Não foi possível acessar o microfone.");
+      }
+    };
+    syncMic();
   }, [myRole, localParticipant]);
 
   const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant.identity === roomData.creator_id ? localParticipant : null);
@@ -415,6 +433,10 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         action: {
           label: "Encerrar",
           onClick: async () => {
+            try {
+              room.disconnect();
+            } catch (e) {}
+
             await supabase.from('rooms').update({
               status: 'ended',
               ended_at: new Date().toISOString()
@@ -424,6 +446,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         },
       });
     } else {
+      try { room.disconnect(); } catch (e) {}
       onExit();
     }
   };
