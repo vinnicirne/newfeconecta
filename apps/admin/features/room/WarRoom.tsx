@@ -285,7 +285,11 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
 
     const fetchDBMembers = async () => {
       const { data } = await supabase.from('participants').select('*, profiles(*)').eq('room_id', roomData.id);
-      if (data) setDbParticipants(data);
+      if (data) {
+        setDbParticipants(data);
+        const me = data.find(p => p.user_id === user.id);
+        if (me) setMyRole(me.role as any);
+      }
     };
     fetchDBMembers();
 
