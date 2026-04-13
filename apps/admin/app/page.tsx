@@ -71,14 +71,19 @@ export default function RootPage() {
             .single();
 
           setCurrentUser(profile ? { ...authUser, ...profile } : authUser);
+          
+          // Carregar dados dependentes do usuário
+          loadInitialPosts();
+          loadStories();
+          loadUnreadCount(authUser.id);
+        } else {
+          // Fallback para usuários deslogados
+          loadInitialPosts();
+          loadStories();
         }
       } catch (err) {
         console.error("Auth error:", err);
       }
-
-      loadInitialPosts();
-      loadStories();
-      if (authUser?.id) loadUnreadCount(authUser.id);
     };
 
     init();
