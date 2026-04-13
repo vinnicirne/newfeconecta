@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import moment from 'moment';
 import 'moment/locale/pt-br';
+import { useRouter } from 'next/navigation';
 
 // Configurar locale
 moment.locale('pt-br');
@@ -34,6 +35,7 @@ interface Notification {
 }
 
 export default function NotificationCenter({ open, onClose, userId }: any) {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -114,51 +116,89 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
             </div>
           ) : (
             <div className="divide-y divide-gray-50 dark:divide-white/5">
-              {notifications.map((notif) => (
-                <div 
-                  key={notif.id} 
-                  className={cn(
-                    "p-4 flex gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer",
-                    !notif.is_read && "bg-whatsapp-teal/5 dark:bg-whatsapp-teal/5"
-                  )}
-                >
-                  <div className="relative shrink-0">
-                    <img 
-                      src={notif.sender?.avatar_url || 'https://via.placeholder.com/150'} 
-                      className="w-12 h-12 rounded-2xl object-cover border-2 border-white dark:border-whatsapp-dark shadow-sm"
-                      alt=""
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-white dark:bg-whatsapp-dark shadow-md flex items-center justify-center border border-gray-100 dark:border-white/5">
-                      {getIcon(notif.type)}
-                    </div>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm dark:text-white leading-snug">
-                      <span className="font-black text-whatsapp-teal hover:underline">
-                        @{notif.sender?.username || 'usuario'}
-                      </span>
-                      {' '}
-                      <span className="text-gray-600 dark:text-gray-400">
-                        {notif.type === 'like' && 'curtiu sua publicação.'}
-                        {notif.type === 'comment' && 'comentou na sua postagem.'}
-                        {notif.type === 'follow' && 'começou a seguir você.'}
-                        {notif.type === 'repost' && 'republicou seu post.'}
-                        {notif.type === 'story_reaction' && 'reagiu ao seu status.'}
-                        {notif.type === 'mention' && 'mencionou você.'}
-                      </span>
-                    </p>
-                    {notif.content && (
-                      <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500 italic bg-gray-100 dark:bg-white/5 p-2 rounded-lg border-l-2 border-whatsapp-teal">
-                        "{notif.content}"
-                      </p>
+              {(() => {
+                // Lógica de Agregação em Tempo Real
+                const groups: any[] = [];
+                const processedKeys = new Set();
+
+                notifications.forEach((n, idx) => {
+                  const key = `${n.type}-${n.post_id || n.story_id}`;
+                  if (n.type === 'like' || n.type === 'story_reaction') {
+                    if (processedKeys.has(key)) return;
+                    
+                    const matches = notifications.filter(item => 
+                      item.type === n.type && 
+                      (item.post_id === n.post_id || item.story_id === n.story_id)
+                    );
+
+                    if (matches.length > 1) {
+                      groups.push({
+                        ...n,
+                        is_aggregated: true,
+                        count: matches.length,
+                        others: matches.slice(1).map(m => m.sender?.full_name).filter(Boolean)
+                      });
+                      processedKeys.add(key);
+                      return;
+                    }
+                  }
+                  groups.push(n);
+                });
+
+                return groups.map((notif) => (
+                  <div 
+                    key={notif.id} 
+                    onClick={() => {
+                      onClose();
+                      if (notif.post_id) router.push(`/feed?post=${notif.post_id}`);
+                      else if (notif.type === 'follow') router.push(`/profile/${notif.sender?.username}`);
+                    }}
+                    className={cn(
+                      "p-4 flex gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors cursor-pointer border-l-4",
+                      !notif.is_read ? "bg-whatsapp-teal/5 border-whatsapp-teal" : "border-transparent"
                     )}
-                    <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                      <Clock className="w-3 h-3" />
-                      {moment(notif.created_at).fromNow()}
+                  >
+                    <div className="relative shrink-0">
+                      <img 
+                        src={notif.sender?.avatar_url || 'https://via.placeholder.com/150'} 
+                        className="w-12 h-12 rounded-2xl object-cover border-2 border-white dark:border-whatsapp-dark shadow-sm"
+                        alt=""
+                      />
+                      <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-xl bg-white dark:bg-whatsapp-dark shadow-md flex items-center justify-center border border-gray-100 dark:border-white/5">
+                        {getIcon(notif.type)}
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm dark:text-white leading-snug">
+                        <span className="font-black text-whatsapp-teal">
+                          {notif.is_aggregated 
+                            ? `${notif.sender?.username} e outras ${notif.count - 1} pessoas`
+                            : `@${notif.sender?.username || 'usuario'}`
+                          }
+                        </span>
+                        {' '}
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {notif.type === 'like' && (notif.is_aggregated ? 'curtiram sua publicação.' : 'curtiu sua publicação.')}
+                          {notif.type === 'comment' && 'comentou na sua postagem.'}
+                          {notif.type === 'follow' && 'começou a seguir você.'}
+                          {notif.type === 'repost' && 'republicou seu post.'}
+                          {notif.type === 'story_reaction' && 'reagiu ao seu status.'}
+                          {notif.type === 'mention' && 'mencionou você.'}
+                        </span>
+                      </p>
+                      {notif.content && !notif.is_aggregated && (
+                        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500 italic bg-gray-100 dark:bg-white/5 p-2 rounded-lg border-l-2 border-whatsapp-teal">
+                          "{notif.content}"
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
+                        <Clock className="w-3 h-3" />
+                        {moment(notif.created_at).fromNow()}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ));
+              })()}
             </div>
           )}
         </div>
