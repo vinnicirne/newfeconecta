@@ -29,8 +29,16 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
 
   const stopCamera = () => {
-    streamRef.current?.getTracks().forEach(t => t.stop());
-    streamRef.current = null;
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(t => {
+        t.stop();
+        streamRef.current?.removeTrack(t);
+      });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
   };
 
   const startCamera = async () => {
