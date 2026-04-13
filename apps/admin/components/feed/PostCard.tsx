@@ -161,6 +161,15 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           .from('follows')
           .insert({ follower_id: userId, following_id: post.author_id });
         if (error) throw error;
+
+        // Notificação de Novo Seguidor
+        if (userId !== post.author_id) {
+          await supabase.from('notifications').insert({
+            recipient_id: post.author_id,
+            sender_id: userId,
+            type: 'follow'
+          });
+        }
       }
     } catch (err) {
       setIsFollowing(oldFollowing);
@@ -210,6 +219,16 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           .from('reposts')
           .insert({ post_id: post.id, profile_id: userId });
         if (error) throw error;
+
+        // Notificação de Republicação
+        if (userId !== post.author_id) {
+          await supabase.from('notifications').insert({
+            recipient_id: post.author_id,
+            sender_id: userId,
+            type: 'repost',
+            post_id: post.id
+          });
+        }
       }
       onUpdated?.({ ...post, reposts_count: oldReposted ? Math.max(0, oldLocalCount - 1) : oldLocalCount + 1 });
     } catch (err) {
@@ -237,6 +256,17 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         .eq('id', post.id);
 
       if (error) throw error;
+
+      // Notificação de Curtida (Apenas se for novo Like)
+      if (!isLiked && userId !== post.author_id) {
+        await supabase.from('notifications').insert({
+          recipient_id: post.author_id,
+          sender_id: userId,
+          type: 'like',
+          post_id: post.id
+        });
+      }
+
       onUpdated?.({ ...post, likes: newLikes, likes_count: newLikes.length, views_count: viewsCount });
     } catch (err) {
       console.error("Error updating likes:", err);

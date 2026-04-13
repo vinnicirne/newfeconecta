@@ -209,6 +209,30 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
       setTimeout(() => {
         setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
       }, 2000);
+
+      try {
+        // Persistir o Like no Banco
+        await supabase.from('story_likes').insert({
+          story_id: story.id,
+          user_id: currentUser.id
+        });
+
+        // Gerar Notificação
+        if (currentUser.id !== story.author_id) {
+          await supabase.from('notifications').insert({
+            recipient_id: story.author_id,
+            sender_id: currentUser.id,
+            type: 'story_reaction',
+            story_id: story.id,
+            content: 'curtiu seu status'
+          });
+        }
+      } catch (err) {
+        console.error("Erro ao salvar like do story:", err);
+      }
+    } else {
+      // Remover Like
+      await supabase.from('story_likes').delete().eq('story_id', story.id).eq('user_id', currentUser.id);
     }
   };
 
@@ -227,7 +251,16 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
         content: `Reagiu ao seu Status: ${emojiChar}`,
         is_read: false
       });
-      toast.success("Reação enviada!");
+        toast.success("Reação enviada!");
+        
+        // Notificação Adicional
+        await supabase.from('notifications').insert({
+          recipient_id: group.author_id,
+          sender_id: currentUser.id,
+          type: 'story_reaction',
+          story_id: story.id,
+          content: `reagiu ao seu status: ${emojiChar}`
+        });
     } catch (err) {
       console.error("Erro ao enviar reação:", err);
     }
@@ -255,6 +288,15 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
       setComment('');
       toast.success("Mensagem enviada!");
       setPaused(false);
+
+      // Notificação de Comentário (Resposta ao Story)
+      await supabase.from('notifications').insert({
+        recipient_id: group.author_id,
+        sender_id: currentUser.id,
+        type: 'comment',
+        story_id: story.id,
+        content: text
+      });
     } catch (err) {
       console.error("Erro ao enviar comentário:", err);
       toast.error("Não foi possível enviar sua resposta.");

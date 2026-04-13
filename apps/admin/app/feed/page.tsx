@@ -19,6 +19,7 @@ import StoriesBar from "@/components/feed/StoriesBar";
 import StoryCreator from "@/components/feed/StoryCreator";
 import StoryViewer from "@/components/feed/StoryViewer";
 import MobilePostSheet from "@/components/feed/MobilePostSheet";
+import NotificationCenter from "@/components/feed/NotificationCenter";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
@@ -31,6 +32,8 @@ export default function FeedPage() {
   const [showStoryCreator, setShowStoryCreator] = useState(false);
   const [viewingStoryGroup, setViewingStoryGroup] = useState<any>(null);
   const [mobilePostOpen, setMobilePostOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -39,24 +42,52 @@ export default function FeedPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
         supabase.from('profiles').select('*').eq('id', user.id).single()
-          .then(({ data }) => setCurrentUser(data || user));
+          .then(({ data }) => {
+            setCurrentUser(data || user);
+            loadUnreadCount(data.id);
+          });
       }
     });
     
     // Inscrição Realtime para novos posts
-    const channel = supabase
+    const postChannel = supabase
       .channel('public:posts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
         loadData(true);
       })
       .subscribe();
 
+    // Inscrição Realtime para notificações
+    const notifChannel = supabase
+      .channel('public:notifications')
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications' 
+      }, (payload) => {
+        if (payload.new.recipient_id === currentUser?.id) {
+          setUnreadCount(prev => prev + 1);
+        }
+      })
+      .subscribe();
+
     loadData();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(postChannel);
+      supabase.removeChannel(notifChannel);
     };
-  }, []);
+  }, [currentUser?.id]);
+
+  const loadUnreadCount = async (id: string) => {
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('recipient_id', id)
+      .eq('is_read', false);
+    
+    setUnreadCount(count || 0);
+  };
 
   const loadData = async (reset = false) => {
     if (loading && !reset) return;
@@ -185,9 +216,16 @@ export default function FeedPage() {
             <button className="p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all">
                <Search className="w-5 h-5" />
             </button>
-            <button className="p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all relative">
+            <button 
+              onClick={() => setShowNotifications(true)}
+              className="p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all relative"
+            >
                <Bell className="w-5 h-5" />
-               <div className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-whatsapp-dark" />
+               {unreadCount > 0 && (
+                 <div className="absolute top-2 right-2 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-whatsapp-dark flex items-center justify-center">
+                    <span className="text-[10px] text-white font-bold">{unreadCount}</span>
+                 </div>
+               )}
             </button>
          </div>
       </div>
@@ -270,6 +308,15 @@ export default function FeedPage() {
           onClose={() => setViewingStoryGroup(null)}
         />
       )}
+
+      <NotificationCenter 
+        open={showNotifications} 
+        onClose={() => {
+          setShowNotifications(false);
+          setUnreadCount(0);
+        }} 
+        userId={currentUser?.id}
+      />
     </div>
   );
 }
