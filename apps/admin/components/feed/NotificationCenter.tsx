@@ -14,8 +14,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
+import moment from 'moment';
+import 'moment/locale/pt-br';
+
+// Configurar locale
+moment.locale('pt-br');
 
 interface Notification {
   id: string;
@@ -151,7 +154,7 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
                     )}
                     <div className="mt-1.5 flex items-center gap-1.5 text-[10px] text-gray-400 font-bold uppercase tracking-widest">
                       <Clock className="w-3 h-3" />
-                      {formatDistanceToNow(new Date(notif.created_at), { addSuffix: true, locale: ptBR })}
+                      {moment(notif.created_at).fromNow()}
                     </div>
                   </div>
                 </div>
