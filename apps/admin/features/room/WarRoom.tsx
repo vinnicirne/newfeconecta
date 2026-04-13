@@ -786,7 +786,7 @@ function MicCheckModal({ show, onClose }: { show: boolean, onClose: () => void }
   );
 }
 
-function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipants, myRole, pendingRequests, onApprove, onDeny }: {
+function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipants, myRole, pendingRequests, onApprove, onDeny, showChatOverlay, onToggleChatOverlay }: {
   show: boolean,
   onClose: () => void,
   roomId: string,
