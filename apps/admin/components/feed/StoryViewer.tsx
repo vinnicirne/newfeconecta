@@ -146,15 +146,20 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     }, 50);
   }, [advance, story, currentMediaDuration, paused]);
 
+  // 1. Reset de progresso APENAS quando o Story mudar de fato
   useEffect(() => {
-    if (!story) return;
+    if (!story?.id) return;
     elapsed.current = 0;
     setProgress(0);
     setPaused(false);
-    
+  }, [story?.id]);
+
+  // 2. Controle do Timer (Execução/Pausa)
+  useEffect(() => {
+    if (!story) return;
     startTimer();
     return clearTimer;
-  }, [userIdx, storyIdx, currentMediaDuration, startTimer]);
+  }, [userIdx, storyIdx, currentMediaDuration, startTimer, paused]);
 
   const togglePause = () => {
     if (paused) {
