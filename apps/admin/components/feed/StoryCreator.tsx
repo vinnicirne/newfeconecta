@@ -216,6 +216,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
       if (insertError) throw insertError;
 
+      toast.success("Status publicado com sucesso!");
       onCreated?.();
       handleClose();
     } catch (err: any) {
@@ -274,13 +275,21 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           </div>
         )}
 
-        {/* Upload Progress Bar */}
+        {/* Upload Progress Bar - Centralizado para melhor visibilidade */}
         {uploading && (
-          <div className="absolute top-0 left-0 right-0 z-[350] h-1.5 bg-black/40">
-             <div 
-               className="h-full bg-whatsapp-green transition-all duration-300 shadow-[0_0_10px_rgba(37,211,102,0.5)]" 
-               style={{ width: `${uploadProgress}%` }}
-             />
+          <div className="absolute inset-0 z-[500] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm px-10">
+             <div className="w-full max-w-xs space-y-4">
+               <div className="flex items-center justify-between text-white text-xs font-black uppercase tracking-widest">
+                 <span>Publicando...</span>
+                 <span>{uploadProgress}%</span>
+               </div>
+               <div className="h-2 w-full bg-white/10 rounded-full overflow-hidden border border-white/5">
+                  <div 
+                    className="h-full bg-whatsapp-green transition-all duration-300 shadow-[0_0_20px_rgba(37,211,102,0.6)]" 
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+               </div>
+             </div>
           </div>
         )}
 

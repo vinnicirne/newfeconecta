@@ -252,7 +252,8 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
 
       if (error) throw error;
       
-      toast.success("Resposta enviada!");
+      setComment('');
+      toast.success("Mensagem enviada!");
       setPaused(false);
     } catch (err) {
       console.error("Erro ao enviar comentário:", err);

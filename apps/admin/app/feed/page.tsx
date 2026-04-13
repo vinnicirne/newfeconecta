@@ -32,6 +32,9 @@ export default function FeedPage() {
   const [viewingStoryGroup, setViewingStoryGroup] = useState<any>(null);
   const [mobilePostOpen, setMobilePostOpen] = useState(false);
 
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
@@ -39,29 +42,50 @@ export default function FeedPage() {
           .then(({ data }) => setCurrentUser(data || user));
       }
     });
+    
+    // Inscrição Realtime para novos posts
+    const channel = supabase
+      .channel('public:posts')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
+        loadData(true);
+      })
+      .subscribe();
+
     loadData();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  const loadData = async () => {
+  const loadData = async (reset = false) => {
+    if (loading && !reset) return;
     setLoading(true);
     
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (!authUser) return;
-    
+    const currentPage = reset ? 1 : page;
+    const limit = 20;
+    const from = (currentPage - 1) * limit;
+    const to = from + limit - 1;
+
     const { data: postsData } = await supabase
       .from('posts')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .range(from, to);
     
     const { data: repostsData } = await supabase
       .from('reposts')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .range(from, to);
 
     const postsList = postsData || [];
     const repostsList = repostsData || [];
+
+    // Checar se carregou todos os posts
+    if (postsList.length < limit && repostsList.length < limit) {
+      setHasMore(false);
+    }
 
     const repostedPostIds = repostsList.map((r: any) => r.post_id);
     const missingPostIds = repostedPostIds.filter((id: any) => !postsList.some((p: any) => p.id === id));
@@ -90,47 +114,62 @@ export default function FeedPage() {
     });
 
     feed.sort((a, b) => new Date(b.display_date).getTime() - new Date(a.display_date).getTime());
-    const pagedFeed = feed.slice(0, 20);
 
-    if (pagedFeed.length > 0) {
-      const userIds = new Set<string>();
-      pagedFeed.forEach(item => {
-        if (item.user_id || item.author_id) userIds.add(item.user_id || item.author_id);
-        if (item.reposter_id) userIds.add(item.reposter_id);
-      });
+    const userIds = new Set<string>();
+    feed.forEach(item => {
+      if (item.user_id || item.author_id) userIds.add(item.user_id || item.author_id);
+      if (item.reposter_id) userIds.add(item.reposter_id);
+    });
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, username, is_verified, verification_label')
-        .in('id', Array.from(userIds));
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, full_name, avatar_url, username, is_verified, verification_label')
+      .in('id', Array.from(userIds));
 
-      const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
-        acc[p.id] = p;
-        return acc;
-      }, {});
+    const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+      acc[p.id] = p;
+      return acc;
+    }, {});
 
-      setPosts(pagedFeed.map(item => {
-        const profile = profilesMap[item.author_id || item.user_id] || {};
-        const reposter = item.is_repost ? profilesMap[item.reposter_id] : null;
-        return {
-          ...item,
-          author_name: profile.full_name || 'Usuário',
-          author_avatar: profile.avatar_url,
-          author_username: profile.username || 'usuario',
-          is_verified: profile.is_verified,
-          verification_label: profile.verification_label,
-          post_type: item.post_type || item.media_type || 'text',
-          reposted_by_name: reposter ? reposter.full_name : null
-        };
-      }));
+    const newPosts = feed.map(item => {
+      const profile = profilesMap[item.author_id || item.user_id] || {};
+      const reposter = item.is_repost ? profilesMap[item.reposter_id] : null;
+      return {
+        ...item,
+        author_name: profile.full_name || 'Usuário',
+        author_avatar: profile.avatar_url,
+        author_username: profile.username || 'usuario',
+        is_verified: profile.is_verified,
+        verification_label: profile.verification_label,
+        post_type: item.post_type || item.media_type || 'text',
+        reposted_by_name: reposter ? reposter.full_name : null
+      };
+    });
+
+    if (reset) {
+      setPosts(newPosts);
+      setPage(1);
+      setHasMore(true);
     } else {
-      setPosts([]);
+      setPosts(prev => [...prev, ...newPosts]);
+      setPage(prev => prev + 1);
     }
-    
-    setStoryGroups([]);
     
     setLoading(false);
   };
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && !loading && hasMore) {
+        loadData();
+      }
+    }, { threshold: 0.5 });
+
+    const sensor = document.getElementById('feed-sensor');
+    if (sensor) observer.observe(sensor);
+
+    return () => observer.disconnect();
+  }, [loading, hasMore, page]);
 
   return (
     <div className="pb-24 max-w-2xl mx-auto flex flex-col h-full">
@@ -165,13 +204,13 @@ export default function FeedPage() {
 
         {/* Create Post Section (Desktop View) */}
         <div className="hidden sm:block">
-           <CreatePost user={currentUser} onPostCreated={loadData} />
+           <CreatePost user={currentUser} onPostCreated={() => loadData(true)} />
         </div>
 
 
         {/* Post Feed */}
         <div className={cn(
-          "space-y-4",
+          "space-y-4 pt-4",
           viewMode === 'grid' && "grid grid-cols-2 gap-2 px-2 space-y-0"
         )}>
           {posts.map(post => (
@@ -179,8 +218,8 @@ export default function FeedPage() {
               key={post.id} 
               post={post} 
               currentUser={currentUser} 
-              onDeleted={loadData}
-              onUpdated={loadData}
+              onDeleted={() => loadData(true)}
+              onUpdated={() => loadData(true)}
             />
           ))}
           
@@ -190,6 +229,13 @@ export default function FeedPage() {
                <p className="text-sm font-bold uppercase tracking-widest">Nenhuma publicação encontrada</p>
             </div>
           )}
+
+          {/* Sensor de Rolagem Infinita */}
+          <div id="feed-sensor" className="h-20 flex items-center justify-center">
+             {loading && hasMore && (
+               <div className="w-6 h-6 border-2 border-whatsapp-teal border-t-transparent rounded-full animate-spin" />
+             )}
+          </div>
         </div>
       </div>
 
@@ -206,14 +252,14 @@ export default function FeedPage() {
         open={mobilePostOpen} 
         onClose={() => setMobilePostOpen(false)} 
         user={currentUser}
-        onPostCreated={loadData}
+        onPostCreated={() => loadData(true)}
       />
 
       <StoryCreator 
         open={showStoryCreator} 
         onClose={() => setShowStoryCreator(false)} 
         user={currentUser}
-        onCreated={loadData}
+        onCreated={() => loadData(true)}
       />
 
       {viewingStoryGroup && (
