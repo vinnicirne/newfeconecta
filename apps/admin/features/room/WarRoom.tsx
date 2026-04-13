@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import {
-  X, Mic, MicOff, Send, ArrowLeft, Hand, UserPlus, Clock as ClockIcon, Search, PhoneOff, Check, Ban, Headphones, VolumeX, Users, Trash2, ShieldAlert, ShieldOff, Link, Share2
+  X, Mic, MicOff, Send, ArrowLeft, Hand, UserPlus, Clock as ClockIcon, Search, PhoneOff, Check, Ban, Headphones, VolumeX, Users, Trash2, ShieldAlert, ShieldOff, Link, Share2, Paperclip
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -389,9 +389,27 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
   useEffect(() => { if (chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return;
-    await supabase.from('messages').insert({ room_id: roomData.id, user_id: user.id, content });
+  const handleSendMessage = async (content: string, file?: File) => {
+    if (!content.trim() && !file) return;
+
+    let media_url = null;
+    if (file) {
+      const fileName = `chat_${Date.now()}_${file.name}`;
+      const { data, error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
+      if (uploadError) {
+        toast.error("Erro ao enviar arquivo");
+        return;
+      }
+      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(data.path);
+      media_url = publicUrl;
+    }
+
+    await supabase.from('messages').insert({ 
+      room_id: roomData.id, 
+      user_id: user.id, 
+      content,
+      media_url 
+    });
     setChatInput("");
   };
 
@@ -679,6 +697,21 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
       <div className="w-full px-6 pt-4 pb-24 bg-gradient-to-t from-[#0e0e0e] via-[#0e0e0e] to-transparent border-t border-white/5 z-[110]">
         <div className="relative flex items-center gap-2">
           <button onClick={() => setShowChatOverlay(true)} className="md:hidden size-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-[#3fff8b] transition-colors"><Users size={18} /></button>
+          <input 
+            type="file" 
+            id="desktop-chat-file"
+            className="hidden" 
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleSendMessage("", file);
+            }}
+          />
+          <button 
+            onClick={() => document.getElementById('desktop-chat-file')?.click()}
+            className="hidden md:flex size-11 rounded-full bg-white/5 border border-white/10 items-center justify-center text-white/40 hover:text-[#3fff8b] transition-colors active:scale-90"
+          >
+            <Paperclip size={18} />
+          </button>
           <div className="flex-1 relative">
             <input
               type="text"
