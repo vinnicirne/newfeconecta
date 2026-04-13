@@ -169,14 +169,14 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
           theme: {
             extend: {
               colors: {
-                "surface-container-highest": "var(--surface-highest, #262626)",
-                "surface-container-high": "var(--surface-high, #201f1f)",
-                "surface-container-low": "var(--surface-low, #131313)",
-                "surface": "var(--surface, #0e0e0e)",
-                "background": "#0a0a0a",
+                "surface-container-highest": "var(--war-surface-high, #201f1f)",
+                "surface-container-high": "var(--war-surface-high, #201f1f)",
+                "surface-container-low": "var(--war-surface-low, #131313)",
+                "surface": "var(--war-surface, #0e0e0e)",
+                "background": "var(--war-bg, #0a0a0a)",
                 "primary": "#3fff8b",
-                "on-surface": "hsl(var(--foreground))",
-                "on-surface-variant": "#adaaaa",
+                "on-surface": "var(--war-text, #ffffff)",
+                "on-surface-variant": "var(--war-text-dim, #adaaaa)",
               },
               borderRadius: { DEFAULT: "1rem", lg: "2rem", xl: "3rem", full: "9999px" },
               fontFamily: { headline: ["Plus Jakarta Sans"], body: ["Manrope"] }
@@ -190,14 +190,22 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
     const style = document.createElement("style");
     style.innerHTML = `
       :root {
-        --surface-low: #ffffff;
-        --surface: #f8f9fa;
-        --glass: rgba(255, 255, 255, 0.7);
+        --war-bg: #efeae2;
+        --war-surface: #ffffff;
+        --war-surface-low: #ffffff;
+        --war-surface-high: #d1d7db;
+        --war-text: #111b21;
+        --war-text-dim: #667781;
+        --war-glass: rgba(255, 255, 255, 0.9);
       }
       .dark {
-        --surface-low: #0f0f0f;
-        --surface: #0a0a0a;
-        --glass: rgba(18, 18, 18, 0.8);
+        --war-bg: #0a0a0a;
+        --war-surface: #0e0e0e;
+        --war-surface-low: #0f0f0f;
+        --war-surface-high: #1a1a1a;
+        --war-text: #ffffff;
+        --war-text-dim: #adaaaa;
+        --war-glass: rgba(18, 18, 18, 0.8);
       }
       .emerald-glow { box-shadow: 0 0 40px 0 rgba(63, 255, 139, 0.12); }
       .avatar-glow { box-shadow: 0 0 12px 0 rgba(63, 255, 139, 0.4); }
@@ -224,9 +232,10 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
 
   useEffect(() => {
     if (!roomData?.id) return;
+    const isLeader = roomData.creator_id === user.id;
+
     const setupUserRole = async () => {
       if (!roomData?.id) return;
-      const isLeader = roomData.creator_id === user.id;
 
       // 1. Garante que o criador sempre tenha o cargo de 'creator' no banco
       if (isLeader) {
@@ -587,7 +596,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
                     </button>
                   )}
                 </div>
-                <p className="text-xs text-on-surface/90 leading-relaxed bg-surface-container-low/50 p-2.5 rounded-r-2xl rounded-bl-2xl border border-white/5">
+                <p className="text-xs text-on-surface font-medium leading-relaxed bg-surface-container-low p-3 rounded-r-2xl rounded-bl-2xl border border-on-surface/5">
                   {m.content}
                 </p>
               </div>
@@ -612,7 +621,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
                 }
               }}
               placeholder="Envie sua intercessão..."
-              className="w-full bg-surface-container-high border-none rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface-variant/50 outline-none"
+              className="w-full bg-war-surface-low border border-on-surface/5 rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface/40 outline-none text-on-surface"
             />
 
             <button
@@ -746,28 +755,28 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-lg bg-[#131313] rounded-[2.5rem] border border-white/5 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl"
+        className="w-full max-w-lg bg-war-surface rounded-[2.5rem] border border-on-surface/5 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl"
       >
         <div className="px-8 pt-8 pb-4 flex items-center justify-between">
-          <h2 className="text-white font-black uppercase text-xs tracking-[0.2em]">Painel de Gestão</h2>
-          <button onClick={onClose} className="size-8 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors">
-            <X size={18} />
+          <h2 className="text-on-surface font-black uppercase text-xs tracking-[0.2em]">Painel de Gestão</h2>
+          <button onClick={onClose} className="size-8 rounded-full bg-war-surface-low flex items-center justify-center hover:bg-war-surface-high transition-colors">
+            <X size={18} className="text-on-surface" />
           </button>
         </div>
 
-        <div className="flex px-8 gap-6 border-b border-white/5">
-          <button onClick={() => setTab('users')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'users' ? "text-primary" : "text-white/30")}>
+        <div className="flex px-8 gap-6 border-b border-on-surface/5">
+          <button onClick={() => setTab('users')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'users' ? "text-primary" : "text-on-surface-variant")}>
             Participantes ({dbParticipants.length})
             {tab === 'users' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
           {(myRole === 'creator' || myRole === 'admin') && (
-            <button onClick={() => setTab('requests')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'requests' ? "text-primary" : "text-white/30")}>
+            <button onClick={() => setTab('requests')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'requests' ? "text-primary" : "text-on-surface-variant")}>
               Pedidos ({pendingRequests.length})
               {tab === 'requests' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
               {pendingRequests.length > 0 && <div className="absolute top-0 -right-2 size-1.5 bg-red-500 rounded-full animate-pulse" />}
             </button>
           )}
-          <button onClick={() => setTab('invite')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'invite' ? "text-primary" : "text-white/30")}>
+          <button onClick={() => setTab('invite')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'invite' ? "text-primary" : "text-on-surface-variant")}>
             Buscar e Convidar
             {tab === 'invite' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
           </button>
@@ -777,11 +786,11 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
           {tab === 'users' && (
             <>
               {(myRole === 'creator' || myRole === 'admin') && (
-                <div className="flex gap-2 mb-6 p-1 bg-white/5 rounded-3xl border border-white/5">
+                <div className="flex gap-2 mb-6 p-1 bg-war-surface-low rounded-3xl border border-on-surface/5">
                   <button onClick={openChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-2xl transition-all">
                     Liberar Todos
                   </button>
-                  <button onClick={closeChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-white/40 hover:bg-red-500/10 hover:text-red-400 rounded-2xl transition-all">
+                  <button onClick={closeChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-on-surface-variant hover:bg-red-500/10 hover:text-red-400 rounded-2xl transition-all">
                     Silenciar Todos
                   </button>
                 </div>
@@ -791,7 +800,7 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
                 const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
                 const isOnline = liveParticipants.some(lp => lp.identity === p.user_id);
                 return (
-                  <div key={p.id} className="flex items-center justify-between group bg-white/5 p-4 rounded-3xl border border-white/5">
+                  <div key={p.id} className="flex items-center justify-between group bg-war-surface-low p-4 rounded-3xl border border-on-surface/5">
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full object-cover border border-white/10" alt="" />
@@ -851,7 +860,7 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
                 pendingRequests.map((r) => {
                   const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
                   return (
-                    <div key={r.id} className="flex items-center justify-between bg-white/5 p-4 rounded-3xl border border-white/5">
+                    <div key={r.id} className="flex items-center justify-between bg-war-surface-low p-4 rounded-3xl border border-on-surface/5">
                       <div className="flex items-center gap-3">
                         <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full border border-white/10" alt="" />
                         <div>
