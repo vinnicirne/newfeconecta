@@ -105,8 +105,8 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       connectOptions={{ autoSubscribe: true }}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
-      <RoomAudioRenderer />
       <WarRoomInterface roomData={roomData} setRoomData={setRoomData} user={user} onExit={onExit} />
+      <RoomAudioRenderer />
       <StartAudio 
         label="🔊 CLIQUE PARA OUVIR O CLAMOR" 
         className="fixed inset-0 z-[600] bg-black/80 backdrop-blur-2xl flex flex-col items-center justify-center text-primary font-black uppercase tracking-[0.3em] text-sm hover:bg-black/90 transition-all cursor-pointer" 
@@ -378,10 +378,19 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         }
         if ((p.new as any).user_id === user.id && (p.new as any).status === 'approved') {
           setMyRole('speaker');
-          localParticipant?.setMicrophoneEnabled(true);
-          toast.success("Seu microfone foi liberado! 🎤", {
-            description: "Clique no microfone para começar a interceder.",
-          });
+          toast.success("Seu microfone foi liberado! 🎤");
+
+          // Força ativação com delay de 600ms para estabilizar
+          setTimeout(async () => {
+            if (localParticipant) {
+              try {
+                await localParticipant.setMicrophoneEnabled(true);
+                console.log("✅ Microfone liberado via aprovação");
+              } catch (e) {
+                console.error("Erro na ativação pós-aprovação:", e);
+              }
+            }
+          }, 600);
         }
       }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `room_id=eq.${roomData.id}` }, async (p) => {
         const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', (p.new as any).user_id).single();
@@ -412,37 +421,47 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
   useEffect(() => {
     if (!localParticipant) return;
+
     const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
 
     const enableMic = async () => {
       try {
         if (canSpeak) {
+          // Delay maior + force para garantir que a conexão esteja pronta
+          await new Promise(resolve => setTimeout(resolve, 1200));
           await localParticipant.setMicrophoneEnabled(true);
-          console.log("✅ Microfone ativado (canSpeak = true)");
+          console.log("✅ Microfone ativado COM DELAY");
         } else {
           await localParticipant.setMicrophoneEnabled(false);
           console.log("🔇 Microfone desativado (listener)");
         }
-      } catch (err) {
-        console.error("Erro ao setar microfone:", err);
-        toast.error("Não foi possível acessar o microfone. Verifique as permissões.");
+      } catch (err: any) {
+        console.error("❌ Erro ao controlar microfone:", err);
+        if (err.message?.includes("permission")) {
+          toast.error("Permissão de microfone negada pelo navegador.");
+        } else {
+          toast.error("Não foi possível ativar o microfone.");
+        }
       }
     };
+
     enableMic();
   }, [myRole, localParticipant]);
 
   useEffect(() => {
     if (localParticipant) {
-      console.log("Estado de Áudio:", {
+      console.log("📊 Local Participant Status:", {
         identity: localParticipant.identity,
         isMicrophoneEnabled: localParticipant.isMicrophoneEnabled,
-        tracks: Array.from(localParticipant.audioTrackPublications.values()).map(t => ({
-          isPublished: !!t.track,
-          isMuted: t.isMuted
+        audioPublications: Array.from(localParticipant.audioTrackPublications.values()).map(pub => ({
+          sid: pub.trackSid,
+          isMuted: pub.isMuted,
+          isSubscribed: pub.isSubscribed,
+          track: !!pub.track
         }))
       });
     }
-  }, [localParticipant, myRole]);
+  }, [localParticipant, myRole, localParticipant?.isMicrophoneEnabled]);
 
   const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant.identity === roomData.creator_id ? localParticipant : null);
   const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
@@ -589,17 +608,34 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
           <div className="absolute right-4 flex flex-col gap-3">
             <button
-              onClick={() => {
+              onClick={async () => {
+                if (!localParticipant) return;
+
                 const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
-                if (canSpeak) {
-                  localParticipant.setMicrophoneEnabled(!localParticipant.isMicrophoneEnabled);
-                } else {
+
+                if (!canSpeak) {
                   setShowMicTest(true);
+                  return;
+                }
+
+                try {
+                  const newState = !localParticipant.isMicrophoneEnabled;
+                  await localParticipant.setMicrophoneEnabled(newState);
+                  console.log(`Microfone manual: ${newState ? 'LIGADO' : 'DESLIGADO'}`);
+                  
+                  toast.info(newState ? "🎤 Microfone ATIVADO" : "🔇 Microfone MUTADO", {
+                    description: newState ? "Sua voz agora está sendo enviada" : ""
+                  });
+                } catch (err) {
+                  console.error(err);
+                  toast.error("Falha ao mudar microfone");
                 }
               }}
               className={cn(
-                "size-12 rounded-full glass-panel flex items-center justify-center border transition-all active:scale-95",
-                localParticipant.isMicrophoneEnabled ? "border-primary bg-primary/10 text-primary shadow-lg shadow-primary/20" : "border-white/10 hover:bg-surface-container-highest"
+                "size-12 rounded-full glass-panel flex items-center justify-center border transition-all active:scale-95 text-xl",
+                localParticipant?.isMicrophoneEnabled 
+                  ? "border-primary bg-primary/20 text-primary shadow-lg shadow-primary/20" 
+                  : "border-white/10 hover:bg-surface-container-highest"
               )}
               title={myRole === 'listener' ? "Testar Microfone" : (localParticipant.isMicrophoneEnabled ? "Mutar" : "Ativar Microfone")}
             >
