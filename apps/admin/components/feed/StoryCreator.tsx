@@ -26,10 +26,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
   const colors = ['#00A884', '#128C7E', '#7E57C2', '#EC407A', '#FF7043', '#26A69A', '#42A5F5'];
 
-  const handleClose = () => {
-    if (preview?.url) URL.revokeObjectURL(preview.url);
-    onClose();
-  };
+
 
   const stopCamera = () => {
     streamRef.current?.getTracks().forEach(t => t.stop());
@@ -156,6 +153,10 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     else if (!recording) startRecording();
     else stopRecording();
   };
+  function handleClose() {
+    if (preview?.url) URL.revokeObjectURL(preview.url);
+    onClose();
+  }
 
   const handlePublish = async () => {
     if (uploading) return;
