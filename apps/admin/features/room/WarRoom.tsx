@@ -122,12 +122,12 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
   const [showChatOverlay, setShowChatOverlay] = useState(false);
 
   const [dbParticipants, setDbParticipants] = useState<any[]>([]);
-  const { send, lastMessage } = useDataChannel("reactions");
+  const { send, message } = useDataChannel("reactions");
 
   useEffect(() => {
-    if (lastMessage) {
+    if (message) {
       try {
-        const msg = JSON.parse(new TextDecoder().decode(lastMessage.payload));
+        const msg = JSON.parse(new TextDecoder().decode(message.payload));
         if (msg.type === 'reaction') {
           handleAddReaction(msg.emoji, false);
         }
@@ -135,7 +135,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         console.error("Erro ao processar reação:", e);
       }
     }
-  }, [lastMessage]);
+  }, [message]);
 
   function handleAddReaction(emoji: string, broadcast = true) {
     const id = Date.now();
