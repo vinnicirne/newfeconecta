@@ -60,17 +60,24 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       }
 
       try {
-        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${encodeURIComponent(user.full_name)}&avatar=${encodeURIComponent(user.avatar_url || '')}`);
+        const userName = user.full_name || user.username || "Intercessor";
+        const userAvatar = user.avatar_url || "";
+        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${encodeURIComponent(userName)}&avatar=${encodeURIComponent(userAvatar)}`);
+        
+        if (!res.ok) throw new Error("Falha ao obter token");
+        
         const { token: tk } = await res.json();
         setToken(tk);
       } catch (err) {
-        toast.error("Erro sintonizando clamor");
+        console.error("Erro token:", err);
+        toast.error("Erro sintonizando clamor. Tente novamente.");
+        // Não chamamos onExit aqui para permitir retry manual ou apenas ficar no loading
       } finally {
         setLoading(false);
       }
     }
     init();
-  }, [roomId, user.id]);
+  }, [roomId, user?.id]);
 
   if (loading || !token) {
     return (
@@ -87,7 +94,6 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       audio={true}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-      onDisconnected={onExit}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
       <WarRoomInterface roomData={roomData} user={user} onExit={onExit} />
@@ -190,15 +196,6 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
     const style = document.createElement("style");
     style.innerHTML = `
       :root {
-        --war-bg: #efeae2;
-        --war-surface: #ffffff;
-        --war-surface-low: #ffffff;
-        --war-surface-high: #d1d7db;
-        --war-text: #111b21;
-        --war-text-dim: #667781;
-        --war-glass: rgba(255, 255, 255, 0.9);
-      }
-      .dark {
         --war-bg: #0a0a0a;
         --war-surface: #0e0e0e;
         --war-surface-low: #0f0f0f;
@@ -206,6 +203,15 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         --war-text: #ffffff;
         --war-text-dim: #adaaaa;
         --war-glass: rgba(18, 18, 18, 0.8);
+      }
+      .light {
+        --war-bg: #efeae2;
+        --war-surface: #ffffff;
+        --war-surface-low: #ffffff;
+        --war-surface-high: #d1d7db;
+        --war-text: #111b21;
+        --war-text-dim: #667781;
+        --war-glass: rgba(255, 255, 255, 0.9);
       }
       .emerald-glow { box-shadow: 0 0 40px 0 rgba(63, 255, 139, 0.12); }
       .avatar-glow { box-shadow: 0 0 12px 0 rgba(63, 255, 139, 0.4); }
@@ -289,15 +295,18 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
       if (diff <= 0) {
         setRemainingTime("00:00");
         clearInterval(tInterval);
-        // Se for o criador, marca no banco que acabou
-        if (roomData.creator_id === user.id) {
-          await supabase.from('rooms').update({ 
-            status: 'ended', 
-            ended_at: new Date().toISOString() 
-          }).eq('id', roomData.id);
+        
+        // Só expulsa se realmente estiver marcado como encerrado ou se passou muito tempo (buffer de 5 min)
+        if (roomData.status === 'ended' || Math.abs(diff) > 300000) {
+          if (roomData.creator_id === user.id && roomData.status !== 'ended') {
+            await supabase.from('rooms').update({ 
+              status: 'ended', 
+              ended_at: new Date().toISOString() 
+            }).eq('id', roomData.id);
+          }
+          toast.error("O tempo do clamor acabou! 🙏");
+          setTimeout(onExit, 2000);
         }
-        toast.error("O tempo do clamor acabou! 🙏");
-        setTimeout(onExit, 2000);
         return;
       }
 
@@ -621,7 +630,7 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
                 }
               }}
               placeholder="Envie sua intercessão..."
-              className="w-full bg-war-surface-low border border-on-surface/5 rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface/40 outline-none text-on-surface"
+              className="w-full bg-surface-container-low border border-white/10 rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-primary/50 placeholder:text-on-surface/40 outline-none text-on-surface"
             />
 
             <button
@@ -755,16 +764,16 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="w-full max-w-lg bg-war-surface rounded-[2.5rem] border border-on-surface/5 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl"
+        className="w-full max-w-lg bg-surface rounded-[2.5rem] border border-on-surface/5 flex flex-col max-h-[80vh] overflow-hidden shadow-2xl"
       >
         <div className="px-8 pt-8 pb-4 flex items-center justify-between">
           <h2 className="text-on-surface font-black uppercase text-xs tracking-[0.2em]">Painel de Gestão</h2>
-          <button onClick={onClose} className="size-8 rounded-full bg-war-surface-low flex items-center justify-center hover:bg-war-surface-high transition-colors">
+          <button onClick={onClose} className="size-8 rounded-full bg-surface-container-low flex items-center justify-center hover:bg-surface-container-high transition-colors">
             <X size={18} className="text-on-surface" />
           </button>
         </div>
 
-        <div className="flex px-8 gap-6 border-b border-on-surface/5">
+        <div className="flex px-8 gap-6 border-b border-white/5">
           <button onClick={() => setTab('users')} className={cn("pb-4 text-[10px] font-black uppercase tracking-widest transition-all relative", tab === 'users' ? "text-primary" : "text-on-surface-variant")}>
             Participantes ({dbParticipants.length})
             {tab === 'users' && <motion.div layoutId="tab" className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />}
@@ -786,7 +795,7 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
           {tab === 'users' && (
             <>
               {(myRole === 'creator' || myRole === 'admin') && (
-                <div className="flex gap-2 mb-6 p-1 bg-war-surface-low rounded-3xl border border-on-surface/5">
+                <div className="flex gap-2 mb-6 p-1 bg-surface-container-low rounded-3xl border border-on-surface/5">
                   <button onClick={openChat} className="flex-1 py-3 text-[9px] font-black uppercase tracking-widest text-primary hover:bg-primary/10 rounded-2xl transition-all">
                     Liberar Todos
                   </button>
@@ -800,7 +809,7 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
                 const profile = Array.isArray(p.profiles) ? p.profiles[0] : p.profiles;
                 const isOnline = liveParticipants.some(lp => lp.identity === p.user_id);
                 return (
-                  <div key={p.id} className="flex items-center justify-between group bg-war-surface-low p-4 rounded-3xl border border-on-surface/5">
+                  <div key={p.id} className="flex items-center justify-between group bg-surface-container-low p-4 rounded-3xl border border-white/5">
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full object-cover border border-white/10" alt="" />
@@ -860,7 +869,7 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
                 pendingRequests.map((r) => {
                   const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
                   return (
-                    <div key={r.id} className="flex items-center justify-between bg-war-surface-low p-4 rounded-3xl border border-on-surface/5">
+                    <div key={r.id} className="flex items-center justify-between bg-surface-container-low p-4 rounded-3xl border border-white/5">
                       <div className="flex items-center gap-3">
                         <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full border border-white/10" alt="" />
                         <div>
