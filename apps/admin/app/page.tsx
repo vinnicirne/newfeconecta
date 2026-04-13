@@ -31,6 +31,7 @@ import StoriesBar from "@/components/feed/StoriesBar";
 import FollowSuggestions from "@/components/feed/FollowSuggestions";
 import StoryCreator from "@/components/feed/StoryCreator";
 import StoryViewer from "@/components/feed/StoryViewer";
+import NotificationCenter from "@/components/feed/NotificationCenter";
 import { supabase } from "@/lib/supabase";
 import LiveRoomsBar from "@/components/room/LiveRoomsBar";
 
@@ -48,6 +49,8 @@ export default function RootPage() {
 
   const [showStoryCreator, setShowStoryCreator] = useState(false);
   const [viewingStoryGroup, setViewingStoryGroup] = useState<any | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const [isMounted, setIsMounted] = useState(false);
 
@@ -75,6 +78,7 @@ export default function RootPage() {
 
       loadInitialPosts();
       loadStories();
+      if (authUser?.id) loadUnreadCount(authUser.id);
     };
 
     init();
@@ -97,7 +101,7 @@ export default function RootPage() {
       })
       // STORIES REALTIME
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, () => {
-        loadStories(); // Recarrega grupos de stories na inserção
+        loadStories();
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'stories' }, (payload) => {
         setStoryGroups(prev => prev.map(group => ({
@@ -105,13 +109,33 @@ export default function RootPage() {
           stories: group.stories.filter((s: any) => s.id !== payload.old.id)
         })).filter(group => group.stories.length > 0)); 
       })
+      // NOTIFICATIONS REALTIME
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'notifications' 
+      }, (payload) => {
+        if (payload.new.recipient_id === currentUser?.id) {
+          setUnreadCount(prev => prev + 1);
+        }
+      })
       .subscribe();
 
     return () => {
       mounted = false;
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [currentUser?.id]);
+
+  const loadUnreadCount = async (id: string) => {
+    const { count } = await supabase
+      .from('notifications')
+      .select('*', { count: 'exact', head: true })
+      .eq('recipient_id', id)
+      .eq('is_read', false);
+    
+    setUnreadCount(count || 0);
+  };
 
   const mapPost = useCallback((post: any, profilesMap: any) => {
     const profile = profilesMap[post.user_id] || {};
@@ -448,7 +472,17 @@ export default function RootPage() {
             {isMounted && (
               <>
                 <button className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal"><Search className="w-5 h-5" /></button>
-                <button className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal relative"><Bell className="w-5 h-5" /><div className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#080808]" /></button>
+                <button 
+                  onClick={() => setShowNotifications(true)}
+                  className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal relative"
+                >
+                  <Bell className="w-5 h-5" />
+                  {unreadCount > 0 && (
+                    <div className="absolute top-2.5 right-2.5 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-[#080808] flex items-center justify-center">
+                       <span className="text-[10px] text-white font-bold">{unreadCount}</span>
+                    </div>
+                  )}
+                </button>
 
                 <Link href="/profile" className="ml-1 w-9 h-9 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 hover:opacity-80">
                   {currentUser?.avatar_url ? (
@@ -570,6 +604,14 @@ export default function RootPage() {
 
       {showStoryCreator && <StoryCreator open={showStoryCreator} onClose={() => setShowStoryCreator(false)} user={currentUser} onCreated={loadStories} />}
       {viewingStoryGroup && <StoryViewer storyGroups={storyGroups} startUserIndex={storyGroups.indexOf(viewingStoryGroup)} currentUser={currentUser} onClose={() => setViewingStoryGroup(null)} />}
+      <NotificationCenter 
+        open={showNotifications} 
+        onClose={() => {
+          setShowNotifications(false);
+          setUnreadCount(0);
+        }} 
+        userId={currentUser?.id}
+      />
     </div>
   );
 }

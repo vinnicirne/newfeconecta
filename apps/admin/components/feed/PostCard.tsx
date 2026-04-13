@@ -644,7 +644,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
                </div>
                <div className="flex flex-col">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-white">{post.author_name}</span>
+                    <div className="font-black text-sm text-white truncate">{post.author_name}</div>
                     {post.is_verified && (
                       <VerificationBadge 
                         role={post.verification_label || 'Verificado'} 
