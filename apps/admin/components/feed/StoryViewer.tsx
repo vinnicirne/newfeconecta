@@ -152,12 +152,9 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     setProgress(0);
     setPaused(false);
     
-    // Mark as viewed locally
-    console.log("Story viewed locally:", story.id);
-    
     startTimer();
     return clearTimer;
-  }, [userIdx, storyIdx]);
+  }, [userIdx, storyIdx, currentMediaDuration, startTimer]);
 
   const togglePause = () => {
     if (paused) {

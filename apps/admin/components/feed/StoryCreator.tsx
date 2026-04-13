@@ -79,8 +79,8 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   const startRecording = () => {
     if (!streamRef.current) return;
     chunksRef.current = [];
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    const mimeType = isIOS ? 'video/mp4' : 'video/webm;codecs=vp9,opus';
+    
+    const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm;codecs=vp9,opus';
     
     try {
       const recorder = new MediaRecorder(streamRef.current, { mimeType, videoBitsPerSecond: 4000000 });
@@ -206,7 +206,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       if (insertError) throw insertError;
 
       onCreated?.();
-      onClose();
+      handleClose();
     } catch (err: any) {
       console.error("Erro ao salvar story:", err);
       const detail = err?.message || "Verifique se você rodou o script SQL de atualização do banco.";
