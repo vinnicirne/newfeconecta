@@ -93,9 +93,15 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
   return (
     <LiveKitRoom
       video={false}
-      audio={roomData?.creator_id === user?.id}
+      audio={true}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
+      options={{
+        publishDefaults: {
+          audioPreset: 'speech',
+          stopMicTrackOnMute: true,
+        }
+      }}
       connectOptions={{ autoSubscribe: true }}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
@@ -372,6 +378,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         }
         if ((p.new as any).user_id === user.id && (p.new as any).status === 'approved') {
           setMyRole('speaker');
+          localParticipant?.setMicrophoneEnabled(true);
           toast.success("Seu microfone foi liberado! 🎤", {
             description: "Clique no microfone para começar a interceder.",
           });
@@ -407,20 +414,35 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     if (!localParticipant) return;
     const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
 
-    const syncMic = async () => {
+    const enableMic = async () => {
       try {
-        if (!canSpeak && localParticipant.isMicrophoneEnabled) {
-          await localParticipant.setMicrophoneEnabled(false);
-        } else if (canSpeak && (myRole === 'creator' || myRole === 'admin') && !localParticipant.isMicrophoneEnabled) {
+        if (canSpeak) {
           await localParticipant.setMicrophoneEnabled(true);
+          console.log("✅ Microfone ativado (canSpeak = true)");
+        } else {
+          await localParticipant.setMicrophoneEnabled(false);
+          console.log("🔇 Microfone desativado (listener)");
         }
       } catch (err) {
-        console.error("Erro ao configurar microfone:", err);
-        toast.error("Não foi possível acessar o microfone.");
+        console.error("Erro ao setar microfone:", err);
+        toast.error("Não foi possível acessar o microfone. Verifique as permissões.");
       }
     };
-    syncMic();
+    enableMic();
   }, [myRole, localParticipant]);
+
+  useEffect(() => {
+    if (localParticipant) {
+      console.log("Estado de Áudio:", {
+        identity: localParticipant.identity,
+        isMicrophoneEnabled: localParticipant.isMicrophoneEnabled,
+        tracks: Array.from(localParticipant.audioTrackPublications.values()).map(t => ({
+          isPublished: !!t.track,
+          isMuted: t.isMuted
+        }))
+      });
+    }
+  }, [localParticipant, myRole]);
 
   const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant.identity === roomData.creator_id ? localParticipant : null);
   const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
