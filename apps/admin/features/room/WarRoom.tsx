@@ -95,17 +95,11 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       audio={roomData?.creator_id === user?.id}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-      options={{
-        publishDefaults: {
-          audioPreset: 'speech',
-          stopMicTrackOnMute: true,
-        }
-      }}
       connectOptions={{ autoSubscribe: true }}
       className="fixed inset-0 z-[100] bg-[#0e0e0e] flex flex-col overflow-hidden"
     >
-      <WarRoomInterface roomData={roomData} setRoomData={setRoomData} user={user} onExit={onExit} />
       <RoomAudioRenderer />
+      <WarRoomInterface roomData={roomData} setRoomData={setRoomData} user={user} onExit={onExit} />
       <StartAudio 
         label="🔊 CLIQUE PARA OUVIR O CLAMOR" 
         className="fixed inset-0 z-[600] bg-black/80 backdrop-blur-2xl flex flex-col items-center justify-center text-primary font-black uppercase tracking-[0.3em] text-sm hover:bg-black/90 transition-all cursor-pointer" 
@@ -118,7 +112,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
   const { localParticipant } = useLocalParticipant();
   const participants = useParticipants();
   const room = useRoomContext();
-
+  const { canPlayAudio, startAudio } = useAudioPlayback(room);
+  
   const [chatInput, setChatInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [reactions, setReactions] = useState<Reaction[]>([]);
@@ -458,6 +453,20 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-background text-on-surface font-body antialiased">
 
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[300] w-full max-w-[280px] flex flex-col gap-4 pointer-events-none">
+        {!canPlayAudio && (
+          <button 
+            onClick={() => { startAudio(); }} 
+            className="p-6 bg-red-600/90 backdrop-blur-3xl border border-red-500/30 rounded-[2.5rem] flex flex-col items-center text-center gap-4 pointer-events-auto shadow-2xl animate-pulse group active:scale-95 transition-all"
+          >
+            <div className="size-12 rounded-full bg-white/10 flex items-center justify-center">
+              <Mic size={24} className="text-white" />
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase text-white tracking-widest">Seu áudio está travado</p>
+              <p className="text-[9px] font-bold text-white/70 uppercase mt-1">Toque aqui para ouvir o clamor</p>
+            </div>
+          </button>
+        )}
         <AnimatePresence>
           {pendingRequests.map(req => (
             <motion.div key={req.id} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="p-6 bg-[#1a1a1a]/95 backdrop-blur-3xl border border-[#3fff8b]/30 rounded-[2.5rem] flex flex-col items-center text-center gap-4 pointer-events-auto shadow-2xl">
