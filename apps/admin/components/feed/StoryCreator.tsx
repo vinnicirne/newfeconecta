@@ -154,6 +154,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     else stopRecording();
   };
   function handleClose() {
+    stopCamera(); // Força o desligamento do hardware
     if (preview?.url) URL.revokeObjectURL(preview.url);
     onClose();
   }
@@ -229,7 +230,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   };
 
   return (
-    <div className="fixed inset-0 z-[300] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[10005] bg-black flex flex-col">
       <div className="flex-1 relative">
         <video 
           ref={videoRef} 
@@ -302,7 +303,14 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
         />
 
         <div className="absolute top-0 left-0 right-0 z-[400] flex items-center justify-between p-6 pt-12 bg-gradient-to-b from-black/50 to-transparent">
-          <button onClick={handleClose} className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-md">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleClose();
+            }} 
+            className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-md"
+          >
             <X />
           </button>
           

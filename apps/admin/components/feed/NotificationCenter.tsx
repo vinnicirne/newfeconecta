@@ -86,7 +86,7 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
   // Removi o return null para garantir que o componente responda ao estado instantaneamente
   return (
     <div className={cn(
-      "fixed inset-0 z-[9999] flex justify-end transition-all duration-300",
+      "fixed inset-0 z-[9990] flex justify-end transition-all duration-300",
       open ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"
     )}>
       {/* Backdrop */}

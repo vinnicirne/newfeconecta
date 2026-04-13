@@ -60,7 +60,13 @@ export default function RootPage() {
 
     const init = async () => {
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError && authError.message.includes('lock')) {
+          console.warn("Supabase lock contestado, ignorando...");
+          return;
+        }
+
         if (!mounted) return;
 
         if (authUser) {

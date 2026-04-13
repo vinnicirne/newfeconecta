@@ -79,6 +79,24 @@ export default function FeedPage() {
     };
   }, [currentUser?.id]);
 
+  useEffect(() => {
+    // Escutar por mudanças na URL para Scroll Automático (Deep Linking)
+    const urlParams = new URLSearchParams(window.location.search);
+    const postId = urlParams.get('post');
+    if (postId && posts.length > 0) {
+      setTimeout(() => {
+        const element = document.getElementById(`post-${postId}`);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          element.classList.add('ring-2', 'ring-whatsapp-teal', 'ring-offset-4', 'animate-pulse');
+          setTimeout(() => {
+            element.classList.remove('ring-2', 'ring-whatsapp-teal', 'ring-offset-4', 'animate-pulse');
+          }, 3000);
+        }
+      }, 500);
+    }
+  }, [posts]);
+
   const loadUnreadCount = async (id: string) => {
     const { count } = await supabase
       .from('notifications')

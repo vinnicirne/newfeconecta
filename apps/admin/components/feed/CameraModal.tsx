@@ -29,24 +29,31 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
   };
 
   const startCamera = async () => {
+    if (!open) return;
     stopCamera();
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 } },
-        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 },
-      });
+      const constraints = {
+        video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: true
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
       }
     } catch (err) {
+      console.warn('Tentativa 1 falhou, tentando fallback...', err);
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         streamRef.current = stream;
-        if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.muted = true; }
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.muted = true;
+        }
       } catch (e) {
-        console.error('Camera error:', e);
+        console.error('Falha crítica na câmera:', e);
+        // Não trava o app, apenas deixa a tela preta permitindo fechar
       }
     }
   };
@@ -180,6 +187,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
   };
 
   const handleClose = () => {
+    stopCamera(); // Força o desligamento do hardware
     setCaptured(null);
     setRecording(false);
     setRecordDuration(0);
@@ -203,7 +211,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[10001] bg-black flex flex-col">
       <div className="flex-1 relative overflow-hidden bg-black">
         <video
           ref={videoRef}
@@ -230,7 +238,14 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
         )}
 
         <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 pt-12 pb-4 bg-gradient-to-b from-black/70 to-transparent z-50">
-          <button onClick={handleClose} className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white border border-white/10">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              handleClose();
+            }} 
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-black/40 text-white border border-white/10"
+          >
             <X className="w-6 h-6" />
           </button>
 

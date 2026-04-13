@@ -373,7 +373,10 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   };
 
   return (
-    <div className="bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden">
+    <div 
+      id={`post-${post.id}`}
+      className="bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden transition-all duration-300"
+    >
       {/* Header */}
       {post.is_repost && (
         <div className="px-4 pt-2 -mb-1 flex items-center gap-1.5 text-[10px] text-whatsapp-green font-bold uppercase tracking-wider">
