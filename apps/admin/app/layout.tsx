@@ -6,8 +6,16 @@ import BottomNav from "@/components/feed/BottomNav";
 // const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "FéConecta Admin | Um lugar de adoração",
-  description: "Painel administrativo centralizado para gestão da rede social FéConecta.",
+  title: "FéConecta | Um lugar de adoração",
+  description: "Clamor e conexão com o Reino em um só lugar.",
+  manifest: "/manifest.json",
+  themeColor: "#0e0e0e",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "FéConecta",
+  },
 };
 
 import { Toaster } from "sonner";
@@ -24,6 +32,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap" rel="stylesheet" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="apple-touch-icon" href="/icons/icon-512.png" />
         <style dangerouslySetInnerHTML={{ __html: `
           :root { --font-outfit: 'Outfit', sans-serif; }
           body { font-family: var(--font-outfit); }
