@@ -96,7 +96,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       setRecordDuration(0);
       timerRef.current = setInterval(() => {
         setRecordDuration(d => {
-          if (d + 1 >= 15) stopRecording();
+          if (d + 1 >= 30) stopRecording();
           return d + 1;
         });
       }, 1000);
@@ -109,6 +109,36 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     recorderRef.current?.stop();
     if (timerRef.current) clearInterval(timerRef.current);
     setRecording(false);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) { // 50MB limit
+      toast.error("Arquivo muito grande. Limite de 50MB.");
+      return;
+    }
+
+    const type = file.type.startsWith('image/') ? 'image' : 
+                 file.type.startsWith('video/') ? 'video' : null;
+
+    if (!type) {
+      toast.error("Formato não suportado. Use fotos ou vídeos.");
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setPreview({
+      url,
+      type,
+      blob: file,
+      mimeType: file.type
+    });
+    stopCamera();
+    
+    // Reseta o input para permitir selecionar o mesmo arquivo novamente se deletado
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   const handleAction = () => {
@@ -231,6 +261,14 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           </div>
         )}
 
+        <input 
+          type="file" 
+          ref={fileRef}
+          className="hidden"
+          accept="image/*,video/*"
+          onChange={handleFileSelect}
+        />
+
         <div className="absolute top-0 left-0 right-0 z-[400] flex items-center justify-between p-6 pt-12 bg-gradient-to-b from-black/50 to-transparent">
           <button onClick={onClose} className="w-10 h-10 rounded-full bg-black/20 flex items-center justify-center text-white backdrop-blur-md">
             <X />
@@ -263,8 +301,17 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       <div className="p-8 pb-12 bg-black flex flex-col items-center gap-8 border-t border-white/5">
         {!preview ? (
           <>
-            {/* 1. Botão da Câmera (Subiu!) */}
-            <div className="flex items-center justify-center h-24">
+            {/* 1. Botão da Câmera e Galeria */}
+            <div className="flex items-center justify-center gap-10 h-24">
+               {mode !== 'text' && (
+                 <button 
+                  onClick={() => fileRef.current?.click()}
+                  className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-white/50 hover:text-whatsapp-green hover:bg-white/20 transition-all border border-white/5"
+                 >
+                   <Image size={24} />
+                 </button>
+               )}
+
               {mode === 'text' ? (
                  <button 
                    onClick={() => { if (textContent.trim()) handlePublish() }}

@@ -17,7 +17,8 @@ function formatTime(date: Date) {
   return date.toLocaleDateString('pt-BR');
 }
 
-const DURATION = 5000;
+const PHOTO_DURATION = 5000;
+const VIDEO_DURATION = 30000;
 
 export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUser, onClose }: any) {
   const [userIdx, setUserIdx] = useState(startUserIndex);
@@ -128,20 +129,21 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
 
   const startTimer = useCallback(() => {
     clearTimer();
+    const currentDuration = story?.media_type === 'video' ? VIDEO_DURATION : PHOTO_DURATION;
     lastTick.current = Date.now();
     timerRef.current = setInterval(() => {
       if (!lastTick.current || paused) return;
       const now = Date.now();
       elapsed.current += now - lastTick.current;
       lastTick.current = now;
-      const pct = Math.min((elapsed.current / DURATION) * 100, 100);
+      const pct = Math.min((elapsed.current / currentDuration) * 100, 100);
       setProgress(pct);
       if (pct >= 100) {
         clearTimer();
         advance();
       }
     }, 50);
-  }, [advance]);
+  }, [advance, story]);
 
   useEffect(() => {
     if (!story) return;
@@ -166,6 +168,18 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     }
   };
 
+  const handlePointerDown = () => {
+    setPaused(true);
+    lastTick.current = null;
+  };
+
+  const handlePointerUp = (action?: 'prev' | 'next') => {
+    setPaused(false);
+    lastTick.current = Date.now();
+    if (action === 'prev') prev();
+    if (action === 'next') advance();
+  };
+
   const handleLike = async () => {
     if (!currentUser) return;
     setIsLiked(!isLiked);
@@ -181,7 +195,27 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
         setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
       }, 2000);
     }
-    // Lógica de banco de dados para likes omitida para brevidade/proteção de estrutura
+  };
+
+  const sendEmojiReaction = async (emojiChar: string) => {
+    if (!currentUser || !group) return;
+    
+    // Animação local de confete de emoji
+    const newEmoji = { id: Date.now(), char: emojiChar, left: 50 };
+    setFloatingEmojis(prev => [...prev, newEmoji]);
+    setTimeout(() => setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id)), 2000);
+
+    try {
+      await supabase.from('direct_messages').insert({
+        sender_id: currentUser.id,
+        receiver_id: group.author_id,
+        content: `Reagiu ao seu Status: ${emojiChar}`,
+        is_read: false
+      });
+      toast.success("Reação enviada!");
+    } catch (err) {
+      console.error("Erro ao enviar reação:", err);
+    }
   };
 
   const handleSendComment = async (e: React.FormEvent) => {
@@ -209,6 +243,25 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
       console.error("Erro ao enviar comentário:", err);
       toast.error("Não foi possível enviar sua resposta.");
     }
+  };
+
+  // Lógica de Swipe Up
+  const touchStartY = useRef<number | null>(null);
+  const handleTouchStart = (e: React.TouchEvent | React.PointerEvent) => {
+    touchStartY.current = 'touches' in e ? e.touches[0].clientY : e.clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent | React.PointerEvent) => {
+    if (touchStartY.current === null) return;
+    const clientY = 'changedTouches' in e ? e.changedTouches[0].clientY : e.clientY;
+    const deltaY = touchStartY.current - clientY;
+    
+    if (deltaY > 50) { // Swipe up
+      // Foca no input
+      const input = document.getElementById('story-comment-input');
+      input?.focus();
+    }
+    touchStartY.current = null;
   };
 
   const handleDelete = async () => {
@@ -317,11 +370,23 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
           </div>
         </div>
 
-        {/* Interaction Areas */}
-        <div className="absolute inset-0 z-15 flex">
-          <div className="w-1/3 h-full cursor-pointer" onClick={(e) => { e.stopPropagation(); prev(); }} />
-          <div className="w-1/3 h-full cursor-pointer" onClick={togglePause} />
-          <div className="w-1/3 h-full cursor-pointer" onClick={(e) => { e.stopPropagation(); advance(); }} />
+        {/* Interaction Areas - Enhanced with Long Press and Tap */}
+        <div className="absolute inset-0 z-15 flex touch-none">
+          <div 
+            className="w-1/4 h-full cursor-pointer" 
+            onPointerDown={handlePointerDown}
+            onPointerUp={() => handlePointerUp('prev')}
+          />
+          <div 
+            className="flex-1 h-full cursor-pointer" 
+            onPointerDown={handlePointerDown}
+            onPointerUp={() => handlePointerUp()}
+          />
+          <div 
+            className="w-1/4 h-full cursor-pointer" 
+            onPointerDown={handlePointerDown}
+            onPointerUp={() => handlePointerUp('next')}
+          />
         </div>
 
          {/* Mentions / Repost if applicable */}
@@ -345,51 +410,78 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
             </div>
          ))}
 
-         {/* Interaction Footer */}
-         <div className="absolute bottom-0 left-0 right-0 z-30 p-4 pb-8 bg-gradient-to-t from-black/80 to-transparent flex items-center gap-3">
-            <form onSubmit={handleSendComment} className="flex-1 relative">
-               <input 
-                 type="text" 
-                 placeholder="Enviar mensagem..."
-                 value={comment}
-                 onChange={(e) => setComment(e.target.value)}
-                 onFocus={() => {
-                    setPaused(true);
-                    lastTick.current = null;
-                 }}
-                 onBlur={() => {
-                    setPaused(false);
-                    lastTick.current = Date.now();
-                 }}
-                 className="w-full bg-white/10 border border-white/10 rounded-full py-2.5 px-5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:bg-white/20 transition-all"
-               />
-               {comment.trim() && (
-                  <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-whatsapp-green flex items-center justify-center text-whatsapp-dark">
-                     <Send className="w-4 h-4" />
-                  </button>
-               )}
-            </form>
-             <button 
-               onClick={handleLike}
-               className={cn(
-                 "w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-75",
-                 isLiked ? "bg-whatsapp-green text-whatsapp-dark" : "bg-white/10 text-white border border-white/10"
-               )}
-             >
-                <Flame className={cn("w-6 h-6", isLiked && "fill-current")} />
-             </button>
+         {/* Interaction Footer - Swipe Up & Reactions */}
+         <div 
+           className="absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-10"
+           onPointerDown={handleTouchStart}
+           onPointerUp={handleTouchEnd}
+         >
+            {/* Visual Hint */}
+            <div className="flex flex-col items-center mb-4 transition-all animate-bounce opacity-70 group-hover:opacity-100">
+               <ChevronUp className="text-white w-5 h-5 mb-1" />
+               <span className="text-[10px] text-white font-black uppercase tracking-[0.2em]">Responder</span>
+            </div>
 
-            {currentUser && story.author_id === currentUser.id && (
-              <button 
-                onClick={handleHighlightToggle}
-                className={cn(
-                  "w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-75",
-                  story.is_highlight ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.5)]" : "bg-white/10 text-white border border-white/10"
-                )}
-              >
-                 <Star className={cn("w-6 h-6", story.is_highlight && "fill-current")} />
-              </button>
-            )}
+            {/* Quick Reactions Bar */}
+            <div className="flex items-center justify-between w-full px-8 mb-4 max-w-sm">
+               {['🔥', '❤️', '🙌', '😂', '😮', '😢', '👏', '🎉'].map(emoji => (
+                  <button 
+                    key={emoji}
+                    onClick={(e) => { e.stopPropagation(); sendEmojiReaction(emoji); }}
+                    className="text-2xl hover:scale-125 transition-transform active:scale-90"
+                  >
+                    {emoji}
+                  </button>
+               ))}
+            </div>
+
+            {/* Input Row */}
+            <div className="w-full p-4 pb-8 flex items-center gap-3">
+               <form onSubmit={handleSendComment} className="flex-1 relative">
+                  <input 
+                    id="story-comment-input"
+                    type="text" 
+                    placeholder="Enviar mensagem..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    onFocus={() => {
+                        setPaused(true);
+                        lastTick.current = null;
+                    }}
+                    onBlur={() => {
+                        setPaused(false);
+                        lastTick.current = Date.now();
+                    }}
+                    className="w-full bg-white/10 border border-white/10 rounded-full py-2.5 px-5 text-white text-sm placeholder:text-white/40 focus:outline-none focus:bg-white/20 transition-all shadow-inner"
+                  />
+                  {comment.trim() && (
+                      <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-whatsapp-green flex items-center justify-center text-whatsapp-dark">
+                        <Send className="w-4 h-4" />
+                      </button>
+                  )}
+               </form>
+               <button 
+                  onClick={handleLike}
+                  className={cn(
+                    "w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-75",
+                    isLiked ? "bg-whatsapp-green text-whatsapp-dark" : "bg-white/10 text-white border border-white/10"
+                  )}
+               >
+                  <Flame className={cn("w-6 h-6", isLiked && "fill-current")} />
+               </button>
+
+               {currentUser && story.author_id === currentUser.id && (
+                 <button 
+                   onClick={(e) => { e.stopPropagation(); handleHighlightToggle(); }}
+                   className={cn(
+                     "w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-75",
+                     story.is_highlight ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.5)]" : "bg-white/10 text-white border border-white/10"
+                   )}
+                 >
+                    <Star className={cn("w-6 h-6", story.is_highlight && "fill-current")} />
+                 </button>
+               )}
+            </div>
          </div>
 
          {/* Modal Moderno para Nomear Destaque */}

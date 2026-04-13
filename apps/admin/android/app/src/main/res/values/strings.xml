@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">FéConecta</string>
+    <string name="title_activity_main">FéConecta</string>
+    <string name="package_name">com.feconecta.app</string>
+    <string name="custom_url_scheme">com.feconecta.app</string>
+</resources>
