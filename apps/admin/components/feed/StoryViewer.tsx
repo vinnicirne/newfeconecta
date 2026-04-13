@@ -257,9 +257,14 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     const deltaY = touchStartY.current - clientY;
     
     if (deltaY > 50) { // Swipe up
-      // Foca no input
+      setPaused(true);
+      lastTick.current = null;
       const input = document.getElementById('story-comment-input');
-      input?.focus();
+      if (input) {
+        input.focus();
+        // Pequeno atraso para garantir foco em dispositivos sensíveis
+        setTimeout(() => input.focus(), 50);
+      }
     }
     touchStartY.current = null;
   };
@@ -370,23 +375,26 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
           </div>
         </div>
 
-        {/* Interaction Areas - Enhanced with Long Press and Tap */}
-        <div className="absolute inset-0 z-15 flex touch-none">
-          <div 
-            className="w-1/4 h-full cursor-pointer" 
-            onPointerDown={handlePointerDown}
-            onPointerUp={() => handlePointerUp('prev')}
-          />
-          <div 
-            className="flex-1 h-full cursor-pointer" 
-            onPointerDown={handlePointerDown}
-            onPointerUp={() => handlePointerUp()}
-          />
-          <div 
-            className="w-1/4 h-full cursor-pointer" 
-            onPointerDown={handlePointerDown}
-            onPointerUp={() => handlePointerUp('next')}
-          />
+        {/* Interaction Areas - Global Swipe & Pause */}
+        <div 
+          className="absolute inset-0 z-15 flex touch-none"
+          onPointerDown={handleTouchStart}
+          onPointerUp={(e) => {
+            const clientX = e.clientX;
+            const width = e.currentTarget.clientWidth;
+            
+            // Se não foi um swipe up (detectado no handleTouchEnd)
+            handleTouchEnd(e);
+            
+            // Navegação baseada em cliques laterais (25% bordas)
+            if (clientX < width * 0.25) handlePointerUp('prev');
+            else if (clientX > width * 0.75) handlePointerUp('next');
+            else handlePointerUp(); 
+          }}
+        >
+          <div className="w-1/4 h-full cursor-pointer" />
+          <div className="flex-1 h-full cursor-pointer" />
+          <div className="w-1/4 h-full cursor-pointer" />
         </div>
 
          {/* Mentions / Repost if applicable */}
@@ -410,12 +418,8 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
             </div>
          ))}
 
-         {/* Interaction Footer - Swipe Up & Reactions */}
-         <div 
-           className="absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-10"
-           onPointerDown={handleTouchStart}
-           onPointerUp={handleTouchEnd}
-         >
+         {/* Interaction Footer - Reactions */}
+         <div className="absolute bottom-0 left-0 right-0 z-30 flex flex-col items-center bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-10 pointer-events-none">
             {/* Visual Hint */}
             <div className="flex flex-col items-center mb-4 transition-all animate-bounce opacity-70 group-hover:opacity-100">
                <ChevronUp className="text-white w-5 h-5 mb-1" />
@@ -559,13 +563,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
          `}} />
 
         {/* Pause Overlay */}
-        {paused && (
-          <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
-             <div className="p-4 rounded-full bg-black/20 backdrop-blur-md border border-white/10">
-                <Play className="w-12 h-12 text-white fill-white ml-2" />
-             </div>
-          </div>
-        )}
+
       </div>
     </div>
   );
