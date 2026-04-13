@@ -504,14 +504,9 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
             <div className="size-32 rounded-full border-4 border-primary avatar-glow flex items-center justify-center bg-surface-container-low overflow-hidden relative z-10">
               <img
                 src={leaderMeta.avatar || (Array.isArray(roomData?.profiles) ? roomData.profiles[0]?.avatar_url : roomData?.profiles?.avatar_url) || "https://github.com/shadcn.png"}
-                className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity"
+                className="absolute inset-0 w-full h-full object-cover"
                 alt=""
               />
-              <div className="relative z-10 flex flex-col items-center gap-1 text-center">
-                <p className="font-headline font-bold text-xs tracking-[0.2em] text-white uppercase drop-shadow-md">
-                  Líder em Oração
-                </p>
-              </div>
             </div>
             {activeLeader?.isSpeaking && (
               <div className="absolute -inset-3 rounded-full border border-primary/20 animate-ping opacity-20" />
@@ -550,9 +545,9 @@ function WarRoomInterface({ roomData, user, onExit }: { roomData: any; user: any
         {/* Participants Avatars (DB Synced) */}
         <div className="flex items-center justify-center -space-x-3 mb-2">
           {dbParticipants.slice(0, 3).map((p, i) => {
-            const isOnline = participants.some(lp => lp.identity === p.user_id);
+            const isOnline = participants.some(lp => lp.identity?.toString() === p.user_id?.toString()) || localParticipant.identity?.toString() === p.user_id?.toString();
             return (
-              <div key={i} className={cn("relative transition-all", !isOnline && "opacity-40 grayscale")}>
+              <div key={i} className={cn("relative transition-all", !isOnline ? "opacity-40 grayscale" : "opacity-100 saturate-150")}>
                 <img
                   src={(Array.isArray(p.profiles) ? p.profiles[0]?.avatar_url : p.profiles?.avatar_url) || "https://github.com/shadcn.png"}
                   className={cn("size-12 rounded-full border-2 object-cover shadow-xl", isOnline ? "border-primary avatar-glow" : "border-white/10")}
@@ -1002,7 +997,7 @@ function WarRoomSettings({ show, onClose, roomId, dbParticipants, liveParticipan
                 {res.map(u => (
                   <div key={u.id} className="flex items-center justify-between p-4 bg-white/5 rounded-3xl border border-white/5 hover:border-primary/20 transition-all group">
                     <div className="flex items-center gap-3">
-                      <img src={u.avatar_url || "https://github.com/shadcn.png"} className="w-10 h-10 rounded-2xl object-cover grayscale group-hover:grayscale-0 transition-all" alt="" />
+                      <img src={u.avatar_url || "https://github.com/shadcn.png"} className="w-10 h-10 rounded-2xl object-cover transition-all" alt="" />
                       <p className="text-[11px] font-black uppercase tracking-widest">@{u.username}</p>
                     </div>
                     <button
