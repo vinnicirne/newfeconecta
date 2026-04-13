@@ -106,7 +106,10 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
     >
       <WarRoomInterface roomData={roomData} setRoomData={setRoomData} user={user} onExit={onExit} />
       <RoomAudioRenderer />
-      <StartAudio label="Clique para Sintonizar Áudio" className="fixed inset-0 z-[500] bg-black/60 backdrop-blur-md flex items-center justify-center text-primary font-black uppercase tracking-widest text-xs" />
+      <StartAudio 
+        label="🔊 CLIQUE PARA OUVIR O CLAMOR" 
+        className="fixed inset-0 z-[600] bg-black/80 backdrop-blur-2xl flex flex-col items-center justify-center text-primary font-black uppercase tracking-[0.3em] text-sm hover:bg-black/90 transition-all cursor-pointer" 
+      />
     </LiveKitRoom>
   );
 }
