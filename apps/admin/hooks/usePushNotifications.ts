@@ -8,20 +8,26 @@ export const usePushNotifications = () => {
     if (!messaging) return;
 
     try {
-      // 1. Solicita permissão ao navegador
+      console.log("Iniciando pedido de permissão para Push...");
       const permission = await Notification.requestPermission();
+      console.log("Status da permissão:", permission);
       
       if (permission === 'granted') {
+        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY;
+        console.log("VAPID Key presente:", !!vapidKey);
+
+        if (!vapidKey) {
+          console.error("ERRO: NEXT_PUBLIC_FIREBASE_VAPID_KEY não encontrada no .env");
+          return;
+        }
+
         // 2. Obtém o Token do Firebase
-        // Nota: Substitua pela sua VAPID Key se tiver!
-        const token = await getToken(messaging, {
-          vapidKey: "COLAR_SUA_VAPID_KEY_AQUI" 
-        });
+        const token = await getToken(messaging, { vapidKey });
 
         if (token) {
-          console.log("FCM Token gerado:", token);
+          console.log("Token gerado com sucesso:", token);
           
-          // 3. Salva o Token no Supabase no perfil do usuário
+          // 3. Salva o Token no Supabase
           const { error } = await supabase
             .from('profiles')
             .update({ 
@@ -32,13 +38,17 @@ export const usePushNotifications = () => {
 
           if (error) throw error;
           
+          toast.success("Notificações Push ativadas com sucesso!");
           return token;
+        } else {
+          console.warn("Firebase não retornou nenhum token.");
         }
-      } else {
-        console.warn("Permissão de notificação negada.");
       }
-    } catch (err) {
-      console.error("Erro ao configurar Push Notifications:", err);
+    } catch (err: any) {
+      console.error("Erro detalhado no Push:", err);
+      if (err.message.includes('missing-registration')) {
+        toast.error("Erro: Arquivo service-worker não encontrado na raiz.");
+      }
     }
   };
 
