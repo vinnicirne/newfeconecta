@@ -548,7 +548,7 @@ export default function RootPage() {
         <div className="px-4 py-4 space-y-4">
           {posts.length > 0 ? (
             posts.map((post, idx) => (
-              <React.Fragment key={post.uid || post.unique_key || post.id}>
+              <React.Fragment key={post.id || `feed-post-${idx}`}>
                 <div ref={idx === posts.length - 1 ? lastPostRef : null}>
                   <PostCard
                     post={post}
@@ -592,7 +592,7 @@ export default function RootPage() {
               {/* Simulando contatos online baseada em quem o usuário segue */}
               {storyGroups.filter(g => g.author_id !== currentUser?.id).map(contact => (
                 <Link 
-                  key={contact.id} 
+                  key={`contact-${contact.author_id}`} 
                   href={`/messages?userId=${contact.author_id}`}
                   className="flex items-center gap-3 p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all group"
                 >

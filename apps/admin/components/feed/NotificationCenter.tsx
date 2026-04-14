@@ -10,13 +10,15 @@ import {
   Repeat, 
   Zap, 
   CheckCheck,
-  Clock
+  Clock,
+  Trash2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import moment from 'moment';
 import 'moment/locale/pt-br';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 // Configurar locale
 moment.locale('pt-br');
@@ -40,6 +42,24 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
   const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const handleClearAll = async () => {
+    if (!userId) return;
+    try {
+      const { error } = await supabase
+        .from('notifications')
+        .delete()
+        .eq('recipient_id', userId);
+      
+      if (error) throw error;
+      
+      setNotifications([]);
+      toast.success("Histórico limpo!");
+    } catch (err) {
+      console.error("Erro ao limpar notificações:", err);
+      toast.error("Erro ao limpar histórico");
+    }
+  };
 
   useEffect(() => {
     if (open && userId) {
@@ -100,6 +120,15 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
             <div className="bg-whatsapp-teal/10 text-whatsapp-teal px-2 py-0.5 rounded-lg text-xs font-bold">
               {notifications.filter(n => !n.is_read).length} Novas
             </div>
+            {notifications.length > 0 && (
+              <button 
+                onClick={handleClearAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-tight text-red-500 hover:bg-red-500/10 rounded-lg transition-all ml-2"
+                title="Limpar tudo"
+              >
+                <Trash2 className="w-3 h-3" /> Limpar
+              </button>
+            )}
           </div>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
             <X className="w-6 h-6 dark:text-white" />

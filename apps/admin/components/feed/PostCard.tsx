@@ -398,7 +398,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
         <div className="flex-1 min-w-0">
           <Link href={`/profile/${post.author_username}`} className="block group/name">
-            <p 
+            <div 
               className="text-sm font-bold leading-tight truncate flex items-center gap-1.5 transition-colors"
               style={{ color: post.is_verified ? '#ffffff' : undefined }}
             >
@@ -408,7 +408,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
                   size="sm" 
                   className="ml-1"
                 />
-            </p>
+            </div>
           </Link>
           <div className="flex items-center gap-1.5">
             <Link href={`/profile/${post.author_username}`} className="text-[10px] text-whatsapp-teal dark:text-whatsapp-green font-medium hover:underline">

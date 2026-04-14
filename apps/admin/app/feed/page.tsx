@@ -83,17 +83,24 @@ export default function FeedPage() {
     // Escutar por mudanças na URL para Scroll Automático (Deep Linking)
     const urlParams = new URLSearchParams(window.location.search);
     const postId = urlParams.get('post');
-    if (postId && posts.length > 0) {
-      setTimeout(() => {
-        const element = document.getElementById(`post-${postId}`);
-        if (element) {
-          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          element.classList.add('ring-2', 'ring-whatsapp-teal', 'ring-offset-4', 'animate-pulse');
-          setTimeout(() => {
-            element.classList.remove('ring-2', 'ring-whatsapp-teal', 'ring-offset-4', 'animate-pulse');
-          }, 3000);
-        }
-      }, 500);
+    
+    if (postId) {
+      // Se estamos vindo de uma notificação, garantimos que a câmera esteja FECHADA
+      setShowStoryCreator(false);
+      setMobilePostOpen(false);
+      
+      if (posts.length > 0) {
+        setTimeout(() => {
+          const element = document.getElementById(`post-${postId}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.add('ring-2', 'ring-whatsapp-green', 'ring-offset-2', 'dark:ring-offset-whatsapp-dark');
+            setTimeout(() => {
+              element.classList.remove('ring-2', 'ring-whatsapp-green', 'ring-offset-2', 'dark:ring-offset-whatsapp-dark');
+            }, 3000);
+          }
+        }, 500);
+      }
     }
   }, [posts]);
 
