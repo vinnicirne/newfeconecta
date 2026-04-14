@@ -8,31 +8,26 @@ export const usePushNotifications = () => {
     if (!messaging || typeof window === 'undefined') return;
 
     try {
-      console.log("Iniciando fluxo de Push v3...");
+      console.log("Iniciando fluxo de Push no NOVO PROJETO...");
       
       const permission = await Notification.requestPermission();
       
       if (permission === 'granted') {
-        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY?.trim();
-
-        if (!vapidKey) {
-          console.error("ERRO: VAPID_KEY não configurada na Vercel/Env.");
-          toast.error("Erro de Configuração: VAPID_KEY ausente.");
-          return;
-        }
+        // NOVO VAPID KEY do projeto feconecta-4ccac
+        const vapidKey = (process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "BIcTtDtkjuEgeJv_7CUPUq0lkZPlWx5awD7PxDkH39pe89c3hlKgtgv6OwuoS2hkcahTS2VCYKv04KdTD7m2eus").trim();
 
         // 1. Registrar o Service Worker explicitamente
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         await navigator.serviceWorker.ready;
 
-        // 2. Obter o Token (O erro 400 morre aqui se a VAPID_KEY na Vercel estiver certa)
+        // 2. Obter o Token
         const token = await getToken(messaging, { 
           vapidKey,
           serviceWorkerRegistration: registration
         });
 
         if (token) {
-          console.log("Token gerado com sucesso:", token);
+          console.log("Token gerado com sucesso no novo projeto:", token);
           
           const { error } = await supabase
             .from('profiles')
@@ -41,16 +36,14 @@ export const usePushNotifications = () => {
 
           if (error) throw error;
           
-          toast.success("Push ativado com sucesso!");
+          toast.success("Notificações Push ativadas com sucesso!");
           return token;
         }
       }
     } catch (err: any) {
       console.error("Erro detalhado no Push:", err);
-      if (err.message?.includes('invalid-argument')) {
-        toast.error("Erro 400: A Chave VAPID na Vercel não combina com seu Projeto Firebase.");
-      } else {
-        toast.error("Erro ao ativar Push. Verifique a configuração.");
+      if (err.message?.includes('unauthorized')) {
+        toast.error("Ative a 'Cloud Messaging API' no console do Google Cloud deste novo projeto.");
       }
     }
   };
@@ -58,7 +51,7 @@ export const usePushNotifications = () => {
   const listenToForegroundMessages = () => {
     if (!messaging) return;
     onMessage(messaging, (payload) => {
-      console.log("Mensagem em primeiro plano:", payload);
+      console.log("Mensagem recebida:", payload);
       toast(payload.notification?.title || "Notificação", {
         description: payload.notification?.body,
       });
