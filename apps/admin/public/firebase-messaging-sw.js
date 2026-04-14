@@ -14,17 +14,10 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// Background message - só mostra se NÃO vier notification (data-only)
+// Background message - Data-only (Controle Total)
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Background message received:', payload);
+  console.log('[SW] Background message received (data-only):', payload);
 
-  // Se já tem notification no payload, o sistema mostra automaticamente → não faz nada
-  if (payload.notification) {
-    console.log('Notificação nativa do FCM - SW não precisa mostrar');
-    return;
-  }
-
-  // Fallback para data-only messages
   const notificationTitle = payload.data?.title || 'FéConecta 📢';
   const notificationOptions = {
     body: payload.data?.body || 'Você tem uma nova notificação!',
@@ -35,12 +28,12 @@ messaging.onBackgroundMessage((payload) => {
     }
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// Notification click - ESSA PARTE É CRUCIAL
+// Notification click - Versão robusta
 self.addEventListener('notificationclick', (event) => {
-  console.log('[SW] Notification clicked:', event);
+  console.log('[SW] NOTIFICATION CLICKED!', event.notification);
 
   event.notification.close();
 
@@ -48,21 +41,29 @@ self.addEventListener('notificationclick', (event) => {
     || event.notification.data?.url 
     || 'https://feconecta.vercel.app/feed';
 
+  console.log('[SW] Abrindo URL:', urlToOpen);
+
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then((windowClients) => {
-        // 1. Tenta focar + navegar em uma aba já aberta do mesmo domínio
+        // Tenta reutilizar aba existente do domínio
         for (const client of windowClients) {
-          if (client.url.includes('feconecta.vercel.app') && 'focus' in client && 'navigate' in client) {
-            return client.navigate(urlToOpen).then((navigatedClient) => navigatedClient.focus());
+          if (client.url.includes('feconecta.vercel.app') && 'navigate' in client) {
+            console.log('[SW] Reutilizando aba existente');
+            return client.navigate(urlToOpen).then((c) => c.focus());
           }
         }
 
-        // 2. Se não encontrou aba, abre nova janela/aba
+        // Se não encontrou, abre nova janela/aba
+        console.log('[SW] Abrindo nova janela');
         if (clients.openWindow) {
           return clients.openWindow(urlToOpen);
         }
       })
-      .catch(err => console.error('Erro ao abrir janela:', err))
+      .catch((err) => {
+        console.error('[SW] Erro no waitUntil:', err);
+        // Fallback forte
+        if (clients.openWindow) return clients.openWindow(urlToOpen);
+      })
   );
 });

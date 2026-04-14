@@ -52,13 +52,19 @@ serve(async (req) => {
     const tokenResponse = await jwtClient.getAccessToken()
     const accessToken = tokenResponse.token
 
-    // 4. Montar a mensagem Push (Formato Industrial Híbrido - Garantia de Entrega)
+    // 4. Montar a mensagem Push - DATA-ONLY (controle total no Service Worker)
+    const targetUrl = `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`;
+
     const pushBody = {
       message: {
         token: profile.fcm_token,
-        notification: {
+        data: {
           title: 'FéConecta 📢',
           body: record.content || 'Você tem uma nova notificação!',
+          post_id: record.post_id || '',
+          type: record.type || '',
+          link: targetUrl,
+          url: targetUrl
         },
         android: {
           priority: 'high',
@@ -66,17 +72,6 @@ serve(async (req) => {
             channel_id: 'fcm_church_alerts',
             sound: 'default',
             visibility: 'public'
-          }
-        },
-        data: {
-          post_id: record.post_id || '',
-          type: record.type || '',
-          link: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`,
-          url: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`
-        },
-        webpush: {
-          fcm_options: {
-            link: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`
           }
         }
       }
