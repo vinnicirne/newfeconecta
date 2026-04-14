@@ -69,9 +69,7 @@ export default function AdminPushCenter() {
       // 2. Inserir notificações em massa (isso disparará o Trigger/Push)
       const notifications = profiles.map(p => ({
         recipient_id: p.id,
-        type: 'announcement',
-        entity_type: 'admin_broadcast',
-        entity_id: '00000000-0000-0000-0000-000000000000', // ID fictício
+        type: 'broadcast',
         content: `${title}: ${message}`,
         is_read: false
       }));
