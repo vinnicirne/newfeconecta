@@ -93,6 +93,15 @@ serve(async (req) => {
     const result = await fcmResponse.json()
     console.log('Firebase Response:', result)
 
+    // LÓGICA DE AUTO-LIMPEZA:
+    if (fcmResponse.status === 404 || (result.error && result.error.status === 'NOT_FOUND')) {
+      console.log(`Limpando token expirado do usuário: ${profile.id}`)
+      await supabase
+        .from('profiles')
+        .update({ fcm_token: null, push_notifications_enabled: false })
+        .eq('id', profile.id)
+    }
+
     return new Response(JSON.stringify(result), {
       headers: { "Content-Type": "application/json" },
       status: 200,
