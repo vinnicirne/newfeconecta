@@ -53,7 +53,7 @@ serve(async (req) => {
     const accessToken = tokenResponse.token
 
     // 4. Montar a mensagem Push - DATA-ONLY (controle total no Service Worker)
-    const targetUrl = `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`;
+    const targetUrl = `https://newfeconecta.vercel.app/feed?post=${record.post_id || ''}`;
 
     const pushBody = {
       message: {

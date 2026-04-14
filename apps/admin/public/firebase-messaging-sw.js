@@ -32,7 +32,7 @@ messaging.onBackgroundMessage((payload) => {
     icon: '/icons/icon-192x192.png',
     badge: '/icons/icon-72x72.png',
     data: {
-      link: payload.data?.link || payload.data?.url || 'https://feconecta.vercel.app/feed'
+      link: payload.data?.link || payload.data?.url || 'https://newfeconecta.vercel.app/feed'
     }
   };
 
@@ -47,7 +47,7 @@ self.addEventListener('notificationclick', (event) => {
 
   const urlToOpen = event.notification.data?.link 
     || event.notification.data?.url 
-    || 'https://feconecta.vercel.app/feed';
+    || 'https://newfeconecta.vercel.app/feed';
 
   console.log('[SW] Abrindo URL:', urlToOpen);
 
@@ -56,7 +56,7 @@ self.addEventListener('notificationclick', (event) => {
       .then((windowClients) => {
         // Tenta reutilizar aba existente do domínio
         for (const client of windowClients) {
-          if (client.url.includes('feconecta.vercel.app') && 'navigate' in client) {
+          if (client.url.includes('newfeconecta.vercel.app') && 'navigate' in client) {
             console.log('[SW] Reutilizando aba existente');
             return client.navigate(urlToOpen).then((c) => c.focus());
           }
