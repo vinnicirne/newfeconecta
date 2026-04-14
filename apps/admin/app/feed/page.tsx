@@ -39,15 +39,24 @@ export default function FeedPage() {
   const [hasMore, setHasMore] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase.from('profiles').select('*').eq('id', user.id).single()
-          .then(({ data }) => {
-            setCurrentUser(data || user);
-            loadUnreadCount(data.id);
-          });
+    const initAuth = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          setCurrentUser(data || user);
+          if (data?.id) loadUnreadCount(data.id);
+        }
+      } catch (err: any) {
+        if (err?.message?.includes('lock') || err?.message?.includes('steal')) {
+          console.warn("Supabase auth lock contention in Feed, ignoring safely.");
+          return;
+        }
+        console.error("Auth error in Feed:", err);
       }
-    });
+    };
+
+    initAuth();
     
     // Inscrição Realtime para novos posts
     const postChannel = supabase

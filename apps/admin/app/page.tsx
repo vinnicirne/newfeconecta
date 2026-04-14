@@ -33,6 +33,7 @@ import StoryCreator from "@/components/feed/StoryCreator";
 import StoryViewer from "@/components/feed/StoryViewer";
 import NotificationCenter from "@/components/feed/NotificationCenter";
 import { supabase } from "@/lib/supabase";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 import LiveRoomsBar from "@/components/room/LiveRoomsBar";
 
 export default function RootPage() {
@@ -46,6 +47,7 @@ export default function RootPage() {
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 10;
   const { theme, setTheme } = useTheme();
+  const { requestPermission, listenToForegroundMessages } = usePushNotifications();
 
   const [showStoryCreator, setShowStoryCreator] = useState(false);
   const [viewingStoryGroup, setViewingStoryGroup] = useState<any | null>(null);
@@ -82,12 +84,20 @@ export default function RootPage() {
           loadInitialPosts();
           loadStories();
           loadUnreadCount(authUser.id);
+          
+          // Registrar para Push Notifications
+          requestPermission(authUser.id);
+          listenToForegroundMessages();
         } else {
           // Fallback para usuários deslogados
           loadInitialPosts();
           loadStories();
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.message?.includes('lock') || err?.message?.includes('steal')) {
+          console.warn("Supabase auth lock contention, ignoring safely.");
+          return;
+        }
         console.error("Auth error:", err);
       }
     };
