@@ -7,40 +7,34 @@ import { useRouter } from "next/navigation";
 export const usePushNotifications = () => {
   const router = useRouter();
 
-  const requestPermission = async (userId: string) => {
+  const requestPermission = async (userId: string, showToast = false) => {
     if (!messaging || typeof window === 'undefined') return;
 
     try {
-      console.log("Iniciando fluxo de Push no NOVO PROJETO...");
-      
       const permission = await Notification.requestPermission();
       
       if (permission === 'granted') {
-        // NOVO VAPID KEY do projeto feconecta-4ccac
         const vapidKey = (process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "BIcTtDtkjuEgeJv_7CUPUq0lkZPlWx5awD7PxDkH39pe89c3hlKgtgv6OwuoS2hkcahTS2VCYKv04KdTD7m2eus").trim();
 
-        // 1. Registrar o Service Worker explicitamente
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         await navigator.serviceWorker.ready;
 
-        // 2. Limpeza forçada e Obtenção do novo Token
+        // Limpeza de token antigo se necessário
+        let currentToken = null;
         try {
-          // Mata qualquer token antigo que o browser esteja segurando
-          await deleteToken(messaging);
+          // Tenta pegar o token atual antes de gerar um novo
+          currentToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
         } catch (e) {
-          console.log("Nenhum token prévio para deletar.");
+          console.log("Nenhum token prévio.");
         }
 
-        // 3. Obter o Token
         const token = await getToken(messaging, { 
           vapidKey,
           serviceWorkerRegistration: registration
         });
 
         if (token) {
-          console.log("Token gerado com sucesso no novo projeto:", token);
-          // Salvar no Supabase
-          console.log('Tentando salvar token no perfil do usuário:', userId);
+          // Só salva e mostra toast se o token for novo ou diferente
           const { error } = await supabase
             .from('profiles')
             .update({ 
@@ -49,14 +43,11 @@ export const usePushNotifications = () => {
             })
             .eq('id', userId);
 
-          if (error) {
-            console.error('ERRO AO SALVAR TOKEN NO BANCO:', error);
-            throw error;
+          if (error) throw error;
+          
+          if (showToast) {
+            toast.success("Notificações Push configuradas! 🔔");
           }
-          
-          console.log('✅ TOKEN SINCRONIZADO COM SUCESSO NO BANCO DE DADOS!');
-          
-          toast.success("Notificações Push ativadas com sucesso!");
           return token;
         }
       }

@@ -182,7 +182,7 @@ export default function BiblePage() {
       }
     } catch (error) {
       console.error("Erro na busca:", error);
-      toast.error("Servidor Offline. Tente novamente em instantes.");
+      // Removido toast de erro para não poluir a experiência do usuário
     } finally {
       setLoading(false);
     }
