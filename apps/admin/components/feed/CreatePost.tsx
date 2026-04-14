@@ -8,6 +8,7 @@ import AudioRecorder from './AudioRecorder';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { NotificationService } from '@/lib/notifications';
+import { compressImage } from '@/lib/image-compression';
 
 import { toast } from 'sonner';
 
@@ -20,37 +21,11 @@ export default function CreatePost({ user, onPostCreated }: any) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const compressImage = (file: File | Blob): Promise<Blob> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (e) => {
-        const img = document.createElement('img');
-        img.src = e.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          const max = 1080;
-          if (width > max) {
-            height = (max / width) * height;
-            width = max;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx?.drawImage(img, 0, 0, width, height);
-          canvas.toBlob((blob) => resolve(blob || file), 'image/jpeg', 0.8);
-        };
-      };
-    });
-  };
-
   const uploadMedia = async (file: File | Blob, path: string) => {
     console.log(`☁️ [CreatePost] Iniciando upload para folder: ${path}...`);
     let finalFile = file;
     if (file.type.startsWith('image/')) {
-       finalFile = await compressImage(file);
+       finalFile = await compressImage(file, 1080, 0.7); // 70% Quality for standard posts
     }
 
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}`;

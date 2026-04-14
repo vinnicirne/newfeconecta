@@ -5,6 +5,7 @@ import { X, Check, FlipHorizontal, Image, Circle, RotateCcw, Type, Palette } fro
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { compressImage } from '@/lib/image-compression';
 
 export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -176,8 +177,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       let mediaType = mode;
 
       if (mode === 'photo' || mode === 'video') {
-         const file = preview.blob;
+         let file = preview.blob;
          const ext = preview.mimeType.split('/')[1] || (mode === 'photo' ? 'jpg' : 'webm');
+         
+         if (mode === 'photo') {
+           file = await compressImage(file, 1080, 0.65); // Aggressive compression for stories
+         }
+
          const fileName = `story_${Date.now()}_${user.id}.${ext}`;
          
          // Simulação de progresso para melhor UX
