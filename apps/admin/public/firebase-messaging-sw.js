@@ -14,48 +14,55 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
+// Background message - só mostra se NÃO vier notification (data-only)
 messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw.js] Mensagem recebida em background: ', payload);
-  
-  // Se já existe um objeto 'notification', o Android vai mostrar automaticamente.
-  // Não mostramos manualmente para evitar duplicidade.
-  if (payload.notification) return;
+  console.log('[firebase-messaging-sw.js] Background message received:', payload);
 
-  if (payload.data) {
-    const notificationTitle = payload.data.title || 'FéConecta 📢';
-    const notificationOptions = {
-      body: payload.data.body || 'Você tem uma nova notificação!',
-      icon: '/icons/icon-192x192.png',
-      data: {
-        link: payload.data.link || '/'
-      }
-    };
-
-    self.registration.showNotification(notificationTitle, notificationOptions);
+  // Se já tem notification no payload, o sistema mostra automaticamente → não faz nada
+  if (payload.notification) {
+    console.log('Notificação nativa do FCM - SW não precisa mostrar');
+    return;
   }
+
+  // Fallback para data-only messages
+  const notificationTitle = payload.data?.title || 'FéConecta 📢';
+  const notificationOptions = {
+    body: payload.data?.body || 'Você tem uma nova notificação!',
+    icon: '/icons/icon-192x192.png',
+    badge: '/icons/icon-72x72.png',
+    data: {
+      link: payload.data?.link || payload.data?.url || 'https://feconecta.vercel.app/feed'
+    }
+  };
+
+  self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
+// Notification click - ESSA PARTE É CRUCIAL
 self.addEventListener('notificationclick', (event) => {
+  console.log('[SW] Notification clicked:', event);
+
   event.notification.close();
-  
-  // Extrai o link dos dados ou define a home como fallback
-  const urlToOpen = event.notification.data?.link || 'https://feconecta.vercel.app/';
+
+  const urlToOpen = event.notification.data?.link 
+    || event.notification.data?.url 
+    || 'https://feconecta.vercel.app/feed';
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // 1. Tentar achar uma aba que já pertença ao nosso domínio
-      for (let i = 0; i < windowClients.length; i++) {
-        const client = windowClients[i];
-        // Se acharmos QUALQUER aba da FéConecta, usamos ela
-        if (client.url.includes('feconecta.vercel.app') && 'focus' in client) {
-          return client.navigate(urlToOpen).then(c => c.focus());
+    clients.matchAll({ type: 'window', includeUncontrolled: true })
+      .then((windowClients) => {
+        // 1. Tenta focar + navegar em uma aba já aberta do mesmo domínio
+        for (const client of windowClients) {
+          if (client.url.includes('feconecta.vercel.app') && 'focus' in client && 'navigate' in client) {
+            return client.navigate(urlToOpen).then((navigatedClient) => navigatedClient.focus());
+          }
         }
-      }
-      
-      // 2. Se não houver nenhuma aba aberta, abre uma nova
-      if (clients.openWindow) {
-        return clients.openWindow(urlToOpen);
-      }
-    })
+
+        // 2. Se não encontrou aba, abre nova janela/aba
+        if (clients.openWindow) {
+          return clients.openWindow(urlToOpen);
+        }
+      })
+      .catch(err => console.error('Erro ao abrir janela:', err))
   );
 });

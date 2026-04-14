@@ -71,7 +71,8 @@ serve(async (req) => {
         data: {
           post_id: record.post_id || '',
           type: record.type || '',
-          link: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`
+          link: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`,
+          url: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`
         },
         webpush: {
           fcm_options: {
