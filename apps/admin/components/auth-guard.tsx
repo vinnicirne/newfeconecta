@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
 
@@ -13,6 +14,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const { requestPermission, listenToForegroundMessages } = usePushNotifications();
 
   useEffect(() => {
     setMounted(true);
@@ -22,7 +24,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     const checkAuth = async () => {
       try {
         setLoading(true);
-        // getSession() é instantâneo e usa o storage local, evitando logouts por oscilação de rede
         const { data: { session }, error } = await supabase.auth.getSession();
         const user = session?.user;
 
@@ -38,6 +39,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             setAuthorized(true);
           }
         } else {
+          // Usuário logado: Garantir registro de Push
+          if (!isPublicRoute) {
+            requestPermission(user.id);
+            listenToForegroundMessages();
+          }
+
           if (isPublicRoute) {
             router.replace("/");
             setAuthorized(false);
