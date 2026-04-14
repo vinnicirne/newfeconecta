@@ -1,7 +1,9 @@
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// NOVO PROJETO: feconecta-4ccac
+// VERSÃO DO SISTEMA: 1.0.5 (Força atualização no Chrome/Android)
+const SW_VERSION = '1.0.5';
+console.log('[SW] Iniciando Versão:', SW_VERSION);
 const firebaseConfig = {
   apiKey: "AIzaSyCZy-koCkvqIb4r7ZovJVuX2d00ZDbW-Lw",
   authDomain: "feconecta-4ccac.firebaseapp.com",
