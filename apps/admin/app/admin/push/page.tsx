@@ -202,6 +202,12 @@ export default function AdminPushCenter() {
                        <CheckCircle2 className="w-3 h-3" /> Online
                     </span>
                   </div>
+                  <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-100 dark:border-white/5">
+                    <span className="text-gray-500">Redirecionamento</span>
+                    <span className="flex items-center gap-1 text-whatsapp-teal font-bold uppercase text-[9px]">
+                       <CheckCircle2 className="w-3 h-3" /> Ativo (Deep link)
+                    </span>
+                  </div>
                 </div>
             </div>
 

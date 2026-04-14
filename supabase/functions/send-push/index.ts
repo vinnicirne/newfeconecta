@@ -52,7 +52,7 @@ serve(async (req) => {
     const tokenResponse = await jwtClient.getAccessToken()
     const accessToken = tokenResponse.token
 
-    // 4. Montar a mensagem Push (Formato FCM v1 de Alta Prioridade)
+    // 4. Montar a mensagem Push (Formato Industrial Híbrido - Garantia de Entrega)
     const pushBody = {
       message: {
         token: profile.fcm_token,
@@ -63,23 +63,15 @@ serve(async (req) => {
         android: {
           priority: 'high',
           notification: {
-            channel_id: 'default',
+            channel_id: 'fcm_church_alerts',
             sound: 'default',
             visibility: 'public'
           }
         },
-        apns: {
-          payload: {
-            aps: {
-              sound: 'default',
-              category: 'broadcast',
-              'mutable-content': 1
-            }
-          }
-        },
         data: {
           post_id: record.post_id || '',
-          type: record.type || ''
+          type: record.type || '',
+          link: `https://feconecta.vercel.app/feed?post=${record.post_id || ''}`
         },
         webpush: {
           fcm_options: {

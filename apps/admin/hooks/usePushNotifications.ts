@@ -1,9 +1,12 @@
-import { getToken, onMessage } from "firebase/messaging";
+import { getToken, onMessage, deleteToken } from "firebase/messaging";
 import { messaging } from "@/lib/firebase";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 
 export const usePushNotifications = () => {
+  const router = useRouter();
+
   const requestPermission = async (userId: string) => {
     if (!messaging || typeof window === 'undefined') return;
 
@@ -20,7 +23,15 @@ export const usePushNotifications = () => {
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         await navigator.serviceWorker.ready;
 
-        // 2. Obter o Token
+        // 2. Limpeza forçada e Obtenção do novo Token
+        try {
+          // Mata qualquer token antigo que o browser esteja segurando
+          await deleteToken(messaging);
+        } catch (e) {
+          console.log("Nenhum token prévio para deletar.");
+        }
+
+        // 3. Obter o Token
         const token = await getToken(messaging, { 
           vapidKey,
           serviceWorkerRegistration: registration
@@ -51,9 +62,19 @@ export const usePushNotifications = () => {
   const listenToForegroundMessages = () => {
     if (!messaging) return;
     onMessage(messaging, (payload) => {
-      console.log("Mensagem recebida:", payload);
-      toast(payload.notification?.title || "Notificação", {
-        description: payload.notification?.body,
+      console.log("Mensagem recebida em foreground:", payload);
+      
+      const title = payload.data?.title || payload.notification?.title || "FéConecta 📢";
+      const body = payload.data?.body || payload.notification?.body;
+      const postId = payload.data?.post_id;
+      const targetUrl = postId ? `/feed?post=${postId}` : '/feed';
+
+      toast(title, {
+        description: body,
+        action: {
+          label: "Ver agora",
+          onClick: () => router.push(targetUrl)
+        },
       });
     });
   };
