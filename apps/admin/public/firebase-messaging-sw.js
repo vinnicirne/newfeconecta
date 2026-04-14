@@ -14,10 +14,18 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// Background message - Data-only (Controle Total)
+// Background message - Híbrido (Melhor equilíbrio 2026)
 messaging.onBackgroundMessage((payload) => {
-  console.log('[SW] Background message received (data-only):', payload);
+  console.log('[SW] Mensagem recebida em background:', payload);
 
+  // Se já tem notification no payload, o navegador mostra sozinho.
+  // Não mostramos manualmente aqui para evitar duplicidade visual.
+  if (payload.notification) {
+    console.log('[SW] Notificação nativa detectada. O sistema cuidará da exibição.');
+    return;
+  }
+
+  // Fallback para data-only (raro)
   const notificationTitle = payload.data?.title || 'FéConecta 📢';
   const notificationOptions = {
     body: payload.data?.body || 'Você tem uma nova notificação!',
@@ -62,7 +70,6 @@ self.addEventListener('notificationclick', (event) => {
       })
       .catch((err) => {
         console.error('[SW] Erro no waitUntil:', err);
-        // Fallback forte
         if (clients.openWindow) return clients.openWindow(urlToOpen);
       })
   );

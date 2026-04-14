@@ -58,9 +58,11 @@ serve(async (req) => {
     const pushBody = {
       message: {
         token: profile.fcm_token,
-        data: {
+        notification: {
           title: 'FéConecta 📢',
           body: record.content || 'Você tem uma nova notificação!',
+        },
+        data: {
           post_id: record.post_id || '',
           type: record.type || '',
           link: targetUrl,
