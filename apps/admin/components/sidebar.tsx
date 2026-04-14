@@ -28,7 +28,8 @@ import {
   Cookie,
   Megaphone,
   Mic,
-  BookOpen
+  BookOpen,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
