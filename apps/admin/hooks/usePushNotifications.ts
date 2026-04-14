@@ -8,23 +8,24 @@ export const usePushNotifications = () => {
     if (!messaging || typeof window === 'undefined') return;
 
     try {
-      console.log("Iniciando fluxo de Push v2...");
+      console.log("Iniciando fluxo de Push v3...");
       
       const permission = await Notification.requestPermission();
-      console.log("Status da permissão:", permission);
       
       if (permission === 'granted') {
-        const rawVapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "BPgjTBrNjpljFvNZbvcC8VmDqF5cTHBXUkkcAhOU2Qt3ef_P-BGXdMeNkMMmXqXg8tTsbNnWWShra_sc8rplW5Q";
-        const vapidKey = rawVapidKey?.trim();
+        const vapidKey = process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY?.trim();
+
+        if (!vapidKey) {
+          console.error("ERRO: VAPID_KEY não configurada na Vercel/Env.");
+          toast.error("Erro de Configuração: VAPID_KEY ausente.");
+          return;
+        }
 
         // 1. Registrar o Service Worker explicitamente
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
-        
-        // 2. Esperar o SW estar pronto e ativo
         await navigator.serviceWorker.ready;
-        console.log("Service Worker registrado e pronto.");
 
-        // 3. Obter o Token
+        // 2. Obter o Token (O erro 400 morre aqui se a VAPID_KEY na Vercel estiver certa)
         const token = await getToken(messaging, { 
           vapidKey,
           serviceWorkerRegistration: registration
@@ -40,18 +41,16 @@ export const usePushNotifications = () => {
 
           if (error) throw error;
           
-          toast.success("Notificações Push ativadas!");
+          toast.success("Push ativado com sucesso!");
           return token;
         }
       }
     } catch (err: any) {
       console.error("Erro detalhado no Push:", err);
-      if (err.message?.includes('permission-denied')) {
-        toast.error("Você bloqueou as notificações no navegador.");
-      } else if (err.message?.includes('unauthorized')) {
-        toast.error("Erro 401: A API do Firebase ainda não foi habilitada totalmente.");
+      if (err.message?.includes('invalid-argument')) {
+        toast.error("Erro 400: A Chave VAPID na Vercel não combina com seu Projeto Firebase.");
       } else {
-        toast.error("Erro ao ativar Push. Verifique se não está em modo anônimo.");
+        toast.error("Erro ao ativar Push. Verifique a configuração.");
       }
     }
   };
