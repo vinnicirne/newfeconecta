@@ -5,9 +5,8 @@ import { JWT } from 'https://esm.sh/google-auth-library@8.7.0'
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
-const FIREBASE_PROJECT_ID = Deno.env.get('FIREBASE_PROJECT_ID')
-const FIREBASE_CLIENT_EMAIL = Deno.env.get('FIREBASE_CLIENT_EMAIL')
-const FIREBASE_PRIVATE_KEY = Deno.env.get('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n')
+// Carrega o JSON mestre configurado no Supabase Secrets
+const serviceAccount = JSON.parse(Deno.env.get('FIREBASE_SERVICE_ACCOUNT_KEY') || '{}')
 
 serve(async (req) => {
   try {
@@ -34,9 +33,9 @@ serve(async (req) => {
 
     // 3. Obter Access Token do Firebase via JWT
     const jwtClient = new JWT(
-      FIREBASE_CLIENT_EMAIL,
+      serviceAccount.client_email,
       undefined,
-      FIREBASE_PRIVATE_KEY,
+      serviceAccount.private_key,
       ['https://www.googleapis.com/auth/cloud-platform']
     )
     
@@ -48,8 +47,21 @@ serve(async (req) => {
       message: {
         token: profile.fcm_token,
         notification: {
-          title: 'Nova Atividade',
-          body: record.content || 'Você tem uma nova notificação no FéConecta!'
+          title: 'FéConecta 📢',
+          body: record.content || 'Você tem uma nova notificação no FéConecta!',
+        },
+        android: {
+          notification: {
+            sound: 'default',
+            priority: 'high',
+          }
+        },
+        apns: {
+          payload: {
+            aps: {
+              sound: 'default'
+            }
+          }
         },
         data: {
           post_id: record.post_id || '',
@@ -63,9 +75,9 @@ serve(async (req) => {
       }
     }
 
-    // 5. Enviar para a API do Firebase
+    // 5. Enviar para a API do Firebase (Usando o ID dinâmico do novo projeto)
     const fcmResponse = await fetch(
-      `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`,
+      `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`,
       {
         method: 'POST',
         headers: {

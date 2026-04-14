@@ -69,8 +69,9 @@ export default function AdminPushCenter() {
       // 2. Inserir notificações em massa (isso disparará o Trigger/Push)
       const notifications = profiles.map(p => ({
         recipient_id: p.id,
+        sender_id: '5034f23f-4197-4f1a-aa88-23e9fd26f1bf', // Perfil Oficial FéConecta
         type: 'broadcast',
-        content: `${title}: ${message}`,
+        content: `📢 ${title.toUpperCase()}\n\n${message}`,
         is_read: false
       }));
 
