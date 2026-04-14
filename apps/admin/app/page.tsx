@@ -20,7 +20,9 @@ import {
   Megaphone,
   Users,
   Mic,
-  BookOpen
+  BookOpen,
+  Sparkles,
+  MessageCircle
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -426,6 +428,12 @@ export default function RootPage() {
                     </DropdownMenuItem>
                   </Link>
 
+                  <Link href="/bible">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-emerald-500 hover:bg-emerald-500/5 transition-colors">
+                      <ScrollText className="w-4 h-4 mr-3" /> Bíblia Sagrada
+                    </DropdownMenuItem>
+                  </Link>
+
                   <Link href="/notes">
                     <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-amber-500 hover:bg-amber-500/5 transition-colors">
                       <BookOpen className="w-4 h-4 mr-3" /> Meu Diário
@@ -538,7 +546,9 @@ export default function RootPage() {
               </div>
            </Link>
            <nav className="space-y-1">
-              <button onClick={() => router.push('/')} className="w-full flex items-center gap-4 p-4 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</button>
+                             <button onClick={() => router.push('/')} className="w-full flex items-center gap-4 p-4 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</button>
+               <button onClick={() => router.push('/bible')} className="w-full flex items-center gap-4 p-4 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><ScrollText className="w-5 h-5" /> Bíblia Sagrada</button>
+
               <button onClick={() => router.push('/notes')} className="w-full flex items-center gap-4 p-4 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Meu Diário</button>
               <button onClick={() => router.push('/messages')} className="w-full flex items-center gap-4 p-4 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all"><MessageSquare className="w-5 h-5" /> Mensagens</button>
               <button onClick={() => router.push('/profile')} className="w-full flex items-center gap-4 p-4 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all"><Bookmark className="w-5 h-5" /> Salvos</button>
@@ -550,6 +560,36 @@ export default function RootPage() {
         <div className="w-full max-w-2xl mx-auto lg:mx-0">
 
         <LiveRoomsBar />
+
+        {/* VERSÍCULO DO DIA - ESTRATÉGIA DE VIRALIZAÇÃO */}
+        <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-1000 px-4 lg:px-0">
+           <div className="relative overflow-hidden rounded-[32px] bg-gradient-to-br from-whatsapp-teal to-emerald-700 p-8 shadow-2xl shadow-whatsapp-teal/20 group">
+              {/* Background Decor */}
+              <div className="absolute top-0 right-0 -mr-16 -mt-16 w-64 h-64 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-1000" />
+              
+              <div className="relative z-10 flex flex-col items-center text-center space-y-4">
+                 <div className="flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full">
+                    <Sparkles className="w-3 h-3 text-white animate-pulse" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Versículo do Dia</span>
+                 </div>
+                 
+                 <h2 className="text-xl md:text-2xl font-black text-white leading-tight font-outfit px-4 italic">
+                    "O Senhor é o meu pastor; de nada terei falta. Em verdes pastagens me faz repousar..."
+                 </h2>
+                 
+                 <p className="text-xs font-bold text-white/70 uppercase tracking-widest">Salmos 23:1-2</p>
+
+                 <div className="pt-2 w-full max-w-xs">
+                    <button 
+                      onClick={() => router.push('/bible?verse=sl23:1')}
+                      className="w-full py-4 bg-white text-whatsapp-teal rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:scale-[1.03] active:scale-95 transition-all flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4" /> Deus falou comigo!
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>
 
         <StoriesBar 
           storyGroups={storyGroups} 

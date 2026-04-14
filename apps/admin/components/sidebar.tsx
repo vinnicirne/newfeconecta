@@ -35,7 +35,9 @@ import { supabase } from "@/lib/supabase";
 
 const menuItems = [
   { name: "Feed Social", icon: Rss, href: "/" },
+  { name: "Deus Falou Comigo", icon: Sparkles, href: "/dfch" },
   { name: "Meu Diário", icon: BookOpen, href: "/notes" },
+  { name: "Bíblia Sagrada", icon: ScrollText, href: "/bible" },
   { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { name: "Usuários", icon: Users, href: "/admin/users" },

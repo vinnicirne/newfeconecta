@@ -52,14 +52,23 @@ serve(async (req) => {
     const tokenResponse = await jwtClient.getAccessToken()
     const accessToken = tokenResponse.token
 
-    // 4. Montar a mensagem Push - DATA-ONLY (controle total no Service Worker)
-    const targetUrl = `https://newfeconecta.vercel.app/feed?post=${record.post_id || ''}`;
+    // 4. Montar a mensagem Push - Inteligência de Links
+    let targetUrl = `https://newfeconecta.vercel.app/feed`;
+    
+    if (record.type === 'verse_day' || record.type === 'bible') {
+      const bibleRef = record.metadata?.bible_ref || '';
+      targetUrl = `https://newfeconecta.vercel.app/bible${bibleRef ? `?verse=${bibleRef}` : ''}`;
+    } else if (record.post_id) {
+      targetUrl = `https://newfeconecta.vercel.app/feed?post=${record.post_id}`;
+    } else if (record.metadata?.url) {
+      targetUrl = record.metadata.url;
+    }
 
     const pushBody = {
       message: {
         token: profile.fcm_token,
         notification: {
-          title: 'FéConecta 📢',
+          title: record.title || 'FéConecta 📢',
           body: record.content || 'Você tem uma nova notificação!',
         },
         data: {
@@ -72,8 +81,15 @@ serve(async (req) => {
           priority: 'high',
           notification: {
             channel_id: 'fcm_church_alerts',
+            icon: 'notification_icon',
+            color: '#00A884',
             sound: 'default',
             visibility: 'public'
+          }
+        },
+        webpush: {
+          fcm_options: {
+            link: targetUrl
           }
         }
       }

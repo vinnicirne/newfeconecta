@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye } from 'lucide-react';
+import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import CommentsSection from './CommentsSection';
 import { supabase } from '@/lib/supabase';
@@ -433,6 +433,14 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           >
             {isFollowing ? 'Seguindo' : 'Seguir'}
           </button>
+        )}
+
+        {/* SELO REVELAÇÃO (DFCH) */}
+        {(post.content?.startsWith('📖') || post.is_testimony) && (
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 rounded-full animate-in zoom-in duration-300">
+             <Sparkles className="w-3 h-3 text-whatsapp-teal dark:text-whatsapp-green animate-pulse" />
+             <span className="text-[10px] font-black uppercase tracking-widest text-whatsapp-teal dark:text-whatsapp-green whitespace-nowrap">Revelação</span>
+          </div>
         )}
 
         <DropdownMenu>

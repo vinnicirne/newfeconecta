@@ -14,7 +14,11 @@ import {
   Flame,
   ChevronRight,
   ShieldQuestion,
-  Star
+  Star,
+  Sparkles,
+  Home,
+  Mic,
+  Heart
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -38,10 +42,11 @@ export default function MobileMenu({ open, onClose, user }: MobileMenuProps) {
   if (!open) return null;
 
   const menuItems = [
+    { name: "Deus Falou", icon: Sparkles, href: "/dfch", color: "text-whatsapp-teal", bg: "bg-whatsapp-teal/10" },
     { name: "Meu Diário", icon: BookOpen, href: "/notes", color: "text-amber-500", bg: "bg-amber-500/10" },
+    { name: "Bíblia Sagrada", icon: ScrollText, href: "/bible", color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { name: "Meu Perfil", icon: UserSquare2, href: "/profile", color: "text-blue-500", bg: "bg-blue-500/10" },
-    { name: "Dashboard", icon: LayoutDashboard, href: "/admin", color: "text-whatsapp-teal", bg: "bg-whatsapp-teal/10" },
-    { name: "Favoritos", icon: Star, href: "/notes?filter=favorites", color: "text-red-500", bg: "bg-red-500/10" },
+    { name: "Dashboard", icon: LayoutDashboard, href: "/admin", color: "text-purple-500", bg: "bg-purple-500/10" },
   ];
 
   const legalItems = [

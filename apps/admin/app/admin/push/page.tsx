@@ -9,11 +9,13 @@ import {
   CheckCircle2, 
   AlertCircle,
   RefreshCw,
-  LayoutDashboard
+  LayoutDashboard,
+  BookOpen
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 
@@ -23,6 +25,8 @@ export default function AdminPushCenter() {
   const [sending, setSending] = useState(false);
   const [stats, setStats] = useState({ totalUsers: 0, sentLast24h: 0 });
   const { requestPermission, listenToForegroundMessages } = usePushNotifications();
+  const [verseRef, setVerseRef] = useState("");
+  const [pushType, setPushType] = useState<'broadcast' | 'verse_day'>('broadcast');
 
   useEffect(() => {
     const autoRegister = async () => {
@@ -39,8 +43,6 @@ export default function AdminPushCenter() {
 
   const loadStats = async () => {
     const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-    
-    // Simplificado para exemplo
     setStats({ 
       totalUsers: count || 0, 
       sentLast24h: 0 
@@ -70,8 +72,10 @@ export default function AdminPushCenter() {
       const notifications = profiles.map(p => ({
         recipient_id: p.id,
         sender_id: '5034f23f-4197-4f1a-aa88-23e9fd26f1bf', // Perfil Oficial FéConecta
-        type: 'broadcast',
-        content: `📢 ${title.toUpperCase()}\n\n${message}`,
+        type: pushType,
+        title: title,
+        content: message,
+        metadata: pushType === 'verse_day' ? { bible_ref: verseRef } : {},
         is_read: false
       }));
 
@@ -84,6 +88,7 @@ export default function AdminPushCenter() {
       toast.success(`Push enviado para ${profiles.length} usuários!`);
       setTitle("");
       setMessage("");
+      setVerseRef("");
     } catch (err: any) {
       console.error("Erro ao disparar push:", err);
       toast.error("Falha ao enviar: " + err.message);
@@ -118,24 +123,65 @@ export default function AdminPushCenter() {
           {/* Formulário Principal */}
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white dark:bg-whatsapp-darkLighter p-6 rounded-3xl border border-gray-100 dark:border-white/5 shadow-xl shadow-black/5">
+              
+              {/* SELETOR DE MODO */}
+              <div className="flex p-1.5 bg-gray-100 dark:bg-black/20 rounded-2xl mb-8">
+                <button 
+                  onClick={() => { setPushType('broadcast'); setTitle(""); }}
+                  className={cn(
+                    "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                    pushType === 'broadcast' ? "bg-white dark:bg-whatsapp-teal text-whatsapp-teal dark:text-white shadow-sm" : "text-gray-400"
+                  )}
+                >
+                  Comunicado Geral
+                </button>
+                <button 
+                  onClick={() => { setPushType('verse_day'); setTitle("📖 Promessa de Hoje"); }}
+                  className={cn(
+                    "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                    pushType === 'verse_day' ? "bg-white dark:bg-amber-500 text-amber-500 dark:text-white shadow-sm" : "text-gray-400"
+                  )}
+                >
+                  Versículo do Dia
+                </button>
+              </div>
+
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal">
-                  <Megaphone className="w-5 h-5" />
+                <div className={cn(
+                  "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
+                  pushType === 'verse_day' ? "bg-amber-500/10 text-amber-500" : "bg-whatsapp-teal/10 text-whatsapp-teal"
+                )}>
+                  {pushType === 'verse_day' ? <BookOpen className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
                 </div>
                 <div>
-                  <h3 className="font-bold">Novo Comunicado</h3>
-                  <p className="text-xs text-gray-500">Isso enviará um sinal push para todos os aparelhos ativos.</p>
+                  <h3 className="font-bold">{pushType === 'verse_day' ? "Compartilhar Palavra" : "Novo Comunicado"}</h3>
+                  <p className="text-xs text-gray-500">
+                    {pushType === 'verse_day' ? "Irá para a aba Bíblia ao clicar." : "Irá abrir o Feed inicial ao clicar."}
+                  </p>
                 </div>
               </div>
 
               <form onSubmit={handleBroadcast} className="space-y-4">
+                {pushType === 'verse_day' && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label className="text-xs font-bold uppercase text-gray-400 ml-1">Referência Bíblica (Link Profundo)</label>
+                    <input 
+                      type="text"
+                      value={verseRef}
+                      onChange={(e) => setVerseRef(e.target.value)}
+                      placeholder="Ex: sl23:1 ou mt5:1-12"
+                      className="w-full mt-1 px-4 py-3 bg-gray-50 dark:bg-black/20 border border-amber-500/20 rounded-2xl outline-none focus:ring-2 ring-amber-500/50 transition-all font-mono text-amber-600 dark:text-amber-400"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="text-xs font-bold uppercase text-gray-400 ml-1">Título do Alerta</label>
                   <input 
                     type="text"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Ex: 🎉 Novidade na FéConecta!"
+                    placeholder={pushType === 'verse_day' ? "Ex: 📖 Promessa para Você" : "Ex: 🎉 Novidade na FéConecta!"}
                     className="w-full mt-1 px-4 py-3 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl outline-none focus:ring-2 ring-whatsapp-teal/50 transition-all font-medium"
                   />
                 </div>
@@ -146,7 +192,7 @@ export default function AdminPushCenter() {
                     rows={4}
                     value={message}
                     onChange={(e) => setMessage(e.target.value)}
-                    placeholder="O que você deseja anunciar para a igreja hoje?"
+                    placeholder={pushType === 'verse_day' ? "O versículo do dia que será exibido no corpo do push..." : "O que você deseja anunciar para a igreja hoje?"}
                     className="w-full mt-1 px-4 py-3 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl outline-none focus:ring-2 ring-whatsapp-teal/50 transition-all font-medium resize-none"
                   />
                 </div>
@@ -154,7 +200,10 @@ export default function AdminPushCenter() {
                 <div className="pt-2">
                   <button 
                     disabled={sending}
-                    className="w-full py-4 bg-whatsapp-teal hover:bg-whatsapp-tealDark disabled:opacity-50 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-lg shadow-whatsapp-teal/20 transition-all active:scale-[0.98]"
+                    className={cn(
+                      "w-full py-4 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl transition-all active:scale-[0.98]",
+                      pushType === 'verse_day' ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/20" : "bg-whatsapp-teal hover:bg-whatsapp-tealDark shadow-whatsapp-teal/20"
+                    )}
                   >
                     {sending ? (
                       <>
@@ -164,7 +213,7 @@ export default function AdminPushCenter() {
                     ) : (
                       <>
                         <Send className="w-5 h-5" />
-                        Enviar Notificação Agora
+                        {pushType === 'verse_day' ? "Disparar Versículo" : "Enviar Notificação Agora"}
                       </>
                     )}
                   </button>
