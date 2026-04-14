@@ -94,9 +94,11 @@ export default function FeedPage() {
     const postId = urlParams.get('post');
     
     if (postId) {
-      // Se estamos vindo de uma notificação, garantimos que a câmera esteja FECHADA
+      // GARANTIA TOTAL: Se estamos vindo de notificação, NADA de câmera aberta.
       setShowStoryCreator(false);
       setMobilePostOpen(false);
+      setViewingStoryGroup(null);
+      setShowNotifications(false);
       
       if (posts.length > 0) {
         setTimeout(() => {

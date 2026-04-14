@@ -237,6 +237,8 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     }
   };
 
+  if (!open) return null;
+
   return (
     <div className="fixed inset-0 z-[10005] bg-black flex flex-col">
       <div className="flex-1 relative">
