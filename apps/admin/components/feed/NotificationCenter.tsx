@@ -150,7 +150,8 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
                 return groups.map((notif) => (
                   <div 
                     key={notif.id} 
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       onClose();
                       if (notif.post_id) router.push(`/feed?post=${notif.post_id}`);
                       else if (notif.type === 'follow') router.push(`/profile/${notif.sender?.username}`);
