@@ -499,7 +499,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
             </div>
 
             {/* Quick Reactions Bar */}
-            <div className="flex items-center justify-between w-full px-8 mb-4 max-w-sm">
+            <div className="flex items-center justify-between w-full px-8 mb-4 max-w-sm pointer-events-auto">
                {['🔥', '❤️', '🙌', '😂', '😮', '😢', '👏', '🎉'].map(emoji => (
                   <button 
                     key={emoji}
@@ -512,7 +512,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
             </div>
 
             {/* Input Row */}
-            <div className="w-full p-4 pb-8 flex items-center gap-3">
+            <div className="w-full p-4 pb-8 flex items-center gap-3 pointer-events-auto">
                <form onSubmit={handleSendComment} className="flex-1 relative">
                   <input 
                     id="story-comment-input"
@@ -537,7 +537,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
                   )}
                </form>
                <button 
-                  onClick={handleLike}
+                  onClick={(e) => { e.stopPropagation(); handleLike(); }}
                   className={cn(
                     "w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-75",
                     isLiked ? "bg-whatsapp-green text-whatsapp-dark" : "bg-white/10 text-white border border-white/10"
@@ -548,7 +548,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
 
                {currentUser && story.author_id === currentUser.id && (
                  <button 
-                   onClick={(e) => { e.stopPropagation(); handleHighlightToggle(); }}
+                    onClick={(e) => { e.stopPropagation(); handleHighlightToggle(); }}
                    className={cn(
                      "w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-75",
                      story.is_highlight ? "bg-amber-400 text-black shadow-[0_0_15px_rgba(251,191,36,0.5)]" : "bg-white/10 text-white border border-white/10"

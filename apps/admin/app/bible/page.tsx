@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Search, BookOpen, ChevronRight, ChevronLeft, 
-  MessageCircle, Heart, Send, ScrollText,
-  X, FileText, ChevronDown, Sparkles, Plus
+  Heart, Send, ScrollText,
+  X, FileText, ChevronDown, Sparkles, Plus, ChevronUp, Check, Columns3, Loader2, Highlighter, Eraser
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -15,92 +15,25 @@ import "moment/locale/pt-br";
 
 moment.locale("pt-br");
 
-// MAPA DE TRADUÇÃO PARA BIBLE-API.COM (Nomes em Inglês para URL)
-const BOOK_URL_NAMES: Record<string, string> = {
-  "gn": "genesis", "ex": "exodus", "lv": "leviticus", "nm": "numbers", "dt": "deuteronomy",
-  "js": "joshua", "jz": "judges", "rt": "ruth", "1sm": "1samuel", "2sm": "2samuel",
-  "1rs": "1kings", "2rs": "2kings", "1cr": "1chronicles", "2cr": "2chronicles",
-  "ez": "ezra", "ne": "nehemiah", "et": "esther", "jo": "job", "sl": "psalms",
-  "pv": "proverbs", "ec": "ecclesiastes", "ct": "songofsolomon", "is": "isaiah",
-  "jr": "jeremiah", "lm": "lamentations", "eze": "ezekiel", "dn": "daniel",
-  "os": "hosea", "jl": "joel", "am": "amos", "ob": "obadiah", "jn": "jonah",
-  "mq": "micah", "na": "nahum", "hc": "habakkuk", "sf": "zephaniah", "ag": "haggai",
-  "zc": "zechariah", "ml": "malachi",
-  "mt": "matthew", "mc": "mark", "lc": "lucas", "joo": "john", "at": "acts",
-  "rm": "romans", "1co": "1corinthians", "2co": "2corinthians", "gl": "galatians",
-  "ef": "ephesians", "fp": "philippians", "cl": "colossians", "1ts": "1thessalonians",
-  "2ts": "2thessalonians", "1tm": "1timothy", "2tm": "2timothy", "tt": "titus",
-  "fm": "philemon", "hb": "hebrews", "tg": "james", "1pe": "1peter", "2pe": "2peter",
-  "1jo": "1john", "2jo": "2john", "3jo": "3john", "jd": "jude", "ap": "revelation"
-};
+import { BIBLE_BOOKS } from "@/lib/bible-data";
 
-const BIBLE_BOOKS = [
-  { name: "Gênesis", abbrev: "gn", chapters: 50, testament: "VT" },
-  { name: "Êxodo", abbrev: "ex", chapters: 40, testament: "VT" },
-  { name: "Levítico", abbrev: "lv", chapters: 27, testament: "VT" },
-  { name: "Números", abbrev: "nm", chapters: 36, testament: "VT" },
-  { name: "Deuteronômio", abbrev: "dt", chapters: 34, testament: "VT" },
-  { name: "Josué", abbrev: "js", chapters: 24, testament: "VT" },
-  { name: "Juízes", abbrev: "jz", chapters: 21, testament: "VT" },
-  { name: "Rute", abbrev: "rt", chapters: 4, testament: "VT" },
-  { name: "1 Samuel", abbrev: "1sm", chapters: 31, testament: "VT" },
-  { name: "2 Samuel", abbrev: "2sm", chapters: 24, testament: "VT" },
-  { name: "1 Reis", abbrev: "1rs", chapters: 22, testament: "VT" },
-  { name: "2 Reis", abbrev: "2rs", chapters: 25, testament: "VT" },
-  { name: "1 Crônicas", abbrev: "1cr", chapters: 29, testament: "VT" },
-  { name: "2 Crônicas", abbrev: "2cr", chapters: 36, testament: "VT" },
-  { name: "Esdras", abbrev: "ez", chapters: 10, testament: "VT" },
-  { name: "Neemias", abbrev: "ne", chapters: 13, testament: "VT" },
-  { name: "Ester", abbrev: "et", chapters: 10, testament: "VT" },
-  { name: "Jó", abbrev: "jo", chapters: 42, testament: "VT" },
-  { name: "Salmos", abbrev: "sl", chapters: 150, testament: "VT" },
-  { name: "Provérbios", abbrev: "pv", chapters: 31, testament: "VT" },
-  { name: "Eclesiastes", abbrev: "ec", chapters: 12, testament: "VT" },
-  { name: "Cânticos", abbrev: "ct", chapters: 8, testament: "VT" },
-  { name: "Isaías", abbrev: "is", chapters: 66, testament: "VT" },
-  { name: "Jeremias", abbrev: "jr", chapters: 52, testament: "VT" },
-  { name: "Lamentações", abbrev: "lm", chapters: 5, testament: "VT" },
-  { name: "Ezequiel", abbrev: "eze", chapters: 48, testament: "VT" },
-  { name: "Daniel", abbrev: "dn", chapters: 12, testament: "VT" },
-  { name: "Oséias", abbrev: "os", chapters: 14, testament: "VT" },
-  { name: "Joel", abbrev: "jl", chapters: 3, testament: "VT" },
-  { name: "Amós", abbrev: "am", chapters: 9, testament: "VT" },
-  { name: "Obadias", abbrev: "ob", chapters: 1, testament: "VT" },
-  { name: "Jonas", abbrev: "jn", chapters: 4, testament: "VT" },
-  { name: "Miquéias", abbrev: "mq", chapters: 7, testament: "VT" },
-  { name: "Naum", abbrev: "na", chapters: 3, testament: "VT" },
-  { name: "Habacuque", abbrev: "hc", chapters: 3, testament: "VT" },
-  { name: "Sofonias", abbrev: "sf", chapters: 3, testament: "VT" },
-  { name: "Ageu", abbrev: "ag", chapters: 2, testament: "VT" },
-  { name: "Zacarias", abbrev: "zc", chapters: 14, testament: "VT" },
-  { name: "Malaquias", abbrev: "ml", chapters: 4, testament: "VT" },
-  { name: "Mateus", abbrev: "mt", chapters: 28, testament: "NT" },
-  { name: "Marcos", abbrev: "mc", chapters: 16, testament: "NT" },
-  { name: "Lucas", abbrev: "lc", chapters: 24, testament: "NT" },
-  { name: "João", abbrev: "joo", chapters: 21, testament: "NT" },
-  { name: "Atos", abbrev: "at", chapters: 28, testament: "NT" },
-  { name: "Romanos", abbrev: "rm", chapters: 16, testament: "NT" },
-  { name: "1 Coríntios", abbrev: "1co", chapters: 16, testament: "NT" },
-  { name: "2 Coríntios", abbrev: "2co", chapters: 13, testament: "NT" },
-  { name: "Gálatas", abbrev: "gl", chapters: 6, testament: "NT" },
-  { name: "Efésios", abbrev: "ef", chapters: 6, testament: "NT" },
-  { name: "Filipenses", abbrev: "fp", chapters: 4, testament: "NT" },
-  { name: "Colossenses", abbrev: "cl", chapters: 4, testament: "NT" },
-  { name: "1 Tessalonicenses", abbrev: "1ts", chapters: 5, testament: "NT" },
-  { name: "2 Tessalonicenses", abbrev: "2ts", chapters: 3, testament: "NT" },
-  { name: "1 Timóteo", abbrev: "1tm", chapters: 6, testament: "NT" },
-  { name: "2 Timóteo", abbrev: "2tm", chapters: 4, testament: "NT" },
-  { name: "Tito", abbrev: "tt", chapters: 3, testament: "NT" },
-  { name: "Filemom", abbrev: "fm", chapters: 1, testament: "NT" },
-  { name: "Hebreus", abbrev: "hb", chapters: 13, testament: "NT" },
-  { name: "Tiago", abbrev: "tg", chapters: 5, testament: "NT" },
-  { name: "1 Pedro", abbrev: "1pe", chapters: 5, testament: "NT" },
-  { name: "2 Pedro", abbrev: "2pe", chapters: 3, testament: "NT" },
-  { name: "1 João", abbrev: "1jo", chapters: 5, testament: "NT" },
-  { name: "2 João", abbrev: "2jo", chapters: 1, testament: "NT" },
-  { name: "3 João", abbrev: "3jo", chapters: 1, testament: "NT" },
-  { name: "Judas", abbrev: "jd", chapters: 1, testament: "NT" },
-  { name: "Apocalipse", abbrev: "ap", chapters: 22, testament: "NT" },
+const BIBLE_VERSIONS = [
+  { id: "nvi", name: "NVI", label: "Nova Versão Internacional", color: "#00A884" },
+  { id: "aa",  name: "AA",  label: "Almeida Atualizada",        color: "#f59e0b" },
+  { id: "acf", name: "ACF", label: "Almeida Corrigida Fiel",   color: "#6366f1" },
+];
+
+// Cache por versão
+const bibleCache: Record<string, any> = {};
+
+// Cores do marca-texto
+const HIGHLIGHT_COLORS = [
+  { id: "yellow",  bg: "rgba(250, 204, 21, 0.25)",  bgDark: "rgba(250, 204, 21, 0.15)",  dot: "#facc15", label: "Amarelo" },
+  { id: "green",   bg: "rgba(34, 197, 94, 0.20)",   bgDark: "rgba(34, 197, 94, 0.12)",   dot: "#22c55e", label: "Verde" },
+  { id: "blue",    bg: "rgba(59, 130, 246, 0.20)",   bgDark: "rgba(59, 130, 246, 0.12)",  dot: "#3b82f6", label: "Azul" },
+  { id: "pink",    bg: "rgba(236, 72, 153, 0.20)",   bgDark: "rgba(236, 72, 153, 0.12)",  dot: "#ec4899", label: "Rosa" },
+  { id: "orange",  bg: "rgba(249, 115, 22, 0.20)",   bgDark: "rgba(249, 115, 22, 0.12)",  dot: "#f97316", label: "Laranja" },
+  { id: "purple",  bg: "rgba(139, 92, 246, 0.20)",   bgDark: "rgba(139, 92, 246, 0.12)",  dot: "#8b5cf6", label: "Roxo" },
 ];
 
 interface Verse {
@@ -113,8 +46,11 @@ interface Interaction {
   verse_number: number;
   comment?: string;
   is_favorite?: boolean;
+  highlight_color?: string;
   created_at?: string;
 }
+
+
 
 export default function BiblePage() {
   const router = useRouter();
@@ -126,34 +62,82 @@ export default function BiblePage() {
   const [maxChapters, setMaxChapters] = useState<number>(50);
   const [verses, setVerses] = useState<Verse[]>([]);
   const [loading, setLoading] = useState(true);
-  
+  const [focusedVerse, setFocusedVerse] = useState<number | null>(null);
+  const [selectedVersion, setSelectedVersion] = useState(BIBLE_VERSIONS[0]);
+  const [showVersionPicker, setShowVersionPicker] = useState(false);
+  const versionPickerRef = useRef<HTMLDivElement>(null);
+
   const [showSelector, setShowSelector] = useState(false);
   const [selectorStep, setSelectorStep] = useState<'books' | 'chapters'>('books');
   const [activeTestamentTab, setActiveTestamentTab] = useState<'VT' | 'NT'>('VT');
   const [searchQuery, setSearchQuery] = useState("");
 
-  // A bible-api.com só tem a versão 'almeida' em PT
-  const selectedVersion = "almeida";
+  // Marca-texto
+  const [highlights, setHighlights] = useState<Record<number, string>>({});
+  const [highlightPickerVerse, setHighlightPickerVerse] = useState<number | null>(null);
+
+  // Close version picker when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (versionPickerRef.current && !versionPickerRef.current.contains(e.target as Node)) {
+        setShowVersionPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
-    fetchChapter();
-    fetchInteractions();
+    let cancelled = false;
+
+    async function loadData() {
+      await fetchChapter();
+      if (!cancelled) {
+        // Delay para evitar race condition no auth lock do Supabase
+        await new Promise(r => setTimeout(r, 100));
+        if (!cancelled) fetchInteractions();
+      }
+    }
+
+    loadData();
+    return () => { cancelled = true; };
+  }, [selectedBook, selectedChapter, selectedVersion]);
+
+  // Remove old highlight sync effect
+  useEffect(() => {
+    setHighlightPickerVerse(null);
   }, [selectedBook, selectedChapter]);
+
+  // Scroll to focused verse when loaded
+  useEffect(() => {
+    if (focusedVerse && verses.length > 0 && !loading) {
+      setTimeout(() => {
+        const el = document.getElementById(`verse-${focusedVerse}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 300);
+    }
+  }, [focusedVerse, verses, loading]);
 
   // Handle URL pre-fill for "Verse of the Day"
   useEffect(() => {
     const prefill = searchParams.get('verse'); // format sl23:1
     if (prefill) {
-      const match = prefill.match(/([a-z]+)(\d+)(?::(\d+))?/);
+      const match = prefill.match(/([a-z0-9]+)(\d+)(?::(\d+))?/i);
       if (match) {
-        const abbrev = match[1];
+        const abbrev = match[1].toLowerCase();
         const chapter = parseInt(match[2]);
+        const verseNum = match[3] ? parseInt(match[3]) : null;
         const book = BIBLE_BOOKS.find(b => b.abbrev === abbrev);
         if (book) {
           setSelectedBook(abbrev);
           setSelectedBookName(book.name);
           setSelectedChapter(chapter);
           setMaxChapters(book.chapters);
+          if (verseNum) {
+            setFocusedVerse(verseNum);
+          }
         }
       }
     }
@@ -162,27 +146,31 @@ export default function BiblePage() {
   async function fetchChapter() {
     try {
       setLoading(true);
-      // MAPPING PARA URL (Ex: gn -> genesis)
-      const apiBookName = BOOK_URL_NAMES[selectedBook] || selectedBook;
       
-      // NOVA URL: bible-api.com
-      const url = `https://bible-api.com/${apiBookName}+${selectedChapter}?translation=${selectedVersion}`;
-      const response = await fetch(url);
-      
-      if (!response.ok) throw new Error("API Offline");
-      
-      const data = await response.json();
-      if (data.verses) {
-        // Adaptando o formato da bible-api (verse -> number)
-        const mappedVerses = data.verses.map((v: any) => ({
-          number: v.verse,
-          text: v.text
+      const book = BIBLE_BOOKS.find(b => b.abbrev === selectedBook);
+      if (!book) return;
+
+      // Usar cache por versão ou buscar do JSON local
+      if (!bibleCache[selectedVersion.id]) {
+        const res = await fetch(`/bible/${selectedVersion.id}.json`);
+        if (!res.ok) throw new Error(`Falha ao carregar versão ${selectedVersion.name}`);
+        bibleCache[selectedVersion.id] = await res.json();
+      }
+
+      const bookData = bibleCache[selectedVersion.id].find((b: any) => b.abbrev === selectedBook);
+      if (bookData && bookData.chapters[selectedChapter - 1]) {
+        const chapterVerses = bookData.chapters[selectedChapter - 1];
+        const mappedVerses = chapterVerses.map((v: string, index: number) => ({
+          number: index + 1,
+          text: v
         }));
         setVerses(mappedVerses);
+      } else {
+        setVerses([]);
       }
     } catch (error) {
-      console.error("Erro na busca:", error);
-      // Removido toast de erro para não poluir a experiência do usuário
+      console.error("Erro ao carregar capítulos:", error);
+      toast.error("Erro ao carregar capítulos da bíblia local");
     } finally {
       setLoading(false);
     }
@@ -194,77 +182,110 @@ export default function BiblePage() {
   const [tempComment, setTempComment] = useState("");
 
   async function fetchInteractions() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      const user = session.user;
 
-    const { data } = await supabase
-      .from("bible_interactions")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("book_abbrev", selectedBook)
-      .eq("chapter", selectedChapter)
-      .order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("bible_interactions")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("book_abbrev", selectedBook)
+        .eq("chapter", selectedChapter)
+        .order("created_at", { ascending: false });
 
-    if (data) {
-      const notesMap: Record<string, Interaction[]> = {};
-      const favsMap: Record<string, boolean> = {};
-      
-      data.forEach(i => {
-        if (i.comment) {
-          if (!notesMap[i.verse_number]) notesMap[i.verse_number] = [];
-          notesMap[i.verse_number].push(i);
-        }
-        if (i.is_favorite) favsMap[i.verse_number] = true;
-      });
-      
-      setInteractions(notesMap);
-      setFavorites(favsMap);
+      if (error) throw error;
+
+      if (data) {
+        const notesMap: Record<string, Interaction[]> = {};
+        const favsMap: Record<string, boolean> = {};
+        const hlMap: Record<number, string> = {};
+        
+        data.forEach(i => {
+          if (i.comment) {
+            if (!notesMap[i.verse_number]) notesMap[i.verse_number] = [];
+            notesMap[i.verse_number].push(i);
+          }
+          if (i.is_favorite) favsMap[i.verse_number] = true;
+          if (i.highlight_color) hlMap[i.verse_number] = i.highlight_color;
+        });
+        
+        setInteractions(notesMap);
+        setFavorites(favsMap);
+        setHighlights(hlMap);
+      }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') return; // Ignorar erros de lock cancelado
+      console.warn("Biblia: Offline ou Erro de Auth nas interações", error);
     }
   }
 
+  // Ações Limpas e sem gambiarras fallback
   async function toggleFavorite(verse: Verse) {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+      
       const newState = !favorites[verse.number];
       
-      // Para favoritos, mantemos a lógica de um único registro ou atualizamos o mais recente
+      // Upsert limpo amparado pela constrait correta de BD: bible_interactions_user_verse_unique
       const { error } = await supabase.from("bible_interactions").upsert({
-        user_id: user.id,
+        user_id: session.user.id,
         book_abbrev: selectedBook,
         book_name: selectedBookName,
         chapter: selectedChapter,
         verse_number: verse.number,
         verse_text: verse.text,
         is_favorite: newState
-      }, { onConflict: 'user_id,book_abbrev,chapter,verse_number' }); // Tenta upsert se o constraint ainda existir
+      }, { onConflict: 'user_id,book_abbrev,chapter,verse_number' });
       
-      if (error) {
-        // Se falhar por causa da remoção do constraint, fazemos um insert simples
-        await supabase.from("bible_interactions").insert({
-          user_id: user.id,
-          book_abbrev: selectedBook,
-          book_name: selectedBookName,
-          chapter: selectedChapter,
-          verse_number: verse.number,
-          verse_text: verse.text,
-          is_favorite: newState
-        });
-      }
+      if (error) throw error;
 
       setFavorites({ ...favorites, [verse.number]: newState });
       toast.success(newState ? "Favoritado! ❤️" : "Removido");
-    } catch (error) { toast.error("Erro ao favoritar"); }
+    } catch (error) { 
+      toast.error("Erro ao favoritar"); 
+    }
+  }
+
+  async function updateHighlight(verse: Verse, color: string | null) {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
+
+      const { error } = await supabase.from("bible_interactions").upsert({
+        user_id: session.user.id,
+        book_abbrev: selectedBook,
+        book_name: selectedBookName,
+        chapter: selectedChapter,
+        verse_number: verse.number,
+        verse_text: verse.text,
+        highlight_color: color
+      }, { onConflict: 'user_id,book_abbrev,chapter,verse_number' });
+
+      if (error) throw error;
+
+      const newHighlights = { ...highlights };
+      if (color) {
+        newHighlights[verse.number] = color;
+      } else {
+        delete newHighlights[verse.number];
+      }
+      setHighlights(newHighlights);
+    } catch (error) {
+      toast.error("Erro ao salvar marcação");
+    }
   }
 
   async function saveComment() {
     if (!commentingVerse || !tempComment.trim()) return;
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) return;
 
-      const { data, error } = await supabase.from("bible_interactions").insert({
-        user_id: user.id,
+      const { data, error } = await supabase.from("bible_interactions").upsert({
+        user_id: session.user.id,
         book_abbrev: selectedBook,
         book_name: selectedBookName,
         chapter: selectedChapter,
@@ -272,7 +293,7 @@ export default function BiblePage() {
         verse_text: commentingVerse.text,
         comment: tempComment,
         created_at: new Date().toISOString()
-      }).select().single();
+      }, { onConflict: 'user_id,book_abbrev,chapter,verse_number' }).select().single();
 
       if (error) throw error;
       
@@ -318,6 +339,43 @@ export default function BiblePage() {
   const vtBooks = useMemo(() => BIBLE_BOOKS.filter(b => b.testament === "VT" && b.name.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery]);
   const ntBooks = useMemo(() => BIBLE_BOOKS.filter(b => b.testament === "NT" && b.name.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery]);
 
+  // ========== COMPARAÇÃO DE VERSÕES ==========
+  const [compareVerse, setCompareVerse] = useState<Verse | null>(null);
+  const [compareData, setCompareData] = useState<Record<string, string>>({});
+  const [compareLoading, setCompareLoading] = useState(false);
+
+  async function openCompare(verse: Verse) {
+    setCompareVerse(verse);
+    setCompareLoading(true);
+    setCompareData({});
+
+    try {
+      const texts: Record<string, string> = {};
+
+      for (const version of BIBLE_VERSIONS) {
+        // Carrega a versão se ainda não estiver em cache
+        if (!bibleCache[version.id]) {
+          const res = await fetch(`/bible/${version.id}.json`);
+          if (!res.ok) continue;
+          bibleCache[version.id] = await res.json();
+        }
+
+        const bookData = bibleCache[version.id]?.find((b: any) => b.abbrev === selectedBook);
+        if (bookData && bookData.chapters[selectedChapter - 1]) {
+          const verseText = bookData.chapters[selectedChapter - 1][verse.number - 1];
+          if (verseText) texts[version.id] = verseText;
+        }
+      }
+
+      setCompareData(texts);
+    } catch (error) {
+      console.error("Erro ao comparar versões:", error);
+      toast.error("Erro ao carregar versões para comparação");
+    } finally {
+      setCompareLoading(false);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#FDFDFD] dark:bg-[#0A0A0A] font-inter">
       
@@ -330,7 +388,6 @@ export default function BiblePage() {
              </div>
              <button 
                 onClick={() => { 
-                   // Decide qual tab abrir baseado no livro atual
                    const book = BIBLE_BOOKS.find(b => b.abbrev === selectedBook);
                    setActiveTestamentTab(book?.testament === 'NT' ? 'NT' : 'VT');
                    setSelectorStep('books'); 
@@ -344,6 +401,40 @@ export default function BiblePage() {
           </div>
 
           <div className="flex items-center gap-2">
+             {/* VERSION PICKER */}
+             <div className="relative" ref={versionPickerRef}>
+               <button
+                 onClick={() => setShowVersionPicker(v => !v)}
+                 className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all border"
+                 style={{ 
+                   color: selectedVersion.color,
+                   borderColor: `${selectedVersion.color}30`,
+                   backgroundColor: `${selectedVersion.color}10`
+                 }}
+               >
+                 {selectedVersion.name}
+                 {showVersionPicker ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+               </button>
+
+               {showVersionPicker && (
+                 <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-[#111] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
+                   {BIBLE_VERSIONS.map(v => (
+                     <button
+                       key={v.id}
+                       onClick={() => { setSelectedVersion(v); setShowVersionPicker(false); }}
+                       className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                     >
+                       <div className="text-left">
+                         <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: v.color }}>{v.name}</span>
+                         <p className="text-[10px] text-gray-400 mt-0.5">{v.label}</p>
+                       </div>
+                       {selectedVersion.id === v.id && <Check size={14} style={{ color: v.color }} />}
+                     </button>
+                   ))}
+                 </div>
+               )}
+             </div>
+
              <div className="flex items-center bg-gray-50 dark:bg-white/5 p-1 rounded-2xl border border-gray-100 dark:border-white/5">
                 <button 
                   onClick={() => { setActiveTestamentTab('VT'); setShowSelector(true); setSelectorStep('books'); }}
@@ -366,9 +457,6 @@ export default function BiblePage() {
              >
                 <Search size={20} />
              </button>
-             <div className="hidden sm:block px-3 py-1 bg-gray-50 dark:bg-white/5 rounded-xl text-[10px] font-black uppercase tracking-widest text-gray-500 line-clamp-1">
-               Versão Almeida
-             </div>
           </div>
         </div>
       </div>
@@ -405,14 +493,29 @@ export default function BiblePage() {
           loading ? "opacity-20 blur-md scale-95" : "opacity-100 blur-0 scale-100"
         )}>
            {verses.length > 0 ? verses.map((verse) => (
-             <div key={verse.number} className="group relative animate-in fade-in slide-in-from-bottom-6 duration-700">
+             <div 
+              id={`verse-${verse.number}`}
+              key={verse.number} 
+              className={cn(
+                "group relative animate-in fade-in slide-in-from-bottom-6 duration-700",
+                focusedVerse === verse.number && "ring-2 ring-whatsapp-teal ring-offset-8 dark:ring-offset-[#0A0A0A] rounded-[32px] transition-all duration-1000"
+              )}
+             >
                 <div className={cn(
                   "flex gap-4 md:gap-8 p-4 rounded-[32px] transition-all",
-                  interactions[verse.number]?.length > 0 && "bg-whatsapp-teal/[0.03] dark:bg-whatsapp-teal/[0.05] border border-whatsapp-teal/10"
-                )}>
-                   <div className="pt-1.5 flex-shrink-0">
-                      <span className={cn(
-                        "flex items-center justify-center w-8 h-8 md:w-9 md:h-9 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black transition-all border",
+                  !highlights[verse.number] && interactions[verse.number]?.length > 0 && "bg-whatsapp-teal/[0.03] dark:bg-whatsapp-teal/[0.05] border border-whatsapp-teal/10"
+                )}
+                style={highlights[verse.number] ? {
+                  backgroundColor: HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.bg,
+                  border: `1px solid ${HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.dot}30`
+                } : undefined}
+                >
+                   <div className="pt-1.5 flex-shrink-0 flex flex-col items-center gap-2">
+                       {focusedVerse === verse.number && (
+                         <span className="text-[7px] font-black bg-whatsapp-teal text-white px-1.5 py-0.5 rounded-full uppercase tracking-tighter animate-bounce">Dia</span>
+                       )}
+                       <span className={cn(
+                         "flex items-center justify-center w-8 h-8 md:w-9 md:h-9 rounded-xl md:rounded-2xl text-[10px] md:text-[11px] font-black transition-all border",
                         favorites[verse.number] 
                           ? "bg-amber-500 text-white border-amber-500 shadow-lg shadow-amber-500/30" 
                           : interactions[verse.number]?.length > 0
@@ -447,7 +550,64 @@ export default function BiblePage() {
                          <button onClick={() => shareToFeed(verse)} className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-whatsapp-teal">
                            <Send size={14} /> <span className="hidden xs:inline">No Feed</span>
                          </button>
-                      </div>
+                         <button onClick={() => openCompare(verse)} className="flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-violet-500">
+                           <Columns3 size={14} /> <span className="hidden xs:inline">Comparar</span>
+                         </button>
+                         <button 
+                           onClick={() => setHighlightPickerVerse(highlightPickerVerse === verse.number ? null : verse.number)} 
+                           className={cn(
+                             "flex items-center gap-1.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest",
+                             highlights[verse.number] ? "text-current" : "text-gray-400 hover:text-yellow-500"
+                           )}
+                           style={highlights[verse.number] ? { color: HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.dot } : undefined}
+                         >
+                           <Highlighter size={14} /> <span className="hidden xs:inline">Marcar</span>
+                         </button>
+                       </div>
+
+                       {/* PALETA DE CORES DO MARCA-TEXTO */}
+                       {highlightPickerVerse === verse.number && (
+                         <div className="flex items-center gap-2 mt-4 p-3 bg-white dark:bg-[#1a1a1a] rounded-2xl border border-gray-100 dark:border-white/10 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
+                           <span className="text-[9px] font-black uppercase tracking-widest text-gray-400 mr-1">Cor:</span>
+                           {HIGHLIGHT_COLORS.map(color => (
+                             <button
+                               key={color.id}
+                               onClick={() => {
+                                 if (highlights[verse.number] === color.id) {
+                                   updateHighlight(verse, null);
+                                 } else {
+                                   updateHighlight(verse, color.id);
+                                 }
+                                 setHighlightPickerVerse(null);
+                               }}
+                               className={cn(
+                                 "w-7 h-7 rounded-full transition-all hover:scale-125 flex items-center justify-center",
+                                 highlights[verse.number] === color.id ? "ring-2 ring-offset-2 ring-offset-white dark:ring-offset-[#1a1a1a] scale-110" : "hover:shadow-lg"
+                               )}
+                               style={{ 
+                                 backgroundColor: color.dot,
+                                 "--tw-ring-color": highlights[verse.number] === color.id ? color.dot : undefined
+                               } as React.CSSProperties}
+                               title={color.label}
+                             >
+                               {highlights[verse.number] === color.id && <Check size={12} className="text-white" />}
+                             </button>
+                           ))}
+                           {/* Botão apagar */}
+                           {highlights[verse.number] && (
+                             <button
+                               onClick={() => {
+                                 updateHighlight(verse, null);
+                                 setHighlightPickerVerse(null);
+                               }}
+                               className="w-7 h-7 rounded-full bg-gray-200 dark:bg-white/10 flex items-center justify-center hover:bg-red-100 dark:hover:bg-red-500/20 transition-all hover:scale-110"
+                               title="Remover destaque"
+                             >
+                               <Eraser size={12} className="text-gray-500" />
+                             </button>
+                           )}
+                         </div>
+                       )}
                    </div>
                 </div>
              </div>
@@ -521,6 +681,95 @@ export default function BiblePage() {
                  <button onClick={saveComment} className="w-full py-5 bg-whatsapp-teal text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-whatsapp-teal/30 hover:scale-[1.02] active:scale-95 transition-all">
                    Guardar Anotação de Hoje
                  </button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL COMPARAÇÃO DE VERSÕES */}
+      {compareVerse && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-[#111] w-full max-w-3xl rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 border border-white/5 flex flex-col max-h-[90vh]">
+              {/* Header */}
+              <div className="p-6 md:p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between flex-shrink-0">
+                 <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-violet-500/30">
+                       <Columns3 size={22} />
+                    </div>
+                    <div>
+                       <h3 className="font-black dark:text-white text-base">{selectedBookName} {selectedChapter}:{compareVerse.number}</h3>
+                       <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-0.5">Comparar Versões</p>
+                    </div>
+                 </div>
+                 <button onClick={() => setCompareVerse(null)} className="w-10 h-10 rounded-full bg-gray-50 dark:bg-white/5 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+                   <X size={20} className="text-gray-400" />
+                 </button>
+              </div>
+
+              {/* Conteúdo */}
+              <div className="p-6 md:p-8 overflow-y-auto space-y-5">
+                 {compareLoading ? (
+                   <div className="flex flex-col items-center justify-center py-16 gap-4">
+                     <Loader2 className="w-10 h-10 text-violet-500 animate-spin" />
+                     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Carregando versões...</p>
+                   </div>
+                 ) : (
+                   BIBLE_VERSIONS.map((version, idx) => (
+                     <div 
+                       key={version.id}
+                       className="relative p-6 rounded-[28px] border transition-all animate-in fade-in slide-in-from-bottom-4 duration-500"
+                       style={{ 
+                         animationDelay: `${idx * 100}ms`,
+                         borderColor: `${version.color}20`,
+                         backgroundColor: `${version.color}05`
+                       }}
+                     >
+                       {/* Version label */}
+                       <div className="flex items-center gap-3 mb-4">
+                         <span 
+                           className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest text-white"
+                           style={{ backgroundColor: version.color }}
+                         >
+                           {version.name}
+                         </span>
+                         <span className="text-[10px] text-gray-400 font-bold">{version.label}</span>
+                       </div>
+
+                       {/* Verse text */}
+                       <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-base md:text-lg font-medium tracking-tight">
+                         {compareData[version.id] || (
+                           <span className="text-gray-400 italic text-sm">Versículo não disponível nesta versão</span>
+                         )}
+                       </p>
+
+                       {/* Active indicator */}
+                       {selectedVersion.id === version.id && (
+                         <div className="absolute top-4 right-4 flex items-center gap-1.5">
+                           <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: version.color }} />
+                           <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: version.color }}>Atual</span>
+                         </div>
+                       )}
+                     </div>
+                   ))
+                 )}
+              </div>
+
+              {/* Footer */}
+              <div className="p-6 md:p-8 pt-0 flex-shrink-0">
+                 <div className="flex gap-3">
+                   <button 
+                     onClick={() => { 
+                       const allTexts = BIBLE_VERSIONS.map(v => 
+                         `📖 ${v.name} — ${selectedBookName} ${selectedChapter}:${compareVerse.number}\n"${compareData[v.id] || 'N/A'}"`
+                       ).join('\n\n');
+                       navigator.clipboard.writeText(allTexts);
+                       toast.success("Comparação copiada! 📋");
+                     }}
+                     className="flex-1 py-4 bg-gradient-to-r from-violet-500 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-violet-500/20 hover:scale-[1.02] active:scale-95 transition-all"
+                   >
+                     Copiar Todas as Versões
+                   </button>
+                 </div>
               </div>
            </div>
         </div>

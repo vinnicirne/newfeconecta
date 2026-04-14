@@ -1,14 +1,23 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { 
-  Search, ArrowLeft, Filter, BookOpen, 
+  Search, ArrowLeft, BookOpen, 
   ChevronRight, Sparkles, BarChart3, 
-  Book, ScrollText, X, History
+  X, ChevronDown, ChevronUp, Check
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { BIBLE_BOOKS } from "@/lib/bible-data";
+
+const BIBLE_VERSIONS = [
+  { id: "nvi", name: "NVI", label: "Nova Versão Internacional", color: "#00A884" },
+  { id: "aa",  name: "AA",  label: "Almeida Atualizada",        color: "#f59e0b" },
+  { id: "acf", name: "ACF", label: "Almeida Corrigida Fiel",   color: "#6366f1" },
+];
+
+const bibleCache: Record<string, any> = {};
 
 export default function BibleSearchPage() {
   const router = useRouter();
@@ -17,40 +26,74 @@ export default function BibleSearchPage() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState({ total: 0, vt: 0, nt: 0 });
   const [activeTestament, setActiveTestament] = useState<'all' | 'VT' | 'NT'>('all');
+  const [selectedVersion, setSelectedVersion] = useState(BIBLE_VERSIONS[0]);
+  const [showVersionPicker, setShowVersionPicker] = useState(false);
+  const versionPickerRef = useRef<HTMLDivElement>(null);
 
-  // Simulação de busca enquanto configuramos o motor real
-  // Em uma implementação real, usaríamos um endpoint de busca global
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (versionPickerRef.current && !versionPickerRef.current.contains(e.target as Node)) {
+        setShowVersionPicker(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   async function handleSearch(e: React.FormEvent) {
-    e.preventDefault();
-    if (query.trim().length < 3) {
+    if (e) e.preventDefault();
+    const queryTrimmed = query.trim().toLocaleLowerCase('pt-BR');
+    
+    if (queryTrimmed.length < 3) {
       toast.error("Digite pelo menos 3 letras para buscar");
       return;
     }
 
     try {
       setLoading(true);
-      // Aqui chamaremos a API de busca. Ex: A Bíblia Digital Search
-      // Por enquanto, vamos simular os resultados e as estatísticas solicitadas pelo usuário
       
-      // Simulação de delay de rede
-      await new Promise(r => setTimeout(r, 800));
+      if (!bibleCache[selectedVersion.id]) {
+        const res = await fetch(`/bible/${selectedVersion.id}.json`);
+        if (!res.ok) throw new Error(`Falha ao carregar versão ${selectedVersion.name}`);
+        bibleCache[selectedVersion.id] = await res.json();
+      }
 
-      // Simulando lógica de contagem (Exemplo do usuário: jejum)
-      // No mundo real, os dados viriam do backend/API
-      const mockTotal = query.toLowerCase() === "jejum" ? 3062 : Math.floor(Math.random() * 500);
-      const mockNT = Math.floor(mockTotal * 0.3);
-      const mockVT = mockTotal - mockNT;
+      const allResults: any[] = [];
+      let vtCount = 0;
+      let ntCount = 0;
 
-      setStats({ total: mockTotal, vt: mockVT, nt: mockNT });
-      
-      // Simulando alguns versículos encontrados
-      setResults([
-        { book: "Mateus", chapter: 4, verse: 2, text: "E, depois de jejuar quarenta dias e quarenta noites, teve fome.", testament: "NT" },
-        { book: "Isaías", chapter: 58, verse: 6, text: "Porventura não é este o jejum que escolhi, que soltes as ligaduras da impiedade...", testament: "VT" },
-        { book: "Joel", chapter: 2, verse: 12, text: "Ainda assim, agora mesmo diz o Senhor: Convertei-vos a mim de todo o vosso coração; e isso com jejuns...", testament: "VT" },
-      ]);
+      bibleCache[selectedVersion.id].forEach((bookData: any) => {
+        const bookMeta = BIBLE_BOOKS.find(b => b.abbrev === bookData.abbrev);
+        if (!bookMeta) return;
+
+        bookData.chapters.forEach((chapterVerses: string[], cIdx: number) => {
+          chapterVerses.forEach((verseText: string, vIdx: number) => {
+            if (verseText.toLocaleLowerCase('pt-BR').includes(queryTrimmed)) {
+              allResults.push({
+                book: bookMeta.name,
+                bookAbbrev: bookMeta.abbrev,
+                chapter: cIdx + 1,
+                verse: vIdx + 1,
+                text: verseText,
+                testament: bookMeta.testament
+              });
+              
+              if (bookMeta.testament === 'VT') vtCount++;
+              else ntCount++;
+            }
+          });
+        });
+      });
+
+      setStats({ total: allResults.length, vt: vtCount, nt: ntCount });
+      setResults(allResults);
+
+      if (allResults.length === 0) {
+        toast.info("Nenhum versículo encontrado");
+      }
 
     } catch (error) {
+      console.error("Erro ao pesquisar:", error);
       toast.error("Erro ao realizar busca");
     } finally {
       setLoading(false);
@@ -62,21 +105,21 @@ export default function BibleSearchPage() {
       
       {/* HEADER BUSCA */}
       <div className="sticky top-0 z-50 bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5">
-        <div className="max-w-4xl mx-auto px-4 h-20 flex items-center gap-4">
+        <div className="max-w-4xl mx-auto px-4 h-20 flex items-center gap-3">
            <button 
             onClick={() => router.back()}
-            className="w-10 h-10 rounded-2xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+            className="w-10 h-10 rounded-2xl flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 transition-all flex-shrink-0"
            >
              <ArrowLeft className="w-5 h-5 dark:text-white" />
            </button>
            
            <form onSubmit={handleSearch} className="flex-1 relative">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5 focus-within:text-whatsapp-teal transition-colors" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
               <input 
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Busque por palavras ou referências (Ex: Amor, João 3:16)"
+                placeholder="Buscar palavra, ex: amor, fé, paz..."
                 className="w-full bg-gray-100 dark:bg-white/5 p-4 pl-12 rounded-[20px] outline-none dark:text-white font-bold placeholder:text-gray-400 focus:ring-2 ring-whatsapp-teal/20 transition-all shadow-inner"
               />
               {query && (
@@ -89,12 +132,46 @@ export default function BibleSearchPage() {
                 </button>
               )}
            </form>
+
+           {/* VERSION PICKER */}
+           <div className="relative flex-shrink-0" ref={versionPickerRef}>
+             <button
+               onClick={() => setShowVersionPicker(v => !v)}
+               className="flex items-center gap-1.5 px-3 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all border"
+               style={{ 
+                 color: selectedVersion.color,
+                 borderColor: `${selectedVersion.color}30`,
+                 backgroundColor: `${selectedVersion.color}10`
+               }}
+             >
+               {selectedVersion.name}
+               {showVersionPicker ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+             </button>
+
+             {showVersionPicker && (
+               <div className="absolute right-0 top-full mt-2 z-50 bg-white dark:bg-[#111] rounded-[24px] shadow-2xl border border-gray-100 dark:border-white/10 overflow-hidden min-w-[200px] animate-in fade-in zoom-in-95 duration-200">
+                 {BIBLE_VERSIONS.map(v => (
+                   <button
+                     key={v.id}
+                     onClick={() => { setSelectedVersion(v); setShowVersionPicker(false); setResults([]); }}
+                     className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+                   >
+                     <div className="text-left">
+                       <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: v.color }}>{v.name}</span>
+                       <p className="text-[10px] text-gray-400 mt-0.5">{v.label}</p>
+                     </div>
+                     {selectedVersion.id === v.id && <Check size={14} style={{ color: v.color }} />}
+                   </button>
+                 ))}
+               </div>
+             )}
+           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8 pb-32">
         
-        {/* DASHBOARD DE ESTATÍSTICAS (O CORAÇÃO DA SOLICITAÇÃO) */}
+        {/* DASHBOARD DE ESTATÍSTICAS */}
         {results.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-10 animate-in fade-in slide-in-from-top-4 duration-700">
              <div className="bg-gradient-to-br from-whatsapp-teal to-emerald-700 p-6 rounded-[32px] shadow-xl shadow-whatsapp-teal/20 text-white relative overflow-hidden group">
@@ -148,7 +225,7 @@ export default function BibleSearchPage() {
                 activeTestament === 'all' ? "bg-black dark:bg-white text-white dark:text-black" : "bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-gray-200"
               )}
              >
-               Todos
+                Todos
              </button>
              <button 
               onClick={() => setActiveTestament('VT')}
@@ -157,7 +234,7 @@ export default function BibleSearchPage() {
                 activeTestament === 'VT' ? "bg-amber-500 text-white" : "bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-gray-200"
               )}
              >
-               Antigo Testamento
+                Antigo Testamento
              </button>
              <button 
               onClick={() => setActiveTestament('NT')}
@@ -166,7 +243,7 @@ export default function BibleSearchPage() {
                 activeTestament === 'NT' ? "bg-blue-500 text-white" : "bg-gray-100 dark:bg-white/5 text-gray-500 hover:bg-gray-200"
               )}
              >
-               Novo Testamento
+                Novo Testamento
              </button>
           </div>
         )}
@@ -186,7 +263,7 @@ export default function BibleSearchPage() {
               .map((result, idx) => (
                <div 
                 key={idx} 
-                onClick={() => router.push(`/bible?verse=${result.book.toLowerCase()}${result.chapter}:${result.verse}`)}
+                onClick={() => router.push(`/bible?verse=${result.bookAbbrev}${result.chapter}:${result.verse}`)}
                 className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-gray-100 dark:border-white/5 hover:border-whatsapp-teal transition-all group cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-95"
                >
                   <div className="flex items-center justify-between mb-4">
@@ -199,7 +276,7 @@ export default function BibleSearchPage() {
                     {result.text}
                   </p>
                </div>
-             ))
+              ))
            ) : (
              <div className="py-32 text-center space-y-6">
                 <div className="w-24 h-24 bg-gray-100 dark:bg-white/5 rounded-[40px] flex items-center justify-center mx-auto text-gray-300">

@@ -41,6 +41,7 @@ const menuItems = [
   { name: "Bíblia Sagrada", icon: ScrollText, href: "/bible" },
   { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
+  { name: "Versículo do Dia", icon: Sparkles, href: "/admin/daily-verse" },
   { name: "Usuários", icon: Users, href: "/admin/users" },
   { name: "Salas de Guerra", icon: Mic, href: "/admin/rooms" },
   { name: "Verificações", icon: ShieldCheck, href: "/admin/verifications" },
