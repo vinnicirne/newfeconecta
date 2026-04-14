@@ -102,8 +102,33 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
   const handleGallery = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("O vídeo é muito pesado! Máximo 15MB.");
+      return;
+    }
+
     try {
       const isVideo = file.type.startsWith('video');
+      
+      if (isVideo) {
+        const isValid = await new Promise((resolve) => {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.onloadedmetadata = () => {
+            window.URL.revokeObjectURL(v.src);
+            resolve(v.duration <= 90);
+          };
+          v.onerror = () => resolve(false);
+          v.src = URL.createObjectURL(file);
+        });
+
+        if (!isValid) {
+          toast.error("O vídeo é muito longo! Máximo 90 segundos.");
+          return;
+        }
+      }
+
       const media_url = await uploadMedia(file, isVideo ? 'videos' : 'images');
       const userId = user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731";
       const payload = {

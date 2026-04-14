@@ -99,7 +99,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
     
     try {
-      const recorder = new MediaRecorder(streamRef.current, { mimeType, videoBitsPerSecond: 1000000 });
+      // Bitrate de 1Mbps para Stories (Equilibrio perfeito entre peso e nitidez)
+      const recorder = new MediaRecorder(streamRef.current, { 
+        mimeType, 
+        videoBitsPerSecond: 1000000 
+      });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
@@ -131,8 +135,8 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 50 * 1024 * 1024) { // 50MB limit
-      toast.error("Arquivo muito grande. Limite de 50MB.");
+    if (file.size > 15 * 1024 * 1024) { // 15MB limit
+      toast.error("O vídeo é muito pesado! Máximo 15MB.");
       return;
     }
 
@@ -142,6 +146,24 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (!type) {
       toast.error("Formato não suportado. Use fotos ou vídeos.");
       return;
+    }
+
+    if (type === 'video') {
+       const isValid = await new Promise((resolve) => {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.onloadedmetadata = () => {
+             window.URL.revokeObjectURL(v.src);
+             resolve(v.duration <= 30);
+          };
+          v.onerror = () => resolve(false);
+          v.src = URL.createObjectURL(file);
+       });
+
+       if (!isValid) {
+          toast.error("Stories devem ter no máximo 30 segundos.");
+          return;
+       }
     }
 
     const url = URL.createObjectURL(file);

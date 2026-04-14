@@ -150,10 +150,35 @@ export default function CreatePost({ user, onPostCreated }: any) {
   const [pendingMedia, setPendingMedia] = useState<any>(null);
   const [caption, setCaption] = useState("");
 
-  const handleGallery = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGallery = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > 15 * 1024 * 1024) {
+      toast.error("O vídeo é muito pesado! Máximo 15MB.");
+      return;
+    }
+
     const type = file.type.startsWith('video') ? 'video' : 'image';
+    
+    if (type === 'video') {
+       const isValid = await new Promise((resolve) => {
+          const v = document.createElement('video');
+          v.preload = 'metadata';
+          v.onloadedmetadata = () => {
+            window.URL.revokeObjectURL(v.src);
+            resolve(v.duration <= 90);
+          };
+          v.onerror = () => resolve(false);
+          v.src = URL.createObjectURL(file);
+       });
+
+       if (!isValid) {
+         toast.error("O vídeo é muito longo! Máximo 90 segundos.");
+         return;
+       }
+    }
+
     const url = URL.createObjectURL(file);
     setPendingMedia({ file, type, url });
   };
