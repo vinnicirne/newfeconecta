@@ -39,13 +39,22 @@ export const usePushNotifications = () => {
 
         if (token) {
           console.log("Token gerado com sucesso no novo projeto:", token);
-          
+          // Salvar no Supabase
+          console.log('Tentando salvar token no perfil do usuário:', userId);
           const { error } = await supabase
             .from('profiles')
-            .update({ fcm_token: token, push_notifications_enabled: true })
+            .update({ 
+              fcm_token: token,
+              push_notifications_enabled: true 
+            })
             .eq('id', userId);
 
-          if (error) throw error;
+          if (error) {
+            console.error('ERRO AO SALVAR TOKEN NO BANCO:', error);
+            throw error;
+          }
+          
+          console.log('✅ TOKEN SINCRONIZADO COM SUCESSO NO BANCO DE DADOS!');
           
           toast.success("Notificações Push ativadas com sucesso!");
           return token;
