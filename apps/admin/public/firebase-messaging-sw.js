@@ -37,16 +37,22 @@ messaging.onBackgroundMessage((payload) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const urlToOpen = event.notification.data?.link || '/';
+  
+  // Extrai o link dos dados ou define a home como fallback
+  const urlToOpen = event.notification.data?.link || 'https://feconecta.vercel.app/';
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // 1. Tentar achar uma aba que já pertença ao nosso domínio
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        if (client.url === urlToOpen && 'focus' in client) {
-          return client.focus();
+        // Se acharmos QUALQUER aba da FéConecta, usamos ela
+        if (client.url.includes('feconecta.vercel.app') && 'focus' in client) {
+          return client.navigate(urlToOpen).then(c => c.focus());
         }
       }
+      
+      // 2. Se não houver nenhuma aba aberta, abre uma nova
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
