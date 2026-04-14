@@ -15,14 +15,26 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import Link from "next/link";
 
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+
 export default function AdminPushCenter() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [stats, setStats] = useState({ totalUsers: 0, sentLast24h: 0 });
+  const { requestPermission, listenToForegroundMessages } = usePushNotifications();
 
   useEffect(() => {
-    loadStats();
+    const autoRegister = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await requestPermission(user.id);
+        listenToForegroundMessages();
+        loadStats();
+      }
+    };
+    
+    autoRegister();
   }, []);
 
   const loadStats = async () => {
