@@ -27,13 +27,15 @@ import {
   ScrollText,
   Cookie,
   Megaphone,
-  Mic
+  Mic,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
 const menuItems = [
   { name: "Feed Social", icon: Rss, href: "/" },
+  { name: "Meu Diário", icon: BookOpen, href: "/notes" },
   { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { name: "Usuários", icon: Users, href: "/admin/users" },

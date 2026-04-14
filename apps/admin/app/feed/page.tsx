@@ -11,7 +11,8 @@ import {
   RefreshCw,
   Flame,
   LayoutGrid,
-  List
+  List,
+  Menu
 } from "lucide-react";
 import CreatePost from "@/components/feed/CreatePost";
 import PostCard from "@/components/feed/PostCard";
@@ -20,6 +21,7 @@ import StoryCreator from "@/components/feed/StoryCreator";
 import StoryViewer from "@/components/feed/StoryViewer";
 import MobilePostSheet from "@/components/feed/MobilePostSheet";
 import NotificationCenter from "@/components/feed/NotificationCenter";
+import MobileMenu from "@/components/feed/MobileMenu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
@@ -34,6 +36,7 @@ export default function FeedPage() {
   const [mobilePostOpen, setMobilePostOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -243,9 +246,12 @@ export default function FeedPage() {
       {/* Search & Top Bar (Mobile Only Style Header) */}
       <div className="sticky top-0 z-40 bg-white/80 dark:bg-whatsapp-dark/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5 p-4 flex items-center justify-between">
          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal">
-               <Flame className="w-6 h-6 fill-whatsapp-teal" />
-            </div>
+            <button 
+              onClick={() => setShowMobileMenu(true)}
+              className="w-10 h-10 rounded-2xl bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal active:scale-90 transition-transform"
+            >
+               <Menu className="w-6 h-6" />
+            </button>
             <h1 className="text-xl font-black dark:text-white tracking-tight">FéConecta</h1>
          </div>
          <div className="flex items-center gap-2">
@@ -352,6 +358,12 @@ export default function FeedPage() {
           setUnreadCount(0);
         }} 
         userId={currentUser?.id}
+      />
+
+      <MobileMenu 
+        open={showMobileMenu} 
+        onClose={() => setShowMobileMenu(false)} 
+        user={currentUser}
       />
     </div>
   );

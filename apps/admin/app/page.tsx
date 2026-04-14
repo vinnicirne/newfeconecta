@@ -19,7 +19,8 @@ import {
   Cookie,
   Megaphone,
   Users,
-  Mic
+  Mic,
+  BookOpen
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -425,6 +426,12 @@ export default function RootPage() {
                     </DropdownMenuItem>
                   </Link>
 
+                  <Link href="/notes">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-amber-500 hover:bg-amber-500/5 transition-colors">
+                      <BookOpen className="w-4 h-4 mr-3" /> Meu Diário
+                    </DropdownMenuItem>
+                  </Link>
+
                   <Link href="/room">
                     <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-red-500 hover:bg-red-500/5 transition-colors">
                       <Mic className="w-4 h-4 mr-3" /> Sala de Guerra
@@ -532,6 +539,7 @@ export default function RootPage() {
            </Link>
            <nav className="space-y-1">
               <button onClick={() => router.push('/')} className="w-full flex items-center gap-4 p-4 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</button>
+              <button onClick={() => router.push('/notes')} className="w-full flex items-center gap-4 p-4 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Meu Diário</button>
               <button onClick={() => router.push('/messages')} className="w-full flex items-center gap-4 p-4 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all"><MessageSquare className="w-5 h-5" /> Mensagens</button>
               <button onClick={() => router.push('/profile')} className="w-full flex items-center gap-4 p-4 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all"><Bookmark className="w-5 h-5" /> Salvos</button>
               <button onClick={() => router.push('/room')} className="w-full flex items-center gap-4 p-4 text-red-500 bg-red-500/5 rounded-2xl font-bold transition-all"><Mic className="w-5 h-5" /> Sala de Guerra</button>
