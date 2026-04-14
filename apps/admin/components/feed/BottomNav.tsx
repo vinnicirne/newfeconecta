@@ -8,7 +8,8 @@ import {
   PlusSquare, 
   PlaySquare, 
   Mic, 
-  UserCircle2 
+  UserCircle2,
+  Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import MobilePostSheet from "./MobilePostSheet";
@@ -35,7 +36,7 @@ export default function BottomNav() {
     { icon: Home, href: "/", label: "Home" },
     { icon: Mic, href: "/room", label: "Guerra" },
     { icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
-    { icon: PlaySquare, href: "/lumes", label: "Lumes" },
+    { icon: Bell, href: "/notifications", label: "Notificações" },
     { icon: UserCircle2, href: "/profile", label: "Perfil" },
   ];
 
