@@ -19,7 +19,15 @@ serve(async (req) => {
     // 1. Inicializa o cliente Supabase Administrador
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
-    // 2. Busca o fcm_token do destinatário
+    // 2. Verificação de Segurança (Nuclear)
+    if (!serviceAccount.client_email || !serviceAccount.private_key) {
+      console.error('ERRO: FIREBASE_SERVICE_ACCOUNT_KEY incompleta ou mal formatada!');
+      return new Response(JSON.stringify({ error: 'Configuração do Firebase ausente no servidor' }), { status: 500 })
+    }
+
+    console.log('Autenticando como:', serviceAccount.client_email);
+
+    // 2.5 Busca o fcm_token do destinatário
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('fcm_token, full_name')
@@ -32,34 +40,40 @@ serve(async (req) => {
     }
 
     // 3. Obter Access Token do Firebase via JWT
+    const privateKey = serviceAccount.private_key.replace(/\\n/g, '\n')
+    
     const jwtClient = new JWT(
       serviceAccount.client_email,
       undefined,
-      serviceAccount.private_key,
+      privateKey,
       ['https://www.googleapis.com/auth/cloud-platform']
     )
     
     const tokenResponse = await jwtClient.getAccessToken()
     const accessToken = tokenResponse.token
 
-    // 4. Montar a mensagem Push (Formato FCM v1)
+    // 4. Montar a mensagem Push (Formato FCM v1 de Alta Prioridade)
     const pushBody = {
       message: {
         token: profile.fcm_token,
         notification: {
           title: 'FéConecta 📢',
-          body: record.content || 'Você tem uma nova notificação no FéConecta!',
+          body: record.content || 'Você tem uma nova notificação!',
         },
         android: {
+          priority: 'high',
           notification: {
+            channel_id: 'default',
             sound: 'default',
-            priority: 'high',
+            visibility: 'public'
           }
         },
         apns: {
           payload: {
             aps: {
-              sound: 'default'
+              sound: 'default',
+              category: 'broadcast',
+              'mutable-content': 1
             }
           }
         },
