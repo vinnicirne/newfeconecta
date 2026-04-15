@@ -85,10 +85,14 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     post.media_type === 'audio' ||
     post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
 
-  // Vídeo
   const isVideo = post.post_type === 'video' ||
     post.media_type === 'video' ||
     post.media_url?.match(/\.(mp4|webm|mov|mkv)/i);
+
+  const isShortText = post.content && post.content.length < 90 && !post.content.includes('\n') && !post.media_url;
+  const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
+  const hasExternalMedia = !!urlMatch;
+  const isMediaPost = !!(post.media_url || isVideo || isAudio || hasExternalMedia);
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -670,10 +674,12 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
       {/* Legenda (Abaixo da Mídia) */}
       {post.content && (
-        <div className="px-4 pb-3 pt-0 -mt-1.5">
+        <div className={cn("px-4", !isMediaPost ? "py-10" : "pb-3 pt-0 -mt-1.5")}>
           <div
             className={cn(
-              "text-[15.2px] leading-tight whitespace-pre-wrap break-words transition-all mb-1 text-left",
+              isShortText ? "text-[24px] font-black leading-[1.1] tracking-tight" : "text-[17px] font-medium leading-relaxed",
+              "whitespace-pre-wrap break-words transition-all mb-1",
+              isMediaPost ? "text-left" : "text-center",
               post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
             )}
             style={{ background: post.background || undefined }}
