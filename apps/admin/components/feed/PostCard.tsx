@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote, Volume2, VolumeX } from 'lucide-react';
+import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote, Volume2, VolumeX, ArrowUpRight } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import CommentsSection from './CommentsSection';
 import { supabase } from '@/lib/supabase';
