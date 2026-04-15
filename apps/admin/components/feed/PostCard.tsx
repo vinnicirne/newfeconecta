@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
-import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote } from 'lucide-react';
+import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote, Volume2, VolumeX } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import CommentsSection from './CommentsSection';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { VerificationBadge } from '@/components/verification-badge';
 import { NotificationService } from '@/lib/notifications';
+import { useRouter } from 'next/navigation';
 
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
@@ -23,6 +24,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [mounted, setMounted] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showLikeAnim, setShowLikeAnim] = useState(false);
+  const [isMuted, setIsMuted] = useState(true);
+  const router = useRouter();
 
   // VIEWS FEATURE
   const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
@@ -39,7 +42,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     setViewsCount(prev => prev + 1);
 
     try {
-      await supabase.rpc('increment_view', { p_post_id: post.id });
+      // await supabase.rpc('increment_view', { p_post_id: post.id });
       onUpdated?.({ ...post, views_count: viewsCount + 1 });
     } catch (e) {
       console.error("Erro ao computar visualização", e);
@@ -58,6 +61,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [isSaved, setIsSaved] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -512,18 +516,36 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             </div>
           )}
 
-        {/* Vídeo */}
+        {/* Vídeo / Lumes (Instagram Style) */}
         {post.media_url && isVideo && (
             <div 
-              className="rounded-2xl overflow-hidden mt-3 max-h-[550px] bg-black flex justify-center relative group"
+              className="rounded-2xl overflow-hidden mt-3 h-[450px] bg-black/95 relative group cursor-pointer border border-white/5 mx-auto max-w-[340px] shadow-2xl"
+              onClick={() => router.push(`/lumes?id=${post.id}`)}
               onDoubleClick={handleDoubleClickLike}
             >
               <video
-                controls
-                className="w-full h-auto max-h-[550px]"
+                className="w-full h-full object-cover"
                 src={post.media_url}
+                muted={isMuted}
+                autoPlay
+                loop
+                playsInline
                 onPlay={handlePlayMedia}
               />
+
+              {/* Toggle de Áudio Flutuante */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsMuted(!isMuted);
+                }}
+                className="absolute bottom-4 right-4 z-[40] w-9 h-9 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-black/80 active:scale-90 transition-all shadow-lg"
+              >
+                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 fill-white" />}
+              </button>
+
+              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+              
               {/* Like Animation for Video */}
               {showLikeAnim && (
                 <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">

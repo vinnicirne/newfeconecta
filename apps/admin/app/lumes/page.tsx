@@ -48,19 +48,32 @@ export default function LumesPage() {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
     setUser(profile);
 
-    const { data: postsData, error: postsError } = await supabase
+    const initialId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('id') : null;
+
+    let postsData: any[] = [];
+    
+    // Se houver um ID, buscamos ele especificamente primeiro
+    if (initialId) {
+      const { data: specificPost } = await supabase.from('posts').select('*').eq('id', initialId).single();
+      if (specificPost) postsData.push(specificPost);
+    }
+
+    const { data: latestPosts, error: postsError } = await supabase
       .from('posts')
       .select('*')
       .eq('post_type', 'video')
+      .neq('id', initialId || '') // Evita duplicar se já pegamos acima
       .order('created_at', { ascending: false })
       .limit(50);
       
     if (postsError) {
       console.error("❌ Erro ao buscar lumes:", postsError);
-      return;
+      if (postsData.length === 0) return;
     }
 
-    if (postsData && postsData.length > 0) {
+    if (latestPosts) postsData = [...postsData, ...latestPosts];
+
+    if (postsData.length > 0) {
       // 1. Buscar autores em lote
       const userIds = Array.from(new Set(postsData.map((p: any) => p.author_id || p.user_id).filter(Boolean)));
       const { data: profiles } = await supabase
@@ -85,6 +98,19 @@ export default function LumesPage() {
         };
       });
       setReels(mapped);
+
+      // Auto-scroll to the requested Lume
+      if (initialId) {
+        const idx = mapped.findIndex((r: any) => r.id === initialId);
+        if (idx !== -1) {
+          setCurrent(idx);
+          setTimeout(() => {
+            if (containerRef.current) {
+              containerRef.current.scrollTo({ top: window.innerHeight * idx, behavior: 'instant' });
+            }
+          }, 150);
+        }
+      }
     }
   };
 
@@ -137,24 +163,10 @@ export default function LumesPage() {
     await supabase.from('posts').update({ likes: newLikes }).eq('id', reel.id);
   };
 
-  if (!user && reels.length === 0) return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black">
-      <div className="w-12 h-12 border-4 border-whatsapp-green/20 border-t-whatsapp-green rounded-full animate-spin" />
-    </div>
-  );
-
   if (reels.length === 0) return (
-    <div className="fixed inset-0 bg-black flex flex-col items-center justify-center text-white p-10 text-center">
-      <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6">
-        <Play className="w-10 h-10 text-white opacity-20" />
-      </div>
-      <h2 className="text-2xl font-black mb-2 uppercase tracking-tighter">O silêncio é uma prece...</h2>
-      <p className="text-gray-500 text-sm max-w-xs">Ainda não temos novos Lumes hoje. Que tal ser o primeiro a compartilhar uma mensagem?</p>
-      
-      <Link href="/" className="mt-10 px-8 py-4 bg-whatsapp-green text-whatsapp-dark rounded-full font-black text-xs uppercase tracking-widest shadow-xl shadow-whatsapp-green/20 active:scale-95 transition-all">
-        Voltar ao Feed
-      </Link>
-    </div>
+     <div className="fixed inset-0 flex items-center justify-center bg-black">
+       <div className="w-12 h-12 border-4 border-whatsapp-green/20 border-t-whatsapp-green rounded-full animate-spin" />
+     </div>
   );
 
   return (

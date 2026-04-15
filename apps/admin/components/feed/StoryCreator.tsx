@@ -131,7 +131,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     setRecording(false);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 

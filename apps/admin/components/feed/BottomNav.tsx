@@ -25,8 +25,8 @@ export default function BottomNav() {
   const isHidden = hiddenRoutes.includes(pathname);
 
   React.useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) setUser(user);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) setUser(session.user);
     });
   }, []);
 

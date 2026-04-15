@@ -170,8 +170,8 @@ export default function DashboardPage() {
              { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
              { name: 'Sala de Guerra', status: 'Ativo', icon: Mic, desc: 'Audio, Moderação e Viralização Social' },
              { name: 'Layout Triplo', status: 'Ativo', icon: Layout, desc: 'Sidebar de contatos online' },
-             { name: 'Identidade Visual', status: 'Integrado', icon: Users, desc: 'Edição de Banner e Avatar' },
-             { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Barra de usuários ativos' },
+             { name: 'Otimização de Mídia', status: 'Ativo', icon: CheckCircle2, desc: 'Compressão agressiva de imagens/vídeos' },
+             { name: 'Integração Lumes', status: 'Online', icon: TrendingUp, desc: 'Redirecionamento inteligente p/ Reels' },
              { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação de 30s' },
            ].map(({ icon: Icon, ...feature }) => (
              <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
