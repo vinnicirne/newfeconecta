@@ -24,8 +24,15 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [mounted, setMounted] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [showLikeAnim, setShowLikeAnim] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
   const router = useRouter();
+
+  const getYoutubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
 
   // VIEWS FEATURE
   const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
@@ -325,13 +332,19 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     const shouldTruncate = content.length > MAX_CHAR && !isExpanded;
     const displayContent = shouldTruncate ? content.substring(0, MAX_CHAR) + '...' : content;
 
-    const parts = displayContent.split(/(#[\wáàâãéèêíïóôõöúç-]+|@[\w.-]+|\n)/g);
+    const parts = displayContent.split(/(#[\wáàâãéèêíïóôõöúç-]+|@[\w.-]+|https?:\/\/[^\s]+|www\.[^\s]+|\n)/g);
+
+    const urlMatch = displayContent.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
+    const previewUrl = urlMatch ? urlMatch[0] : null;
 
     return (
       <>
         {parts.map((part: string, i: number) => {
           const trimmed = part.trim();
           if (part === '\n' || part === '\r\n') return <br key={i} />;
+
+          // Oculta o link se ele já estiver sendo exibido no Card/Vídeo abaixo
+          if (trimmed === previewUrl) return null;
 
           if (trimmed.startsWith('#')) {
             const tag = trimmed.substring(1);
@@ -344,6 +357,22 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               >
                 {part}
               </Link>
+            );
+          }
+
+          if (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('www.')) {
+            const url = trimmed.startsWith('www.') ? `https://${trimmed}` : trimmed;
+            return (
+              <a 
+                key={i} 
+                href={url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="text-whatsapp-teal dark:text-whatsapp-green hover:underline break-all"
+              >
+                {part}
+              </a>
             );
           }
 
@@ -471,22 +500,55 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </DropdownMenu>
       </div>
 
-      {/* ==================== CONTENT ==================== */}
-      <div className="px-4 py-3">
-        {/* Texto principal com Suporte a Background Premium */}
-        {post.content && (
-          <div 
-            className={cn(
-              "text-[15.2px] leading-relaxed whitespace-pre-wrap break-words transition-all mb-2",
-              post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
-            )}
-            style={{ background: post.background || undefined }}
-          >
-            <span className={cn(
-              post.background ? "text-white text-2xl font-black drop-shadow-md" : "text-gray-900 dark:text-gray-100"
-            )}>
-              {renderContent(post.content)}
-            </span>
+      <div className="flex-grow">
+        {/* YouTube Embed / Link Preview */}
+        {!isVideo && !isAudio && !post.media_url && post.content && (
+          <div className="px-4 pb-4">
+             {(() => {
+                const urlMatch = post.content.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
+                if (!urlMatch) return null;
+                const url = urlMatch[0];
+                const youtubeId = getYoutubeId(url);
+                
+                if (youtubeId) {
+                  return (
+                    <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5">
+                       <iframe
+                         width="100%"
+                         height="100%"
+                         src={`https://www.youtube.com/embed/${youtubeId}`}
+                         title="YouTube video player"
+                         frameBorder="0"
+                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                         allowFullScreen
+                       ></iframe>
+                    </div>
+                  );
+                }
+                
+                return (
+                  <a 
+                    href={url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex flex-col rounded-2xl border border-gray-100 dark:border-white/10 overflow-hidden bg-gray-50/50 dark:bg-white/5 mt-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="p-4 flex items-center justify-between">
+                       <div className="flex items-center gap-3 overflow-hidden">
+                          <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 flex items-center justify-center flex-shrink-0">
+                             <Sparkles className="w-5 h-5 text-whatsapp-teal dark:text-whatsapp-green" />
+                          </div>
+                          <div className="min-w-0">
+                             <p className="text-xs font-bold dark:text-white truncate">Link Compartilhado</p>
+                             <p className="text-[10px] text-gray-500 truncate">{url}</p>
+                          </div>
+                       </div>
+                       <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-whatsapp-green transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    </div>
+                  </a>
+                );
+             })()}
           </div>
         )}
 
@@ -604,6 +666,25 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
               className="hidden"
             />
+          </div>
+        )}
+
+        {/* Legenda (Abaixo da Mídia) */}
+        {post.content && (
+          <div className="px-4 py-3">
+            <div 
+              className={cn(
+                "text-[15.2px] leading-relaxed whitespace-pre-wrap break-words transition-all mb-2",
+                post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
+              )}
+              style={{ background: post.background || undefined }}
+            >
+              <span className={cn(
+                post.background ? "text-white text-2xl font-black drop-shadow-md" : "text-gray-900 dark:text-gray-100"
+              )}>
+                {renderContent(post.content)}
+              </span>
+            </div>
           </div>
         )}
       </div>

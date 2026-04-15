@@ -167,12 +167,12 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
            {[
+             { name: 'Rede de Vídeos', status: 'Ativo', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
+             { name: 'Sala de Guerra', status: 'Ativo', icon: Mic, desc: 'Audio, Moderação e Viralização' },
+             { name: 'Otimização Mídia', status: 'Ativo', icon: CheckCircle2, desc: 'Compressão e Link Previews' },
+             { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Atividade em tempo real' },
+             { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação 30s' },
              { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
-             { name: 'Sala de Guerra', status: 'Ativo', icon: Mic, desc: 'Audio, Moderação e Viralização Social' },
-             { name: 'Layout Triplo', status: 'Ativo', icon: Layout, desc: 'Sidebar de contatos online' },
-             { name: 'Otimização de Mídia', status: 'Ativo', icon: CheckCircle2, desc: 'Compressão agressiva de imagens/vídeos' },
-             { name: 'Integração Lumes', status: 'Online', icon: TrendingUp, desc: 'Redirecionamento inteligente p/ Reels' },
-             { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação de 30s' },
            ].map(({ icon: Icon, ...feature }) => (
              <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">
