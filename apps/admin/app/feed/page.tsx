@@ -282,8 +282,8 @@ export default function FeedPage() {
           onViewGroup={(group: any) => setViewingStoryGroup(group)}
         />
 
-        {/* Create Post Section (Desktop View) */}
-        <div className="hidden sm:block">
+        {/* Create Post Section (Web View Only) */}
+        <div className="hidden lg:block">
            <CreatePost user={currentUser} onPostCreated={() => loadData(true)} />
         </div>
 

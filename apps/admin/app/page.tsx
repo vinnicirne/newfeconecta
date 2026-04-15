@@ -621,7 +621,8 @@ export default function RootPage() {
           onViewGroup={(group: any) => setViewingStoryGroup(group)} 
         />
 
-        <div className="mt-2 px-4">
+        {/* Create Post Section (Web View Only) */}
+        <div className="mt-2 px-4 hidden lg:block">
           <CreatePost user={currentUser} onPostCreated={() => loadInitialPosts(true)} />
         </div>
 

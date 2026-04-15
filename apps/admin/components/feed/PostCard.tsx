@@ -45,7 +45,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const handlePlayMedia = async () => {
     if (hasViewedRef.current) return;
     hasViewedRef.current = true;
-    
+
     setViewsCount(prev => prev + 1);
 
     try {
@@ -189,7 +189,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const toggleSave = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!userId) { toast.error("Faça login para salvar"); return; }
-    
+
     const oldSaved = isSaved;
     setIsSaved(!oldSaved);
     try {
@@ -199,7 +199,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       } else {
         const { error } = await supabase.from('saved_posts').insert({ post_id: post.id, user_id: userId });
         if (error) throw error;
-       }
+      }
     } catch (err) {
       setIsSaved(oldSaved);
       toast.error("Erro ao salvar publicação.");
@@ -363,10 +363,10 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           if (trimmed.startsWith('https://') || trimmed.startsWith('http://') || trimmed.startsWith('www.')) {
             const url = trimmed.startsWith('www.') ? `https://${trimmed}` : trimmed;
             return (
-              <a 
-                key={i} 
-                href={url} 
-                target="_blank" 
+              <a
+                key={i}
+                href={url}
+                target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 className="text-whatsapp-teal dark:text-whatsapp-green hover:underline break-all"
@@ -379,9 +379,9 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           if (trimmed.startsWith('@')) {
             const username = trimmed.substring(1);
             return (
-              <Link 
-                key={i} 
-                href={`/profile/${username}`} 
+              <Link
+                key={i}
+                href={`/profile/${username}`}
                 onClick={(e: React.MouseEvent) => e.stopPropagation()}
                 className="text-whatsapp-teal dark:text-whatsapp-green hover:underline font-bold"
               >
@@ -406,7 +406,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   };
 
   return (
-    <div 
+    <div
       id={`post-${post.id}`}
       className="bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 rounded-2xl mx-4 mb-4 shadow-sm overflow-hidden transition-all duration-300"
     >
@@ -431,16 +431,16 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
         <div className="flex-1 min-w-0">
           <Link href={`/profile/${post.author_username}`} className="block group/name">
-            <div 
+            <div
               className="text-sm font-bold leading-tight truncate flex items-center gap-1.5 transition-colors"
               style={{ color: post.is_verified ? '#ffffff' : undefined }}
             >
               {post.author_name}
-                <VerificationBadge 
-                  role={post.verification_label || 'Verificado'} 
-                  size="sm" 
-                  className="ml-1"
-                />
+              <VerificationBadge
+                role={post.verification_label || 'Verificado'}
+                size="sm"
+                className="ml-1"
+              />
             </div>
           </Link>
           <div className="flex items-center gap-1.5">
@@ -471,8 +471,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         {/* SELO REVELAÇÃO (DFCH) */}
         {(post.content?.startsWith('📖') || post.is_testimony) && (
           <div className="flex items-center gap-1.5 px-3 py-1 bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 rounded-full animate-in zoom-in duration-300">
-             <Sparkles className="w-3 h-3 text-whatsapp-teal dark:text-whatsapp-green animate-pulse" />
-             <span className="text-[10px] font-black uppercase tracking-widest text-whatsapp-teal dark:text-whatsapp-green whitespace-nowrap">Revelação</span>
+            <Sparkles className="w-3 h-3 text-whatsapp-teal dark:text-whatsapp-green animate-pulse" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-whatsapp-teal dark:text-whatsapp-green whitespace-nowrap">Revelação</span>
           </div>
         )}
 
@@ -500,128 +500,127 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </DropdownMenu>
       </div>
 
-      <div className="flex-grow">
-        {/* YouTube Embed / Link Preview */}
-        {!isVideo && !isAudio && !post.media_url && post.content && (
-          <div className="px-4 pb-4">
-             {(() => {
-                const urlMatch = post.content.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
-                if (!urlMatch) return null;
-                const url = urlMatch[0];
-                const youtubeId = getYoutubeId(url);
-                
-                if (youtubeId) {
-                  return (
-                    <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5">
-                       <iframe
-                         width="100%"
-                         height="100%"
-                         src={`https://www.youtube.com/embed/${youtubeId}`}
-                         title="YouTube video player"
-                         frameBorder="0"
-                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                         allowFullScreen
-                       ></iframe>
+      {/* YouTube Embed / Link Preview */}
+      {!isVideo && !isAudio && !post.media_url && post.content && (
+        <div className="px-3 pb-0">
+          {(() => {
+            const urlMatch = post.content.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
+            if (!urlMatch) return null;
+            const url = urlMatch[0];
+            const youtubeId = getYoutubeId(url);
+
+            if (youtubeId) {
+              return (
+                <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5">
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                    title="YouTube video player"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
+                </div>
+              );
+            }
+
+            return (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col rounded-2xl border border-gray-100 dark:border-white/10 overflow-hidden bg-gray-50/50 dark:bg-white/5 mt-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="w-5 h-5 text-whatsapp-teal dark:text-whatsapp-green" />
                     </div>
-                  );
-                }
-                
-                return (
-                  <a 
-                    href={url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex flex-col rounded-2xl border border-gray-100 dark:border-white/10 overflow-hidden bg-gray-50/50 dark:bg-white/5 mt-2 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <div className="p-4 flex items-center justify-between">
-                       <div className="flex items-center gap-3 overflow-hidden">
-                          <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 flex items-center justify-center flex-shrink-0">
-                             <Sparkles className="w-5 h-5 text-whatsapp-teal dark:text-whatsapp-green" />
-                          </div>
-                          <div className="min-w-0">
-                             <p className="text-xs font-bold dark:text-white truncate">Link Compartilhado</p>
-                             <p className="text-[10px] text-gray-500 truncate">{url}</p>
-                          </div>
-                       </div>
-                       <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-whatsapp-green transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold dark:text-white truncate">Link Compartilhado</p>
+                      <p className="text-[10px] text-gray-500 truncate">{url}</p>
                     </div>
-                  </a>
-                );
-             })()}
+                  </div>
+                  <ArrowUpRight className="w-4 h-4 text-gray-400 group-hover:text-whatsapp-green transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </div>
+              </a>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* Imagem */}
+      {post.media_url &&
+        (post.post_type === 'image' ||
+          post.post_type === 'photo' ||
+          post.media_type === 'image') && (
+          <div
+            className="rounded-2xl overflow-hidden mt-3 border border-white/10 cursor-zoom-in relative group"
+            onClick={() => setLightboxUrl(post.media_url)}
+            onDoubleClick={handleDoubleClickLike}
+          >
+            <img
+              src={post.media_url}
+              className="w-full h-auto object-cover max-h-[520px] transition-transform duration-500 group-hover:scale-[1.02]"
+              alt="Imagem do post"
+            />
+
+            {/* Like Animation Overlay */}
+            {showLikeAnim && (
+              <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+                <Flame className="w-24 h-24 text-orange-500 fill-orange-500 drop-shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-in zoom-in duration-300 animate-out fade-out fade-mode-forwards" />
+                <Flame className="absolute w-24 h-24 text-orange-500/50 animate-ping duration-700" />
+              </div>
+            )}
           </div>
         )}
 
-        {/* Imagem */}
-        {post.media_url &&
-          (post.post_type === 'image' ||
-            post.post_type === 'photo' ||
-            post.media_type === 'image') && (
-            <div 
-              className="rounded-2xl overflow-hidden mt-3 border border-white/10 cursor-zoom-in relative group"
-              onClick={() => setLightboxUrl(post.media_url)}
-              onDoubleClick={handleDoubleClickLike}
-            >
-              <img
-                src={post.media_url}
-                className="w-full h-auto object-cover max-h-[520px] transition-transform duration-500 group-hover:scale-[1.02]"
-                alt="Imagem do post"
-              />
-              
-              {/* Like Animation Overlay */}
-              {showLikeAnim && (
-                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                  <Flame className="w-24 h-24 text-orange-500 fill-orange-500 drop-shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-in zoom-in duration-300 animate-out fade-out fade-mode-forwards" />
-                  <Flame className="absolute w-24 h-24 text-orange-500/50 animate-ping duration-700" />
-                </div>
-              )}
+      {/* Vídeo / Lumes (Instagram Style) */}
+      {post.media_url && isVideo && (
+        <div
+          className="rounded-2xl overflow-hidden mt-3 h-[450px] bg-black/95 relative group cursor-pointer border border-white/5 mx-auto max-w-[340px] shadow-2xl"
+          onClick={() => router.push(`/lumes?id=${post.id}`)}
+          onDoubleClick={handleDoubleClickLike}
+        >
+          <video
+            className="w-full h-full object-cover"
+            src={post.media_url}
+            muted={isMuted}
+            autoPlay
+            loop
+            playsInline
+            onPlay={handlePlayMedia}
+          />
+
+          {/* Toggle de Áudio Flutuante */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMuted(!isMuted);
+            }}
+            className="absolute bottom-4 right-4 z-[40] w-9 h-9 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-black/80 active:scale-90 transition-all shadow-lg"
+          >
+            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 fill-white" />}
+          </button>
+
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+
+          {/* Like Animation for Video */}
+          {showLikeAnim && (
+            <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+              <Flame className="w-24 h-24 text-orange-500 fill-orange-500 drop-shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-in zoom-in spin-in duration-300" />
             </div>
           )}
+        </div>
+      )}
 
-        {/* Vídeo / Lumes (Instagram Style) */}
-        {post.media_url && isVideo && (
-            <div 
-              className="rounded-2xl overflow-hidden mt-3 h-[450px] bg-black/95 relative group cursor-pointer border border-white/5 mx-auto max-w-[340px] shadow-2xl"
-              onClick={() => router.push(`/lumes?id=${post.id}`)}
-              onDoubleClick={handleDoubleClickLike}
-            >
-              <video
-                className="w-full h-full object-cover"
-                src={post.media_url}
-                muted={isMuted}
-                autoPlay
-                loop
-                playsInline
-                onPlay={handlePlayMedia}
-              />
-
-              {/* Toggle de Áudio Flutuante */}
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setIsMuted(!isMuted);
-                }}
-                className="absolute bottom-4 right-4 z-[40] w-9 h-9 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-black/80 active:scale-90 transition-all shadow-lg"
-              >
-                {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 fill-white" />}
-              </button>
-
-              <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
-              
-              {/* Like Animation for Video */}
-              {showLikeAnim && (
-                <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-                  <Flame className="w-24 h-24 text-orange-500 fill-orange-500 drop-shadow-[0_0_20px_rgba(249,115,22,0.6)] animate-in zoom-in spin-in duration-300" />
-                </div>
-              )}
-            </div>
-          )}
-
-        {/* Áudio */}
-        {isAudio && post.media_url && (
-          <div className="bg-[#111b21] p-4 rounded-2xl border border-white/5 shadow-2xl mt-3 overflow-hidden relative group transition-all hover:bg-[#182229]">
-            <style dangerouslySetInnerHTML={{
-              __html: `
+      {/* Áudio */}
+      {isAudio && post.media_url && (
+        <div className="bg-[#111b21] p-4 rounded-2xl border border-white/5 shadow-2xl mt-3 overflow-hidden relative group transition-all hover:bg-[#182229]">
+          <style dangerouslySetInnerHTML={{
+            __html: `
               @keyframes audio-wave-anim {
                 0%, 100% { height: 6px; }
                 50% { height: 24px; }
@@ -629,65 +628,64 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               .wave-bar-anim { animation: audio-wave-anim 0.8s ease-in-out infinite; }
             `}} />
 
-            <div className="flex items-center gap-4 relative z-10">
-              <button
-                onClick={toggleAudio}
-                className="w-11 h-11 rounded-full bg-whatsapp-teal flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 transition-transform active:scale-90 hover:scale-105"
-              >
-                {isPlaying ? <Pause className="w-5 h-5 text-white fill-white" /> : <Play className="w-5 h-5 text-white fill-white ml-0.5" />}
-              </button>
-
-              <div className="flex-1 flex items-center gap-[3px] h-10">
-                {[...Array(30)].map((_, i) => (
-                  <div
-                    key={i}
-                    className={cn(
-                      "w-[3px] rounded-full transition-all duration-300",
-                      isPlaying ? "wave-bar-anim bg-whatsapp-teal" : "h-[6px] bg-whatsapp-teal/30"
-                    )}
-                    style={{
-                      animationDelay: `${i * 0.05}s`,
-                      backgroundColor: audioProgress > (i / 30) * 100 ? '#00A884' : undefined,
-                      opacity: audioProgress > (i / 30) * 100 ? 1 : 0.3
-                    }}
-                  />
-                ))}
-              </div>
-
-              <span className="text-[11px] font-mono text-gray-400 min-w-[38px] text-right">
-                {mounted && audioRef.current ? fmtTime(audioRef.current.currentTime) : "0:00"}
-              </span>
-            </div>
-
-            <audio
-              ref={audioRef}
-              src={post.media_url}
-              onTimeUpdate={() => audioRef.current && setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)}
-              onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
-              className="hidden"
-            />
-          </div>
-        )}
-
-        {/* Legenda (Abaixo da Mídia) */}
-        {post.content && (
-          <div className="px-4 py-3">
-            <div 
-              className={cn(
-                "text-[15.2px] leading-relaxed whitespace-pre-wrap break-words transition-all mb-2",
-                post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
-              )}
-              style={{ background: post.background || undefined }}
+          <div className="flex items-center gap-4 relative z-10">
+            <button
+              onClick={toggleAudio}
+              className="w-11 h-11 rounded-full bg-whatsapp-teal flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 transition-transform active:scale-90 hover:scale-105"
             >
-              <span className={cn(
-                post.background ? "text-white text-2xl font-black drop-shadow-md" : "text-gray-900 dark:text-gray-100"
-              )}>
-                {renderContent(post.content)}
-              </span>
+              {isPlaying ? <Pause className="w-5 h-5 text-white fill-white" /> : <Play className="w-5 h-5 text-white fill-white ml-0.5" />}
+            </button>
+
+            <div className="flex-1 flex items-center gap-[3px] h-10">
+              {[...Array(30)].map((_, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "w-[3px] rounded-full transition-all duration-300",
+                    isPlaying ? "wave-bar-anim bg-whatsapp-teal" : "h-[6px] bg-whatsapp-teal/30"
+                  )}
+                  style={{
+                    animationDelay: `${i * 0.05}s`,
+                    backgroundColor: audioProgress > (i / 30) * 100 ? '#00A884' : undefined,
+                    opacity: audioProgress > (i / 30) * 100 ? 1 : 0.3
+                  }}
+                />
+              ))}
             </div>
+
+            <span className="text-[11px] font-mono text-gray-400 min-w-[38px] text-right">
+              {mounted && audioRef.current ? fmtTime(audioRef.current.currentTime) : "0:00"}
+            </span>
           </div>
-        )}
-      </div>
+
+          <audio
+            ref={audioRef}
+            src={post.media_url}
+            onTimeUpdate={() => audioRef.current && setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)}
+            onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
+            className="hidden"
+          />
+        </div>
+      )}
+
+      {/* Legenda (Abaixo da Mídia) */}
+      {post.content && (
+        <div className="px-4 pb-3 pt-0 -mt-1.5">
+          <div
+            className={cn(
+              "text-[15.2px] leading-tight whitespace-pre-wrap break-words transition-all mb-1 text-left",
+              post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
+            )}
+            style={{ background: post.background || undefined }}
+          >
+            <span className={cn(
+              post.background ? "text-white text-2xl font-black drop-shadow-md" : "text-gray-900 dark:text-gray-100"
+            )}>
+              {renderContent(post.content)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Interactions */}
       <div className="px-4 py-3 flex items-center justify-between border-t border-gray-50 dark:border-white/5 mt-2">
@@ -702,7 +700,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             <Flame className={cn("w-5 h-5", isLiked && "fill-orange-500")} />
             <span className="text-xs font-bold">{likes.length || 0}</span>
           </button>
- 
+
           <button
             onClick={() => setShowComments(!showComments)}
             className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-all"
@@ -710,7 +708,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             <MessageCircle className="w-5 h-5" />
             <span className="text-xs font-bold">{commentCount}</span>
           </button>
- 
+
           <button
             onClick={toggleRepost}
             className={cn(
@@ -721,7 +719,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             <Repeat className="w-5 h-5" />
             <span className="text-xs font-bold">{repostsCount}</span>
           </button>
- 
+
           {(isAudio || isVideo) && (
             <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-white/10 pl-4 ml-1">
               <Eye className="w-5 h-5" />
@@ -729,7 +727,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             </div>
           )}
         </div>
- 
+
         <button
           onClick={toggleSave}
           className={cn(
@@ -746,46 +744,46 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
       {/* Lightbox / Media Expansion */}
       {lightboxUrl && (
-        <div 
+        <div
           className="fixed inset-0 z-[1000] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center animate-in fade-in duration-300"
           onClick={() => setLightboxUrl(null)}
         >
           {/* Top Bar: Author Info & Close */}
           <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent z-10">
             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20">
-                 <img src={post.author_avatar || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
-               </div>
-               <div className="flex flex-col">
-                  <div className="flex items-center gap-1.5">
-                    <div className="font-black text-sm text-white truncate">{post.author_name}</div>
-                    {post.is_verified && (
-                      <VerificationBadge 
-                        role={post.verification_label || 'Verificado'} 
-                        size="xs" 
-                      />
-                    )}
-                  </div>
-                  <span className="text-[10px] text-whatsapp-green font-bold uppercase tracking-tighter">@{post.author_username}</span>
-               </div>
+              <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20">
+                <img src={post.author_avatar || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
+              </div>
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <div className="font-black text-sm text-white truncate">{post.author_name}</div>
+                  {post.is_verified && (
+                    <VerificationBadge
+                      role={post.verification_label || 'Verificado'}
+                      size="xs"
+                    />
+                  )}
+                </div>
+                <span className="text-[10px] text-whatsapp-green font-bold uppercase tracking-tighter">@{post.author_username}</span>
+              </div>
             </div>
-            <button 
+            <button
               className="w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-all backdrop-blur-md border border-white/10"
               onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); }}
             >
               <span className="text-xl">✕</span>
             </button>
           </div>
-          
+
           <div className="relative max-w-full max-h-[80vh] flex items-center justify-center p-4">
-            <img 
-              src={lightboxUrl} 
+            <img
+              src={lightboxUrl}
               className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in duration-300 pointer-events-auto cursor-default"
               alt="Expanded view"
               onClick={(e) => e.stopPropagation()}
               onDoubleClick={(e) => { e.stopPropagation(); handleDoubleClickLike(e); }}
             />
-            
+
             {/* Double Click Like Animation in Lightbox */}
             {showLikeAnim && (
               <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
@@ -796,60 +794,60 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           </div>
 
           {/* Floating Interaction Bar */}
-          <div 
+          <div
             className="absolute bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl flex items-center gap-8 shadow-2xl animate-in slide-in-from-bottom duration-500"
             onClick={(e) => e.stopPropagation()}
           >
-             <button
-                onClick={(e) => { e.stopPropagation(); toggleLike(); }}
-                className={cn(
-                  "flex flex-col items-center gap-1 transition-all active:scale-125",
-                  isLiked ? "text-orange-500" : "text-white"
-                )}
-              >
-                <Flame className={cn("w-6 h-6", isLiked && "fill-orange-500")} />
-                <span className="text-[10px] font-bold">{likes.length || 0}</span>
-              </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleLike(); }}
+              className={cn(
+                "flex flex-col items-center gap-1 transition-all active:scale-125",
+                isLiked ? "text-orange-500" : "text-white"
+              )}
+            >
+              <Flame className={cn("w-6 h-6", isLiked && "fill-orange-500")} />
+              <span className="text-[10px] font-bold">{likes.length || 0}</span>
+            </button>
 
-              <button
-                onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); setShowComments(true); }}
-                className="flex flex-col items-center gap-1 text-white hover:text-whatsapp-teal transition-all"
-              >
-                <MessageCircle className="w-6 h-6" />
-                <span className="text-[10px] font-bold">{commentCount}</span>
-              </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxUrl(null); setShowComments(true); }}
+              className="flex flex-col items-center gap-1 text-white hover:text-whatsapp-teal transition-all"
+            >
+              <MessageCircle className="w-6 h-6" />
+              <span className="text-[10px] font-bold">{commentCount}</span>
+            </button>
 
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleRepost(); }}
-                className={cn(
-                  "flex flex-col items-center gap-1 transition-all active:scale-125",
-                  isReposted ? "text-whatsapp-green" : "text-white"
-                )}
-              >
-                <Repeat className="w-6 h-6" />
-                <span className="text-[10px] font-bold">{repostsCount}</span>
-              </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleRepost(); }}
+              className={cn(
+                "flex flex-col items-center gap-1 transition-all active:scale-125",
+                isReposted ? "text-whatsapp-green" : "text-white"
+              )}
+            >
+              <Repeat className="w-6 h-6" />
+              <span className="text-[10px] font-bold">{repostsCount}</span>
+            </button>
 
-              <button
-                onClick={(e) => { e.stopPropagation(); handleShare(); }}
-                className="flex flex-col items-center gap-1 text-white hover:text-whatsapp-teal transition-all"
-              >
-                <Share2 className="w-6 h-6" />
-                <span className="text-[10px] font-bold italic uppercase tracking-tighter">Share</span>
-              </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleShare(); }}
+              className="flex flex-col items-center gap-1 text-white hover:text-whatsapp-teal transition-all"
+            >
+              <Share2 className="w-6 h-6" />
+              <span className="text-[10px] font-bold italic uppercase tracking-tighter">Share</span>
+            </button>
 
-              <div className="w-px h-8 bg-white/10 mx-2" />
+            <div className="w-px h-8 bg-white/10 mx-2" />
 
-              <button
-                onClick={(e) => { e.stopPropagation(); toggleSave(e); }}
-                className={cn(
-                  "flex flex-col items-center gap-1 transition-all active:scale-125",
-                  isSaved ? "text-whatsapp-teal" : "text-white"
-                )}
-              >
-                <Bookmark className={cn("w-6 h-6", isSaved && "fill-whatsapp-teal")} />
-                <span className="text-[10px] uppercase font-bold">{isSaved ? 'Salvo' : 'Save'}</span>
-              </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); toggleSave(e); }}
+              className={cn(
+                "flex flex-col items-center gap-1 transition-all active:scale-125",
+                isSaved ? "text-whatsapp-teal" : "text-white"
+              )}
+            >
+              <Bookmark className={cn("w-6 h-6", isSaved && "fill-whatsapp-teal")} />
+              <span className="text-[10px] uppercase font-bold">{isSaved ? 'Salvo' : 'Save'}</span>
+            </button>
           </div>
         </div>
       )}
