@@ -41,7 +41,7 @@ export const NotificationService = {
           .single();
         
         // Se a preferência estiver explicitamente como false, cancela o envio
-        if (profile && profile[settingField] === false) {
+        if (profile && (profile as any)[settingField] === false) {
           return { success: false, reason: 'user-disabled' };
         }
       }
