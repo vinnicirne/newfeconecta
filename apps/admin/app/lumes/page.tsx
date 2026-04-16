@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import CommentsSection from '@/components/feed/CommentsSection';
 import { cn } from '@/lib/utils';
+import { NotificationService } from '@/lib/notifications';
 
 export default function LumesPage() {
   const [reels, setReels] = useState<any[]>([]);
@@ -194,16 +195,28 @@ export default function LumesPage() {
 
   const toggleLike = async (reel: any) => {
     if (!user) return;
-    const userIdentifier = user.id;
-    const liked = reel.likes?.includes(userIdentifier);
-    
-    const newLikes = liked
-      ? (reel.likes || []).filter((e: string) => e !== userIdentifier)
-      : [...(reel.likes || []), userIdentifier];
+    const isLiked = reel.likes?.includes(user.id);
+    const newLikes = isLiked 
+      ? reel.likes.filter((id: string) => id !== user.id)
+      : [...(reel.likes || []), user.id];
 
     setReels(prev => prev.map(r => r.id === reel.id ? { ...r, likes: newLikes } : r));
-    
-    await supabase.from('posts').update({ likes: newLikes }).eq('id', reel.id);
+
+    try {
+      const { error } = await supabase.from('posts').update({ likes: newLikes }).eq('id', reel.id);
+      if (error) throw error;
+      
+      if (!isLiked) {
+        await NotificationService.notify({
+          recipientId: reel.author_id,
+          senderId: user.id,
+          type: 'like',
+          postId: reel.id
+        });
+      }
+    } catch (err) {
+      setReels(prev => prev.map(r => r.id === reel.id ? { ...r, likes: reel.likes } : r));
+    }
   };
 
   const toggleRepost = async (reel: any) => {
@@ -216,11 +229,26 @@ export default function LumesPage() {
       reposts_count: (r.reposts_count || 0) + (isReposted ? -1 : 1)
     } : r));
 
-    if (isReposted) {
-      await supabase.from('reposts').delete().eq('post_id', reel.id).eq('profile_id', user.id);
-    } else {
-      await supabase.from('reposts').insert({ post_id: reel.id, profile_id: user.id });
-      toast.success("Republicado no seu perfil!");
+    try {
+      if (isReposted) {
+        await supabase.from('reposts').delete().eq('post_id', reel.id).eq('profile_id', user.id);
+      } else {
+        await supabase.from('reposts').insert({ post_id: reel.id, profile_id: user.id });
+        toast.success("Republicado!");
+        
+        await NotificationService.notify({
+          recipientId: reel.author_id,
+          senderId: user.id,
+          type: 'repost',
+          postId: reel.id
+        });
+      }
+    } catch (err) {
+      setReels(prev => prev.map(r => r.id === reel.id ? { 
+        ...r, 
+        is_reposted: isReposted,
+        reposts_count: reel.reposts_count
+      } : r));
     }
   };
 
