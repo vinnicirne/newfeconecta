@@ -48,7 +48,7 @@ export default function BottomNav() {
     { icon: Home, href: "/", label: "Home" },
     { icon: Search, href: "/explore", label: "Busca" },
     { icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
-    { icon: Flame, href: "/explore", label: "Lumes" },
+    { icon: Flame, href: "/lumes", label: "Lumes" },
     { icon: UserCircle2, href: "/profile", label: "Perfil" },
   ];
 
