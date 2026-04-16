@@ -31,7 +31,10 @@ import {
   Check,
   Share2,
   Copy,
-  CheckCircle2
+  CheckCircle2,
+  Users,
+  Repeat2,
+  Sparkles
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
