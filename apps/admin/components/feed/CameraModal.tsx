@@ -41,6 +41,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.muted = true;
+        videoRef.current.play().catch(e => console.warn('Camera UI autoplay blocked', e));
       }
     } catch (err) {
       console.warn('Tentativa 1 falhou, tentando fallback...', err);
@@ -50,6 +51,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.muted = true;
+          videoRef.current.play().catch(e => console.warn('Camera UI fallback autoplay blocked', e));
         }
       } catch (e) {
         console.error('Falha crítica na câmera:', e);
@@ -182,7 +184,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
     setUploading(true);
     if (!captured) return;
     const type = captured.type === 'photo' ? 'image' : 'video';
-    await onSubmit({ media_url: captured.url, post_type: type, caption });
+    await onSubmit({ media_url: captured.url, post_type: type, caption, blob: captured.blob });
     setUploading(false);
   };
 
@@ -283,13 +285,15 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
         )}
 
         {captured && (
-          <div className="absolute inset-0 z-[60] flex flex-col items-center justify-center p-12 bg-black/20 pointer-events-none">
+          <div className="absolute bottom-0 left-0 right-0 z-[60] p-4 pb-12 bg-gradient-to-t from-black via-black/60 to-transparent pointer-events-none">
              <textarea 
                autoFocus
                placeholder="Escreva uma legenda..."
                value={caption}
                onChange={(e) => setCaption(e.target.value)}
-               className="w-full bg-transparent text-white text-2xl font-bold text-center placeholder:text-white/40 border-none outline-none resize-none pointer-events-auto drop-shadow-lg"
+               className="w-full bg-transparent text-white text-xl font-bold text-center placeholder:text-white/60 border-none outline-none resize-none pointer-events-auto drop-shadow-md"
+               rows={2}
+               style={{ textShadow: "0 2px 10px rgba(0,0,0,0.8)" }}
              />
           </div>
         )}
@@ -329,7 +333,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
             </div>
             
             <button
-              onPointerDown={handleMainAction}
+              onClick={handleMainAction}
               className={cn(
                 "w-20 h-20 rounded-full border-4 flex items-center justify-center transition-all active:scale-90 shadow-2xl",
                 recording ? 'bg-red-500 border-white/40' : 'bg-transparent border-white'

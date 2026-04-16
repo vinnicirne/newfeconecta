@@ -1,4 +1,4 @@
-package com.feconecta.app;
+package com.feconecta.myapp;
 
 import com.getcapacitor.BridgeActivity;
 

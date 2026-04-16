@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 
 import { Toaster } from "sonner";
 import { AuthGuard } from "@/components/auth-guard";
+import { ErrorInitializer } from "@/components/error-initializer";
 
 export default function RootLayout({
   children,
@@ -35,6 +36,7 @@ export default function RootLayout({
         `}} />
       </head>
       <body className="antialiased font-sans" style={{ fontFamily: 'var(--font-outfit)' }} suppressHydrationWarning>
+        <ErrorInitializer />
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

@@ -9,7 +9,7 @@ import {
   Mic, 
   UserCircle2,
   Bell,
-  Search,
+  Swords,
   Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -46,7 +46,7 @@ export default function BottomNav() {
 
   const navItems = [
     { id: 'home', icon: Home, href: "/", label: "Home" },
-    { id: 'explore', icon: Search, href: "/explore", label: "Busca" },
+    { id: 'room', icon: Swords, href: "/room", label: "Sala" },
     { id: 'post', icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
     { id: 'lumes', icon: Flame, href: "/lumes", label: "Lumes" },
     { id: 'profile', icon: UserCircle2, href: "/profile", label: "Perfil" },

@@ -1,7 +1,7 @@
 import { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'com.feconecta.app',
+  appId: 'com.feconecta.myapp',
   appName: 'FéConecta',
   webDir: 'public',
   server: {

@@ -53,11 +53,12 @@ export default function AudioRecorder({ open, onClose, onSubmit }: any) {
   const handleSubmit = async () => {
     setUploading(true);
     try {
-      const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
-      const file = new File([blob], 'audio.webm', { type: 'audio/webm' });
-      const fileUrl = URL.createObjectURL(file);
+      const mimeType = mediaRef.current?.mimeType || 'audio/mp4';
+      const blob = new Blob(chunksRef.current, { type: mimeType });
+      const fileUrl = URL.createObjectURL(blob);
       
-      await onSubmit({ media_url: fileUrl, post_type: 'audio', caption });
+      // Passar o 'blob' diretamente evita o crash de 'fetch(blobUrl)' no Capacitor Webview
+      await onSubmit({ media_url: fileUrl, post_type: 'audio', caption, blob: blob });
       
       setAudioUrl(null);
       setSeconds(0);
