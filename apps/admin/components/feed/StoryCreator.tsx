@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { X, Check, FlipHorizontal, Image, Circle, RotateCcw, Type, Palette, Mic } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -29,7 +29,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
 
 
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(t => {
         t.stop();
@@ -40,9 +40,9 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-  };
+  }, []);
 
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     if (mode === 'text') return; // Don't start stream for text mode
     stopCamera();
     try {
@@ -60,7 +60,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     } catch (e) {
       console.error('Camera error', e);
     }
-  };
+  }, [mode, facingMode, stopCamera]);
 
   useEffect(() => {
     if (open) startCamera();
@@ -130,11 +130,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     }
   };
 
-  const stopRecording = () => {
-    recorderRef.current?.stop();
+  const stopRecording = useCallback(() => {
+    if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+      recorderRef.current.stop();
+    }
     if (timerRef.current) clearInterval(timerRef.current);
     setRecording(false);
-  };
+  }, []);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -197,7 +199,10 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   }
 
   const handlePublish = async () => {
-    if (uploading) return;
+    if (uploading || !user?.id) {
+       toast.error("Erro: Usuário não identificado. Tente novamente.");
+       return;
+    }
     setUploading(true);
     
     try {
@@ -205,11 +210,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       let mediaType = mode;
 
       if (mode === 'photo' || mode === 'video' || mode === 'audio') {
+         if (!preview?.blob) throw new Error("Mídia não encontrada.");
+         
          let file = preview.blob;
-         const ext = preview.mimeType.split('/')[1] || (mode === 'photo' ? 'jpg' : mode === 'audio' ? 'mp3' : 'webm');
+         const ext = preview.mimeType?.split('/')[1] || (mode === 'photo' ? 'jpg' : mode === 'audio' ? 'mp3' : 'webm');
          
          if (mode === 'photo') {
-           file = await compressImage(file, 1080, 0.65); // Aggressive compression for stories
+           file = await compressImage(file, 1080, 0.65);
          }
 
          const fileName = `story_${Date.now()}_${user.id}.${ext}`;

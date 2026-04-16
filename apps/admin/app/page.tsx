@@ -136,10 +136,12 @@ export default function RootPage() {
           .select('id, full_name, username, avatar_url, is_verified, verification_label')
           .eq('id', newPost.user_id)
           .single();
-        const mapped = mapPost(newPost, { [newPost.user_id]: profile || {} });
-        // Usar unique_key (que é o id para posts normais) para evitar duplicatas
-        const uniqueKey = mapped.id;
-        setPosts(prev => (prev.some(p => (p.unique_key === uniqueKey || p.id === mapped.id)) ? prev : [mapped, ...prev]));
+        const mapped = { 
+          ...mapPost(newPost, { [newPost.user_id]: profile || {} }),
+          unique_key: `${newPost.id}-original`
+        };
+        
+        setPosts(prev => (prev.some(p => p.unique_key === mapped.unique_key) ? prev : [mapped, ...prev]));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
         setPosts(prev => prev.filter(p => p.id !== payload.old.id && p.unique_key !== payload.old.id));
@@ -248,7 +250,7 @@ export default function RootPage() {
       }
 
       const feed: any[] = [];
-      postsList.forEach((p: any) => feed.push({ ...p, display_date: p.created_at, is_repost: false }));
+      postsList.forEach((p: any) => feed.push({ ...p, display_date: p.created_at, is_repost: false, uid: `${p.id}-original` }));
 
       repostsList.forEach((r: any) => {
         const originalPost = postsList.find((p: any) => p.id === r.post_id) || missingPosts.find((p: any) => p.id === r.post_id);
@@ -295,7 +297,7 @@ export default function RootPage() {
 
         return {
           id: item.original_post_id || item.id,
-          unique_key: item.uid || item.id,
+          unique_key: item.uid || `${item.id}-original`,
           author_name: profile.full_name || 'FéConecta',
           author_username: profile.username || '@feconecta',
           author_id: item.user_id,
@@ -363,7 +365,7 @@ export default function RootPage() {
 
         const mapped = morePosts.map(p => ({
           ...mapPost(p, profilesMap),
-          unique_key: `${p.id}-${nextPage}`
+          unique_key: `${p.id}-original`
         }));
         
         setPosts(prev => {
