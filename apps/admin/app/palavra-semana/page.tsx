@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   ArrowLeft, Calendar, Edit3, Trash2, Plus, BookOpen, Flame,
-  Heart, MessageSquare, Repeat2, Send, X, Image as ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShieldCheck
+  Heart, MessageSquare, Repeat2, Send, X, Image as ImageIcon, Sparkles, ChevronLeft, ChevronRight, ShieldCheck, Save
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
