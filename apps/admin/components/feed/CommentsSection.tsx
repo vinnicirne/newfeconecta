@@ -10,7 +10,7 @@ import moment from 'moment';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
 
-export default function CommentsSection({ postId, user }: any) {
+export default function CommentsSection({ postId, verseId, user }: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -24,10 +24,14 @@ export default function CommentsSection({ postId, user }: any) {
 
   const fetchComments = async () => {
     try {
+      const tableName = verseId ? 'daily_verse_comments' : 'comments';
+      const foreignIdKey = verseId ? 'verse_id' : 'post_id';
+      const targetId = verseId || postId;
+
       const { data: commentsData, error } = await supabase
-        .from('comments')
+        .from(tableName)
         .select('*')
-        .eq('post_id', postId)
+        .eq(foreignIdKey, targetId)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -66,25 +70,30 @@ export default function CommentsSection({ postId, user }: any) {
   const handleSend = async () => {
     if (!text.trim() || !user) return;
     setSending(true);
-
     try {
       const userId = user.id || (await supabase.auth.getUser()).data.user?.id;
+      const tableName = verseId ? 'daily_verse_comments' : 'comments';
+      const foreignIdKey = verseId ? 'verse_id' : 'post_id';
+      const targetId = verseId || postId;
       
       if (editingComment) {
         const { error } = await supabase
-          .from('comments')
+          .from(tableName)
           .update({ content: text.trim() })
           .eq('id', editingComment.id);
         if (error) throw error;
       } else {
+        const insertData: any = {
+          profile_id: userId,
+          content: text.trim(),
+          parent_id: replyingTo?.id || null
+        };
+        // Atribui o ID correto dependendo da tabela
+        insertData[foreignIdKey] = targetId;
+
         const { error } = await supabase
-          .from('comments')
-          .insert({
-            post_id: postId,
-            profile_id: userId,
-            content: text.trim(),
-            parent_id: replyingTo?.id || null
-          });
+          .from(tableName)
+          .insert(insertData);
         if (error) throw error;
       }
 
@@ -100,7 +109,8 @@ export default function CommentsSection({ postId, user }: any) {
   };
 
   const deleteComment = async (id: string) => {
-    const { error } = await supabase.from('comments').delete().eq('id', id);
+    const tableName = verseId ? 'daily_verse_comments' : 'comments';
+    const { error } = await supabase.from(tableName).delete().eq('id', id);
     if (!error) {
       setComments(prev => prev.filter(c => c.id !== id));
       toast.success("Comentário removido!");
@@ -118,8 +128,9 @@ export default function CommentsSection({ postId, user }: any) {
     ));
 
     try {
+      const tableName = verseId ? 'daily_verse_comments' : 'comments';
       const { error } = await supabase
-        .from('comments')
+        .from(tableName)
         .update({ likes: newLikes })
         .eq('id', comment.id);
       if (error) throw error;

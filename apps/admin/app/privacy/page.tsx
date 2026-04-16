@@ -70,7 +70,9 @@ export default function PrivacyPage() {
 
           <section className="space-y-3">
             <h3 className="text-lg font-bold text-white">4. Seus Direitos</h3>
-            <p>Você tem o direito de acessar, corrigir, portar ou excluir seus dados a qualquer momento através das configurações de perfil ou entrando em contato com nosso DPO (Data Protection Officer).</p>
+            <p>
+              Você tem o direito de acessar, corrigir, portar ou excluir seus dados a qualquer momento através das configurações de perfil ou acessando nosso formulário dedicado de <a href="/delete-account" className="text-whatsapp-green hover:underline font-bold">Solicitação de Exclusão de Conta</a>.
+            </p>
           </section>
 
           <section className="space-y-3">

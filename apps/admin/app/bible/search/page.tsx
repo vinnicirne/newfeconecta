@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { 
   Search, ArrowLeft, BookOpen, 
   ChevronRight, Sparkles, BarChart3, 
-  X, ChevronDown, ChevronUp, Check
+  X, ChevronDown, ChevronUp, Check, Send
 } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -29,6 +30,45 @@ export default function BibleSearchPage() {
   const [selectedVersion, setSelectedVersion] = useState(BIBLE_VERSIONS[0]);
   const [showVersionPicker, setShowVersionPicker] = useState(false);
   const versionPickerRef = useRef<HTMLDivElement>(null);
+
+  const [postModalVerse, setPostModalVerse] = useState<any>(null);
+  const [postText, setPostText] = useState("");
+  const [isPosting, setIsPosting] = useState(false);
+
+  async function shareToFeed() {
+    if (!postModalVerse) return;
+    try {
+      setIsPosting(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+         toast.error("Você precisa estar logado.");
+         return;
+      }
+      
+      const referenceText = `${postModalVerse.book} ${postModalVerse.chapter}:${postModalVerse.verse}`;
+      
+      const { error } = await supabase.from("daily_verses").insert({
+        content: postText.trim() || postModalVerse.text,
+        reference: referenceText,
+        book_abbrev: postModalVerse.bookAbbrev || postModalVerse.book,
+        chapter: parseInt(postModalVerse.chapter),
+        verse: parseInt(postModalVerse.verse),
+        is_active: true
+      });
+      
+      if (error) throw error;
+      toast.success("Palavra do Dia atualizada com sucesso! 🙌");
+      setPostModalVerse(null);
+      setPostText("");
+      
+      router.push('/');
+      
+    } catch (error: any) {
+      toast.error("Erro ao publicar: " + error.message);
+    } finally {
+      setIsPosting(false);
+    }
+  }
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -62,18 +102,55 @@ export default function BibleSearchPage() {
       let vtCount = 0;
       let ntCount = 0;
 
+      // Regex para identificar se o usuário digitou uma referência como 'João 3:16', 'Gn 1 5', '1 Corintios 13'
+      let refBook: any = null;
+      let refChap: number | null = null;
+      let refVerse: number | null = null;
+
+      const refMatch = queryTrimmed.match(/^([a-záéíóúãõâêîôûç0-9\s]+?)\s+(\d+)(?:[:.\-\sv]+(\d+))?$/i);
+      if (refMatch) {
+         const possibleBookName = refMatch[1].trim();
+         refChap = parseInt(refMatch[2]);
+         if (refMatch[3]) refVerse = parseInt(refMatch[3]);
+         
+         const bMeta = BIBLE_BOOKS.find(b => 
+            b.name.toLocaleLowerCase('pt-BR') === possibleBookName || 
+            b.name.toLocaleLowerCase('pt-BR').startsWith(possibleBookName) ||
+            b.abbrev.toLocaleLowerCase('pt-BR') === possibleBookName
+         );
+         if (bMeta) refBook = bMeta;
+      }
+
       bibleCache[selectedVersion.id].forEach((bookData: any) => {
         const bookMeta = BIBLE_BOOKS.find(b => b.abbrev === bookData.abbrev);
         if (!bookMeta) return;
 
         bookData.chapters.forEach((chapterVerses: string[], cIdx: number) => {
+          const currentChap = cIdx + 1;
+          
           chapterVerses.forEach((verseText: string, vIdx: number) => {
-            if (verseText.toLocaleLowerCase('pt-BR').includes(queryTrimmed)) {
+            const currentVerse = vIdx + 1;
+            let isMatch = false;
+
+            // Se for uma pesquisa por Referência (Ex: João 3:16)
+            if (refBook && refBook.abbrev === bookMeta.abbrev && currentChap === refChap) {
+               if (refVerse) {
+                 if (currentVerse === refVerse) isMatch = true;
+               } else {
+                 isMatch = true; // Se não tem versículo, retorna o capítulo todo
+               }
+            } 
+            // Senão, pesquisa textual normal
+            else if (verseText.toLocaleLowerCase('pt-BR').includes(queryTrimmed)) {
+               isMatch = true;
+            }
+
+            if (isMatch) {
               allResults.push({
                 book: bookMeta.name,
                 bookAbbrev: bookMeta.abbrev,
-                chapter: cIdx + 1,
-                verse: vIdx + 1,
+                chapter: currentChap,
+                verse: currentVerse,
                 text: verseText,
                 testament: bookMeta.testament
               });
@@ -263,18 +340,35 @@ export default function BibleSearchPage() {
               .map((result, idx) => (
                <div 
                 key={idx} 
-                onClick={() => router.push(`/bible?verse=${result.bookAbbrev}${result.chapter}:${result.verse}`)}
-                className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-gray-100 dark:border-white/5 hover:border-whatsapp-teal transition-all group cursor-pointer shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-95"
+                className="bg-white dark:bg-white/5 p-6 rounded-[32px] border border-gray-100 dark:border-white/5 hover:border-whatsapp-teal transition-all group shadow-sm hover:shadow-xl hover:-translate-y-1 active:scale-95 flex flex-col gap-4 flex-shrink-0"
                >
-                  <div className="flex items-center justify-between mb-4">
-                     <span className="px-3 py-1 bg-gray-50 dark:bg-white/10 rounded-xl text-[10px] font-black text-whatsapp-teal uppercase tracking-widest">
-                       {result.book} {result.chapter}:{result.verse}
-                     </span>
-                     <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-whatsapp-teal transition-colors" />
+                  <div 
+                    onClick={() => router.push(`/bible?verse=${result.bookAbbrev}${result.chapter}:${result.verse}`)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                       <span className="px-3 py-1 bg-gray-50 dark:bg-white/10 rounded-xl text-[10px] font-black text-whatsapp-teal uppercase tracking-widest">
+                         {result.book} {result.chapter}:{result.verse}
+                       </span>
+                       <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-whatsapp-teal transition-colors" />
+                    </div>
+                    <p className="text-gray-700 dark:text-gray-300 font-medium leading-relaxed group-hover:text-black dark:group-hover:text-white transition-colors">
+                      {result.text}
+                    </p>
                   </div>
-                  <p className="text-gray-700 dark:text-gray-300 font-medium leading-relaxed group-hover:text-black dark:group-hover:text-white transition-colors">
-                    {result.text}
-                  </p>
+                  
+                  <div className="pt-4 border-t border-gray-100 dark:border-white/5 flex gap-2">
+                     <button 
+                       onClick={(e) => {
+                          e.stopPropagation();
+                          setPostModalVerse(result);
+                          setPostText(result.text); // Pré-carrega o texto para edição
+                       }}
+                       className="w-full py-3 bg-whatsapp-teal/10 hover:bg-whatsapp-teal text-whatsapp-teal hover:text-white rounded-2xl font-black text-[11px] uppercase tracking-widest transition-colors flex items-center justify-center gap-2"
+                     >
+                       <Send size={14} /> Substituir Palavra do Dia
+                     </button>
+                  </div>
                </div>
               ))
            ) : (
@@ -303,6 +397,42 @@ export default function BibleSearchPage() {
         </div>
 
       </div>
+
+      {postModalVerse && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/70 backdrop-blur-md animate-in fade-in duration-300">
+           <div className="bg-white dark:bg-[#111] w-full max-w-xl rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-500 border border-white/5 flex flex-col">
+              <div className="p-6 md:p-8 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
+                 <h3 className="font-black dark:text-white uppercase tracking-widest text-xs">Publicar Revelação</h3>
+                 <button onClick={() => setPostModalVerse(null)} className="p-2 rounded-full bg-gray-50 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
+                   <X size={16} className="text-gray-400" />
+                 </button>
+              </div>
+              
+              <div className="p-6 md:p-8 overflow-y-auto space-y-6">
+                  {/* VERSE EDITOR */}
+                 <div className="p-5 bg-whatsapp-teal/5 rounded-3xl border border-whatsapp-teal/10">
+                    <p className="text-[10px] font-black text-whatsapp-teal uppercase tracking-widest mb-2 flex items-center justify-between">
+                       <span>{postModalVerse.book} {postModalVerse.chapter}:{postModalVerse.verse}</span>
+                       <span className="text-gray-400 font-bold opacity-70">Edite abaixo se necessário:</span>
+                    </p>
+                    <textarea 
+                      value={postText}
+                      onChange={(e) => setPostText(e.target.value)}
+                      className="w-full bg-transparent text-sm text-gray-700 dark:text-gray-300 italic font-medium leading-relaxed outline-none min-h-[140px] resize-none border-none focus:ring-0"
+                      autoFocus
+                    />
+                 </div>
+              </div>
+
+              <div className="p-6 md:p-8 pt-0 flex-shrink-0 flex gap-2">
+                 <button onClick={shareToFeed} disabled={isPosting} className="w-full py-5 bg-whatsapp-teal text-white rounded-3xl font-black text-[13px] uppercase tracking-widest hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 shadow-xl shadow-whatsapp-teal/30 disabled:opacity-50">
+                   {isPosting ? "Publicando..." : <><Send size={18} /> Definir como Palavra do Dia</>}
+                 </button>
+              </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }

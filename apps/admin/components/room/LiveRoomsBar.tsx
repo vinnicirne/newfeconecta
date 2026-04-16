@@ -58,7 +58,8 @@ export default function LiveRoomsBar() {
     };
     fetchRooms();
 
-    const channel = supabase.channel('active-rooms')
+    const channelId = `active-rooms-${Math.random()}`;
+    const channel = supabase.channel(channelId)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, fetchRooms)
       .subscribe();
     

@@ -20,7 +20,8 @@ import {
   Type,
   Smartphone,
   Mic,
-  Image
+  Image,
+  Sparkles
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -175,6 +176,7 @@ export default function DashboardPage() {
              { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação 30s' },
              { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
              { name: 'Tipografia Feed', status: 'Ativo', icon: Type, desc: 'Escala Dinâmica 17~24px' },
+             { name: 'Auto-Card DFCH', status: 'Ativo', icon: Sparkles, desc: 'Mensagem do Dia automática' },
            ].map(({ icon: Icon, ...feature }) => (
              <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">

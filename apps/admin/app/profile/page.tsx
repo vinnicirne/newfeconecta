@@ -15,6 +15,7 @@ import {
   Linkedin, 
   Youtube, 
   Settings2, 
+  Settings,
   UserSquare2, 
   PlaySquare, 
   Flame, 
@@ -49,7 +50,7 @@ export default function ProfilePage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState<'grid' | 'tagged' | 'lumes' | 'likes' | 'saved'>('grid');
+  const [view, setView] = useState<'grid' | 'tagged' | 'lumes' | 'likes' | 'saved' | 'settings'>('grid');
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [highlights, setHighlights] = useState<any[]>([]);
   const [userPosts, setUserPosts] = useState<any[]>([]);
@@ -429,6 +430,19 @@ export default function ProfilePage() {
           >
             <Plus className="w-6 h-6" />
           </button>
+          
+          <button
+            onClick={() => {
+              setView('settings');
+              // Scroll para a área de conteúdo para o usuário ver a mudança
+              window.scrollTo({ top: 400, behavior: 'smooth' });
+            }}
+            className="p-1 hover:bg-white/10 rounded-lg transition-all"
+            title="Configurações"
+          >
+            <Settings className="w-6 h-6 text-white" />
+          </button>
+
           <button
             onClick={handleLogout}
             className="p-1 hover:bg-white/10 rounded-lg text-red-500 transition-all"
@@ -687,6 +701,7 @@ export default function ProfilePage() {
           { id: 'tagged', icon: UserSquare2 },
           { id: 'likes', icon: Flame },
           { id: 'saved', icon: Bookmark },
+          { id: 'settings', icon: Settings },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -841,6 +856,74 @@ export default function ProfilePage() {
                 <p className="text-[11px] font-black uppercase tracking-widest">Nada salvo ainda</p>
               </div>
             )}
+          </div>
+        )}
+
+        {view === 'settings' && (
+          <div className="p-6 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-1">
+              <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 dark:text-gray-400">Preferências da Conta</h3>
+              <p className="text-[10px] text-gray-400">Gerencie sua privacidade e configurações de conta.</p>
+            </div>
+
+            <div className="space-y-2">
+              <button 
+                onClick={() => setIsEditModalOpen(true)}
+                className="w-full flex items-center justify-between p-4 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-2xl transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal">
+                    <UserSquare2 className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-bold dark:text-white">Editar Perfil</span>
+                    <span className="text-[10px] text-gray-500">Nome, bio e links sociais</span>
+                  </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90 group-hover:text-whatsapp-green transition-colors" />
+              </button>
+
+              <button 
+                onClick={() => setIsVerificationModalOpen(true)}
+                className="w-full flex items-center justify-between p-4 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-2xl transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-whatsapp-green/10 flex items-center justify-center text-whatsapp-green">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-bold dark:text-white">Status Ministerial</span>
+                    <span className="text-[10px] text-gray-500">Solicitar selo de verificação</span>
+                  </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-gray-400 -rotate-90 group-hover:text-whatsapp-green transition-colors" />
+              </button>
+
+              <Link 
+                href="/delete-account"
+                className="w-full flex items-center justify-between p-4 bg-red-500/5 hover:bg-red-500/10 rounded-2xl transition-all group border border-red-500/10"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center text-red-500">
+                    <X className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-sm font-bold text-red-500">Excluir Conta</span>
+                    <span className="text-[10px] text-red-500/60 transition-colors group-hover:text-red-500">Solicitar remoção permanente</span>
+                  </div>
+                </div>
+                <ChevronDown className="w-4 h-4 text-red-400 -rotate-90 group-hover:text-red-500 transition-colors" />
+              </Link>
+            </div>
+
+            <div className="pt-4">
+              <button 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 p-4 text-gray-500 hover:text-red-500 transition-colors text-xs font-black uppercase tracking-widest"
+              >
+                <LogOut className="w-4 h-4" /> Sair da Conta
+              </button>
+            </div>
           </div>
         )}
 

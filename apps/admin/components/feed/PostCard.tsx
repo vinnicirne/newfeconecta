@@ -93,6 +93,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
   const hasExternalMedia = !!urlMatch;
   const isMediaPost = !!(post.media_url || isVideo || isAudio || hasExternalMedia);
+  const isVerseRepost = post.type === 'repost_verse';
+  const isDFCH = !!(post.content?.startsWith('📖') || post.is_testimony) || isVerseRepost;
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -674,21 +676,42 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
       {/* Legenda (Abaixo da Mídia) */}
       {post.content && (
-        <div className={cn("px-4", !isMediaPost ? "py-10" : "pb-3 pt-0 -mt-1.5")}>
+        <div className={cn("px-4", (!isMediaPost || isDFCH) && !post.media_url ? "py-10" : "pb-3 pt-0 -mt-1.5")}>
           <div
             className={cn(
-              isShortText ? "text-[24px] font-black leading-[1.1] tracking-tight" : "text-[17px] font-medium leading-relaxed",
+              isShortText || isDFCH ? "text-[24px] font-black leading-[1.1] tracking-tight" : "text-[17px] font-medium leading-relaxed",
               "whitespace-pre-wrap break-words transition-all mb-1",
-              isMediaPost ? "text-left" : "text-center",
-              post.background && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5"
+              isMediaPost && !isDFCH ? "text-left" : "text-center",
+              (post.background || (isDFCH && !post.media_url)) && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5 bg-gray-50/5 dark:bg-zinc-900/50",
+              isVerseRepost && "bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-900 border-indigo-500/30 text-white min-h-[300px] flex-col gap-4 italic font-serif"
             )}
             style={{ background: post.background || undefined }}
           >
+            {isVerseRepost && (
+               <div className="flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 mb-4 not-italic font-sans">
+                  <Sparkles className="w-3 h-3 text-whatsapp-green animate-pulse" />
+                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">Palavra do Dia</span>
+               </div>
+            )}
+            
             <span className={cn(
-              post.background ? "text-white text-2xl font-black drop-shadow-md" : "text-gray-900 dark:text-gray-100"
+              post.background || isVerseRepost ? "text-white drop-shadow-md" : "text-gray-900 dark:text-gray-100",
+              isVerseRepost ? "text-xl md:text-2xl" : ""
             )}>
               {renderContent(post.content)}
             </span>
+
+            {isVerseRepost && (
+               <button 
+                 onClick={() => {
+                   const ref = post.metadata?.bible_ref || 'MR13:33';
+                   router.push(`/bible?verse=${ref}`);
+                 }}
+                 className="mt-6 px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-95 not-italic font-sans"
+               >
+                 Ler capítulo completo
+               </button>
+            )}
           </div>
         </div>
       )}

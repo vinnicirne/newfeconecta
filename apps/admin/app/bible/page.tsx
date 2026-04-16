@@ -91,8 +91,9 @@ export default function BiblePage() {
     let cancelled = false;
 
     async function loadData() {
-      await fetchChapter();
-      if (!cancelled) {
+      const data = await fetchChapter();
+      if (!cancelled && data) {
+        setVerses(data);
         // Delay para evitar race condition no auth lock do Supabase
         await new Promise(r => setTimeout(r, 100));
         if (!cancelled) fetchInteractions();
@@ -122,16 +123,21 @@ export default function BiblePage() {
 
   // Handle URL pre-fill for "Verse of the Day"
   useEffect(() => {
-    const prefill = searchParams.get('verse'); // format sl23:1
+    const prefill = searchParams.get('verse'); // format sl23:1 ou 1co12:1
     if (prefill) {
-      const match = prefill.match(/([a-z0-9]+)(\d+)(?::(\d+))?/i);
+      // Regex melhorado: (\d?[a-z]+) pega o livro (incluindo números iniciais), (\d+) o capítulo e (?::(\d+)) o versículo
+      const match = prefill.match(/(\d?[a-z]+)\s?(\d+)(?::(\d+))?/i);
       if (match) {
         const abbrev = match[1].toLowerCase();
         const chapter = parseInt(match[2]);
         const verseNum = match[3] ? parseInt(match[3]) : null;
-        const book = BIBLE_BOOKS.find(b => b.abbrev === abbrev);
+        
+        // Mapeamento de sinonimos comuns caso necessário
+        const aliasedAbbrev = abbrev === 'mr' ? 'mc' : abbrev;
+        
+        const book = BIBLE_BOOKS.find(b => b.abbrev === aliasedAbbrev);
         if (book) {
-          setSelectedBook(abbrev);
+          setSelectedBook(aliasedAbbrev);
           setSelectedBookName(book.name);
           setSelectedChapter(chapter);
           setMaxChapters(book.chapters);
@@ -157,20 +163,23 @@ export default function BiblePage() {
         bibleCache[selectedVersion.id] = await res.json();
       }
 
-      const bookData = bibleCache[selectedVersion.id].find((b: any) => b.abbrev === selectedBook);
+      const bookData = bibleCache[selectedVersion.id].find((b: any) => {
+        const bAbbrev = (b.abbrev || "").toLowerCase();
+        const sAbbrev = (selectedBook || "").toLowerCase();
+        return bAbbrev === sAbbrev || b.name === selectedBookName;
+      });
       if (bookData && bookData.chapters[selectedChapter - 1]) {
         const chapterVerses = bookData.chapters[selectedChapter - 1];
-        const mappedVerses = chapterVerses.map((v: string, index: number) => ({
+        return chapterVerses.map((v: string, index: number) => ({
           number: index + 1,
           text: v
         }));
-        setVerses(mappedVerses);
-      } else {
-        setVerses([]);
       }
+      return [];
     } catch (error) {
       console.error("Erro ao carregar capítulos:", error);
       toast.error("Erro ao carregar capítulos da bíblia local");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -328,8 +337,7 @@ export default function BiblePage() {
         author_id: user.id,
         user_id: user.id,
         content: postContent,
-        post_type: 'text',
-        is_testimony: true
+        post_type: 'text'
       });
       if (error) throw error;
       toast.success("Publicado no Feed! 🙌");

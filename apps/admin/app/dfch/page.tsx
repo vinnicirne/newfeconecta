@@ -37,27 +37,66 @@ export default function DFCHPage() {
   async function fetchDFCHPosts() {
     try {
       setLoading(true);
-      // Filtramos por posts que tenham o prefixo de versículo 📖 ou marcador de testemunho
+      // Busca simplificada para não violar chaves estrangeiras que não existem neste projeto
       const { data, error } = await supabase
         .from("posts")
-        .select(`
-          *,
-          profiles:author_id (*),
-          interactions:post_interactions (id, type, user_id),
-          comments:post_comments (id)
-        `)
+        .select(`*`)
         .order("created_at", { ascending: false })
-        .limit(20);
+        .limit(50); // Ampliado pois o filtro é local
 
       if (error) throw error;
 
       // Filtro local simples para simular a aba DFCH (posts com bíblia ou curtos de reflexão)
       const dfchOnly = data?.filter((p: any) => 
-        p.content.includes("📖") || p.is_testimony === true
-      );
+        (p.content && p.content.includes("📖")) || p.is_testimony === true
+      ) || [];
 
-      setPosts(dfchOnly || []);
+      // Carrega perfis
+      const userIds = [...new Set(dfchOnly.map((p: any) => p.user_id || p.author_id))].filter(Boolean);
+      let profilesMap: Record<string, any> = {};
+      
+      if (userIds.length > 0) {
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("*")
+          .in("id", userIds);
+          
+        if (profilesData) {
+          profilesMap = profilesData.reduce((acc: any, prof: any) => {
+            acc[prof.id] = prof;
+            return acc;
+          }, {});
+        }
+      }
+
+      // Mapeia posts pro formato que o PostCard entende (O mesmo do feed principal)
+      const mappedPosts = dfchOnly.map((post: any) => {
+        const profile = profilesMap[post.user_id || post.author_id] || {};
+        return {
+          id: post.id,
+          author_name: profile.full_name || 'FéConecta',
+          author_username: profile.username || '@feconecta',
+          author_id: post.user_id || post.author_id,
+          author_avatar: profile.avatar_url,
+          created_date: post.created_at,
+          display_date: post.created_at,
+          content: (post.content || '').trim(),
+          media_url: post.media_url,
+          media_type: post.media_type || 'text',
+          likes: post.likes || [],
+          likes_count: post.likes_count || (post.likes ? post.likes.length : 0),
+          comments_count: post.comments_count || 0,
+          reposts_count: post.reposts_count || 0,
+          views_count: post.views_count || 0,
+          is_verified: profile.is_verified,
+          verification_label: profile.verification_label,
+          background: post.background,
+        };
+      });
+
+      setPosts(mappedPosts);
     } catch (error) {
+      console.error(error);
       toast.error("Erro ao carregar revelações");
     } finally {
       setLoading(false);
@@ -102,7 +141,7 @@ export default function DFCHPage() {
            
            <div className="pt-4">
               <button 
-                onClick={() => router.push('/bible')}
+                onClick={() => router.push('/bible/search')}
                 className="px-8 py-4 bg-whatsapp-teal text-white rounded-3xl font-black text-sm shadow-xl shadow-whatsapp-teal/20 transition-all hover:scale-105 active:scale-95 flex items-center gap-2 mx-auto"
               >
                 <Plus className="w-5 h-5" /> Publicar Revelação
@@ -151,7 +190,7 @@ export default function DFCHPage() {
 
       {/* FAB MOBILE */}
       <button 
-        onClick={() => router.push('/bible')}
+        onClick={() => router.push('/bible/search')}
         className="fixed bottom-24 right-6 w-16 h-16 bg-whatsapp-teal text-white rounded-3xl shadow-2xl shadow-whatsapp-teal/40 flex items-center justify-center hover:scale-110 active:scale-90 transition-all z-40 animate-bounce"
       >
         <Plus size={32} />

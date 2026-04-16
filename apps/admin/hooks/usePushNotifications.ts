@@ -28,10 +28,19 @@ export const usePushNotifications = () => {
           console.log("Nenhum token prévio.");
         }
 
-        const token = await getToken(messaging, { 
-          vapidKey,
-          serviceWorkerRegistration: registration
-        });
+        let token = null;
+        try {
+          token = await getToken(messaging, { 
+            vapidKey,
+            serviceWorkerRegistration: registration
+          });
+        } catch (e: any) {
+          if (e?.name === 'AbortError' || e?.message?.includes('lock') || e?.message?.includes('steal')) {
+            console.warn("Push token lock contention, ignoring safely.");
+            return;
+          }
+          throw e;
+        }
 
         if (token) {
           // Só salva e mostra toast se o token for novo ou diferente

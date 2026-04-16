@@ -6,10 +6,11 @@ import { usePathname } from "next/navigation";
 import { 
   Home, 
   PlusSquare, 
-  PlaySquare, 
   Mic, 
   UserCircle2,
-  Bell
+  Bell,
+  Search,
+  Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import MobilePostSheet from "./MobilePostSheet";
@@ -25,8 +26,19 @@ export default function BottomNav() {
   const isHidden = hiddenRoutes.includes(pathname);
 
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) setUser(session.user);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (session?.user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', session.user.id)
+          .single();
+        
+        setUser({ ...session.user, avatar_url: profile?.avatar_url });
+      }
+    }).catch(err => {
+      if (err?.message?.includes('lock') || err?.message?.includes('steal')) return;
+      console.error("Auth session error:", err);
     });
   }, []);
 
@@ -34,26 +46,26 @@ export default function BottomNav() {
 
   const navItems = [
     { icon: Home, href: "/", label: "Home" },
-    { icon: Mic, href: "/room", label: "Guerra" },
+    { icon: Search, href: "/explore", label: "Busca" },
     { icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
-    { icon: Bell, href: "/notifications", label: "Notificações" },
+    { icon: Flame, href: "/explore", label: "Lumes" },
     { icon: UserCircle2, href: "/profile", label: "Perfil" },
   ];
 
   return (
     <>
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-whatsapp-dark/80 backdrop-blur-xl border-t border-gray-100 dark:border-white/5 py-3 z-[100] px-6">
-      <div className="flex items-center justify-between max-w-md mx-auto">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-[#080808]/80 backdrop-blur-xl border-t border-black/5 dark:border-white/5 py-3 z-[100] px-4 pb-6">
+      <div className="flex items-center justify-around w-full">
         {navItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
           
           if (item.action) {
             return (
-              <div key={item.label} className="relative -mt-8">
+              <div key={item.label} className="relative -mt-10">
                 <button 
                   onClick={item.action}
-                  className="w-14 h-14 rounded-2xl bg-whatsapp-teal text-white flex items-center justify-center shadow-xl shadow-whatsapp-teal/40 active:scale-90 transition-all border-4 border-white dark:border-whatsapp-dark"
+                  className="w-14 h-14 rounded-2xl bg-whatsapp-teal text-white flex items-center justify-center shadow-xl shadow-whatsapp-teal/40 active:scale-95 transition-all border-4 border-white dark:border-[#080808]"
                 >
                   <Icon className="w-7 h-7" />
                 </button>
@@ -66,11 +78,28 @@ export default function BottomNav() {
               key={item.label} 
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 transition-all active:scale-90",
+                "flex flex-col items-center justify-center min-w-[50px] transition-all active:scale-90",
                 isActive ? "text-whatsapp-teal dark:text-whatsapp-green" : "text-gray-400"
               )}
             >
-              <Icon className={cn("w-6 h-6", isActive && "fill-current")} />
+              {item.label === "Perfil" ? (
+                <div className={cn(
+                  "w-9 h-9 rounded-xl overflow-hidden border-2 transition-all shadow-sm",
+                  isActive ? "border-whatsapp-teal scale-110 shadow-whatsapp-teal/20" : "border-gray-200 dark:border-white/10"
+                )}>
+                  {user?.avatar_url ? (
+                    <img src={user.avatar_url} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <div className="w-full h-full bg-gray-100 dark:bg-white/5 flex items-center justify-center">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Icon className={cn("w-6 h-6", isActive && item.label === "Home" && "fill-current")} />
+              )}
+              {/* Opcional: remover as labels para um visual mais clean, ou mantê-las bem pequenas */}
+              <span className="text-[9px] font-bold mt-1 uppercase tracking-tighter opacity-80">{item.label}</span>
             </Link>
           );
         })}

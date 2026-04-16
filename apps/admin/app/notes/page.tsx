@@ -218,9 +218,8 @@ export default function NotesPage() {
         .insert({
           author_id: user.id,
           user_id: user.id,
-          content: note.content,
-          post_type: 'text',
-          is_testimony: true
+          content: note.content.includes("📖") ? note.content : `📖 Devocional\n\n${note.content}`,
+          post_type: 'text'
         });
 
       if (error) throw error;
