@@ -21,6 +21,7 @@ import {
   Smartphone,
   Mic,
   Image,
+  Sparkles,
   Flame,
   Share2
 } from "lucide-react";
