@@ -1,6 +1,6 @@
 -- Migração para o Sistema Social Lumes (Republicação e Salvamento)
 -- Data: 2026-04-16
--- Versão 2: Sincronização Completa de Contadores (Likes, Reposts e Comentários)
+-- Versão 3: Correção de Schema Scope e Referência Qualificada
 
 -- 1. Tabela de Republicações
 CREATE TABLE IF NOT EXISTS public.reposts (
@@ -54,31 +54,32 @@ CREATE POLICY "Remoção de salvos pelo proprietário" ON public.saved_posts
     FOR DELETE USING (auth.uid() = user_id OR user_id = '296f0f37-c8b8-4ad1-855c-4625f3f14731');
 
 -- 5. Automação de Contadores (Triggers)
-CREATE OR REPLACE FUNCTION sync_post_social_stats()
+-- Definimos a função explicitamente no schema public
+CREATE OR REPLACE FUNCTION public.sync_post_social_stats()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Sincronização de Republicações
     IF (TG_TABLE_NAME = 'reposts') THEN
         IF (TG_OP = 'INSERT') THEN
-            UPDATE posts SET reposts_count = COALESCE(reposts_count, 0) + 1 WHERE id = NEW.post_id;
+            UPDATE public.posts SET reposts_count = COALESCE(reposts_count, 0) + 1 WHERE id = NEW.post_id;
         ELSIF (TG_OP = 'DELETE') THEN
-            UPDATE posts SET reposts_count = GREATEST(0, COALESCE(reposts_count, 0) - 1) WHERE id = OLD.post_id;
+            UPDATE public.posts SET reposts_count = GREATEST(0, COALESCE(reposts_count, 0) - 1) WHERE id = OLD.post_id;
         END IF;
     
     -- Sincronização de Salvamentos
     ELSIF (TG_TABLE_NAME = 'saved_posts') THEN
         IF (TG_OP = 'INSERT') THEN
-            UPDATE posts SET saved_count = COALESCE(saved_count, 0) + 1 WHERE id = NEW.post_id;
+            UPDATE public.posts SET saved_count = COALESCE(saved_count, 0) + 1 WHERE id = NEW.post_id;
         ELSIF (TG_OP = 'DELETE') THEN
-            UPDATE posts SET saved_count = GREATEST(0, COALESCE(saved_count, 0) - 1) WHERE id = OLD.post_id;
+            UPDATE public.posts SET saved_count = GREATEST(0, COALESCE(saved_count, 0) - 1) WHERE id = OLD.post_id;
         END IF;
 
     -- Sincronização de Comentários
     ELSIF (TG_TABLE_NAME = 'comments') THEN
         IF (TG_OP = 'INSERT') THEN
-            UPDATE posts SET comments_count = COALESCE(comments_count, 0) + 1 WHERE id = NEW.post_id;
+            UPDATE public.posts SET comments_count = COALESCE(comments_count, 0) + 1 WHERE id = NEW.post_id;
         ELSIF (TG_OP = 'DELETE') THEN
-            UPDATE posts SET comments_count = GREATEST(0, COALESCE(comments_count, 0) - 1) WHERE id = OLD.post_id;
+            UPDATE public.posts SET comments_count = GREATEST(0, COALESCE(comments_count, 0) - 1) WHERE id = OLD.post_id;
         END IF;
     END IF;
     
@@ -86,12 +87,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Ativar gatilhos de sincronização
+-- Ativar gatilhos com referências qualificadas
 DROP TRIGGER IF EXISTS tr_reposts_sync ON public.reposts;
-CREATE TRIGGER tr_reposts_sync AFTER INSERT OR DELETE ON public.reposts FOR EACH ROW EXECUTE FUNCTION sync_post_social_stats();
+CREATE TRIGGER tr_reposts_sync AFTER INSERT OR DELETE ON public.reposts FOR EACH ROW EXECUTE FUNCTION public.sync_post_social_stats();
 
 DROP TRIGGER IF EXISTS tr_saved_sync ON public.saved_posts;
-CREATE TRIGGER tr_saved_sync AFTER INSERT OR DELETE ON public.saved_posts FOR EACH ROW EXECUTE FUNCTION sync_post_social_stats();
+CREATE TRIGGER tr_saved_sync AFTER INSERT OR DELETE ON public.saved_posts FOR EACH ROW EXECUTE FUNCTION public.sync_post_social_stats();
 
 DROP TRIGGER IF EXISTS tr_comments_sync ON public.comments;
-CREATE TRIGGER tr_comments_sync AFTER INSERT OR DELETE ON public.comments FOR EACH ROW EXECUTE FUNCTION sync_post_social_stats();
+CREATE TRIGGER tr_comments_sync AFTER INSERT OR DELETE ON public.comments FOR EACH ROW EXECUTE FUNCTION public.sync_post_social_stats();
