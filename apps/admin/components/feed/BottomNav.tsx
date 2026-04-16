@@ -45,11 +45,11 @@ export default function BottomNav() {
   if (isHidden) return null;
 
   const navItems = [
-    { icon: Home, href: "/", label: "Home" },
-    { icon: Search, href: "/explore", label: "Busca" },
-    { icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
-    { icon: Flame, href: "/lumes", label: "Lumes" },
-    { icon: UserCircle2, href: "/profile", label: "Perfil" },
+    { id: 'home', icon: Home, href: "/", label: "Home" },
+    { id: 'explore', icon: Search, href: "/explore", label: "Busca" },
+    { id: 'post', icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
+    { id: 'lumes', icon: Flame, href: "/lumes", label: "Lumes" },
+    { id: 'profile', icon: UserCircle2, href: "/profile", label: "Perfil" },
   ];
 
   return (
@@ -57,12 +57,12 @@ export default function BottomNav() {
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white/80 dark:bg-[#080808]/80 backdrop-blur-xl border-t border-black/5 dark:border-white/5 py-3 z-[100] px-4 pb-6">
       <div className="flex items-center justify-around w-full">
         {navItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = item.href === "/" ? pathname === "/" : pathname === item.href;
           const Icon = item.icon;
           
           if (item.action) {
             return (
-              <div key={item.label} className="relative -mt-10">
+              <div key={item.id} className="relative -mt-10">
                 <button 
                   onClick={item.action}
                   className="w-14 h-14 rounded-2xl bg-whatsapp-teal text-white flex items-center justify-center shadow-xl shadow-whatsapp-teal/40 active:scale-95 transition-all border-4 border-white dark:border-[#080808]"
@@ -75,7 +75,7 @@ export default function BottomNav() {
 
           return (
             <Link 
-              key={item.label} 
+              key={item.id} 
               href={item.href}
               className={cn(
                 "flex flex-col items-center justify-center min-w-[50px] transition-all active:scale-90",
@@ -96,9 +96,8 @@ export default function BottomNav() {
                   )}
                 </div>
               ) : (
-                <Icon className={cn("w-6 h-6", isActive && item.label === "Home" && "fill-current")} />
+                <Icon className={cn("w-6 h-6", isActive && item.id === "home" && "fill-current")} />
               )}
-              {/* Opcional: remover as labels para um visual mais clean, ou mantê-las bem pequenas */}
               <span className="text-[9px] font-bold mt-1 uppercase tracking-tighter opacity-80">{item.label}</span>
             </Link>
           );
