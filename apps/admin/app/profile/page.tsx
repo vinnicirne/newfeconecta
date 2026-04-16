@@ -816,7 +816,7 @@ export default function ProfilePage() {
         userId={user?.id}
         initialData={editingHighlight}
         onSuccess={() => {
-          fetchHighlights();
+          fetchHighlights(user?.id);
           setIsHighlightModalOpen(false);
           setEditingHighlight(null);
         }}
