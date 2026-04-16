@@ -857,7 +857,7 @@ export default function ProfilePage() {
           onClose={() => setIsStoryCreatorOpen(false)}
           onCreated={() => {
             setIsStoryCreatorOpen(false);
-            loadUserStories();
+            loadUserStories(user?.id);
           }}
         />
       )}
