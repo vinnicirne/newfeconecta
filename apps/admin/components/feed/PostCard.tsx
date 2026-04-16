@@ -532,8 +532,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
                     onLoad={() => {
-                      if ('mediaSession' in navigator) {
-                        navigator.mediaSession.metadata = new MediaSessionMetadata({
+                      if (typeof window !== 'undefined' && 'mediaSession' in navigator && (window as any).MediaSessionMetadata) {
+                        navigator.mediaSession.metadata = new (window as any).MediaSessionMetadata({
                           title: post.content?.substring(0, 40) || 'Vídeo no FéConecta',
                           artist: post.author_name || 'FéConecta',
                           album: 'FéConecta Social',
