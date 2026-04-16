@@ -19,15 +19,70 @@ import { BIBLE_BOOKS } from '@/lib/bible-data';
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
 
-// Script do YouTube IFrame API (carregado via singleton)
-let ytApiLoaded = false;
-function loadYoutubeApi() {
-  if (typeof window === 'undefined' || ytApiLoaded) return;
-  const tag = document.createElement('script');
-  tag.src = "https://www.youtube.com/iframe_api";
-  const firstScriptTag = document.getElementsByTagName('script')[0];
-  firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
-  ytApiLoaded = true;
+// Componente Interno para Gerenciar o Player do YouTube com Estabilidade
+function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string }) {
+  const playerRef = useRef<any>(null);
+  const containerId = `yt-player-container-${postId}`;
+
+  useEffect(() => {
+    let checkInterval: any;
+
+    const initPlayer = () => {
+      if ((window as any).YT && (window as any).YT.Player) {
+        clearInterval(checkInterval);
+        playerRef.current = new (window as any).YT.Player(containerId, {
+          videoId: videoId,
+          playerVars: {
+            playsinline: 1,
+            modestbranding: 1,
+            rel: 0,
+            enablejsapi: 1,
+            origin: window.location.origin
+          },
+          events: {
+            'onStateChange': (event: any) => {
+              const audio = document.getElementById(`yt-audio-sync-${postId}`) as HTMLAudioElement;
+              const YT = (window as any).YT;
+              if (event.data === YT.PlayerState.PLAYING) {
+                audio?.play().catch(() => { });
+                if ('mediaSession' in navigator) {
+                  navigator.mediaSession.playbackState = 'playing';
+                }
+              } else {
+                audio?.pause();
+                if ('mediaSession' in navigator) {
+                  navigator.mediaSession.playbackState = 'paused';
+                }
+              }
+            }
+          }
+        });
+      }
+    };
+
+    // Garante que o script da API está carregado
+    if (!(window as any).YT) {
+      const tag = document.createElement('script');
+      tag.src = "https://www.youtube.com/iframe_api";
+      document.head.appendChild(tag);
+    }
+
+    checkInterval = setInterval(initPlayer, 500);
+
+    return () => {
+      clearInterval(checkInterval);
+      if (playerRef.current && playerRef.current.destroy) {
+        playerRef.current.destroy();
+      }
+    };
+  }, [videoId, containerId, postId]);
+
+  return (
+    <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5 relative group">
+      <div id={containerId} className="w-full h-full" />
+      <audio id={`yt-audio-sync-${postId}`} loop src="https://www.soundjay.com/buttons/beep-01a.mp3" className="hidden" muted />
+    </div>
+  );
 }
 
 export default function PostCard({ post, currentUser, onDeleted, onUpdated }: any) {
@@ -533,59 +588,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
             if (youtubeId) {
               return (
-                <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5 relative group">
-                  <div id={`yt-player-${post.id}`} className="w-full h-full" />
-                  {/* Audio ocluso para "Keep-Alive" no Mobile Background */}
-                  <audio id={`yt-audio-sync-${post.id}`} loop src="https://www.soundjay.com/buttons/beep-01a.mp3" className="hidden" muted />
-                  
-                  <script dangerouslySetInnerHTML={{ __html: `
-                    (function() {
-                      if (!window.YT) {
-                        const tag = document.createElement('script');
-                        tag.src = "https://www.youtube.com/iframe_api";
-                        document.head.appendChild(tag);
-                      }
-                      
-                      window.onYouTubeIframeAPIReady = window.onYouTubeIframeAPIReady || function() {
-                        window.isYTApiReady = true;
-                      };
-
-                      const checkReady = setInterval(() => {
-                        if (window.YT && window.YT.Player) {
-                          clearInterval(checkReady);
-                          new YT.Player('yt-player-${post.id}', {
-                            videoId: '${youtubeId}',
-                            playerVars: { 
-                              playsinline: 1, 
-                              modestbranding: 1, 
-                              rel: 0, 
-                              enablejsapi: 1,
-                              origin: window.location.origin
-                            },
-                            events: {
-                              'onStateChange': (event) => {
-                                const audio = document.getElementById('yt-audio-sync-${post.id}');
-                                if (event.data === YT.PlayerState.PLAYING) {
-                                  audio?.play().catch(() => {});
-                                  if ('mediaSession' in navigator) {
-                                    navigator.mediaSession.playbackState = 'playing';
-                                  }
-                                } else {
-                                  audio?.pause();
-                                  if ('mediaSession' in navigator) {
-                                    navigator.mediaSession.playbackState = 'paused';
-                                  }
-                                }
-                              }
-                            }
-                          });
-                        }
-                      }, 500);
-                    })();
-                  `}} />
-                </div>
+                <YouTubePlayer 
+                  videoId={youtubeId} 
+                  postId={post.id} 
+                />
               );
             }
+
 
 
             return (
