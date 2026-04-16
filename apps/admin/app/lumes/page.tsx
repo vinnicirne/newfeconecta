@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, ArrowLeft } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, ArrowLeft, Repeat, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import CommentsSection from '@/components/feed/CommentsSection';
@@ -42,7 +42,14 @@ export default function LumesPage() {
   }, []);
 
   const init = async () => {
-    const { data: { user: authUser } } = await supabase.auth.getUser();
+    let authUser = null;
+    try {
+      const { data } = await supabase.auth.getUser();
+      authUser = data.user;
+    } catch (e) {
+      console.warn("Supabase auth lock contention, ignoring safely.");
+    }
+    
     const userId = authUser?.id || '296f0f37-c8b8-4ad1-855c-4625f3f14731';
     
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
@@ -102,18 +109,49 @@ export default function LumesPage() {
           author_username: author.username || 'usuario'
         };
       });
-      setReels(mapped);
+      // Buscar status de repost e save para o usuário logado em lote
+      if (userId) {
+        const [
+          { data: userReposts },
+          { data: userSaved }
+        ] = await Promise.all([
+          supabase.from('reposts').select('post_id').eq('profile_id', userId),
+          supabase.from('saved_posts').select('post_id').eq('user_id', userId)
+        ]);
 
-      // Auto-scroll to the requested Lume
-      if (initialId) {
-        const idx = mapped.findIndex((r: any) => r.id === initialId);
-        if (idx !== -1) {
-          setCurrent(idx);
-          setTimeout(() => {
-            if (containerRef.current) {
-              containerRef.current.scrollTo({ top: window.innerHeight * idx, behavior: 'instant' });
-            }
-          }, 150);
+        const repostIds = new Set(userReposts?.map(r => r.post_id) || []);
+        const savedIds = new Set(userSaved?.map(s => s.post_id) || []);
+
+        const finalMapped = mapped.map(p => ({
+          ...p,
+          is_reposted: repostIds.has(p.id),
+          is_saved: savedIds.has(p.id)
+        }));
+        setReels(finalMapped);
+        // Auto-scroll to the requested Lume
+        if (initialId) {
+          const idx = finalMapped.findIndex((r: any) => r.id === initialId);
+          if (idx !== -1) {
+            setCurrent(idx);
+            setTimeout(() => {
+              if (containerRef.current) {
+                containerRef.current.scrollTo({ top: window.innerHeight * idx, behavior: 'instant' });
+              }
+            }, 150);
+          }
+        }
+      } else {
+        setReels(mapped);
+        if (initialId) {
+          const idx = mapped.findIndex((r: any) => r.id === initialId);
+          if (idx !== -1) {
+            setCurrent(idx);
+            setTimeout(() => {
+              if (containerRef.current) {
+                containerRef.current.scrollTo({ top: window.innerHeight * idx, behavior: 'instant' });
+              }
+            }, 150);
+          }
         }
       }
     }
@@ -168,6 +206,38 @@ export default function LumesPage() {
     await supabase.from('posts').update({ likes: newLikes }).eq('id', reel.id);
   };
 
+  const toggleRepost = async (reel: any) => {
+    if (!user) return;
+    const isReposted = reel.is_reposted;
+    
+    setReels(prev => prev.map(r => r.id === reel.id ? { 
+      ...r, 
+      is_reposted: !isReposted,
+      reposts_count: (r.reposts_count || 0) + (isReposted ? -1 : 1)
+    } : r));
+
+    if (isReposted) {
+      await supabase.from('reposts').delete().eq('post_id', reel.id).eq('profile_id', user.id);
+    } else {
+      await supabase.from('reposts').insert({ post_id: reel.id, profile_id: user.id });
+      toast.success("Republicado no seu perfil!");
+    }
+  };
+
+  const toggleSave = async (reel: any) => {
+    if (!user) return;
+    const isSaved = reel.is_saved;
+    
+    setReels(prev => prev.map(r => r.id === reel.id ? { ...r, is_saved: !isSaved } : r));
+
+    if (isSaved) {
+      await supabase.from('saved_posts').delete().eq('post_id', reel.id).eq('user_id', user.id);
+    } else {
+      await supabase.from('saved_posts').insert({ post_id: reel.id, user_id: user.id });
+      toast.success("Salvo nos favoritos!");
+    }
+  };
+
   if (reels.length === 0) return (
      <div className="fixed inset-0 flex items-center justify-center bg-black">
        <div className="w-12 h-12 border-4 border-whatsapp-green/20 border-t-whatsapp-green rounded-full animate-spin" />
@@ -201,6 +271,7 @@ export default function LumesPage() {
                 playsInline
                 muted={muted}
                 preload="auto"
+                crossOrigin="anonymous"
                 className="absolute inset-0 w-full h-full object-cover"
               />
 
@@ -218,7 +289,7 @@ export default function LumesPage() {
               )}
 
               {/* Painel de Informações (Esquerda) */}
-              <div className="absolute bottom-10 left-4 right-20 z-10 space-y-4">
+              <div className="absolute bottom-32 left-4 right-20 z-10 space-y-4">
                 <div className="flex items-center gap-3">
                   <Link
                     href={`/profile/${reel.author_username}`}
@@ -240,11 +311,19 @@ export default function LumesPage() {
                       </div>
                     </div>
                   </Link>
-                  <div className="flex flex-col">
-                    <h3 className="text-white font-black text-sm drop-shadow-lg">@{reel.author_username}</h3>
+                  <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
-                      <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green" />
-                      <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest">Original Audio</span>
+                      <h3 className="text-white font-black text-sm drop-shadow-lg">@{reel.author_username}</h3>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); toast.info("Seguindo em breve!"); }}
+                        className="px-2 py-0.5 bg-whatsapp-green/20 hover:bg-whatsapp-green/40 border border-whatsapp-green/50 rounded-full text-[10px] text-whatsapp-green font-bold transition-all active:scale-90"
+                      >
+                        Seguir
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
+                      <span className="text-white/60 text-[10px] font-bold uppercase tracking-widest leading-none">Original Audio</span>
                     </div>
                   </div>
                 </div>
@@ -257,7 +336,7 @@ export default function LumesPage() {
               </div>
 
               {/* Barra de Ações (Direita) */}
-              <div className="absolute right-4 bottom-12 z-20 flex flex-col items-center gap-6">
+              <div className="absolute right-4 bottom-32 z-20 flex flex-col items-center gap-6">
                 <button onClick={(e) => { e.stopPropagation(); toggleLike(reel); }} className="flex flex-col items-center gap-1 group">
                   <div className={cn(
                     "w-12 h-12 rounded-full flex items-center justify-center transition-all bg-white/10 backdrop-blur-xl border border-white/10 active:scale-125",
@@ -288,6 +367,25 @@ export default function LumesPage() {
 
                 <button onClick={(e) => { e.stopPropagation(); setMuted(m => !m); }} className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90">
                   {muted ? <VolumeX className="w-6 h-6 text-white" /> : <Volume2 className="w-6 h-6 text-whatsapp-green" />}
+                </button>
+
+                <button onClick={(e) => { e.stopPropagation(); toggleRepost(reel); }} className="flex flex-col items-center gap-1 group">
+                  <div className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center transition-all bg-white/10 backdrop-blur-xl border border-white/10 active:scale-125",
+                    reel.is_reposted && "bg-whatsapp-green/20 border-whatsapp-green/50"
+                  )}>
+                    <Repeat className={cn("w-6 h-6 transition-colors", reel.is_reposted ? 'text-whatsapp-green' : 'text-white')} />
+                  </div>
+                  <span className="text-white text-[11px] font-black drop-shadow-md">{reel.reposts_count || 0}</span>
+                </button>
+
+                <button onClick={(e) => { e.stopPropagation(); toggleSave(reel); }} className="flex flex-col items-center gap-1 group">
+                  <div className={cn(
+                    "w-12 h-12 rounded-full flex items-center justify-center transition-all bg-white/10 backdrop-blur-xl border border-white/10 active:scale-125",
+                    reel.is_saved && "bg-yellow-500/20 border-yellow-500/50"
+                  )}>
+                    <Bookmark className={cn("w-6 h-6 transition-colors", reel.is_saved ? 'text-yellow-500 fill-yellow-500' : 'text-white')} />
+                  </div>
                 </button>
               </div>
 

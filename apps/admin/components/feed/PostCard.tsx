@@ -14,6 +14,8 @@ import { VerificationBadge } from '@/components/verification-badge';
 import { NotificationService } from '@/lib/notifications';
 import { useRouter } from 'next/navigation';
 
+import { BIBLE_BOOKS } from '@/lib/bible-data';
+
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
 
@@ -93,7 +95,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
   const hasExternalMedia = !!urlMatch;
   const isMediaPost = !!(post.media_url || isVideo || isAudio || hasExternalMedia);
-  const isVerseRepost = post.type === 'repost_verse';
+  const isVerseRepost = post.type === 'repost_verse' || !!post.content?.startsWith('📖');
   const isDFCH = !!(post.content?.startsWith('📖') || post.is_testimony) || isVerseRepost;
 
   const toggleAudio = (e: React.MouseEvent) => {
@@ -334,9 +336,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const renderContent = (content: string) => {
     if (!content) return null;
 
+    const rawContent = isVerseRepost 
+      ? content.replace(/📖\s*Recomendo a\s*Palavra do Dia:\s*/i, '').replace(/""/g, '"').replace(/"/g, '').trim() 
+      : content;
+
     const MAX_CHAR = 240;
-    const shouldTruncate = content.length > MAX_CHAR && !isExpanded;
-    const displayContent = shouldTruncate ? content.substring(0, MAX_CHAR) + '...' : content;
+    const shouldTruncate = rawContent.length > MAX_CHAR && !isExpanded;
+    const displayContent = shouldTruncate ? rawContent.substring(0, MAX_CHAR) + '...' : rawContent;
 
     const parts = displayContent.split(/(#[\wáàâãéèêíïóôõöúç-]+|@[\w.-]+|https?:\/\/[^\s]+|www\.[^\s]+|\n)/g);
 
@@ -474,13 +480,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           </button>
         )}
 
-        {/* SELO REVELAÇÃO (DFCH) */}
-        {(post.content?.startsWith('📖') || post.is_testimony) && (
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 rounded-full animate-in zoom-in duration-300">
-            <Sparkles className="w-3 h-3 text-whatsapp-teal dark:text-whatsapp-green animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-whatsapp-teal dark:text-whatsapp-green whitespace-nowrap">Revelação</span>
-          </div>
-        )}
+
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -597,6 +597,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             autoPlay
             loop
             playsInline
+            crossOrigin="anonymous"
             onPlay={handlePlayMedia}
           />
 
@@ -667,6 +668,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           <audio
             ref={audioRef}
             src={post.media_url}
+            crossOrigin="anonymous"
+            preload="metadata"
             onTimeUpdate={() => audioRef.current && setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)}
             onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
             className="hidden"
@@ -688,24 +691,85 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             style={{ background: post.background || undefined }}
           >
             {isVerseRepost && (
-               <div className="flex items-center gap-2 px-3 py-1 bg-white/10 backdrop-blur-md rounded-full border border-white/10 mb-4 not-italic font-sans">
-                  <Sparkles className="w-3 h-3 text-whatsapp-green animate-pulse" />
-                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white">Palavra do Dia</span>
+               <div className="flex flex-col items-center gap-3 mb-6 not-italic font-sans">
+                  <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center border border-white/20 shadow-xl mb-2">
+                    <Sparkles className="w-6 h-6 text-whatsapp-green animate-pulse" />
+                  </div>
+                  <h2 className="text-sm font-black uppercase tracking-[0.3em] text-whatsapp-green drop-shadow-sm">
+                    Palavra do Dia
+                  </h2>
+                  <div className="w-12 h-0.5 bg-whatsapp-green/30 rounded-full" />
                </div>
             )}
             
             <span className={cn(
               post.background || isVerseRepost ? "text-white drop-shadow-md" : "text-gray-900 dark:text-gray-100",
-              isVerseRepost ? "text-xl md:text-2xl" : ""
+              isVerseRepost ? "text-xl md:text-2xl font-serif italic leading-tight" : ""
             )}>
-              {renderContent(post.content)}
+              {(() => {
+                let text = post.content;
+                if (isVerseRepost) {
+                  text = text.replace(/📖\s*Recomendo a\s*Palavra do Dia:\s*/i, '')
+                             .replace(/""/g, '"')
+                             .replace(/^"|"$|^“|”$/g, '')
+                             .replace(/^\[Versículo\]\s*/i, '')
+                             .trim();
+                  
+                  const parts = text.split(/ — | —|— | - /);
+                  if (parts.length > 1) {
+                    const verseText = parts[0].trim();
+                    const reference = parts[1].trim();
+                    return (
+                      <div className="flex flex-col items-center gap-5">
+                        <span>{renderContent(`"${verseText}"`)}</span>
+                        <span className="text-sm md:text-lg font-sans font-black uppercase tracking-[0.2em] text-whatsapp-green/90 not-italic pb-2">
+                          {reference}
+                        </span>
+                      </div>
+                    );
+                  }
+                }
+                return renderContent(text);
+              })()}
             </span>
 
             {isVerseRepost && (
                <button 
                  onClick={() => {
-                   const ref = post.metadata?.bible_ref || 'MR13:33';
-                   router.push(`/bible?verse=${ref}`);
+                   let refCode = post.metadata?.bible_ref;
+                   
+                   if (!refCode && post.content) {
+                     // 1. Pega a parte final do texto (após o último — ou -)
+                     const parts = post.content.split(/[—–-]/);
+                     if (parts.length > 1) {
+                        const rawRef = parts[parts.length - 1].trim(); // Ex: "Romanos 12:2"
+                        
+                        // 2. Extrai livro, capítulo e versículo
+                        // Regex que suporta livros com números: "1 João 3:16"
+                        const match = rawRef.match(/^((?:\d\s*)?[a-záàâãéèêíïóôõöúç\s]+)\s+(\d+)(?::(\d+))?/i);
+                        
+                        if (match) {
+                           const bName = match[1].trim().toLowerCase();
+                           const chapter = match[2];
+                           const verse = match[3] || '1';
+                           
+                           // 3. Busca o livro na base
+                           const book = BIBLE_BOOKS.find(b => 
+                              b.name.toLowerCase() === bName || 
+                              b.name.toLowerCase().replace(/\s/g, '') === bName.replace(/\s/g, '') ||
+                              bName.startsWith(b.name.toLowerCase().substring(0, 4))
+                           );
+                           
+                           if (book) {
+                              refCode = `${book.abbrev}${chapter}:${verse}`;
+                           }
+                        }
+                     }
+                   }
+                   
+                   // Fallback seguro se tudo falhar, mas com a nova lógica deve pegar rm12:2
+                   const finalRef = refCode || 'mc1:1';
+                   router.push(`/bible?verse=${finalRef}`);
                  }}
                  className="mt-6 px-6 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-[10px] font-black uppercase tracking-widest text-white transition-all active:scale-95 not-italic font-sans"
                >
