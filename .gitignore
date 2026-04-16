@@ -12,3 +12,5 @@ yarn-error.*
 # Archives
 Feconecta.rar
 newfeconecta-main.zip
+# APK files
+*.apk

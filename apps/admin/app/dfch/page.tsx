@@ -52,7 +52,7 @@ export default function DFCHPage() {
       ) || [];
 
       // Carrega perfis
-      const userIds = [...new Set(dfchOnly.map((p: any) => p.user_id || p.author_id))].filter(Boolean);
+      const userIds = Array.from(new Set(dfchOnly.map((p: any) => p.user_id || p.author_id))).filter(Boolean);
       let profilesMap: Record<string, any> = {};
       
       if (userIds.length > 0) {
