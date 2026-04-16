@@ -18,6 +18,40 @@ import { BIBLE_BOOKS } from '@/lib/bible-data';
 
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
+let audioContext: AudioContext | null = null;
+const SILENCE_B64 = "data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA== "; // Silêncio mínimo real
+
+const startSilenceLoop = () => {
+  try {
+    let audio = document.getElementById('pwa-ghost-audio') as HTMLAudioElement;
+    
+    if (!audio) {
+      audio = document.createElement('audio');
+      audio.id = 'pwa-ghost-audio';
+      audio.loop = true;
+      audio.volume = 0.001; // volume extremamente baixo
+      audio.preload = 'auto';
+      audio.src = SILENCE_B64; // mantenha seu base64
+      document.body.appendChild(audio); // garanta que esteja no body
+    }
+
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+
+    if (audioContext && audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    audio.play().catch(err => {
+      console.warn("Ghost audio play falhou (esperado no background):", err);
+    });
+
+    console.log('👻 Ghost Audio (volume mínimo) reforçado');
+  } catch (err) {
+    console.error('Erro ghost audio:', err);
+  }
+};
 
 // Componente Interno para Gerenciar o Player do YouTube com Estabilidade
 function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string }) {
@@ -27,6 +61,10 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
 
   const togglePlay = () => {
     if (!playerRef.current || typeof playerRef.current.getPlayerState !== 'function') return;
+    
+    // Ativação por gesto (Crucial para Mobile)
+    startSilenceLoop();
+
     const state = playerRef.current.getPlayerState();
     if (state === 1) {
       playerRef.current.pauseVideo();
@@ -37,6 +75,28 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
 
   useEffect(() => {
     let checkInterval: any;
+    let keepAliveInterval: any;
+
+    const setupMediaSession = () => {
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = new window.MediaMetadata({
+          title: 'Vídeo no FéConecta', 
+          artist: 'FéConecta',
+          artwork: [
+            { src: `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`, sizes: '1280x720', type: 'image/jpeg' },
+            { src: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`, sizes: '320x180', type: 'image/jpeg' }
+          ]
+        });
+
+        navigator.mediaSession.setActionHandler('play', () => {
+          playerRef.current?.playVideo();
+          startSilenceLoop();
+        });
+        navigator.mediaSession.setActionHandler('pause', () => {
+          playerRef.current?.pauseVideo();
+        });
+      }
+    };
 
     const initPlayer = () => {
       const YT = (window as any).YT;
@@ -49,22 +109,35 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
             modestbranding: 1,
             rel: 0,
             enablejsapi: 1,
-            controls: 0, // Removemos os botões do YT para evitar cliques de saída
-            origin: window.location.origin
+            controls: 0,
+            origin: window.location.origin,
+            host: window.location.hostname,
+            widget_referrer: window.location.origin
           },
           events: {
             'onStateChange': (event: any) => {
               setPlayerState(event.data);
-              const audio = document.getElementById(`yt-audio-sync-${postId}`) as HTMLAudioElement;
-              if (event.data === YT.PlayerState.PLAYING) {
-                audio?.play().catch(() => { });
+              const YT_CONST = (window as any).YT;
+              if (event.data === YT_CONST.PlayerState.PLAYING) {
+                startSilenceLoop();
+                setupMediaSession();
                 if ('mediaSession' in navigator) {
                   navigator.mediaSession.playbackState = 'playing';
                 }
+                
+                if (keepAliveInterval) clearInterval(keepAliveInterval);
+                keepAliveInterval = setInterval(() => {
+                  startSilenceLoop();
+                }, 5000);
+                
               } else {
-                audio?.pause();
                 if ('mediaSession' in navigator) {
                   navigator.mediaSession.playbackState = 'paused';
+                }
+                
+                if (keepAliveInterval) {
+                  clearInterval(keepAliveInterval);
+                  keepAliveInterval = null;
                 }
               }
             }
@@ -78,11 +151,20 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
       tag.src = "https://www.youtube.com/iframe_api";
       document.head.appendChild(tag);
     }
-
     checkInterval = setInterval(initPlayer, 500);
+
+    // Listener de Visibilidade (Reforço para Background)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && playerRef.current?.getPlayerState() === 1) {
+        startSilenceLoop(); 
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
 
     return () => {
       clearInterval(checkInterval);
+      if (keepAliveInterval) clearInterval(keepAliveInterval);
+      document.removeEventListener('visibilitychange', handleVisibility);
       if (playerRef.current && playerRef.current.destroy) {
         playerRef.current.destroy();
       }
@@ -90,11 +172,9 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
   }, [videoId, containerId, postId]);
 
   return (
-    <div className="rounded-3xl overflow-hidden aspect-video bg-black mt-2 shadow-2xl border border-white/10 relative group border-2 border-whatsapp-teal/10">
-      {/* Camada do Player com Pointer Events Desativados */}
+    <div className="rounded-3xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/10 relative group border-2 border-whatsapp-teal/10">
       <div id={containerId} className="w-full h-full pointer-events-none scale-[1.01]" />
       
-      {/* Camada de Blindagem e Controle */}
       <div 
         onClick={togglePlay}
         className="absolute inset-0 z-20 cursor-pointer flex items-center justify-center transition-all bg-black/0 hover:bg-black/5"
@@ -105,8 +185,6 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
           </div>
         )}
       </div>
-
-      <audio id={`yt-audio-sync-${postId}`} loop src="https://www.soundjay.com/buttons/beep-01a.mp3" className="hidden" muted />
     </div>
   );
 }
