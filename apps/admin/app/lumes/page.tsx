@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, type MouseEvent } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, ArrowLeft, Repeat, Bookmark } from 'lucide-react';
+import { Flame, MessageCircle, Share2, Volume2, VolumeX, Play, ArrowLeft, Repeat, Bookmark } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import CommentsSection from '@/components/feed/CommentsSection';
@@ -340,9 +340,9 @@ export default function LumesPage() {
                 <button onClick={(e) => { e.stopPropagation(); toggleLike(reel); }} className="flex flex-col items-center gap-1 group">
                   <div className={cn(
                     "w-12 h-12 rounded-full flex items-center justify-center transition-all bg-white/10 backdrop-blur-xl border border-white/10 active:scale-125",
-                    isLiked && "bg-red-500/20 border-red-500/50"
+                    isLiked && "bg-orange-500/20 border-orange-500/50"
                   )}>
-                    <Heart className={cn("w-6 h-6 transition-colors", isLiked ? 'text-red-500 fill-red-500' : 'text-white')} />
+                    <Flame className={cn("w-6 h-6 transition-colors", isLiked ? 'text-orange-500 fill-orange-500' : 'text-white')} />
                   </div>
                   <span className="text-white text-[11px] font-black drop-shadow-md">{reel.likes?.length || 0}</span>
                 </button>
@@ -355,10 +355,19 @@ export default function LumesPage() {
                 </button>
 
                 <button
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
-                    navigator.clipboard.writeText(window.location.origin + '/lumes?id=' + reel.id);
-                    toast.success("Link do Lume copiado!");
+                    const shareData = {
+                      title: 'Lumes - FéConecta',
+                      text: reel.content || 'Confira este Lume no FéConecta!',
+                      url: window.location.origin + '/lumes?id=' + reel.id
+                    };
+                    if (navigator.share) {
+                      try { await navigator.share(shareData); } catch (err) {}
+                    } else {
+                      navigator.clipboard.writeText(shareData.url);
+                      toast.success("Link do Lume copiado!");
+                    }
                   }}
                   className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90"
                 >
