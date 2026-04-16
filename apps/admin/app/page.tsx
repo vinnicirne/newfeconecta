@@ -137,10 +137,12 @@ export default function RootPage() {
           .eq('id', newPost.user_id)
           .single();
         const mapped = mapPost(newPost, { [newPost.user_id]: profile || {} });
-        setPosts(prev => (prev.some(p => p.id === mapped.id) ? prev : [mapped, ...prev]));
+        // Usar unique_key (que é o id para posts normais) para evitar duplicatas
+        const uniqueKey = mapped.id;
+        setPosts(prev => (prev.some(p => (p.unique_key === uniqueKey || p.id === mapped.id)) ? prev : [mapped, ...prev]));
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
-        setPosts(prev => prev.filter(p => (p.id !== payload.old.id && p.unique_key !== payload.old.id)));
+        setPosts(prev => prev.filter(p => p.id !== payload.old.id && p.unique_key !== payload.old.id));
       })
       // STORIES REALTIME
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, () => {
@@ -317,7 +319,13 @@ export default function RootPage() {
         };
       });
 
-      setPosts(mappedPosts);
+      setPosts(prev => {
+        const newPosts = [...mappedPosts];
+        // Garantir que não haja duplicatas no próprio carregamento inicial
+        return newPosts.filter((post, index, self) => 
+          index === self.findIndex((p) => (p.unique_key === post.unique_key))
+        );
+      });
       setHasMore(feed.length > PAGE_SIZE);
     } catch (err) {
       console.error("❌ Erro inesperado:", err);
@@ -358,7 +366,10 @@ export default function RootPage() {
           unique_key: `${p.id}-${nextPage}`
         }));
         
-        setPosts(prev => [...prev, ...mapped]);
+        setPosts(prev => {
+          const newPosts = mapped.filter(m => !prev.some(p => p.unique_key === m.unique_key));
+          return [...prev, ...newPosts];
+        });
         setPage(nextPage);
         setHasMore(morePosts.length === PAGE_SIZE);
       } else {
@@ -606,7 +617,7 @@ export default function RootPage() {
         <div className="px-4 py-4 space-y-4">
           {posts.length > 0 ? (
             posts.map((post, idx) => (
-              <React.Fragment key={post.id || `feed-post-${idx}`}>
+              <React.Fragment key={post.unique_key || post.id || `feed-post-${idx}`}>
                 <div ref={idx === posts.length - 1 ? lastPostRef : null}>
                   <PostCard
                     post={post}

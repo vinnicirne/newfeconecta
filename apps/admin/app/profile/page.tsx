@@ -87,7 +87,7 @@ export default function ProfilePage() {
     fetchProfile();
   }, []);
 
-  const fetchHighlights = async (userId: string) => {
+  const fetchHighlights = async (userId?: string) => {
     if (!userId) return;
 
     const { data } = await supabase
@@ -116,7 +116,7 @@ export default function ProfilePage() {
     }
   };
 
-  const loadUserStories = async (userId: string) => {
+  const loadUserStories = async (userId?: string) => {
     if (!userId) return;
 
     const { data } = await supabase

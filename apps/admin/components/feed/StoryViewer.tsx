@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ChevronLeft, ChevronRight, Pause, Play, Flame, MessageCircle, Send, Share2, Trash2, Star, Camera, ChevronUp } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Pause, Play, Flame, MessageCircle, Send, Share2, Trash2, Star, Camera, ChevronUp, Mic } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -35,6 +35,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
   const [floatingEmojis, setFloatingEmojis] = useState<any[]>([]);
   const [currentMediaDuration, setCurrentMediaDuration] = useState(PHOTO_DURATION);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
    const handleHighlightToggle = async () => {
      const isMarking = !story.is_highlight;
@@ -131,7 +132,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
 
   const startTimer = useCallback(() => {
     clearTimer();
-    const duration = story?.media_type === 'video' ? currentMediaDuration : PHOTO_DURATION;
+    const duration = (story?.media_type === 'video' || story?.media_type === 'audio') ? currentMediaDuration : PHOTO_DURATION;
     lastTick.current = Date.now();
     timerRef.current = setInterval(() => {
       if (!lastTick.current || paused) return;
@@ -145,7 +146,7 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
         advance();
       }
     }, 50);
-  }, [advance, story, currentMediaDuration, paused]);
+  }, [advance, story, currentMediaDuration, paused, story?.media_type]);
 
   // 1. Reset de progresso APENAS quando o Story mudar de fato
   useEffect(() => {
@@ -170,6 +171,13 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
       } else {
         videoRef.current.play().catch(() => {});
       }
+    }
+    if (story?.media_type === 'audio' && audioRef.current) {
+       if (paused) {
+         audioRef.current.pause();
+       } else {
+         audioRef.current.play().catch(() => {});
+       }
     }
   }, [paused, story?.media_type, storyIdx]);
 
@@ -389,6 +397,28 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
                 </div>
               )}
             </>
+          )}
+          {story.media_type === 'audio' && (
+            <div className="w-full h-full flex flex-col items-center justify-center p-12 text-center bg-zinc-900 border-x border-white/5">
+               <div className="w-32 h-32 rounded-full bg-whatsapp-green/10 flex items-center justify-center relative mb-8">
+                  <div className="absolute inset-0 rounded-full bg-whatsapp-green/20 animate-ping" />
+                  <Mic className="w-12 h-12 text-whatsapp-green relative z-10" />
+               </div>
+               {story.content && (
+                  <h2 className="text-white text-3xl font-bold leading-tight break-words drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] px-4">
+                    {story.content}
+                  </h2>
+               )}
+               <audio 
+                 ref={audioRef}
+                 src={story.media_url} 
+                 autoPlay 
+                 onLoadedMetadata={(e) => {
+                   const duration = e.currentTarget.duration * 1000;
+                   setCurrentMediaDuration(Math.min(duration, VIDEO_DURATION));
+                 }}
+               />
+            </div>
           )}
           {story.media_type === 'text' && (
             <div className="w-full h-full flex items-center justify-center p-12 text-center" style={{ backgroundColor: story.background_color || '#00A884' }}>

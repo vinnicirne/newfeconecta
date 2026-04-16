@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, useEffect } from 'react';
-import { X, Check, FlipHorizontal, Image, Circle, RotateCcw, Type, Palette } from 'lucide-react';
+import { X, Check, FlipHorizontal, Image, Circle, RotateCcw, Type, Palette, Mic } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -16,7 +16,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
-  const [mode, setMode] = useState<'photo' | 'video' | 'text'>('photo');
+  const [mode, setMode] = useState<'photo' | 'video' | 'text' | 'audio'>('photo');
   const [recording, setRecording] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
   const [preview, setPreview] = useState<any>(null);
@@ -43,11 +43,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   };
 
   const startCamera = async () => {
-    if (mode === 'text') return; // Don't start camera for text mode
+    if (mode === 'text') return; // Don't start stream for text mode
     stopCamera();
     try {
       const constraints = {
-        video: {
+        video: mode === 'audio' ? false : {
           width: { ideal: 720 },
           height: { ideal: 1280 },
           facingMode
@@ -68,7 +68,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       stopCamera(); 
       if (timerRef.current) clearInterval(timerRef.current); 
     };
-  }, [open, facingMode]);
+  }, [open, facingMode, mode, startCamera]); // Incluída startCamera para estabilidade (ela usa useCallback)
 
   const capturePhoto = () => {
     if (!videoRef.current) return;
@@ -96,18 +96,20 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (!streamRef.current) return;
     chunksRef.current = [];
     
-    const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
+    const mimeType = mode === 'audio' 
+      ? (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4')
+      : (MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm');
     
     try {
       // Bitrate de 1Mbps para Stories (Equilibrio perfeito entre peso e nitidez)
       const recorder = new MediaRecorder(streamRef.current, { 
         mimeType, 
-        videoBitsPerSecond: 1000000 
+        videoBitsPerSecond: mode === 'audio' ? undefined : 1000000 
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: mimeType });
-        setPreview({ url: URL.createObjectURL(blob), type: 'video', blob, mimeType });
+        setPreview({ url: URL.createObjectURL(blob), type: mode === 'audio' ? 'audio' : 'video', blob, mimeType });
         stopCamera();
       };
       recorderRef.current = recorder;
@@ -115,9 +117,12 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       setRecording(true);
       setRecordDuration(0);
       timerRef.current = setInterval(() => {
-        setRecordDuration(d => {
-          if (d + 1 >= 30) stopRecording();
-          return d + 1;
+        setRecordDuration(prev => {
+          if (prev >= 29) {
+            stopRecording();
+            return 30;
+          }
+          return prev + 1;
         });
       }, 1000);
     } catch (err) {
@@ -141,27 +146,28 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     }
 
     const type = file.type.startsWith('image/') ? 'image' : 
-                 file.type.startsWith('video/') ? 'video' : null;
+                 file.type.startsWith('video/') ? 'video' :
+                 file.type.startsWith('audio/') ? 'audio' : null;
 
     if (!type) {
       toast.error("Formato não suportado. Use fotos ou vídeos.");
       return;
     }
 
-    if (type === 'video') {
+    if (type === 'video' || type === 'audio') {
        const isValid = await new Promise((resolve) => {
-          const v = document.createElement('video');
-          v.preload = 'metadata';
-          v.onloadedmetadata = () => {
-             window.URL.revokeObjectURL(v.src);
-             resolve(v.duration <= 30);
+          const el = document.createElement(type === 'video' ? 'video' : 'audio');
+          el.preload = 'metadata';
+          el.onloadedmetadata = () => {
+             window.URL.revokeObjectURL(el.src);
+             resolve(el.duration <= 30);
           };
-          v.onerror = () => resolve(false);
-          v.src = URL.createObjectURL(file);
+          el.onerror = () => resolve(false);
+          el.src = URL.createObjectURL(file);
        });
 
        if (!isValid) {
-          toast.error("Stories devem ter no máximo 30 segundos.");
+          toast.error("Stories de áudio e vídeo devem ter no máximo 30 segundos.");
           return;
        }
     }
@@ -198,9 +204,9 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       let mediaUrl = null;
       let mediaType = mode;
 
-      if (mode === 'photo' || mode === 'video') {
+      if (mode === 'photo' || mode === 'video' || mode === 'audio') {
          let file = preview.blob;
-         const ext = preview.mimeType.split('/')[1] || (mode === 'photo' ? 'jpg' : 'webm');
+         const ext = preview.mimeType.split('/')[1] || (mode === 'photo' ? 'jpg' : mode === 'audio' ? 'mp3' : 'webm');
          
          if (mode === 'photo') {
            file = await compressImage(file, 1080, 0.65); // Aggressive compression for stories
@@ -230,7 +236,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
            .getPublicUrl(data.path);
            
          mediaUrl = publicUrl;
-         mediaType = (mode === 'photo' ? 'image' : 'video') as any;
+         mediaType = (mode === 'photo' ? 'image' : mode === 'video' ? 'video' : 'audio') as any;
       } else {
          mediaType = 'text';
          setUploadProgress(100);
@@ -275,11 +281,44 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           autoPlay 
           playsInline 
           muted 
-          className={cn("absolute inset-0 w-full h-full object-cover", preview && "hidden", facingMode === 'user' && "-scale-x-100")} 
+          className={cn("absolute inset-0 w-full h-full object-cover", (preview || mode === 'audio') && "hidden", facingMode === 'user' && "-scale-x-100")} 
         />
+        
+        {/* Tela de Gravação de Áudio (Placeholder quando a câmera está desligada) */}
+        {mode === 'audio' && !preview && (
+          <div 
+            onClick={handleAction}
+            className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900 overflow-hidden cursor-pointer"
+          >
+             <div className={cn(
+               "w-48 h-48 rounded-full bg-whatsapp-green/5 flex items-center justify-center border border-whatsapp-green/10 transition-all duration-500",
+               recording ? "scale-125 bg-whatsapp-green/10 border-whatsapp-green/30" : ""
+             )}>
+                <div className={cn(
+                  "w-32 h-32 rounded-full bg-whatsapp-green/10 flex items-center justify-center relative",
+                  recording ? "animate-pulse" : ""
+                )}>
+                   {recording && <div className="absolute inset-0 rounded-full bg-whatsapp-green/20 animate-ping" />}
+                   <Mic className={cn("w-14 h-14 transition-all", recording ? "text-whatsapp-green scale-110" : "text-white/20")} />
+                </div>
+             </div>
+             <p className="mt-8 text-[10px] font-black uppercase tracking-[0.3em] text-whatsapp-green/40">
+                {recording ? "Gravando Áudio..." : "Pronto para Gravar"}
+             </p>
+          </div>
+        )}
         
         {preview?.type === 'image' && <img src={preview.url} className="absolute inset-0 w-full h-full object-cover" alt="" />}
         {preview?.type === 'video' && <video src={preview.url} autoPlay loop playsInline className="absolute inset-0 w-full h-full object-cover" />}
+        {preview?.type === 'audio' && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900">
+             <div className="w-32 h-32 rounded-full bg-whatsapp-green/10 flex items-center justify-center animate-pulse border-2 border-whatsapp-green/20">
+                <Mic className="w-12 h-12 text-whatsapp-green" />
+             </div>
+             <p className="mt-4 text-xs font-black uppercase tracking-widest text-whatsapp-green/60">Áudio Selecionado</p>
+             <audio src={preview.url} autoPlay loop />
+          </div>
+        )}
         
         {/* Barra de Progresso da Gravação */}
         {recording && (
@@ -336,7 +375,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           type="file" 
           ref={fileRef}
           className="hidden"
-          accept="image/*,video/*"
+          accept="image/*,video/*,audio/*"
           onChange={handleFileSelect}
         />
 
@@ -429,11 +468,12 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
             </div>
 
             {/* 2. Textos dos Modos (Lado a Lado e Centralizados) */}
-            <div className="flex items-center justify-center gap-10">
-              <button onClick={() => setMode('photo')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'photo' ? "text-whatsapp-green" : "text-white/30")}>FOTO</button>
-              <button onClick={() => setMode('video')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'video' ? "text-whatsapp-green" : "text-white/30")}>VÍDEO</button>
-              <button onClick={() => setMode('text')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'text' ? "text-whatsapp-green" : "text-white/30")}>TEXTO</button>
-            </div>
+              <div className="flex items-center justify-center gap-10">
+                <button onClick={() => setMode('photo')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'photo' ? "text-whatsapp-green" : "text-white/30")}>FOTO</button>
+                <button onClick={() => setMode('video')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'video' ? "text-whatsapp-green" : "text-white/30")}>VÍDEO</button>
+                <button onClick={() => setMode('audio')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'audio' ? "text-whatsapp-green" : "text-white/30")}>ÁUDIO</button>
+                <button onClick={() => setMode('text')} className={cn("text-[11px] font-black tracking-[0.2em] transition-all", mode === 'text' ? "text-whatsapp-green" : "text-white/30")}>TEXTO</button>
+              </div>
           </>
         ) : (
           <div className="flex flex-col items-center gap-8 w-full">
