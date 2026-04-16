@@ -19,6 +19,17 @@ import { BIBLE_BOOKS } from '@/lib/bible-data';
 // Ensure moment is in PT-BR
 moment.locale('pt-br');
 
+// Script do YouTube IFrame API (carregado via singleton)
+let ytApiLoaded = false;
+function loadYoutubeApi() {
+  if (typeof window === 'undefined' || ytApiLoaded) return;
+  const tag = document.createElement('script');
+  tag.src = "https://www.youtube.com/iframe_api";
+  const firstScriptTag = document.getElementsByTagName('script')[0];
+  firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
+  ytApiLoaded = true;
+}
+
 export default function PostCard({ post, currentUser, onDeleted, onUpdated }: any) {
   const [showComments, setShowComments] = useState(false);
   const [likes, setLikes] = useState<string[]>(Array.isArray(post.likes) ? post.likes : []);
@@ -523,31 +534,59 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             if (youtubeId) {
               return (
                 <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5 relative group">
-                  <iframe
-                    width="100%"
-                    height="100%"
-                    src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
-                    title="YouTube video player"
-                    frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                    onLoad={() => {
-                      if (typeof window !== 'undefined' && 'mediaSession' in navigator && (window as any).MediaSessionMetadata) {
-                        navigator.mediaSession.metadata = new (window as any).MediaSessionMetadata({
-                          title: post.content?.substring(0, 40) || 'Vídeo no FéConecta',
-                          artist: post.author_name || 'FéConecta',
-                          album: 'FéConecta Social',
-                          artwork: [
-                            { src: `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`, sizes: '1280x720', type: 'image/jpeg' },
-                            { src: `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`, sizes: '320x180', type: 'image/jpeg' }
-                          ]
-                        });
+                  <div id={`yt-player-${post.id}`} className="w-full h-full" />
+                  {/* Audio ocluso para "Keep-Alive" no Mobile Background */}
+                  <audio id={`yt-audio-sync-${post.id}`} loop src="https://www.soundjay.com/buttons/beep-01a.mp3" className="hidden" muted />
+                  
+                  <script dangerouslySetInnerHTML={{ __html: `
+                    (function() {
+                      if (!window.YT) {
+                        const tag = document.createElement('script');
+                        tag.src = "https://www.youtube.com/iframe_api";
+                        document.head.appendChild(tag);
                       }
-                    }}
-                  ></iframe>
+                      
+                      window.onYouTubeIframeAPIReady = window.onYouTubeIframeAPIReady || function() {
+                        window.isYTApiReady = true;
+                      };
+
+                      const checkReady = setInterval(() => {
+                        if (window.YT && window.YT.Player) {
+                          clearInterval(checkReady);
+                          new YT.Player('yt-player-${post.id}', {
+                            videoId: '${youtubeId}',
+                            playerVars: { 
+                              playsinline: 1, 
+                              modestbranding: 1, 
+                              rel: 0, 
+                              enablejsapi: 1,
+                              origin: window.location.origin
+                            },
+                            events: {
+                              'onStateChange': (event) => {
+                                const audio = document.getElementById('yt-audio-sync-${post.id}');
+                                if (event.data === YT.PlayerState.PLAYING) {
+                                  audio?.play().catch(() => {});
+                                  if ('mediaSession' in navigator) {
+                                    navigator.mediaSession.playbackState = 'playing';
+                                  }
+                                } else {
+                                  audio?.pause();
+                                  if ('mediaSession' in navigator) {
+                                    navigator.mediaSession.playbackState = 'paused';
+                                  }
+                                }
+                              }
+                            }
+                          });
+                        }
+                      }, 500);
+                    })();
+                  `}} />
                 </div>
               );
             }
+
 
             return (
               <a
