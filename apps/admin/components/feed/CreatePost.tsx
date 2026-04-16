@@ -75,6 +75,9 @@ export default function CreatePost({ user, onPostCreated }: any) {
       // Parsear Menções
       await NotificationService.parseMentions(data.content, userId);
       
+      // Notificar Seguidores de Hashtags
+      await NotificationService.notifyHashtagFollowers(data.content, userId, (error as any)?.id || ""); // Passar ID do post se disponível (Supabase precisaria retornar .select() para pegar ID real se não for autogerado)
+      
       setUploadProgress(100);
       toast.success("Publicação enviada com sucesso!", { id: toastId });
       onPostCreated?.();
@@ -128,6 +131,7 @@ export default function CreatePost({ user, onPostCreated }: any) {
       // Parsear Menções na legenda
       if (data.caption) {
         await NotificationService.parseMentions(data.caption, userId);
+        await NotificationService.notifyHashtagFollowers(data.caption, userId, (error as any)?.id || "");
       }
 
       setUploadProgress(100);
@@ -201,7 +205,10 @@ export default function CreatePost({ user, onPostCreated }: any) {
         post_type: pendingMedia.type,
       });
 
-      if (error) throw error;
+      // Notificar Hashtags
+      if (caption) {
+        await NotificationService.notifyHashtagFollowers(caption, user.id, (error as any)?.id || "");
+      }
       
       setUploadProgress(100);
       toast.success("Poster publicado com sucesso!", { id: toastId });

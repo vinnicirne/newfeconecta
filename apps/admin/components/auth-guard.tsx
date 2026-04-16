@@ -21,13 +21,20 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const checkAuth = async () => {
+    const checkAuth = async (retryCount = 0) => {
       try {
         setLoading(true);
         const { data: { session }, error } = await supabase.auth.getSession();
-        const user = session?.user;
 
-        if (error) throw error;
+        if (error) {
+          if ((error.message.includes('lock') || error.message.includes('steal') || error.name === 'AbortError') && retryCount < 3) {
+            setTimeout(() => checkAuth(retryCount + 1), 200);
+            return;
+          }
+          throw error;
+        }
+
+        const user = session?.user;
 
         const isPublicRoute = PUBLIC_ROUTES.includes(pathname);
 

@@ -9,8 +9,9 @@ import { toast } from 'sonner';
 import moment from 'moment';
 import { cn } from '@/lib/utils';
 import Link from 'next/link';
+import { NotificationService } from '@/lib/notifications';
 
-export default function CommentsSection({ postId, verseId, user }: any) {
+export default function CommentsSection({ postId, verseId, user, postAuthorId }: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -95,6 +96,23 @@ export default function CommentsSection({ postId, verseId, user }: any) {
           .from(tableName)
           .insert(insertData);
         if (error) throw error;
+      }
+
+      // Notificações
+      if (!editingComment) {
+        // Notificar o autor do post
+        if (postAuthorId) {
+          await NotificationService.notify({
+            recipientId: postAuthorId,
+            senderId: userId,
+            type: 'comment',
+            postId: postId,
+            content: text.trim().substring(0, 50) + (text.length > 50 ? '...' : '')
+          });
+        }
+        
+        // Parsear Menções
+        await NotificationService.parseMentions(text.trim(), userId, postId);
       }
 
       setText('');

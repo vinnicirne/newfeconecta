@@ -31,9 +31,11 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const router = useRouter();
 
   const getYoutubeId = (url: string) => {
-    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    // Regex refinado para ignorar playlists e focar apenas no ID do vídeo (11 caracs)
+    if (url.includes('list=')) return null; 
+    const regExp = /^.*(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
     const match = url.match(regExp);
-    return (match && match[2].length === 11) ? match[2] : null;
+    return (match && match[1].length === 11) ? match[1] : null;
   };
 
   // VIEWS FEATURE
@@ -237,11 +239,14 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           .insert({ post_id: post.id, profile_id: userId });
         if (error) throw error;
 
+        const isVerse = isVerseRepost || !!post.content?.startsWith('📖');
+        
         await NotificationService.notify({
           recipientId: post.author_id,
           senderId: userId,
-          type: 'repost',
-          postId: post.id
+          type: isVerse ? 'verse_day' : 'repost',
+          postId: post.id,
+          content: isVerse ? `recomendou a Palavra do Dia: "${post.content?.substring(0, 30)}..."` : undefined
         });
       }
       onUpdated?.({ ...post, reposts_count: oldReposted ? Math.max(0, oldLocalCount - 1) : oldLocalCount + 1 });
@@ -517,15 +522,28 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
             if (youtubeId) {
               return (
-                <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5">
+                <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5 relative group">
                   <iframe
                     width="100%"
                     height="100%"
-                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                    src={`https://www.youtube.com/embed/${youtubeId}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=${typeof window !== 'undefined' ? window.location.origin : ''}`}
                     title="YouTube video player"
                     frameBorder="0"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen
+                    onLoad={() => {
+                      if ('mediaSession' in navigator) {
+                        navigator.mediaSession.metadata = new MediaSessionMetadata({
+                          title: post.content?.substring(0, 40) || 'Vídeo no FéConecta',
+                          artist: post.author_name || 'FéConecta',
+                          album: 'FéConecta Social',
+                          artwork: [
+                            { src: `https://img.youtube.com/vi/${youtubeId}/maxresdefault.jpg`, sizes: '1280x720', type: 'image/jpeg' },
+                            { src: `https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`, sizes: '320x180', type: 'image/jpeg' }
+                          ]
+                        });
+                      }
+                    }}
                   ></iframe>
                 </div>
               );
@@ -833,7 +851,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </button>
       </div>
 
-      {showComments && <CommentsSection postId={post.id} user={currentUser} />}
+      {showComments && <CommentsSection postId={post.id} postAuthorId={post.author_id} user={currentUser} />}
 
       {/* Lightbox / Media Expansion */}
       {lightboxUrl && (

@@ -66,11 +66,43 @@ export function ProfileMediaGrid({
                 alt=""
               />
             )
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center p-4 text-[10px] text-gray-500 text-center uppercase font-bold bg-white/5 leading-tight">
-              {post.content}
-            </div>
-          )}
+          ) : (() => {
+            const youtubeMatch = post.content?.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11})/);
+            const youtubeId = youtubeMatch ? youtubeMatch[1] : null;
+            
+            if (youtubeId) {
+              return (
+                <img
+                  src={`https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  alt="YouTube Thumbnail"
+                />
+              );
+            }
+
+            // Gradients dinâmicos para posts de texto (Premium)
+            const gradients = [
+              'from-whatsapp-teal/20 via-whatsapp-teal/40 to-whatsapp-green/40',
+              'from-indigo-500/20 via-blue-500/40 to-whatsapp-teal/40',
+              'from-orange-500/20 via-rose-500/40 to-amber-500/40',
+              'from-whatsapp-green/20 via-emerald-500/40 to-teal-500/40'
+            ];
+            const gradientIdx = (post.id?.charCodeAt(0) || 0) % gradients.length;
+
+            return (
+              <div className={cn(
+                "absolute inset-0 flex items-center justify-center p-6 bg-gradient-to-br",
+                gradients[gradientIdx],
+                "backdrop-blur-sm border border-white/10"
+              )}>
+                <div className="absolute inset-0 bg-black/20" />
+                <p className="relative z-10 text-[10px] text-white text-center uppercase font-black leading-relaxed tracking-wider drop-shadow-md line-clamp-4">
+                  {post.content}
+                </p>
+              </div>
+            );
+          })()}
+
           <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
           {isVideo && (
              <div className="absolute top-2 right-2 z-10">

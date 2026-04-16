@@ -96,37 +96,64 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (!streamRef.current) return;
     chunksRef.current = [];
     
-    const mimeType = mode === 'audio' 
-      ? (MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4')
-      : (MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm');
+    const getSupportedMimeType = () => {
+      if (mode === 'audio') {
+        const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4', 'audio/aac'];
+        for (const type of types) {
+          if (MediaRecorder.isTypeSupported(type)) return type;
+        }
+        return ''; // Navegador escolhe o melhor
+      } else {
+        const types = ['video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
+        for (const type of types) {
+          if (MediaRecorder.isTypeSupported(type)) return type;
+        }
+        return '';
+      }
+    };
+
+    const mimeType = getSupportedMimeType();
     
     try {
-      // Bitrate de 1Mbps para Stories (Equilibrio perfeito entre peso e nitidez)
-      const recorder = new MediaRecorder(streamRef.current, { 
-        mimeType, 
-        videoBitsPerSecond: mode === 'audio' ? undefined : 1000000 
-      });
+      if (!streamRef.current || streamRef.current.getTracks().length === 0) {
+        throw new Error("Stream sem trilhas ativas.");
+      }
+
+      const options: any = {};
+      if (mimeType) options.mimeType = mimeType;
+      if (mode !== 'audio') options.videoBitsPerSecond = 1000000;
+
+      const recorder = new MediaRecorder(streamRef.current, options);
+      
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: mimeType });
-        setPreview({ url: URL.createObjectURL(blob), type: mode === 'audio' ? 'audio' : 'video', blob, mimeType });
+        const finalMime = recorder.mimeType || mimeType || (mode === 'audio' ? 'audio/mp4' : 'video/mp4');
+        const blob = new Blob(chunksRef.current, { type: finalMime });
+        setPreview({ url: URL.createObjectURL(blob), type: mode === 'audio' ? 'audio' : 'video', blob, mimeType: finalMime });
         stopCamera();
       };
       recorderRef.current = recorder;
-      recorder.start(100);
-      setRecording(true);
-      setRecordDuration(0);
-      timerRef.current = setInterval(() => {
-        setRecordDuration(prev => {
-          if (prev >= 29) {
-            stopRecording();
-            return 30;
-          }
-          return prev + 1;
-        });
-      }, 1000);
+      
+      // Pequeno fôlego para o hardware antes de iniciar o 'start'
+      setTimeout(() => {
+        if (recorderRef.current && recorderRef.current.state === 'inactive') {
+          recorderRef.current.start(1000); // 1s timeslice é mais seguro no mobile
+          setRecording(true);
+          setRecordDuration(0);
+          timerRef.current = setInterval(() => {
+            setRecordDuration(prev => {
+              if (prev >= 29) { // 30 seconds limit (0 to 29 = 30 ticks)
+                stopRecording();
+                return 30;
+              }
+              return prev + 1;
+            });
+          }, 1000);
+        }
+      }, 100);
     } catch (err) {
       console.error("Story record error:", err);
+      toast.error("Erro ao iniciar gravação. Tente novamente.");
     }
   };
 
@@ -458,7 +485,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                      </div>
                    )}
                    <button 
-                     onPointerDown={handleAction}
+                     onClick={handleAction}
                      className={cn(
                        "w-22 h-22 rounded-full border-4 flex items-center justify-center transition-all active:scale-90",
                        recording ? "border-red-500 scale-110 shadow-[0_0_30px_rgba(239,68,68,0.4)]" : "border-white shadow-[0_0_20px_rgba(255,255,255,0.1)]"

@@ -746,7 +746,66 @@ export default function ProfilePage() {
               </Link>
             </div>
 
+            
+            {/* CENTRAL DE NOTIFICAÇÕES (DASHBOARD) */}
+            <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-white/5">
+              <div className="space-y-1">
+                <h3 className="text-xs font-black uppercase tracking-widest text-whatsapp-teal dark:text-whatsapp-green">Central de Notificações</h3>
+                <p className="text-[10px] text-gray-400">Escolha quais alertas deseja receber como banner no celular.</p>
+              </div>
+
+              <div className="bg-black/5 dark:bg-white/5 rounded-3xl p-2 space-y-1">
+                {[
+                  { id: 'notify_likes', label: 'Curtidas', icon: Flame, color: 'text-orange-500' },
+                  { id: 'notify_comments', label: 'Comentários', icon: MessageCircle, color: 'text-blue-500' },
+                  { id: 'notify_follows', label: 'Novos Seguidores', icon: Users, color: 'text-whatsapp-teal' },
+                  { id: 'notify_reposts', label: 'Republicações (Reposts)', icon: Repeat2, color: 'text-whatsapp-green' },
+                  { id: 'notify_mentions', label: 'Marcações e Menções', icon: Sparkles, color: 'text-amber-500' },
+                  { id: 'notify_hashtags', label: 'Hashtags que você segue', icon: Grid, color: 'text-indigo-500' },
+                ].map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={async () => {
+                      const newValue = !user?.[item.id];
+                      // Atualização Otimista
+                      setUser({ ...user, [item.id]: newValue });
+                      
+                      const { error } = await supabase
+                        .from('profiles')
+                        .update({ [item.id]: newValue })
+                        .eq('id', user.id);
+                      
+                      if (error) {
+                        toast.error("Erro ao salvar preferência");
+                        setUser({ ...user, [item.id]: !newValue });
+                      } else {
+                        toast.success(`${item.label} ${newValue ? 'ativado' : 'desativado'}`);
+                      }
+                    }}
+                    className="w-full flex items-center justify-between p-4 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center bg-white dark:bg-black/20", item.color)}>
+                        <item.icon className="w-5 h-5" />
+                      </div>
+                      <span className="text-sm font-bold dark:text-white">{item.label}</span>
+                    </div>
+                    <div className={cn(
+                      "w-10 h-5 rounded-full relative transition-all duration-300",
+                      user?.[item.id] !== false ? "bg-whatsapp-green" : "bg-gray-300 dark:bg-white/20"
+                    )}>
+                      <div className={cn(
+                        "absolute top-1 w-3 h-3 bg-white rounded-full transition-all duration-300",
+                        user?.[item.id] !== false ? "right-1" : "left-1"
+                      )} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="pt-4">
+
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center justify-center gap-2 p-4 text-gray-500 hover:text-red-500 transition-colors text-xs font-black uppercase tracking-widest"
