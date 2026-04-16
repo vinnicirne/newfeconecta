@@ -48,8 +48,16 @@ export default function PublicProfilePage() {
 
       setUser(profile);
 
-      // 2. Buscamos o usuário logado
-      const { data: { user: authUser } } = await supabase.auth.getUser();
+      // 2. Buscamos o usuário logado com resiliência de lock
+      let authUser: any = null;
+      try {
+        const { data } = await supabase.auth.getUser();
+        authUser = data.user;
+      } catch (e) {
+        const { data } = await supabase.auth.getSession();
+        authUser = data.session?.user;
+      }
+
       if (authUser) {
         setCurrentUser(authUser);
         
@@ -215,32 +223,50 @@ export default function PublicProfilePage() {
       </div>
 
       <div className="grid grid-cols-3 gap-[2px]">
-        {userPosts.map((post) => (
-          <div 
-            key={post.id} 
-            onClick={() => setSelectedPost(post)}
-            className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
-          >
-            {post.media_url ? (
-              (post.post_type === 'audio' || post.media_url.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i)) ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
-                   <div className="w-10 h-10 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
-                      <Mic className="w-5 h-5 text-whatsapp-teal" />
-                   </div>
-                   <div className="flex gap-[1.5px] h-2 items-end">
-                      {[1,2,3,4].map(i => (
-                        <div key={i} className="w-[3px] bg-whatsapp-teal/40 rounded-full" style={{ height: `${30 + Math.random() * 70}%` }} />
-                      ))}
-                   </div>
-                </div>
-              ) : (
-                <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" />
-              )
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
-            )}
-          </div>
-        ))}
+        {userPosts
+          .filter((post) => {
+            if (view === 'lumes') return post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i);
+            if (view === 'likes') return false; 
+            return true;
+          })
+          .map((post) => {
+            const isVideo = (post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i)) && !post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
+            const isAudio = post.post_type === 'audio' || post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
+
+            return (
+              <div 
+                key={post.id} 
+                onClick={() => setSelectedPost(post)}
+                className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
+              >
+                {post.media_url ? (
+                  isAudio ? (
+                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
+                       <div className="w-10 h-10 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
+                          <Mic className="w-5 h-5 text-whatsapp-teal" />
+                       </div>
+                    </div>
+                  ) : isVideo ? (
+                    <video 
+                      src={post.media_url} 
+                      className="absolute inset-0 w-full h-full object-cover" 
+                      muted 
+                      playsInline 
+                    />
+                  ) : (
+                    <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" />
+                  )
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
+                )}
+                {isVideo && (
+                  <div className="absolute top-2 right-2 z-10">
+                    <PlaySquare className="w-4 h-4 text-white drop-shadow-md" />
+                  </div>
+                )}
+              </div>
+            );
+          })}
         {userPosts.length === 0 && (
           <div className="col-span-3 py-20 text-center opacity-20">
             <p className="text-xs font-bold uppercase tracking-widest">Nenhuma publicação</p>

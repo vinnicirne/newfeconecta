@@ -179,6 +179,7 @@ export default function DashboardPage() {
              { name: 'Auto-Card DFCH', status: 'Ativo', icon: Sparkles, desc: 'Mensagem do Dia automática' },
              { name: 'Social Lumes', status: 'Ativo', icon: Flame, desc: 'Frequência e Fogoviva' },
              { name: 'Share Nativo', status: 'Ativo', icon: Share2, desc: 'Gaveta de apps externa' },
+              { name: 'Arquitetura Modular v2', status: 'Ativo', icon: Layout, desc: 'Perfil 100% Componentizado e Lean' },
            ].map(({ icon: Icon, ...feature }) => (
              <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">
