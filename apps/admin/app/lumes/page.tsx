@@ -58,11 +58,16 @@ export default function LumesPage() {
       if (specificPost) postsData.push(specificPost);
     }
 
-    const { data: latestPosts, error: postsError } = await supabase
+    let query = supabase
       .from('posts')
       .select('*')
-      .eq('post_type', 'video')
-      .neq('id', initialId || '') // Evita duplicar se já pegamos acima
+      .eq('post_type', 'video');
+    
+    if (initialId) {
+      query = query.neq('id', initialId); // Evita duplicar se já pegamos acima
+    }
+
+    const { data: latestPosts, error: postsError } = await query
       .order('created_at', { ascending: false })
       .limit(50);
       
