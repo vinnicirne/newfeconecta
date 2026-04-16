@@ -23,26 +23,39 @@ moment.locale('pt-br');
 function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string }) {
   const playerRef = useRef<any>(null);
   const containerId = `yt-player-container-${postId}`;
+  const [playerState, setPlayerState] = useState(-1); // -1: unstarted, 1: playing, 2: paused
+
+  const togglePlay = () => {
+    if (!playerRef.current || typeof playerRef.current.getPlayerState !== 'function') return;
+    const state = playerRef.current.getPlayerState();
+    if (state === 1) {
+      playerRef.current.pauseVideo();
+    } else {
+      playerRef.current.playVideo();
+    }
+  };
 
   useEffect(() => {
     let checkInterval: any;
 
     const initPlayer = () => {
-      if ((window as any).YT && (window as any).YT.Player) {
+      const YT = (window as any).YT;
+      if (YT && YT.Player) {
         clearInterval(checkInterval);
-        playerRef.current = new (window as any).YT.Player(containerId, {
+        playerRef.current = new YT.Player(containerId, {
           videoId: videoId,
           playerVars: {
             playsinline: 1,
             modestbranding: 1,
             rel: 0,
             enablejsapi: 1,
+            controls: 0, // Removemos os botões do YT para evitar cliques de saída
             origin: window.location.origin
           },
           events: {
             'onStateChange': (event: any) => {
+              setPlayerState(event.data);
               const audio = document.getElementById(`yt-audio-sync-${postId}`) as HTMLAudioElement;
-              const YT = (window as any).YT;
               if (event.data === YT.PlayerState.PLAYING) {
                 audio?.play().catch(() => { });
                 if ('mediaSession' in navigator) {
@@ -60,7 +73,6 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
       }
     };
 
-    // Garante que o script da API está carregado
     if (!(window as any).YT) {
       const tag = document.createElement('script');
       tag.src = "https://www.youtube.com/iframe_api";
@@ -78,8 +90,22 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
   }, [videoId, containerId, postId]);
 
   return (
-    <div className="rounded-2xl overflow-hidden aspect-video bg-black mt-2 shadow-lg border border-white/5 relative group">
-      <div id={containerId} className="w-full h-full" />
+    <div className="rounded-3xl overflow-hidden aspect-video bg-black mt-2 shadow-2xl border border-white/10 relative group border-2 border-whatsapp-teal/10">
+      {/* Camada do Player com Pointer Events Desativados */}
+      <div id={containerId} className="w-full h-full pointer-events-none scale-[1.01]" />
+      
+      {/* Camada de Blindagem e Controle */}
+      <div 
+        onClick={togglePlay}
+        className="absolute inset-0 z-20 cursor-pointer flex items-center justify-center transition-all bg-black/0 hover:bg-black/5"
+      >
+        {(playerState !== 1) && (
+          <div className="w-16 h-16 rounded-full bg-whatsapp-teal/20 backdrop-blur-md flex items-center justify-center border border-whatsapp-teal/30 scale-100 group-hover:scale-110 transition-transform">
+             <Play className="w-8 h-8 text-whatsapp-teal fill-current ml-1" />
+          </div>
+        )}
+      </div>
+
       <audio id={`yt-audio-sync-${postId}`} loop src="https://www.soundjay.com/buttons/beep-01a.mp3" className="hidden" muted />
     </div>
   );
