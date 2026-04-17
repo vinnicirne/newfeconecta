@@ -45,6 +45,7 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import moment from "moment";
 
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
@@ -157,11 +158,16 @@ export default function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
 
-      // --- Salas de Guerra Ativas ---
-      const { count: roomsCount } = await supabase
+      // --- Salas de Guerra Ativas (Sincronizado com Expiração) ---
+      const { data: roomsData } = await supabase
         .from('rooms')
-        .select('*', { count: 'exact', head: true })
+        .select('created_at, duration_minutes')
         .eq('status', 'active');
+      
+      const realActiveRooms = (roomsData || []).filter(r => {
+        const end = moment(r.created_at).add(r.duration_minutes || 60, 'minutes');
+        return end.isAfter(moment());
+      }).length;
 
       setStats({
         totalUsers: userCount || 0,
@@ -175,7 +181,7 @@ export default function DashboardPage() {
         topHashtags,
         verifiedUsers: verifiedCount || 0,
         pendingVerifications: pendingCount || 0,
-        activeRooms: roomsCount || 0
+        activeRooms: realActiveRooms
       });
 
       // --- Chart: Últimos 7 dias (dados reais) ---
@@ -257,10 +263,10 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
            {[
              { name: 'Rede de Vídeos', status: stats.totalLumes > 0 ? 'Operacional' : 'Aguardando', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
-             { name: 'Sala de Guerra', status: stats.activeRooms > 0 ? `${stats.activeRooms} Ativas` : 'Sem Lives', icon: Mic, desc: 'Audio, Moderação e Viralização', link: '/admin/rooms' },
+             { name: 'Sala de Guerra', status: stats.activeRooms > 0 ? `${stats.activeRooms} Ativas` : (process.env.NEXT_PUBLIC_LIVEKIT_URL ? 'Operacional' : 'Configurar LiveKit'), icon: Mic, desc: 'Audio, Moderação e Viralização', link: '/admin/rooms' },
              { name: 'Gestão de Preços PIX', status: 'Configurado', icon: DollarSign, desc: 'Configuração de Checkouts', link: '/admin/pricing' },
-             { name: 'Otimização Mídia', status: 'Ativo', icon: Zap, desc: 'Compressão Flash Ativa' },
-             { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação 30s' },
+             { name: 'Otimização Mídia', status: 'Ativo', icon: Zap, desc: 'Compressão Flash Ativa (Sharp/Canvas)' },
+             { name: 'Stories Galeria', status: stats.totalPosts > 0 ? 'Operacional' : 'Ativo', icon: Image, desc: 'Upload e Gravação 30s' },
              { name: 'Sistema de Verificação', status: stats.pendingVerifications > 0 ? `${stats.pendingVerifications} Pendentes` : 'Tudo Limpo', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade', link: '/admin/verifications' },
              { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Atividade em tempo real' },
              { name: 'Tipografia Feed', status: 'Ativo', icon: Type, desc: 'Escala Dinâmica 17~24px' },

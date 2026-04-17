@@ -47,6 +47,7 @@ import CommentsSection from "@/components/feed/CommentsSection";
 import DailyVerseSection from "@/components/feed/DailyVerseSection";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import moment from "moment";
 
 export default function RootPage() {
   const router = useRouter();
@@ -403,16 +404,22 @@ export default function RootPage() {
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: true });
 
-      // 2. Buscar Salas Ativas (Live) - Filtro de 12 horas para evitar salas zumbis
+      // 2. Buscar Salas Ativas (Live) - Filtro de 12 horas + Validação de Duração
       const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
-      const { data: activeRooms } = await supabase
+      const { data: rawRooms } = await supabase
         .from('rooms')
         .select('*')
         .eq('status', 'active')
         .gt('created_at', twelveHoursAgo);
       
-      const liveUserIds = activeRooms?.map(r => r.creator_id).filter(Boolean) || [];
-      const roomsMap = (activeRooms || []).reduce((acc: any, r: any) => {
+      // Filtro rigoroso: Só é LIVE se o tempo não acabou
+      const activeRooms = (rawRooms || []).filter(room => {
+        const end = moment(room.created_at).add(room.duration_minutes || 60, 'minutes');
+        return end.isAfter(moment());
+      });
+
+      const liveUserIds = activeRooms.map(r => r.creator_id).filter(Boolean);
+      const roomsMap = activeRooms.reduce((acc: any, r: any) => {
         acc[r.creator_id] = r;
         return acc;
       }, {});
