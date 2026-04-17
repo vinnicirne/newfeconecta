@@ -1,11 +1,11 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { 
-  Users, 
-  MessageSquare, 
-  ShieldAlert, 
-  TrendingUp, 
+import {
+  Users,
+  MessageSquare,
+  ShieldAlert,
+  TrendingUp,
   ArrowUpRight,
   UserPlus,
   Heart,
@@ -32,16 +32,16 @@ import {
   ShieldCheck
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
   ResponsiveContainer,
   AreaChart,
-  Area 
+  Area
 } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -62,7 +62,9 @@ export default function DashboardPage() {
     topHashtags: [] as { tag: string, count: number }[],
     verifiedUsers: 0,
     pendingVerifications: 0,
-    activeRooms: 0
+    activeRooms: 0,
+    activePrices: 0,
+    storiesToday: 0
   });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
@@ -71,11 +73,40 @@ export default function DashboardPage() {
   const [retentionRate, setRetentionRate] = useState(0);
 
   const [adminName, setAdminName] = useState("Admin");
+  const [aiOperational, setAiOperational] = useState<boolean | null>(null);
+  const [livekitOperational, setLivekitOperational] = useState<boolean | null>(null);
 
   useEffect(() => {
     fetchStats();
     fetchAdminName();
+    checkAIStatus();
+    checkLiveKitStatus();
   }, []);
+
+  const checkLiveKitStatus = async () => {
+    try {
+      let url = (process.env.NEXT_PUBLIC_LIVEKIT_URL || "").replace('wss://', 'https://').replace('ws://', 'http://');
+      if (!url) {
+        setLivekitOperational(false);
+        return;
+      }
+      // Verificação proativa via HEAD
+      await fetch(url, { method: 'HEAD', mode: 'no-cors' });
+      setLivekitOperational(true);
+    } catch (err) {
+      setLivekitOperational(!!process.env.NEXT_PUBLIC_LIVEKIT_URL);
+    }
+  };
+
+  const checkAIStatus = async () => {
+    try {
+      const res = await fetch('/api/ai/bible-study');
+      const data = await res.json();
+      setAiOperational(!!data.operational);
+    } catch (err) {
+      setAiOperational(false);
+    }
+  };
 
   const fetchAdminName = async () => {
     try {
@@ -98,10 +129,10 @@ export default function DashboardPage() {
     try {
       // Total de Usuários reais do banco
       const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-      
+
       // Total de Posts reais
       const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
-      
+
       // Filtro para Lumes (Vídeos)
       const { count: lumesCount } = await supabase
         .from('posts')
@@ -163,11 +194,21 @@ export default function DashboardPage() {
         .from('rooms')
         .select('created_at, duration_minutes')
         .eq('status', 'active');
-      
+
       const realActiveRooms = (roomsData || []).filter(r => {
         const end = moment(r.created_at).add(r.duration_minutes || 60, 'minutes');
         return end.isAfter(moment());
       }).length;
+
+      // --- Gestão de Preços Ativos (Real) ---
+      const { count: pricesCount } = await supabase.from('pricing_plans').select('*', { count: 'exact', head: true });
+
+      // --- Stories/Galeria Hoje ---
+      const { count: storiesCount } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .eq('post_type', 'image')
+        .gt('created_at', today.toISOString());
 
       setStats({
         totalUsers: userCount || 0,
@@ -181,7 +222,9 @@ export default function DashboardPage() {
         topHashtags,
         verifiedUsers: verifiedCount || 0,
         pendingVerifications: pendingCount || 0,
-        activeRooms: realActiveRooms
+        activeRooms: realActiveRooms,
+        activePrices: pricesCount || 0,
+        storiesToday: storiesCount || 0
       });
 
       // --- Chart: Últimos 7 dias (dados reais) ---
@@ -239,149 +282,171 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 pb-12">
+      {/* Alerta Nuclear: Serviço Parado (Gemini) */}
+      {aiOperational === false && (
+        <div className="bg-orange-500/10 border-2 border-orange-500/20 p-6 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500 shadow-xl shadow-orange-500/5">
+          <div className="flex items-center gap-5">
+            <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
+              <Sparkles className="w-7 h-7 animate-pulse" />
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-orange-600 dark:text-orange-500 uppercase tracking-tight">Motor de Análise Bíblica Desativado</h3>
+              <p className="text-sm text-orange-600/70 font-medium">O Sistema de Análise Bíblica (Gemini) requer uma chave de API para processar exegeses bíblicas.</p>
+            </div>
+          </div>
+          <button
+            onClick={() => toast.info("Adicione GEMINI_API_KEY ao seu arquivo .env.local para ativar.")}
+            className="px-6 py-3 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
+          >
+            Como Configurar
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, {adminName}</h1>
           <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
         </div>
-        <a 
-          href="/admin/monitoramento" 
+        <a
+          href="/admin/monitoramento"
           className="flex items-center gap-2 bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-sm font-bold border border-red-500/20 hover:bg-red-500/20 transition-all w-fit"
         >
           <ShieldAlert className="w-4 h-4" /> Monitor de Falhas
         </a>
       </div>
- 
+
       {/* Controle de Funcionalidades do Sistema - EXIGÊNCIA OBRIGATÓRIA */}
       <section className="bg-whatsapp-green/10 border border-whatsapp-green/20 rounded-2xl p-6 whatsapp-shadow">
         <div className="flex items-center justify-between mb-4">
-           <h2 className="text-sm font-black uppercase tracking-widest text-whatsapp-green flex items-center gap-2">
-             <LayoutDashboard className="w-4 h-4" /> Gestão de Recursos Ativos
-           </h2>
-           <span className="text-[10px] bg-whatsapp-green text-whatsapp-dark px-2 py-0.5 rounded-md font-black uppercase">Ciclo de Estabilização v2</span>
+          <h2 className="text-sm font-black uppercase tracking-widest text-whatsapp-green flex items-center gap-2">
+            <LayoutDashboard className="w-4 h-4" /> Gestão de Recursos Ativos
+          </h2>
+          <span className="text-[10px] bg-whatsapp-green text-whatsapp-dark px-2 py-0.5 rounded-md font-black uppercase">Ciclo de Estabilização v2</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-           {[
-             { name: 'Rede de Vídeos', status: stats.totalLumes > 0 ? 'Operacional' : 'Aguardando', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
-             { name: 'Sala de Guerra', status: stats.activeRooms > 0 ? `${stats.activeRooms} Ativas` : (process.env.NEXT_PUBLIC_LIVEKIT_URL ? 'Operacional' : 'Configurar LiveKit'), icon: Mic, desc: 'Audio, Moderação e Viralização', link: '/admin/rooms' },
-             { name: 'Gestão de Preços PIX', status: 'Configurado', icon: DollarSign, desc: 'Configuração de Checkouts', link: '/admin/pricing' },
-             { name: 'Otimização Mídia', status: 'Ativo', icon: Zap, desc: 'Compressão Flash Ativa (Sharp/Canvas)' },
-             { name: 'Stories Galeria', status: stats.totalPosts > 0 ? 'Operacional' : 'Ativo', icon: Image, desc: 'Upload e Gravação 30s' },
-             { name: 'Sistema de Verificação', status: stats.pendingVerifications > 0 ? `${stats.pendingVerifications} Pendentes` : 'Tudo Limpo', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade', link: '/admin/verifications' },
-             { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Atividade em tempo real' },
-             { name: 'Tipografia Feed', status: 'Ativo', icon: Type, desc: 'Escala Dinâmica 17~24px' },
-           ].map(({ icon: Icon, ...feature }) => (
-             <a 
-               href={(feature as any).link || '#'} 
-               key={feature.name} 
-               className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3 hover:border-whatsapp-green/40 transition-all group"
-             >
-                <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green group-hover:scale-110 transition-transform">
-                   <Icon className="w-4 h-4" />
+          {[
+            { name: 'Rede de Vídeos', status: stats.totalLumes > 0 ? 'Operacional' : 'Aguardando', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
+            { name: 'Sala de Guerra', status: livekitOperational ? `${stats.activeRooms} Salas Ativas` : 'Servidor Offline', icon: Mic, desc: 'Audio, Transmissão e LiveKit', link: '/admin/rooms' },
+            { name: 'Motor de Análise Bíblica', status: aiOperational === true ? 'Conectado' : (aiOperational === false ? 'Requer Chave' : 'Verificando...'), icon: Sparkles, desc: 'Análise Teológica Gemini 2.5', link: '/bible' },
+            { name: 'Gestão de Preços PIX', status: stats.activePrices > 0 ? `${stats.activePrices} Planos Ativos` : 'Requer Configuração', icon: DollarSign, desc: 'Checkouts e Assinaturas', link: '/admin/pricing' },
+            { name: 'Otimização Mídia', status: 'Ativo (Sharp)', icon: Zap, desc: 'Compressão Dinâmica Flash' },
+            { name: 'Stories Galeria', status: stats.storiesToday > 0 ? `${stats.storiesToday} Hoje` : 'Ativo (Aguardando)', icon: Image, desc: 'Upload e Gravação 30s' },
+            { name: 'Sistema de Verificação', status: stats.pendingVerifications > 0 ? `${stats.pendingVerifications} Pendentes` : 'Sem Pedidos', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade', link: '/admin/verifications' },
+            { name: 'Presença Mobile', status: loading ? 'Sincronizando' : 'Sincronizado', icon: Smartphone, desc: 'App e Admin integrados' },
+            { name: 'Tipografia Feed', status: 'Calibrado', icon: Type, desc: 'Escala Dinâmica 17~24px' },
+          ].map(({ icon: Icon, ...feature }) => (
+            <a
+              href={(feature as any).link || '#'}
+              key={feature.name}
+              className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3 hover:border-whatsapp-green/40 transition-all group"
+            >
+              <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green group-hover:scale-110 transition-transform">
+                <Icon className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold dark:text-white leading-none mb-1">{feature.name}</h4>
+                <p className="text-[10px] text-gray-500 mb-1 leading-tight">{feature.desc}</p>
+                <div className="flex items-center gap-1.5">
+                  <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse",
+                    feature.status.includes('Pendentes') ? 'bg-orange-500' : 'bg-whatsapp-green'
+                  )} />
+                  <span className={cn("text-[9px] font-black uppercase",
+                    feature.status.includes('Pendentes') ? 'text-orange-500' : 'text-whatsapp-green'
+                  )}>
+                    {feature.status}
+                  </span>
                 </div>
-                <div>
-                   <h4 className="text-xs font-bold dark:text-white leading-none mb-1">{feature.name}</h4>
-                   <p className="text-[10px] text-gray-500 mb-1 leading-tight">{feature.desc}</p>
-                   <div className="flex items-center gap-1.5">
-                      <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", 
-                        feature.status.includes('Pendentes') ? 'bg-orange-500' : 'bg-whatsapp-green'
-                      )} />
-                      <span className={cn("text-[9px] font-black uppercase",
-                         feature.status.includes('Pendentes') ? 'text-orange-500' : 'text-whatsapp-green'
-                      )}>
-                        {feature.status}
-                      </span>
-                   </div>
-                </div>
-             </a>
-           ))}
+              </div>
+            </a>
+          ))}
         </div>
       </section>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard 
-          title="Total de Usuários" 
-          value={loading ? "..." : stats.totalUsers.toLocaleString()} 
-          change="+12%" 
-          trend="up" 
-          icon={Users} 
-          color="bg-whatsapp-teal" 
+        <StatsCard
+          title="Total de Usuários"
+          value={loading ? "..." : stats.totalUsers.toLocaleString()}
+          change="+12%"
+          trend="up"
+          icon={Users}
+          color="bg-whatsapp-teal"
         />
-        <StatsCard 
-          title="Novos (24h)" 
-          value={loading ? "..." : stats.newToday.toLocaleString()} 
-          change="+5%" 
-          trend="up" 
-          icon={UserPlus} 
-          color="bg-whatsapp-green" 
+        <StatsCard
+          title="Novos (24h)"
+          value={loading ? "..." : stats.newToday.toLocaleString()}
+          change="+5%"
+          trend="up"
+          icon={UserPlus}
+          color="bg-whatsapp-green"
         />
-        <StatsCard 
-          title="Total de Posts" 
-          value={loading ? "..." : stats.totalPosts.toLocaleString()} 
-          change={stats.totalPosts > 0 ? "+1.2%" : "0%"} 
-          trend="up" 
-          icon={MessageSquare} 
-          color="bg-whatsapp-blue" 
+        <StatsCard
+          title="Total de Posts"
+          value={loading ? "..." : stats.totalPosts.toLocaleString()}
+          change={stats.totalPosts > 0 ? "+1.2%" : "0%"}
+          trend="up"
+          icon={MessageSquare}
+          color="bg-whatsapp-blue"
         />
-        <StatsCard 
-          title="Aguardando Verificação" 
-          value={loading ? "..." : stats.pendingVerifications.toLocaleString()} 
-          change={stats.pendingVerifications > 0 ? "Ação Necessária" : "Tudo limpo"} 
-          trend={stats.pendingVerifications > 0 ? "up" : "down"} 
-          icon={ShieldAlert} 
-          color={stats.pendingVerifications > 0 ? "bg-orange-500" : "bg-whatsapp-green"} 
+        <StatsCard
+          title="Aguardando Verificação"
+          value={loading ? "..." : stats.pendingVerifications.toLocaleString()}
+          change={stats.pendingVerifications > 0 ? "Ação Necessária" : "Tudo limpo"}
+          trend={stats.pendingVerifications > 0 ? "up" : "down"}
+          icon={ShieldAlert}
+          color={stats.pendingVerifications > 0 ? "bg-orange-500" : "bg-whatsapp-green"}
           link="/admin/verifications"
         />
-        <StatsCard 
-          title="Salas de Guerra Ativas" 
-          value={loading ? "..." : stats.activeRooms.toLocaleString()} 
-          change="Real-time" 
-          trend="up" 
-          icon={Mic} 
-          color="bg-whatsapp-teal" 
+        <StatsCard
+          title="Salas de Guerra Ativas"
+          value={loading ? "..." : stats.activeRooms.toLocaleString()}
+          change="Real-time"
+          trend="up"
+          icon={Mic}
+          color="bg-whatsapp-teal"
           link="/admin/rooms"
         />
-        <StatsCard 
-          title="Perfis Verificados" 
-          value={loading ? "..." : stats.verifiedUsers.toLocaleString()} 
-          change={`${Math.min(100, Math.round((stats.verifiedUsers / (stats.totalUsers || 1)) * 100))}%`} 
-          trend="up" 
-          icon={ShieldCheck} 
-          color="bg-whatsapp-green" 
+        <StatsCard
+          title="Perfis Verificados"
+          value={loading ? "..." : stats.verifiedUsers.toLocaleString()}
+          change={`${Math.min(100, Math.round((stats.verifiedUsers / (stats.totalUsers || 1)) * 100))}%`}
+          trend="up"
+          icon={ShieldCheck}
+          color="bg-whatsapp-green"
           link="/admin/users"
         />
-        <StatsCard 
-          title="# Hashtags Ativas" 
-          value={loading ? "..." : stats.hashtagCount.toLocaleString()} 
-          change={stats.hashtagCount > 0 ? "Real-time" : "Aguardando"} 
-          trend="up" 
-          icon={Target} 
-          color="bg-purple-500" 
+        <StatsCard
+          title="# Hashtags Ativas"
+          value={loading ? "..." : stats.hashtagCount.toLocaleString()}
+          change={stats.hashtagCount > 0 ? "Real-time" : "Aguardando"}
+          trend="up"
+          icon={Target}
+          color="bg-purple-500"
         />
-        <StatsCard 
-          title="Republicações" 
-          value={loading ? "..." : stats.totalReposts.toLocaleString()} 
-          change="+8%" 
-          trend="up" 
-          icon={Repeat} 
-          color="bg-orange-500" 
+        <StatsCard
+          title="Republicações"
+          value={loading ? "..." : stats.totalReposts.toLocaleString()}
+          change="+8%"
+          trend="up"
+          icon={Repeat}
+          color="bg-orange-500"
         />
-        <StatsCard 
-          title="Conexões (Follows)" 
-          value={loading ? "..." : stats.totalFollows.toLocaleString()} 
-          change={stats.totalFollows > 0 ? "Ativo" : "Aguardando"} 
-          trend="up" 
-          icon={Link2} 
-          color="bg-pink-500" 
+        <StatsCard
+          title="Conexões (Follows)"
+          value={loading ? "..." : stats.totalFollows.toLocaleString()}
+          change={stats.totalFollows > 0 ? "Ativo" : "Aguardando"}
+          trend="up"
+          icon={Link2}
+          color="bg-pink-500"
         />
-        <StatsCard 
-          title="Visualizações" 
-          value={loading ? "..." : stats.totalViews.toLocaleString()} 
-          change="Real-time" 
-          trend="up" 
-          icon={Eye} 
-          color="bg-blue-600" 
+        <StatsCard
+          title="Visualizações"
+          value={loading ? "..." : stats.totalViews.toLocaleString()}
+          change="Real-time"
+          trend="up"
+          icon={Eye}
+          color="bg-blue-600"
         />
       </div>
 
@@ -402,29 +467,29 @@ export default function DashboardPage() {
               <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#128C7E" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#128C7E" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#128C7E" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#128C7E" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{fill: '#9CA3AF', fontSize: 12}} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: '#111B21', 
-                    border: 'none', 
-                    borderRadius: '12px', 
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} dy={10} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: '#111B21',
+                    border: 'none',
+                    borderRadius: '12px',
                     color: '#fff',
                     boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                  }} 
+                  }}
                 />
-                <Area 
-                  type="monotone" 
-                  dataKey="users" 
-                  stroke="#128C7E" 
+                <Area
+                  type="monotone"
+                  dataKey="users"
+                  stroke="#128C7E"
                   strokeWidth={3}
-                  fillOpacity={1} 
-                  fill="url(#colorUsers)" 
+                  fillOpacity={1}
+                  fill="url(#colorUsers)"
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -436,7 +501,7 @@ export default function DashboardPage() {
           <div className="relative z-10 flex flex-col h-full">
             <h3 className="text-xl font-bold mb-2">Um lugar de adoração</h3>
             <p className="text-sm text-white/70 mb-8">A fé conecta pessoas em todo o mundo através da nossa plataforma.</p>
-            
+
             <div className="flex-1 space-y-6">
               <div className="flex items-center gap-4">
                 <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">

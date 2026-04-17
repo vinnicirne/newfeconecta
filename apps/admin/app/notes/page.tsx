@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
   Star, Plus, Trash2, Globe, Lock, Search, 
@@ -34,27 +34,35 @@ export default function NotesPage() {
   
   // Estado do Editor
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [title, setTitle] = useState("");
-  const [content, setContent] = useState("");
+  const [title, setTitle] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem("prefill_title") || "" : ""));
+  const [content, setContent] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem("prefill_note") || "" : ""));
   const [tagInput, setTagInput] = useState("");
-  const [tags, setTags] = useState<string[]>([]);
+  const [tags, setTags] = useState<string[]>(() => (typeof window !== 'undefined' ? (localStorage.getItem("prefill_tags")?.split(',') || []) : []));
   const [isPublic, setIsPublic] = useState(false);
-  const [isDevotional, setIsDevotional] = useState(false);
+  const [isDevotional, setIsDevotional] = useState(() => (typeof window !== 'undefined' ? !!localStorage.getItem("prefill_note") : false));
   const [saving, setSaving] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const hasAppliedPrefill = useRef(false);
 
   useEffect(() => {
     fetchNotes();
     
-    // VERIFICA SE VEM DA BÍBLIA
-    const prefill = localStorage.getItem("prefill_note");
-    if (prefill) {
-      setContent(prefill);
-      setIsDevotional(true);
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      localStorage.removeItem("prefill_note");
-      toast.info("Versículo importado da Bíblia! 🙌");
+    // LIMPEZA SEGURA E CONFIRMAÇÃO
+    if (typeof window !== 'undefined' && localStorage.getItem("prefill_note")) {
+      console.log("🎯 [DIÁRIO] IMPORTAÇÃO ATÔMICA DETECTADA!");
+      
+      // Delay apenas para o UX do Toast
+      setTimeout(() => {
+        localStorage.removeItem("prefill_note");
+        localStorage.removeItem("prefill_title");
+        localStorage.removeItem("prefill_tags");
+        toast.info("Análise Bíblica importada! 🙌");
+      }, 500);
     }
   }, [filter]);
+
+  // Log de monitoramento em tempo real (Render)
+  console.log("🖥️ [DIÁRIO RENDER ATÔMICO] Título:", title, "| Content-Length:", content?.length, "| Modo:", isDevotional ? "Devocional" : "Simples");
 
   async function fetchNotes() {
     try {
@@ -149,6 +157,13 @@ export default function NotesPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function toggleExpand(id: string) {
+    const next = new Set(expandedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setExpandedIds(next);
   }
 
   function resetEditor() {
@@ -446,27 +461,37 @@ export default function NotesPage() {
             filteredNotes.map((note) => (
               <div 
                 key={note.id} 
-                className="group bg-white dark:bg-whatsapp-darkLighter rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden"
+                className="group bg-white dark:bg-whatsapp-darkLighter rounded-[32px] border border-gray-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden"
               >
-                <div className="p-8">
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
+                <div className="p-6 md:p-8">
+                  <div className="flex justify-between items-start">
+                    <div 
+                      className="flex-1 cursor-pointer"
+                      onClick={() => toggleExpand(note.id)}
+                    >
                       <div className="flex items-center gap-3 mb-2">
-                        {note.type === 'devotional' && (
-                          <span className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 text-[9px] font-black uppercase tracking-widest border border-amber-500/20">
-                            Devocional
+                        {note.type === 'devotional' ? (
+                          <span className="px-2 py-0.5 rounded-lg bg-amber-500/10 text-amber-500 text-[9px] font-black uppercase tracking-widest border border-amber-500/20 flex items-center gap-1">
+                            <Sparkles size={10} /> Estudo IA
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-lg bg-whatsapp-green/10 text-whatsapp-green text-[9px] font-black uppercase tracking-widest border border-whatsapp-green/20">
+                            Nota Simples
                           </span>
                         )}
                         <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">
                           {format(new Date(note.created_at), "dd 'de' MMMM", { locale: ptBR })}
                         </span>
                       </div>
-                      <h2 className="text-2xl font-black dark:text-white leading-tight">
+                      <h2 className={cn(
+                        "text-xl font-black dark:text-white leading-tight transition-all",
+                        expandedIds.has(note.id) ? "text-whatsapp-teal" : "group-hover:text-whatsapp-teal"
+                      )}>
                         {note.title || "Sem título"}
                       </h2>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-1 md:gap-2">
                       <button
                         onClick={() => toggleFavorite(note.id, note.is_favorite)}
                         className={cn(
@@ -474,59 +499,65 @@ export default function NotesPage() {
                           note.is_favorite ? "text-amber-500 bg-amber-500/10" : "text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
                         )}
                       >
-                        <Star size={20} className={note.is_favorite ? "fill-current shadow-amber-500" : ""} />
+                        <Star size={18} className={note.is_favorite ? "fill-current" : ""} />
                       </button>
                       <button
                         onClick={() => startEditing(note)}
-                        className="w-10 h-10 rounded-2xl text-gray-300 hover:text-blue-500 hover:bg-blue-500/10 flex items-center justify-center transition-all"
+                        className="w-10 h-10 rounded-2xl text-gray-300 hover:text-whatsapp-teal hover:bg-whatsapp-teal/10 flex items-center justify-center transition-all"
                       >
-                        <Edit3 size={20} />
+                        <Edit3 size={18} />
                       </button>
                       <button
-                        onClick={() => { if(confirm("Remover esta nota permanentemente?")) deleteNote(note.id) }}
+                        onClick={() => { if(confirm("Remover esta nota?")) deleteNote(note.id) }}
                         className="w-10 h-10 rounded-2xl text-gray-300 hover:text-red-500 hover:bg-red-500/10 flex items-center justify-center transition-all"
                       >
-                        <Trash2 size={20} />
+                        <Trash2 size={18} />
                       </button>
                     </div>
                   </div>
 
-                  <p className="text-gray-600 dark:text-gray-300 whitespace-pre-line leading-relaxed pb-8 text-lg font-medium">
-                    {note.content}
-                  </p>
+                  {/* CONTEÚDO EXPANSÍVEL (SÓ APARECE AO CLICAR) */}
+                  {expandedIds.has(note.id) && (
+                    <div className="mt-8 pt-8 border-t border-gray-50 dark:border-white/5 animate-in fade-in slide-in-from-top-4 duration-500">
+                      <p className="text-gray-600 dark:text-gray-300 whitespace-pre-line leading-relaxed pb-8 text-base font-medium">
+                        {note.content}
+                      </p>
 
-                  {/* Mostra Tags na nota (Agora Clicáveis) */}
-                  {note.tags && note.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      {note.tags.map(t => (
-                        <button 
-                          key={t} 
-                          onClick={() => setSearchQuery(t)}
-                          className="px-3 py-1 bg-gray-50 dark:bg-white/5 text-gray-400 rounded-lg text-xs font-bold border border-transparent hover:border-whatsapp-teal hover:text-whatsapp-teal transition-all"
-                        >
-                          #{t}
-                        </button>
-                      ))}
+                      {note.tags && note.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mb-6">
+                          {note.tags.map(t => (
+                            <span key={t} className="px-3 py-1 bg-gray-50 dark:bg-white/5 text-gray-400 rounded-lg text-xs font-bold border border-transparent">
+                              #{t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between pt-6 border-t border-gray-50 dark:border-white/5">
+                        <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-400">
+                          {note.is_public ? <Globe size={13} className="text-blue-500" /> : <Lock size={13} />}
+                          {note.is_public ? "Comunidade" : "Privado"}
+                        </span>
+                        
+                        {note.is_public && (
+                          <button 
+                            onClick={() => shareToFeed(note)}
+                            className="flex items-center gap-2 text-whatsapp-teal text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                          >
+                            <Share2 size={15} />
+                            Publicar Testemunho
+                          </button>
+                        )}
+                      </div>
+
+                      <button 
+                        onClick={() => toggleExpand(note.id)}
+                        className="mt-8 w-full py-4 text-[10px] font-black uppercase text-gray-400 bg-gray-50 dark:bg-white/5 rounded-2xl hover:text-whatsapp-teal transition-all"
+                      >
+                        ↑ Recolher Estudo
+                      </button>
                     </div>
                   )}
-
-                  <div className="flex items-center justify-between pt-6 border-t border-gray-50 dark:border-white/5">
-                    <div className="flex items-center gap-4">
-                      <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-400">
-                        {note.is_public ? <Globe size={13} className="text-blue-500" /> : <Lock size={13} />}
-                        {note.is_public ? "Comunidade" : "Privado"}
-                      </span>
-                    </div>
-                    {note.is_public && (
-                      <button 
-                        onClick={() => shareToFeed(note)}
-                        className="flex items-center gap-2 text-whatsapp-teal text-[10px] font-black uppercase tracking-widest hover:scale-110 active:scale-95 transition-all"
-                      >
-                        <Share2 size={15} />
-                        Publicar como Testemunho
-                      </button>
-                    )}
-                  </div>
                 </div>
               </div>
             ))
