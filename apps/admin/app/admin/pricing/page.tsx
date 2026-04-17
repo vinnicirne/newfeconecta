@@ -8,7 +8,6 @@ import {
   ChevronRight, 
   Info,
   ShieldCheck,
-  IFrame,
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
