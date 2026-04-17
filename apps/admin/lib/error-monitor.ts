@@ -36,7 +36,10 @@ export class ErrorMonitor {
       });
 
       if (insertError) {
-        console.warn('ErrorMonitor failed to persist to database:', insertError);
+        // Silenciar aviso se a tabela não existir (lixo de console)
+        if (insertError.code !== 'PGRST204' && insertError.code !== 'PGRST205') {
+          console.warn('ErrorMonitor failed to persist to database:', insertError);
+        }
       }
     } catch (e) {
       console.error("Critical failure inside ErrorMonitor:", e);
@@ -64,9 +67,9 @@ export class ErrorMonitor {
         const errObj = event.reason;
         const errMsg = String(errObj?.message || errObj);
         
-        // Silenciar "Lock broken by another request / steal option" do Supabase Gotrue 
-        if (errMsg.includes('Lock broken') || errMsg.includes('steal')) {
-          event.preventDefault(); // <- Isso remove a tela vermelha do Next.js!!
+        // Silenciar erros internos do Supabase GoTrue (lock collision)
+        if (errMsg.includes('Lock broken') || errMsg.includes('steal') || errMsg.includes('stole')) {
+          event.preventDefault();
           return;
         }
 

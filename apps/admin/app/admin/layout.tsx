@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { Sidebar } from "@/components/sidebar";
-import { Search, Bell, User } from "lucide-react";
+import { Search, Bell, User, Rss, UserSquare2 } from "lucide-react";
 
 export default function DashboardLayout({
   children,
@@ -25,6 +26,15 @@ export default function DashboardLayout({
           </div>
           
           <div className="flex items-center gap-4">
+            {/* Feed Social + Meu Perfil — atalhos rápidos */}
+            <div className="flex items-center gap-1 border-r border-gray-200 dark:border-white/10 pr-4 mr-0">
+              <Link href="/" title="Feed Social" className="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-whatsapp-teal transition-colors">
+                <Rss className="w-5 h-5" />
+              </Link>
+              <Link href="/profile" title="Meu Perfil" className="p-2 rounded-full text-gray-500 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-whatsapp-teal transition-colors">
+                <UserSquare2 className="w-5 h-5" />
+              </Link>
+            </div>
             <button className="relative p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
               <Bell className="w-5 h-5 text-gray-500" />
               <span className="absolute top-2 right-2 w-2 h-2 bg-whatsapp-green rounded-full border-2 border-white dark:border-whatsapp-darkLighter" />

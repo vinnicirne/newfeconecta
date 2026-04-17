@@ -96,7 +96,7 @@ export default function CameraModal({ open, onClose, onSubmit }: any) {
     try {
       const recorder = new MediaRecorder(streamRef.current, { 
         mimeType, 
-        videoBitsPerSecond: 1200000, // Reduced from 2.5Mbps to 1.2Mbps for compression
+        videoBitsPerSecond: 1000000, // Otimizado para 1.0Mbps para maior velocidade de upload
         audioBitsPerSecond: 96000 
       });
       recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };

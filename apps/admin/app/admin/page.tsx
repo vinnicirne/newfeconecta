@@ -15,6 +15,7 @@ import {
   Link2,
   Eye,
   CheckCircle2,
+  FileSearch,
   Camera,
   Layout,
   Type,
@@ -39,15 +40,7 @@ import {
 } from "recharts";
 import { supabase } from "@/lib/supabase";
 
-const data = [
-  { name: "Seg", users: 400, posts: 240 },
-  { name: "Ter", users: 300, posts: 139 },
-  { name: "Qua", users: 200, posts: 980 },
-  { name: "Qui", users: 278, posts: 390 },
-  { name: "Sex", users: 189, posts: 480 },
-  { name: "Sáb", users: 239, posts: 380 },
-  { name: "Dom", users: 349, posts: 430 },
-];
+const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -62,6 +55,10 @@ export default function DashboardPage() {
     topHashtags: [] as { tag: string, count: number }[]
   });
   const [loading, setLoading] = useState(true);
+  const [chartData, setChartData] = useState<any[]>([]);
+  const [recentUsers, setRecentUsers] = useState<any[]>([]);
+  const [totalLikes, setTotalLikes] = useState(0);
+  const [retentionRate, setRetentionRate] = useState(0);
 
   const [adminName, setAdminName] = useState("Admin");
 
@@ -71,14 +68,18 @@ export default function DashboardPage() {
   }, []);
 
   const fetchAdminName = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', user.id)
-        .single();
-      if (profile?.full_name) setAdminName(profile.full_name);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', user.id)
+          .single();
+        if (profile?.full_name) setAdminName(profile.full_name);
+      }
+    } catch (err) {
+      console.warn("Ignorable Auth Lock Error: User session query interrupted", err);
     }
   };
 
@@ -147,6 +148,53 @@ export default function DashboardPage() {
         hashtagCount: totalTags,
         topHashtags
       });
+
+      // --- Chart: Últimos 7 dias (dados reais) ---
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+      sevenDaysAgo.setHours(0, 0, 0, 0);
+      const [{ data: weekProfiles }, { data: weekPosts }] = await Promise.all([
+        supabase.from('profiles').select('created_at').gte('created_at', sevenDaysAgo.toISOString()),
+        supabase.from('posts').select('created_at').gte('created_at', sevenDaysAgo.toISOString()),
+      ]);
+      const builtChart = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        const dateStr = d.toISOString().split('T')[0];
+        return {
+          name: DAY_LABELS[d.getDay()],
+          users: weekProfiles?.filter(p => p.created_at.startsWith(dateStr)).length || 0,
+          posts: weekPosts?.filter(p => p.created_at.startsWith(dateStr)).length || 0,
+        };
+      });
+      setChartData(builtChart);
+
+      // --- Atividade recente: últimos 5 cadastros reais ---
+      const { data: latestUsers } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, created_at, username')
+        .order('created_at', { ascending: false })
+        .limit(5);
+      setRecentUsers(latestUsers || []);
+
+      // --- Total de Likes reais ---
+      const { count: likesCount } = await supabase
+        .from('likes')
+        .select('*', { count: 'exact', head: true });
+      setTotalLikes(likesCount || 0);
+
+      // --- Taxa de Engajamento: users com post nos últimos 30 dias / total ---
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const { count: activePosts30d } = await supabase
+        .from('posts')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', thirtyDaysAgo.toISOString());
+      const rate = (userCount && userCount > 0)
+        ? Math.min(Math.round(((activePosts30d || 0) / userCount) * 100), 100)
+        : 0;
+      setRetentionRate(rate);
+
     } catch (err) {
       console.error("Error fetching stats:", err);
     } finally {
@@ -156,9 +204,17 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8 pb-12">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, {adminName}</h1>
-        <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, {adminName}</h1>
+          <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
+        </div>
+        <a 
+          href="/admin/monitoramento" 
+          className="flex items-center gap-2 bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-sm font-bold border border-red-500/20 hover:bg-red-500/20 transition-all w-fit"
+        >
+          <ShieldAlert className="w-4 h-4" /> Monitor de Falhas
+        </a>
       </div>
  
       {/* Controle de Funcionalidades do Sistema - EXIGÊNCIA OBRIGATÓRIA */}
@@ -173,7 +229,7 @@ export default function DashboardPage() {
            {[
              { name: 'Rede de Vídeos', status: 'Ativo', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
              { name: 'Sala de Guerra', status: 'Ativo', icon: Mic, desc: 'Audio, Moderação e Viralização' },
-             { name: 'Otimização Mídia', status: 'Ativo', icon: CheckCircle2, desc: 'Compressão e Link Previews' },
+             { name: 'Otimização Mídia', status: 'Ativo', icon: Zap, desc: 'Global: 90s Feed / 30s Stories (Compressão Flash)' },
              { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Atividade em tempo real' },
              { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação 30s' },
              { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
@@ -283,7 +339,7 @@ export default function DashboardPage() {
           </div>
           <div className="h-80 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data}>
+              <AreaChart data={chartData}>
                 <defs>
                   <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#128C7E" stopOpacity={0.3}/>
@@ -328,7 +384,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <p className="text-xs text-white/50">Reações Totais</p>
-                  <p className="text-lg font-bold">1.2M</p>
+                  <p className="text-lg font-bold">{loading ? '...' : totalLikes.toLocaleString()}</p>
                 </div>
               </div>
               <div className="flex items-center gap-4">
@@ -336,8 +392,8 @@ export default function DashboardPage() {
                   <TrendingUp className="w-5 h-5 text-whatsapp-green" />
                 </div>
                 <div>
-                  <p className="text-xs text-white/50">Taxa de Retenção</p>
-                  <p className="text-lg font-bold">68%</p>
+                  <p className="text-xs text-white/50">Taxa de Engajamento (30d)</p>
+                  <p className="text-lg font-bold">{loading ? '...' : `${retentionRate}%`}</p>
                 </div>
               </div>
             </div>
@@ -372,18 +428,24 @@ export default function DashboardPage() {
           <button className="text-xs text-whatsapp-teal dark:text-whatsapp-green font-semibold">Ver tudo</button>
         </div>
         <div className="divide-y divide-gray-100 dark:divide-white/5">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+          {recentUsers.length === 0 && !loading && (
+            <p className="p-6 text-sm text-gray-400">Nenhum cadastro recente.</p>
+          )}
+          {recentUsers.map((u) => (
+            <div key={u.created_at} className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
               <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-whatsapp-dark" />
+                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-whatsapp-dark overflow-hidden flex-shrink-0">
+                  {u.avatar_url
+                    ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                    : <div className="w-full h-full flex items-center justify-center text-gray-500 font-bold text-sm">{(u.full_name || '?')[0]}</div>
+                  }
+                </div>
                 <div>
-                  <p className="text-sm font-medium dark:text-white">Novo usuário registrado: <span className="text-whatsapp-teal dark:text-whatsapp-green">João Silva</span></p>
-                  <p className="text-[11px] text-gray-500">Há 5 minutos • São Paulo, BR</p>
+                  <p className="text-sm font-medium dark:text-white">Novo usuário: <span className="text-whatsapp-teal dark:text-whatsapp-green">{u.full_name || u.username || 'Sem nome'}</span></p>
+                  <p className="text-[11px] text-gray-500">{new Date(u.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-1 bg-whatsapp-green/10 text-whatsapp-green text-[10px] font-bold rounded-md uppercase">Novo</span>
-              </div>
+              <span className="px-2 py-1 bg-whatsapp-green/10 text-whatsapp-green text-[10px] font-bold rounded-md uppercase">Novo</span>
             </div>
           ))}
         </div>

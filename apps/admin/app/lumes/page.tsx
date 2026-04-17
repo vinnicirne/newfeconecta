@@ -15,6 +15,16 @@ export default function LumesPage() {
   const [current, setCurrent] = useState(0);
   const [muted, setMuted] = useState(true);
   const [showComments, setShowComments] = useState(false);
+  const [followingMap, setFollowingMap] = useState<{ [key: string]: boolean }>({});
+  
+  // Sincronização Global de Seguidores
+  useEffect(() => {
+    const handleGlobalSync = (e: any) => {
+      setFollowingMap(prev => ({ ...prev, [e.detail.userId]: e.detail.isFollowing }));
+    };
+    window.addEventListener('user-follow-changed', handleGlobalSync);
+    return () => window.removeEventListener('user-follow-changed', handleGlobalSync);
+  }, []);
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRefs = useRef<{ [key: number]: HTMLVideoElement | null }>({});
 
@@ -128,6 +138,17 @@ export default function LumesPage() {
           is_reposted: repostIds.has(p.id),
           is_saved: savedIds.has(p.id)
         }));
+
+        // Buscar quem o usuário já segue
+        const { data: followData } = await supabase
+          .from('follows')
+          .select('following_id')
+          .eq('follower_id', userId);
+        
+        const fMap: any = {};
+        followData?.forEach(f => { fMap[f.following_id] = true; });
+        setFollowingMap(fMap);
+
         setReels(finalMapped);
         // Auto-scroll to the requested Lume
         if (initialId) {
@@ -266,6 +287,37 @@ export default function LumesPage() {
     }
   };
 
+  const toggleFollow = async (authorId: string) => {
+    if (!user) { toast.error("Faça login para seguir"); return; }
+    if (user.id === authorId) return;
+
+    const isFollowing = !!followingMap[authorId];
+    
+    // Update local state immediately (Real-time feeling)
+    setFollowingMap(prev => ({ ...prev, [authorId]: !isFollowing }));
+
+    try {
+      if (isFollowing) {
+        await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', authorId);
+      } else {
+        await supabase.from('follows').insert({ follower_id: user.id, following_id: authorId });
+        await NotificationService.notify({
+          recipientId: authorId,
+          senderId: user.id,
+          type: 'follow'
+        });
+      }
+
+      // Sincronizar globalmente com outros componentes na tela
+      window.dispatchEvent(new CustomEvent('user-follow-changed', {
+        detail: { userId: authorId, isFollowing: !isFollowing }
+      }));
+    } catch (err) {
+      setFollowingMap(prev => ({ ...prev, [authorId]: isFollowing }));
+      toast.error("Erro ao processar seguimento");
+    }
+  };
+
   if (reels.length === 0) return (
      <div className="fixed inset-0 flex items-center justify-center bg-black">
        <div className="w-12 h-12 border-4 border-whatsapp-green/20 border-t-whatsapp-green rounded-full animate-spin" />
@@ -342,12 +394,19 @@ export default function LumesPage() {
                   <div className="flex flex-col gap-1.5">
                     <div className="flex items-center gap-2">
                       <h3 className="text-white font-black text-sm drop-shadow-lg">@{reel.author_username}</h3>
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); toast.info("Seguindo em breve!"); }}
-                        className="px-2 py-0.5 bg-whatsapp-green/20 hover:bg-whatsapp-green/40 border border-whatsapp-green/50 rounded-full text-[10px] text-whatsapp-green font-bold transition-all active:scale-90"
-                      >
-                        Seguir
-                      </button>
+                      {user?.id !== (reel.author_id || reel.user_id) && (
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); toggleFollow(reel.author_id || reel.user_id); }}
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[10px] font-bold transition-all active:scale-90",
+                            followingMap[reel.author_id || reel.user_id]
+                              ? "bg-white/10 text-white/50 border border-white/10"
+                              : "bg-whatsapp-green text-black hover:bg-whatsapp-greenLight"
+                          )}
+                        >
+                          {followingMap[reel.author_id || reel.user_id] ? 'Seguindo' : 'Seguir'}
+                        </button>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />

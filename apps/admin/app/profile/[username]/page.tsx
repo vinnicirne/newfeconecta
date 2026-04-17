@@ -28,7 +28,16 @@ export default function PublicProfilePage() {
 
   useEffect(() => {
     fetchData();
-  }, [username]);
+
+    // Sincronização Global de Seguidores
+    const handleGlobalSync = (e: any) => {
+      if (user && e.detail.userId === user.id) {
+        setIsFollowing(e.detail.isFollowing);
+      }
+    };
+    window.addEventListener('user-follow-changed', handleGlobalSync);
+    return () => window.removeEventListener('user-follow-changed', handleGlobalSync);
+  }, [username, user?.id]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -107,6 +116,11 @@ export default function PublicProfilePage() {
         });
         if (error) throw error;
       }
+
+      // Sincronizar globalmente com outros componentes na tela
+      window.dispatchEvent(new CustomEvent('user-follow-changed', {
+        detail: { userId: user.id, isFollowing: !oldFollowing }
+      }));
     } catch (err) {
       setIsFollowing(oldFollowing);
       toast.error("Erro ao processar seguimento");

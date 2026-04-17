@@ -28,10 +28,13 @@ export default function CreatePost({ user, onPostCreated }: any) {
        finalFile = await compressImage(file, 1080, 0.7); // 70% Quality for standard posts
     }
 
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const fileExt = (file as File).name?.split('.').pop() || file.type.split('/')[1] || 'bin';
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const { data, error } = await supabase.storage
       .from('posts')
-      .upload(`${path}/${fileName}`, finalFile);
+      .upload(`${path}/${fileName}`, finalFile, {
+        contentType: file.type // Garante que o MIME type seja preservado
+      });
 
     if (error) {
       console.error('❌ [CreatePost] Erro no Supabase Storage:', error);
@@ -48,11 +51,13 @@ export default function CreatePost({ user, onPostCreated }: any) {
 
   const handleTextSubmit = async (data: any) => {
     setIsSubmitting(true);
-    setUploadProgress(90);
+    setUploadProgress(30);
     const toastId = toast.loading("Publicando...", { duration: 10000 });
     try {
       if (!user?.id) {
         toast.error("Você precisa estar logado para publicar.", { id: toastId });
+        setIsSubmitting(false);
+        setUploadProgress(0);
         return;
       }
       const userId = user.id;
@@ -68,15 +73,16 @@ export default function CreatePost({ user, onPostCreated }: any) {
         postPayload.background = data.background;
       }
 
-      const { error } = await supabase.from('posts').insert(postPayload);
+      setUploadProgress(90);
+      const { data: newPost, error } = await supabase.from('posts').insert(postPayload).select().single();
 
       if (error) throw error;
       
       // Parsear Menções
       await NotificationService.parseMentions(data.content, userId);
       
-      // Notificar Seguidores de Hashtags
-      await NotificationService.notifyHashtagFollowers(data.content, userId, (error as any)?.id || ""); // Passar ID do post se disponível (Supabase precisaria retornar .select() para pegar ID real se não for autogerado)
+      // Notificar Seguidores de Hashtags com ID REAL
+      await NotificationService.notifyHashtagFollowers(data.content, userId, newPost?.id || "");
       
       setUploadProgress(100);
       toast.success("Publicação enviada com sucesso!", { id: toastId });
@@ -96,8 +102,15 @@ export default function CreatePost({ user, onPostCreated }: any) {
 
   const handleMediaSubmit = async (data: any) => {
     setIsSubmitting(true);
-    setUploadProgress(90);
+    setUploadProgress(30);
     const toastId = toast.loading("Preparando publicação...", { duration: 20000 });
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return 90;
+        return prev + 5;
+      });
+    }, 400);
+
     try {
       let mediaUrl = data.media_url || "";
       
@@ -114,24 +127,27 @@ export default function CreatePost({ user, onPostCreated }: any) {
 
       if (!user?.id) {
         toast.error("Você precisa estar logado para publicar.", { id: toastId });
+        setIsSubmitting(false);
+        setUploadProgress(0);
         return;
       }
       const userId = user.id;
 
-      const { error } = await supabase.from('posts').insert({
+      setUploadProgress(90);
+      const { data: newPost, error } = await supabase.from('posts').insert({
         author_id: userId,
         user_id: userId,
         content: data.caption || "",
         media_url: mediaUrl,
         post_type: data.post_type === 'photo' ? 'image' : data.post_type,
-      });
+      }).select().single();
 
       if (error) throw error;
       
       // Parsear Menções na legenda
       if (data.caption) {
         await NotificationService.parseMentions(data.caption, userId);
-        await NotificationService.notifyHashtagFollowers(data.caption, userId, (error as any)?.id || "");
+        await NotificationService.notifyHashtagFollowers(data.caption, userId, newPost?.id || "");
       }
 
       setUploadProgress(100);
@@ -144,10 +160,9 @@ export default function CreatePost({ user, onPostCreated }: any) {
       console.error("Error creating media post:", err);
       toast.error(`Erro ao enviar mídia: ${err.message}`, { id: toastId });
     } finally {
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setUploadProgress(0);
-      }, 300);
+      clearInterval(progressInterval);
+      setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -158,9 +173,24 @@ export default function CreatePost({ user, onPostCreated }: any) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) {
-      toast.error("O vídeo é muito pesado! Máximo 15MB.");
+    if (file.size > 12 * 1024 * 1024) {
+      toast.error("O vídeo é muito pesado! Máximo 12MB.");
       return;
+    }
+
+    // Validar duração do vídeo para garantir performance "Flash"
+    if (file.type.startsWith('video/')) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(video.src);
+        if (video.duration > 90) {
+          toast.error("Vídeo muito longo! Máximo 90 segundos para o Feed.");
+          setPendingMedia(null);
+          return;
+        }
+      };
+      video.src = URL.createObjectURL(file);
     }
 
     const type = file.type.startsWith('video') ? 'video' : 'image';
@@ -188,26 +218,38 @@ export default function CreatePost({ user, onPostCreated }: any) {
   };
 
   const submitPendingPost = async () => {
-    if (!pendingMedia || !user?.id) return;
+    if (!pendingMedia || !user?.id) {
+      if (!user?.id) {
+        toast.error("Você precisa estar logado para publicar.");
+      }
+      return;
+    }
     
     setIsSubmitting(true);
-    setUploadProgress(90);
+    setUploadProgress(30);
     const toastId = toast.loading("Publicando seu poster...");
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return 90;
+        return prev + 5;
+      });
+    }, 500);
     
     try {
       const mediaUrl = await uploadMedia(pendingMedia.file, pendingMedia.type === 'video' ? 'videos' : 'images');
       
-      const { error } = await supabase.from('posts').insert({
+      setUploadProgress(90);
+      const { data: newPost, error } = await supabase.from('posts').insert({
         author_id: user.id,
         user_id: user.id,
         content: caption,
         media_url: mediaUrl,
         post_type: pendingMedia.type,
-      });
+      }).select().single();
 
       // Notificar Hashtags
       if (caption) {
-        await NotificationService.notifyHashtagFollowers(caption, user.id, (error as any)?.id || "");
+        await NotificationService.notifyHashtagFollowers(caption, user.id, newPost?.id || "");
       }
       
       setUploadProgress(100);
@@ -219,10 +261,9 @@ export default function CreatePost({ user, onPostCreated }: any) {
       setUploadProgress(0);
       toast.error(`Erro ao publicar: ${err.message}`, { id: toastId });
     } finally {
-      setTimeout(() => {
-        setIsSubmitting(false);
-        setUploadProgress(0);
-      }, 300);
+      clearInterval(progressInterval);
+      setIsSubmitting(false);
+      setUploadProgress(0);
     }
   };
 
@@ -237,12 +278,12 @@ export default function CreatePost({ user, onPostCreated }: any) {
     <>
       {/* Barra de Progresso Global Progressiva */}
       <div 
-        className={cn(
-          "fixed top-0 left-0 h-1 bg-whatsapp-green z-[99999] shadow-[0_0_10px_rgba(37,211,102,0.8)]",
-          uploadProgress === 0 ? "w-0 opacity-0 duration-0" : 
-          uploadProgress === 90 ? "w-[90%] opacity-100 ease-out duration-[15000ms]" : 
-          "w-full opacity-100 ease-out duration-300"
-        )}
+        data-testid="upload-progress-bar"
+        className="fixed top-0 left-0 h-[4px] bg-whatsapp-green z-[99999] shadow-[0_0_15px_rgba(37,211,102,1)] transition-all duration-500 ease-out"
+        style={{ 
+          width: `${uploadProgress}%`, 
+          opacity: uploadProgress === 0 ? 0 : 1
+        }}
       />
 
       <div className={cn(

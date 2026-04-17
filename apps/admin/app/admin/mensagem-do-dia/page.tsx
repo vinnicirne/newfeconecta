@@ -10,11 +10,15 @@ import {
   AlertCircle,
   Plus,
   Trash2,
-  BookOpen
+  BookOpen,
+  Search,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
 import { cn } from "@/lib/utils";
+
+const bibleCache: Record<string, any> = {};
 
 interface DailyVerse {
   id: string;
@@ -39,6 +43,11 @@ export default function DailyVerseAdmin() {
   const [chapter, setChapter] = useState(1);
   const [verse, setVerse] = useState(1);
 
+  // Bible search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+
   useEffect(() => {
     fetchVerses();
   }, []);
@@ -58,6 +67,75 @@ export default function DailyVerseAdmin() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleBibleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = searchQuery.trim().toLocaleLowerCase('pt-BR');
+    if (q.length < 3) { toast.error("Digite pelo menos 3 letras"); return; }
+    try {
+      setSearchLoading(true);
+      if (!bibleCache['nvi']) {
+        const res = await fetch('/bible/nvi.json');
+        if (!res.ok) throw new Error('Falha ao carregar');
+        bibleCache['nvi'] = await res.json();
+      }
+
+      // Detecta referência bíblica (ex: "salmos 91", "jo 3:16", "gn 1 5")
+      let refBook: any = null;
+      let refChap: number | null = null;
+      let refVerse: number | null = null;
+      const refMatch = q.match(/^([a-záéíóúãõâêîôûç0-9\s]+?)\s+(\d+)(?:[:.\\-\sv]+(\d+))?$/i);
+      if (refMatch) {
+        const possibleBook = refMatch[1].trim();
+        refChap = parseInt(refMatch[2]);
+        if (refMatch[3]) refVerse = parseInt(refMatch[3]);
+        const bMeta = BIBLE_BOOKS.find(b =>
+          b.name.toLocaleLowerCase('pt-BR') === possibleBook ||
+          b.name.toLocaleLowerCase('pt-BR').startsWith(possibleBook) ||
+          b.abbrev.toLocaleLowerCase('pt-BR') === possibleBook
+        );
+        if (bMeta) refBook = bMeta;
+      }
+
+      const found: any[] = [];
+      bibleCache['nvi'].forEach((book: any) => {
+        const meta = BIBLE_BOOKS.find(b => b.abbrev === book.abbrev);
+        if (!meta) return;
+        book.chapters.forEach((verses: string[], ci: number) => {
+          const currentChap = ci + 1;
+          verses.forEach((text: string, vi: number) => {
+            const currentVerse = vi + 1;
+            let isMatch = false;
+            if (refBook && refBook.abbrev === meta.abbrev && currentChap === refChap) {
+              isMatch = refVerse ? currentVerse === refVerse : true;
+            } else if (!refBook) {
+              isMatch = text.toLocaleLowerCase('pt-BR').includes(q);
+            }
+            if (isMatch) {
+              found.push({ book: meta.name, bookAbbrev: meta.abbrev, chapter: currentChap, verse: currentVerse, text });
+            }
+          });
+        });
+      });
+
+      setSearchResults(found.slice(0, 20));
+      if (found.length === 0) toast.info("Nenhum versículo encontrado");
+    } catch {
+      toast.error("Erro ao buscar versículos");
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
+  function selectVerse(result: any) {
+    setContent(result.text);
+    setReference(`${result.book} ${result.chapter}:${result.verse}`);
+    setBookAbbrev(result.bookAbbrev);
+    setChapter(result.chapter);
+    setVerse(result.verse);
+    setSearchResults([]);
+    setSearchQuery("");
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -163,6 +241,48 @@ export default function DailyVerseAdmin() {
             </h2>
 
             <form onSubmit={handleCreate} className="space-y-5">
+              {/* BUSCA BÍBLICA - preenche o formulário automaticamente */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Buscar Versículo</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleBibleSearch(e as any);
+                      }
+                    }}
+                    placeholder="Ex: amor, paz, Salmos 23..."
+                    className="flex-1 bg-whatsapp-light dark:bg-whatsapp-dark border-none rounded-2xl px-4 py-3 text-sm focus:ring-2 focus:ring-whatsapp-green transition-all"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={handleBibleSearch}
+                    className="px-4 py-3 bg-whatsapp-green/20 text-whatsapp-green rounded-2xl hover:bg-whatsapp-green hover:text-white transition-all outline-none"
+                  >
+                    {searchLoading ? <span className="animate-spin inline-block">⟳</span> : <Search size={16} />}
+                  </button>
+                </div>
+                {searchResults.length > 0 && (
+                  <div className="max-h-48 overflow-y-auto space-y-1 rounded-2xl border border-whatsapp-green/20 p-2 bg-whatsapp-light dark:bg-whatsapp-dark">
+                    {searchResults.map((r, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => selectVerse(r)}
+                        className="w-full text-left p-3 rounded-xl hover:bg-whatsapp-green/10 transition-colors"
+                      >
+                        <span className="text-[10px] font-black text-whatsapp-green uppercase">{r.book} {r.chapter}:{r.verse}</span>
+                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-0.5 truncate">{r.text}</p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Texto do Versículo</label>
                 <textarea 

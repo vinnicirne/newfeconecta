@@ -169,9 +169,24 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 15 * 1024 * 1024) { // 15MB limit
-      toast.error("O vídeo é muito pesado! Máximo 15MB.");
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Mídia muito pesada! Máximo 10MB para Stories.");
       return;
+    }
+
+    // Validar duração para garantir Stories rápidos
+    if (file.type.startsWith('video/')) {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.onloadedmetadata = () => {
+         window.URL.revokeObjectURL(video.src);
+         if (video.duration > 31) { // 31s de tolerância
+            toast.error("Story muito longo! O limite é de 30 segundos.");
+            setPreview(null);
+            return;
+         }
+      };
+      video.src = URL.createObjectURL(file);
     }
 
     const type = file.type.startsWith('image/') ? 'image' : 
@@ -240,13 +255,14 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
          if (!preview?.blob) throw new Error("Mídia não encontrada.");
          
          let file = preview.blob;
-         const ext = preview.mimeType?.split('/')[1] || (mode === 'photo' ? 'jpg' : mode === 'audio' ? 'mp3' : 'webm');
+         const isImage = file.type.startsWith('image/');
+         const fileExt = file.name?.split('.').pop() || (isImage ? 'jpg' : file.type.split('/')[1]) || 'bin';
          
-         if (mode === 'photo') {
+         if (isImage) {
            file = await compressImage(file, 1080, 0.65);
          }
 
-         const fileName = `story_${Date.now()}_${user.id}.${ext}`;
+         const fileName = `story_${Date.now()}_${user.id}.${fileExt}`;
          
          // Simulação de progresso para melhor UX
          const progressInterval = setInterval(() => {

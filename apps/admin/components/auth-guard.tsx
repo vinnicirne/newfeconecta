@@ -92,7 +92,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (!mounted || loading) {
     return (
-      <div className="fixed inset-0 bg-whatsapp-dark flex flex-col items-center justify-center z-[9999]">
+      <div suppressHydrationWarning className="fixed inset-0 bg-whatsapp-dark flex flex-col items-center justify-center z-[9999]">
         <div className="w-16 h-16 rounded-full bg-whatsapp-teal/10 flex items-center justify-center mb-4">
           <Loader2 className="w-8 h-8 text-whatsapp-teal animate-spin" />
         </div>

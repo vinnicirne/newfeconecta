@@ -29,37 +29,49 @@ import {
   Megaphone,
   Mic,
   BookOpen,
-  Sparkles
+  Sparkles,
+  Bell
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 
-const menuItems = [
-  { name: "Feed Social", icon: Rss, href: "/" },
-  { name: "Deus Falou Comigo", icon: Sparkles, href: "/dfch" },
+const menuItems: any[] = [
+  // ── PLATAFORMA ─────────────────────────────
+  { type: 'divider', label: 'Plataforma' },
   { name: "Meu Diário", icon: BookOpen, href: "/notes" },
   { name: "Bíblia Sagrada", icon: ScrollText, href: "/bible" },
-  { name: "Meu Perfil", icon: UserSquare2, href: "/profile" },
+
+  // ── PAINEL ADMIN ───────────────────────────
+  { type: 'divider', label: 'Painel Admin' },
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
-  { name: "Versículo do Dia", icon: Sparkles, href: "/admin/daily-verse" },
   { name: "Usuários", icon: Users, href: "/admin/users" },
-  { name: "Salas de Guerra", icon: Mic, href: "/admin/rooms" },
   { name: "Verificações", icon: ShieldCheck, href: "/admin/verifications" },
+  { name: "Denúncias", icon: ShieldAlert, href: "/admin/reports" },
+  { name: "Salas de Guerra", icon: Mic, href: "/admin/rooms" },
+
+  // ── CONTEÚD0 ────────────────────────────────
+  { type: 'divider', label: 'Conteúdo' },
+  { name: "Versículo do Dia", icon: Sparkles, href: "/admin/mensagem-do-dia" },
+  { name: "Notificações Push", icon: Bell, href: "/admin/push" },
+  { name: "Páginas", icon: FileText, href: "/admin/pages" },
+  { name: "FAQ", icon: HelpCircle, href: "/admin/faq" },
+
+  // ── MONETIZAÇÃO ─────────────────────────────
+  { type: 'divider', label: 'Monetização' },
   { name: "Monetização", icon: CreditCard, href: "/admin/monetization" },
   { name: "Recursos PRO", icon: Target, href: "/admin/pro-features" },
+
+  // ── SISTEMA ──────────────────────────────────
+  { type: 'divider', label: 'Sistema' },
   { name: "Design", icon: Palette, href: "/admin/design" },
   { name: "Ferramentas", icon: Wrench, href: "/admin/tools" },
-  { name: "Páginas", icon: FileText, href: "/admin/pages" },
-  { name: "Denúncias", icon: ShieldAlert, href: "/admin/reports" },
   { name: "Configurações API", icon: Settings, href: "/admin/api-settings" },
+  { name: "Monitoramento", icon: Activity, href: "/admin/monitoramento" },
   { name: "Status do Sistema", icon: Activity, href: "/admin/status" },
   { name: "Registro Alterações", icon: History, href: "/admin/changelog" },
-  { name: "Controle de FAQ", icon: HelpCircle, href: "/admin/faq" },
-  { name: "Privacidade", icon: ShieldCheck, href: "/privacy" },
-  { name: "Termos de Uso", icon: ScrollText, href: "/terms" },
-  { name: "Cookies", icon: Cookie, href: "/cookies" },
-  { name: "Publicidade", icon: Megaphone, href: "/advertising" },
-  { name: "Sobre Nós", icon: Users, href: "/about" },
+
+  // ── LEGAL ────────────────────────────────────
+  // Páginas gerenciadas em /admin/pages
 ];
 
 export function Sidebar() {
@@ -80,7 +92,7 @@ export function Sidebar() {
         supabase.from('profiles').select('*').eq('id', user.id).single()
           .then(({ data }) => setAdminProfile(data || user));
       }
-    });
+    }).catch(() => { /* lock collision ignorável do GoTrue */ });
   }, []);
 
   return (
@@ -114,6 +126,11 @@ export function Sidebar() {
       {/* Menu */}
       <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
         {menuItems.map((item) => {
+          if (item.type === 'divider') {
+            return isCollapsed
+              ? <div key={item.label} className="h-px bg-white/5 mx-2 my-2" />
+              : <p key={item.label} className="px-3 pt-5 pb-1 text-[9px] font-black uppercase tracking-widest text-white/30">{item.label}</p>;
+          }
           const isActive = pathname === item.href;
           return (
             <Link

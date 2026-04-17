@@ -5,6 +5,7 @@ import { X, Save, Instagram, Linkedin, Youtube, Globe, MessageCircle, Calendar, 
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { compressImage } from "@/lib/image-compression";
 
 interface EditProfileModalProps {
   user: any;
@@ -77,11 +78,12 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
 
       // 1. Upload de Avatar se houver novo arquivo
       if (avatarFile) {
-        const fileExt = avatarFile.name.split('.').pop();
-        const fileName = `${userId}-avatar-${Math.random()}.${fileExt}`;
+        const compressedAvatar = await compressImage(avatarFile, 400, 0.8); // Perfil pode ser menor
+        const fileExt = avatarFile.name.split('.').pop() || 'jpg';
+        const fileName = `${userId}-avatar-${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
           .from('avatars')
-          .upload(fileName, avatarFile);
+          .upload(fileName, compressedAvatar);
         if (uploadError) throw uploadError;
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
         currentAvatarUrl = publicUrl;
@@ -89,11 +91,12 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
 
       // 2. Upload de Banner se houver novo arquivo
       if (bannerFile) {
-        const fileExt = bannerFile.name.split('.').pop();
-        const fileName = `${userId}-banner-${Math.random()}.${fileExt}`;
+        const compressedBanner = await compressImage(bannerFile, 1200, 0.7); // Banner um pouco maior
+        const fileExt = bannerFile.name.split('.').pop() || 'jpg';
+        const fileName = `${userId}-banner-${Date.now()}.${fileExt}`;
         const { error: uploadError } = await supabase.storage
-          .from('avatars') // Usando o mesmo bucket de avatars para simplificar, mas em pasta diferente ou bucket banners se existir
-          .upload(fileName, bannerFile);
+          .from('avatars') 
+          .upload(fileName, compressedBanner);
         if (uploadError) throw uploadError;
         const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(fileName);
         currentBannerUrl = publicUrl;

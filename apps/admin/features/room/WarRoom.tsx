@@ -19,6 +19,7 @@ import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import moment from "moment";
+import { compressImage } from "@/lib/image-compression";
 
 // --- Types ---
 interface WarRoomProps {
@@ -394,8 +395,19 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
     let media_url = null;
     if (file) {
-      const fileName = `chat_${Date.now()}_${file.name}`;
-      const { data, error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
+      const isImage = file.type.startsWith('image/');
+      const fileExt = file.name?.split('.').pop() || (isImage ? 'jpg' : file.type.split('/')[1]) || 'bin';
+      const fileName = `chat_${Date.now()}_${user.id}.${fileExt}`;
+      
+      let finalFile: Blob | File = file;
+      if (isImage) {
+        finalFile = await compressImage(file, 800, 0.6); // Chat pode ser ainda mais leve
+      }
+
+      const { data, error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, finalFile, { contentType: file.type });
+        
       if (uploadError) {
         toast.error("Erro ao enviar arquivo");
         return;

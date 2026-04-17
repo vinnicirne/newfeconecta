@@ -13,6 +13,7 @@ import { compressImage } from '@/lib/image-compression';
 export default function MobilePostSheet({ open, onClose, user, onPostCreated }: any) {
   const [activeModal, setActiveModal] = useState<string | null>(null);
   const [posted, setPosted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const showSuccess = () => {
@@ -31,42 +32,47 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
     if (file.type?.startsWith('image/')) {
        finalFile = await compressImage(file, 1080, 0.7);
     }
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const fileExt = (file as File).name?.split('.').pop() || file.type?.split('/')[1] || 'bin';
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const { data, error } = await supabase.storage
       .from('posts')
-      .upload(`${path}/${fileName}`, finalFile);
+      .upload(`${path}/${fileName}`, finalFile, { contentType: file.type });
     if (error) throw error;
     const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(data.path);
     return publicUrl;
   };
 
   const handleTextSubmit = async (data: any) => {
+    const toastId = toast.loading("Publicando seu texto...");
+    setIsSubmitting(true);
     try {
       const userId = user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731";
       const payload = {
         author_id: userId,
         user_id: userId,
         content: data.content,
-        post_type: 'text', // Forçado exatamente como no banco
+        post_type: 'text', 
         background_style: data.background
       };
       
-      console.log("SENT PAYLOAD (TEXT):", payload);
-      
       const { error } = await supabase.from('posts').insert(payload);
       if (error) throw error;
+      toast.success("Publicado!", { id: toastId });
       setActiveModal(null);
       showSuccess();
     } catch (err: any) {
-      toast.error("Erro ao publicar: " + err.message);
+      toast.error("Erro ao publicar: " + err.message, { id: toastId });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleMediaSubmit = async (data: any) => {
+    const toastId = toast.loading("Enviando mídia...");
+    setIsSubmitting(true);
     try {
       let media_url = data.media_url;
       
-      // Se vier um link blob direto do CameraModal, precisamos baixar e subir
       if (media_url && media_url.startsWith('blob:')) {
          const fileBlob = await fetch(media_url).then(r => r.blob());
          media_url = await uploadMedia(fileBlob, data.post_type === 'video' ? 'videos' : 'images');
@@ -88,14 +94,15 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
                    data.post_type === 'video' ? 'video' : 'image'
       };
       
-      console.log("SENT PAYLOAD (MEDIA):", payload);
-      
       const { error } = await supabase.from('posts').insert(payload);
       if (error) throw error;
+      toast.success("Publicado com sucesso!", { id: toastId });
       setActiveModal(null);
       showSuccess();
     } catch (err: any) {
-      toast.error("Erro ao publicar: " + err.message);
+      toast.error("Erro ao publicar: " + err.message, { id: toastId });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -108,6 +115,8 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
       return;
     }
 
+    const toastId = toast.loading("Enviando arquivo da galeria...");
+    setIsSubmitting(true);
     try {
       const isVideo = file.type.startsWith('video');
       
@@ -125,6 +134,8 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
 
         if (!isValid) {
           toast.error("O vídeo é muito longo! Máximo 90 segundos.");
+          setIsSubmitting(false);
+          toast.dismiss(toastId);
           return;
         }
       }
@@ -138,14 +149,14 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
         post_type: isVideo ? 'video' : 'image'
       };
       
-      console.log("SENT PAYLOAD (GALLERY):", payload);
-      
       const { error } = await supabase.from('posts').insert(payload);
       if (error) throw error;
+      toast.success("Enviado!", { id: toastId });
       showSuccess();
     } catch (err: any) {
-      toast.error("Erro ao subir arquivo: " + err.message);
+      toast.error("Erro ao subir arquivo: " + err.message, { id: toastId });
     } finally {
+      setIsSubmitting(false);
       e.target.value = '';
     }
   };

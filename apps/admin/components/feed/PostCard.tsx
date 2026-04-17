@@ -198,7 +198,9 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [showLikeAnim, setShowLikeAnim] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
+  const [mediaError, setMediaError] = useState(false);
   const router = useRouter();
+
 
   const getYoutubeId = (url: string) => {
     // Regex refinado para ignorar playlists e focar apenas no ID do vídeo (11 caracs)
@@ -330,7 +332,16 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     checkIfReposted();
     checkIfSaved();
     checkIfFollowing();
-  }, [post.id, userId]);
+
+    // Sincronização Global de Seguidores (Real-time UI sync)
+    const handleSync = (e: any) => {
+      if (e.detail.userId === post.author_id) {
+        setIsFollowing(e.detail.isFollowing);
+      }
+    };
+    window.addEventListener('user-follow-changed', handleSync);
+    return () => window.removeEventListener('user-follow-changed', handleSync);
+  }, [post.id, userId, post.author_id]);
 
   const toggleFollow = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -360,6 +371,11 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
           type: 'follow'
         });
       }
+
+      // Disparar evento para sincronizar outros PostCards do mesmo autor na tela
+      window.dispatchEvent(new CustomEvent('user-follow-changed', {
+        detail: { userId: post.author_id, isFollowing: !oldFollowing }
+      }));
     } catch (err) {
       setIsFollowing(oldFollowing);
       toast.error('Erro ao atualizar seguidor.');
@@ -380,6 +396,11 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         const { error } = await supabase.from('saved_posts').insert({ post_id: post.id, user_id: userId });
         if (error) throw error;
       }
+
+      // Sincronizar globalmente
+      window.dispatchEvent(new CustomEvent('user-follow-changed', {
+        detail: { userId: user.id, isFollowing: !oldFollowing }
+      }));
     } catch (err) {
       setIsSaved(oldSaved);
       toast.error("Erro ao salvar publicação.");
@@ -592,6 +613,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     );
   };
 
+  if (mediaError) return null;
+
   return (
     <div
       id={`post-${post.id}`}
@@ -741,6 +764,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
               src={post.media_url}
               className="w-full h-auto object-cover max-h-[520px] transition-transform duration-500 group-hover:scale-[1.02]"
               alt="Imagem do post"
+              onError={() => setMediaError(true)}
             />
 
             {/* Like Animation Overlay */}
@@ -769,6 +793,10 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             playsInline
             crossOrigin="anonymous"
             onPlay={handlePlayMedia}
+            onError={(e) => {
+              console.warn("⚠️ [PostCard] Erro ao carregar mídia. Verifique a URL:", post.media_url);
+              setMediaError(true);
+            }}
           />
 
           {/* Toggle de Áudio Flutuante */}

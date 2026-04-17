@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { Plus, Search, MoreHorizontal, RefreshCw, Eye, X, Mail, Church, Calendar, AtSign, ShieldCheck, UserCircle2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Search, MoreHorizontal, RefreshCw, Eye, X, Mail, Church, Calendar, AtSign, ShieldCheck, UserCircle2, ChevronLeft, ChevronRight, BadgeCheck, ShieldAlert, UserPlus, UserMinus } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import moment from "moment";
@@ -13,6 +14,7 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
+  const { toast } = require("sonner");
   const [total, setTotal] = useState(0);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -109,6 +111,41 @@ export default function UsersPage() {
     }
   };
 
+  const handleToggleVerify = async (user: any) => {
+    const newState = !user.is_verified;
+    const toastId = toast.loading(`${newState ? 'Verificando' : 'Removendo verificação'} de ${user.username}...`);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ is_verified: newState })
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_verified: newState } : u));
+      toast.success(`Status de verificação atualizado!`, { id: toastId });
+    } catch (err: any) {
+      toast.error("Erro ao atualizar: " + err.message, { id: toastId });
+    }
+  };
+
+  const handleRoleUpdate = async (user: any, role: string) => {
+    const toastId = toast.loading(`Alterando nível de ${user.username}...`);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: role })
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: role } : u));
+      toast.success(`Nível de acesso alterado para ${role}!`, { id: toastId });
+    } catch (err: any) {
+      toast.error("Erro ao alterar nível: " + err.message, { id: toastId });
+    }
+  };
+
   useEffect(() => {
     if (selectedUser) {
       checkFollowStatus(selectedUser.id);
@@ -201,9 +238,42 @@ export default function UsersPage() {
                         >
                           <Eye className="w-4 h-4 text-whatsapp-teal" />
                         </button>
-                        <button className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors">
-                          <MoreHorizontal className="w-4 h-4 text-gray-500" />
-                        </button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors">
+                              <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-3 py-2">Moderação Profética</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => handleToggleVerify(u)}
+                              className={cn(
+                                "flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors",
+                                u.is_verified ? "text-orange-500" : "text-whatsapp-green"
+                              )}
+                            >
+                              <BadgeCheck className="w-4 h-4" />
+                              <span className="font-bold text-xs">{u.is_verified ? 'Remover Selo' : 'Conferir Selo'}</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleRoleUpdate(u, u.role === 'admin' ? 'user' : 'admin')}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer text-blue-500"
+                            >
+                              <ShieldCheck className="w-4 h-4" />
+                              <span className="font-bold text-xs">{u.role === 'admin' ? 'Remover Admin' : 'Tornar Admin'}</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => toast.warning("Funcionalidade de banimento em auditoria.")}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer text-red-500 focus:bg-red-500/10"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                              <span className="font-bold text-xs">Banir Usuário</span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </div>
                     </td>
                   </tr>
