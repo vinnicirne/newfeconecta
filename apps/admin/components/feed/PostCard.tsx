@@ -397,10 +397,6 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         if (error) throw error;
       }
 
-      // Sincronizar globalmente
-      window.dispatchEvent(new CustomEvent('user-follow-changed', {
-        detail: { userId: user.id, isFollowing: !oldFollowing }
-      }));
     } catch (err) {
       setIsSaved(oldSaved);
       toast.error("Erro ao salvar publicação.");
