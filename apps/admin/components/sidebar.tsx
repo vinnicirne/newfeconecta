@@ -30,7 +30,8 @@ import {
   Mic,
   BookOpen,
   Sparkles,
-  Bell
+  Bell,
+  DollarSign
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -58,7 +59,8 @@ const menuItems: any[] = [
 
   // ── MONETIZAÇÃO ─────────────────────────────
   { type: 'divider', label: 'Monetização' },
-  { name: "Monetização", icon: CreditCard, href: "/admin/monetization" },
+  { name: "Painel Monetização", icon: CreditCard, href: "/admin/monetization" },
+  { name: "Configurar Valores", icon: DollarSign, href: "/admin/pricing" },
   { name: "Recursos PRO", icon: Target, href: "/admin/pro-features" },
 
   // ── SISTEMA ──────────────────────────────────

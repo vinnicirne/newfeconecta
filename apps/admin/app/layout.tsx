@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import BottomNav from "@/components/feed/BottomNav";
-
-// const inter = Inter({ subsets: ["latin"] });
+import { Toaster } from "sonner";
+import { AuthGuard } from "@/components/auth-guard";
+import { ErrorInitializer } from "@/components/error-initializer";
 
 export const metadata: Metadata = {
   title: "FéConecta | Um lugar de adoração",
@@ -12,10 +13,6 @@ export const metadata: Metadata = {
   themeColor: "#0e0e0e",
   viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0",
 };
-
-import { Toaster } from "sonner";
-import { AuthGuard } from "@/components/auth-guard";
-import { ErrorInitializer } from "@/components/error-initializer";
 
 export default function RootLayout({
   children,

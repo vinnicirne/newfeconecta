@@ -30,13 +30,22 @@ export function VerificationModal({ isOpen, onClose, user, onRequested }: any) {
     return role.toLowerCase() === "igreja";
   };
 
+  const PLAN_PRICES: Record<string, string> = {
+    "Bispo": "9,99",
+    "Apóstolo": "9,99",
+    "Pastor": "9,99",
+    "Missionário": "9,99",
+    "Igreja": "14,99",
+    "Evangelista": "6,99",
+    "Diácono": "6,99",
+    "Presbítero": "6,99",
+    "Líder": "6,99",
+    "Levita": "3,99",
+    "Membro": "3,99"
+  };
+
   const getRolePrice = (role: string) => {
-    const l = role.toLowerCase();
-    if (l.includes("bispo") || l.includes("postolo") || l.includes("pastor") || l.includes("missionário") || l.includes("missionario")) return "9,99";
-    if (l.includes("igreja")) return "14,99";
-    if (l.includes("evangelista") || l.includes("diácono") || l.includes("diacono") || l.includes("presbitero") || l.includes("líder") || l.includes("lider")) return "6,99";
-    if (l.includes("levita") || l.includes("membro")) return "3,99";
-    return "6,99";
+    return PLAN_PRICES[role] || "6,99";
   };
 
   useEffect(() => {
@@ -162,15 +171,27 @@ export function VerificationModal({ isOpen, onClose, user, onRequested }: any) {
                </DialogPrimitive.Close>
             </div>
 
-            {existingRequest && step === 1 && (
+            {existingRequest && step === 1 && existingRequest.status !== 'refunded' && (
               <div className="mb-6 bg-white dark:bg-black p-4 rounded-2xl border border-gray-100 dark:border-white/5">
                 <div className="flex items-center justify-between text-xs">
-                  <div>
+                  <div className="flex items-center gap-2">
                     <span className="text-gray-500 uppercase font-black">Status: </span>
-                    <span className="font-bold dark:text-white">{existingRequest.status === 'pending' ? 'Em Análise' : 'Aprovado'}</span>
+                    <span className={cn(
+                      "font-bold uppercase tracking-widest px-2 py-0.5 rounded text-[9px]",
+                      existingRequest.status === 'pending' ? "bg-orange-500/10 text-orange-500" :
+                      existingRequest.status === 'approved' ? "bg-whatsapp-green/10 text-whatsapp-green" :
+                      "bg-red-500/10 text-red-500"
+                    )}>
+                      {existingRequest.status === 'pending' ? 'Em Análise' : 
+                       existingRequest.status === 'approved' ? 'Aprovado' : 
+                       existingRequest.status === 'rejected' ? 'Solicitação Recusada' : 'Cancelado'}
+                    </span>
                   </div>
-                  {new Date().getTime() - new Date(existingRequest.created_at).getTime() < 7 * 24 * 60 * 60 * 1000 && (
-                    <button onClick={handleRefund} className="text-red-500 font-bold uppercase hover:underline">Solicitar Reembolso</button>
+                  {existingRequest.status === 'approved' && new Date().getTime() - new Date(existingRequest.created_at).getTime() < 7 * 24 * 60 * 60 * 1000 && (
+                    <button onClick={handleRefund} className="text-red-500 font-bold uppercase hover:underline text-[9px]">Solicitar Reembolso</button>
+                  )}
+                  {existingRequest.status === 'rejected' && (
+                    <p className="text-[9px] text-gray-500 font-medium">Tente novamente abaixo</p>
                   )}
                 </div>
               </div>
@@ -198,7 +219,7 @@ export function VerificationModal({ isOpen, onClose, user, onRequested }: any) {
                     </div>
                  </div>
                  <button 
-                   disabled={!selectedRole || (existingRequest && existingRequest.status !== 'refunded')}
+                   disabled={!selectedRole || (existingRequest && (existingRequest.status === 'pending' || existingRequest.status === 'approved'))}
                    onClick={() => setStep(2)}
                    className="w-full py-4 bg-whatsapp-teal text-white rounded-2xl font-bold text-sm uppercase tracking-widest disabled:opacity-50"
                  >

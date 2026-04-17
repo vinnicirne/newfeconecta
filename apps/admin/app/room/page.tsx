@@ -2,11 +2,12 @@
 
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Mic, Plus, Users, Clock, ArrowRight, RefreshCw, X, Crown, Lock } from "lucide-react";
+import { Mic, Plus, Users, Clock, ArrowRight, RefreshCw, X, Crown, Lock, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { VerificationModal } from "@/components/profile/VerificationModal";
 
 const DURATIONS = [
   { label: "15 min", value: 15, premium: false },
@@ -56,6 +57,7 @@ export default function RoomsListPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
   const [selectedDuration, setSelectedDuration] = useState(15);
+  const [isVerifyModalOpen, setIsVerifyModalOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -99,9 +101,17 @@ export default function RoomsListPage() {
     }
 
     const duration = DURATIONS.find(d => d.value === selectedDuration);
-    if (duration?.premium && !currentUser.is_premium) {
-      toast.error("Durações maiores são exclusivas para membros Premium!");
-      return;
+    if (duration?.premium) {
+      if (!currentUser.is_verified) {
+        toast.error("Durações maiores são exclusivas para Perfis Verificados!");
+        return;
+      }
+      
+      // Regra específica para Membro: Máximo 30 minutos
+      if (currentUser.verification_label === 'Membro' && selectedDuration > 30) {
+        toast.error("O nível 'Membro' é limitado a salas de até 30 minutos. Faça upgrade do seu cargo para liberar tempos maiores!");
+        return;
+      }
     }
 
     try {
@@ -229,31 +239,73 @@ export default function RoomsListPage() {
                 <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2 flex items-center justify-between">
                     <span>Duração da Sala</span>
-                    {currentUser?.is_premium ? (
-                      <span className="text-orange-500 flex items-center gap-1"><Crown size={10} /> Premium Ativo</span>
+                    {currentUser?.is_verified ? (
+                      <span className="text-orange-500 flex items-center gap-1"><ShieldCheck size={10} /> Verificação Ativa</span>
                     ) : (
-                      <span className="text-gray-500 flex items-center gap-1 cursor-pointer hover:text-orange-500 transition-all"><Lock size={10} /> Upgrade Premium</span>
+                      <span className="text-gray-500 flex items-center gap-1 cursor-pointer hover:text-orange-500 transition-all"><Lock size={10} /> Upgrade Premium / Verificação</span>
                     )}
                   </label>
                   <div className="grid grid-cols-3 gap-2">
-                    {DURATIONS.map((d) => (
-                      <button
-                        key={d.value}
-                        onClick={() => setSelectedDuration(d.value)}
-                        className={cn(
-                          "py-3 rounded-2xl text-[10px] font-black uppercase transition-all relative flex flex-col items-center justify-center gap-1",
-                          selectedDuration === d.value 
-                            ? "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20" 
-                            : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10",
-                          d.premium && !currentUser?.is_premium && "opacity-50 grayscale cursor-not-allowed"
-                        )}
-                      >
-                        {d.label}
-                        {d.premium && !currentUser?.is_premium && <Lock size={10} className="absolute top-1 right-1 opacity-50" />}
-                        {d.premium && currentUser?.is_premium && <Crown size={10} className="text-orange-500" />}
-                      </button>
-                    ))}
+                    {DURATIONS.map((d) => {
+                      const isMemberLimit = currentUser?.verification_label === 'Membro' && d.value > 30;
+                      const isUnverifiedLimit = !currentUser?.is_verified && d.premium;
+                      const isLocked = isUnverifiedLimit || isMemberLimit;
+
+                      return (
+                        <button
+                          key={d.value}
+                          onClick={() => setSelectedDuration(d.value)}
+                          className={cn(
+                            "py-3 rounded-2xl text-[10px] font-black uppercase transition-all relative flex flex-col items-center justify-center gap-1",
+                            selectedDuration === d.value 
+                              ? "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20" 
+                              : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10",
+                            isLocked && "opacity-50 grayscale cursor-not-allowed"
+                          )}
+                        >
+                          {d.label}
+                          {isLocked && <Lock size={10} className="absolute top-1 right-1 opacity-50" />}
+                          {!isLocked && d.premium && <ShieldCheck size={10} className="text-orange-500" />}
+                        </button>
+                      );
+                    })}
                   </div>
+                  
+                  {/* Upgrade Alert Section */}
+                  <AnimatePresence>
+                    {(!currentUser?.is_verified && DURATIONS.find(d => d.value === selectedDuration)?.premium) || 
+                     (currentUser?.verification_label === 'Membro' && selectedDuration > 30) ? (
+                      <motion.div 
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="bg-orange-50 dark:bg-orange-950/20 rounded-3xl p-5 border border-orange-100 dark:border-orange-900/30 space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-orange-100 dark:bg-orange-900/40 flex items-center justify-center shrink-0">
+                              <ShieldCheck className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-orange-800 dark:text-orange-300">Duração Exclusiva</p>
+                              <p className="text-[10px] text-orange-700/70 dark:text-orange-400/60 font-medium">
+                                {currentUser?.verification_label === 'Membro' 
+                                  ? "O selo de 'Membro' permite até 30min. Para tempos maiores, solicite um novo cargo verificado."
+                                  : "Esta duração é apenas para perfis verificados. Faça o upgrade para liberar."
+                                }
+                              </p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setIsVerifyModalOpen(true)}
+                            className="w-full py-3 bg-orange-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
+                          >
+                            {currentUser?.verification_label === 'Membro' ? "Alterar Cargo Agora" : "Verificar Perfil Agora"}
+                          </button>
+                        </div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
 
                 <button 
@@ -267,6 +319,15 @@ export default function RoomsListPage() {
           </div>
         )}
       </AnimatePresence>
+      <VerificationModal 
+        isOpen={isVerifyModalOpen}
+        onClose={() => setIsVerifyModalOpen(false)}
+        user={currentUser}
+        onRequested={() => {
+          setIsVerifyModalOpen(false);
+          toast.success("Solicitação enviada!");
+        }}
+      />
     </div>
   );
 }

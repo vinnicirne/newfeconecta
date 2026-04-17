@@ -42,6 +42,18 @@
   - Padronizada nomenclatura de arquivos com UID e Extensão.
 - **Impacto:** Chat leve e storage auditável.
 
+## 6. Correção — Sistema de Verificação (Deep Clean Nuclear)
+- **Arquivos:** `app/admin/verifications/page.tsx`, `components/admin/ManualVerificationModal.tsx`, `app/admin/page.tsx`
+- **Problema:** Admin não conseguia mudar selos de usuários já verificados; busca de usuários no modal não trazia o selo atual; lógica de sincronização com `verification_requests` falhava em casos de múltiplas solicitações.
+- **Ação:** 
+  - Corrigido Search no modal para incluir `verification_label`.
+  - Implementada sincronização automática do cargo selecionado ao escolher um usuário.
+  - Refatorada busca de solicitações para usar `.limit(1)` em vez de `maybeSingle()` (evita erros PGRST116).
+  - Adicionado fallback para usernames e cargos em notificações.
+  - Integrado "Sistema de Verificação" ao Grid de Recursos do Dashboard.
+- **Impacto:** Gestão de identidade 100% funcional, sem erros de banco e com UI reativa.
+
 ## Próximos Passos
 - Implementar compressão de vídeo via Cloudinary ou Mux (client-side é inviável para vídeos longos).
 - Monitorar `system_errors` para falhas silenciosas na compressão.
+- Adicionar auditoria de alteração de selos (logs de admin).

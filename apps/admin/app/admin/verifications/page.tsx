@@ -2,20 +2,22 @@
 
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { ShieldCheck, Check, X, Eye, RefreshCw, Clock, AlertCircle, ExternalLink } from "lucide-react";
+import { ShieldCheck, Check, X, Eye, RefreshCw, Clock, AlertCircle, ExternalLink, Plus, ShieldOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import moment from "moment";
 import { toast } from "sonner";
-import { ManualVerificationModal } from "@/components/admin/ManualVerificationModal";
-import { Plus } from "lucide-react";
 import { VerificationBadge } from "@/components/verification-badge";
+import { DigitalCredentialModal } from "@/components/admin/DigitalCredentialModal";
+import { ManualVerificationModal } from "@/components/admin/ManualVerificationModal";
 
 export default function VerificationsPage() {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
   const [selectedVerifyUser, setSelectedVerifyUser] = useState<any | null>(null);
+  const [isCredentialOpen, setIsCredentialOpen] = useState(false);
+  const [credentialUser, setCredentialUser] = useState<any | null>(null);
 
   useEffect(() => {
     fetchRequests();
@@ -59,15 +61,69 @@ export default function VerificationsPage() {
           .eq('id', request.user_id);
 
         if (profileError) throw profileError;
-        toast.success(`Usuário @${request.profiles.username} verificado como ${request.requested_role}!`);
+        toast.success(`Usuário @${request.profiles?.username || 'desconhecido'} verificado como ${request.requested_role || 'Membro'}!`);
       } else {
-        toast.error(`Solicitação de @${request.profiles.username} recusada.`);
+        toast.error(`Solicitação de @${request.profiles?.username || 'desconhecido'} recusada.`);
       }
 
       fetchRequests();
     } catch (err: any) {
       toast.error("Erro ao processar: " + err.message);
     }
+  };
+
+  const handleRevokeVerification = async (request: any) => {
+    toast("Revogar Verificação?", {
+      description: `Remover selo de @${request.profiles?.username}?`,
+      action: {
+        label: "Confirmar",
+        onClick: async () => {
+          try {
+            // 1. Resetar perfil
+            const { error: profileError } = await supabase
+              .from('profiles')
+              .update({ is_verified: false, verification_label: null })
+              .eq('id', request.user_id);
+
+            if (profileError) throw profileError;
+
+            // 2. Marcar solicitação como rejeitada ou cancelada
+            await supabase
+              .from('verification_requests')
+              .update({ status: 'rejected' })
+              .eq('id', request.id);
+
+            toast.success("Selo removido com sucesso!");
+            fetchRequests();
+          } catch (err: any) {
+            toast.error("Erro ao remover selo: " + err.message);
+          }
+        }
+      }
+    });
+  };
+
+  const handleDeleteRequest = async (request: any) => {
+    toast("Excluir Solicitação?", {
+      description: `Isso permitirá que @${request.profiles?.username} envie uma nova solicitação do zero.`,
+      action: {
+        label: "Confirmar",
+        onClick: async () => {
+          try {
+            const { error } = await supabase
+              .from('verification_requests')
+              .delete()
+              .eq('id', request.id);
+
+            if (error) throw error;
+            toast.success("Solicitação excluída! Usuário liberado para tentar novamente.");
+            fetchRequests();
+          } catch (err: any) {
+            toast.error("Erro ao excluir: " + err.message);
+          }
+        }
+      }
+    });
   };
 
   return (
@@ -124,21 +180,54 @@ export default function VerificationsPage() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                   <VerificationBadge 
-                     role={req.requested_role} 
-                     size="sm" 
-                     showLabel={true}
-                   />
+                    <VerificationBadge 
+                      role={req.requested_role} 
+                      size="sm" 
+                      showLabel={true}
+                      onClick={() => {
+                        setCredentialUser({
+                          ...req.profiles,
+                          verification_label: req.requested_role,
+                          created_at: req.created_at
+                        });
+                        setIsCredentialOpen(true);
+                      }}
+                    />
                 </td>
-                <td className="px-6 py-4">
-                   <a 
-                     href={req.document_url} 
-                     target="_blank" 
-                     className="flex items-center gap-1.5 text-xs text-blue-500 hover:underline font-bold"
-                   >
-                     <Eye className="w-3 h-3" /> Ver Documento
-                   </a>
-                </td>
+                 <td className="px-6 py-4">
+                    <div className="flex flex-col gap-1.5">
+                      {req.document_url && (
+                        <a 
+                          href={req.document_url} 
+                          target="_blank" 
+                          className="flex items-center gap-1.5 text-[10px] text-blue-500 hover:underline font-bold uppercase tracking-tight"
+                        >
+                          <Eye className="w-3 h-3" /> Ver Documento
+                        </a>
+                      )}
+                      {req.secondary_document_url && (
+                        <a 
+                          href={req.secondary_document_url} 
+                          target="_blank" 
+                          className="flex items-center gap-1.5 text-[10px] text-orange-500 hover:underline font-bold uppercase tracking-tight"
+                        >
+                          <Eye className="w-3 h-3" /> Ver ID (RG/CNH)
+                        </a>
+                      )}
+                      {req.payment_receipt_url && (
+                        <a 
+                          href={req.payment_receipt_url} 
+                          target="_blank" 
+                          className="flex items-center gap-1.5 text-[10px] text-whatsapp-green hover:underline font-bold uppercase tracking-tight"
+                        >
+                          <Eye className="w-3 h-3" /> Ver PIX (Pago)
+                        </a>
+                      )}
+                      {!req.document_url && !req.secondary_document_url && !req.payment_receipt_url && (
+                        <span className="text-[10px] text-gray-400 font-bold uppercase">Sem anexo</span>
+                      )}
+                    </div>
+                 </td>
                 <td className="px-6 py-4 text-xs text-gray-500">
                   {moment(req.created_at).fromNow()}
                 </td>
@@ -169,22 +258,67 @@ export default function VerificationsPage() {
                         {req.status === 'approved' ? "Aprovado" : "Recusado"}
                       </span>
                       {req.status === 'approved' && (
-                        <button
-                          onClick={() => {
-                            setSelectedVerifyUser({
-                              id: req.user_id,
-                              username: req.profiles.username,
-                              full_name: req.profiles.full_name,
-                              avatar_url: req.profiles.avatar_url,
-                              verification_label: req.requested_role
-                            });
-                            setIsManualModalOpen(true);
-                          }}
-                          className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400 hover:text-orange-500 transition-all border border-transparent hover:border-orange-500/20"
-                          title="Fazer Upgrade / Alterar Cargo"
-                        >
-                          <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
+                        <>
+                          <button
+                            onClick={() => handleRevokeVerification(req)}
+                            className="p-1.5 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-500/20"
+                            title="Remover Selo (Revogar)"
+                          >
+                            <ShieldOff className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedVerifyUser({
+                                id: req.user_id,
+                                username: req.profiles.username,
+                                full_name: req.profiles.full_name,
+                                avatar_url: req.profiles.avatar_url,
+                                verification_label: req.requested_role,
+                                is_verified: true
+                              });
+                              setIsManualModalOpen(true);
+                            }}
+                            className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400 hover:text-orange-500 transition-all border border-transparent hover:border-orange-500/20"
+                            title="Fazer Upgrade / Alterar Cargo"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </>
+                      )}
+                      {req.status === 'rejected' && (
+                        <>
+                          <button 
+                            onClick={() => handleAction(req, 'approved')}
+                            className="p-1.5 hover:bg-whatsapp-teal/10 rounded-lg text-gray-400 hover:text-whatsapp-teal transition-all border border-transparent hover:border-whatsapp-teal/20"
+                            title="Reativar / Aprovar Agora"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setSelectedVerifyUser({
+                                id: req.user_id,
+                                username: req.profiles.username,
+                                full_name: req.profiles.full_name,
+                                avatar_url: req.profiles.avatar_url,
+                                verification_label: req.requested_role,
+                                is_verified: false
+                              });
+                              setIsManualModalOpen(true);
+                            }}
+                            className="p-1.5 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg text-gray-400 hover:text-orange-500 transition-all border border-transparent hover:border-orange-500/20"
+                            title="Editar e Reativar"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRequest(req)}
+                            className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg text-gray-400 hover:text-blue-500 transition-all border border-transparent hover:border-blue-500/20"
+                            title="Liberar para Nova Tentativa (Reset)"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
@@ -202,6 +336,12 @@ export default function VerificationsPage() {
         }}
         onVerified={fetchRequests}
         initialUser={selectedVerifyUser}
+      />
+
+      <DigitalCredentialModal 
+        isOpen={isCredentialOpen}
+        onClose={() => setIsCredentialOpen(false)}
+        user={credentialUser}
       />
     </div>
   );

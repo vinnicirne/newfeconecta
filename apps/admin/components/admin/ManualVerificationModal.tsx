@@ -22,11 +22,18 @@ export function ManualVerificationModal({ isOpen, onClose, onVerified, initialUs
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    if (initialUser) {
+    if (initialUser && isOpen) {
       setSelectedUser(initialUser);
       setSelectedRole(initialUser.verification_label || "");
     }
   }, [initialUser, isOpen]);
+
+  // Sincronizar role quando um usuário é selecionado via busca
+  useEffect(() => {
+    if (selectedUser && !initialUser) {
+      setSelectedRole(selectedUser.verification_label || "");
+    }
+  }, [selectedUser]);
 
   useEffect(() => {
     if (search.length >= 3) {
@@ -50,7 +57,7 @@ export function ManualVerificationModal({ isOpen, onClose, onVerified, initialUs
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, username, avatar_url, is_verified')
+        .select('id, full_name, username, avatar_url, is_verified, verification_label')
         .or(`full_name.ilike.%${cleanSearch}%,username.ilike.%${cleanSearch}%`)
         .limit(5);
 
@@ -83,38 +90,31 @@ export function ManualVerificationModal({ isOpen, onClose, onVerified, initialUs
 
       if (profileError) throw profileError;
 
-      // 2. Sincronizar com o Dashboard Admin (verification_requests)
-      // Buscamos se já existe uma solicitação deste usuário
-      const { data: existingRequest } = await supabase
+      // 2. Sincronizar com o Dashboard Admin (Liquidar todas as pendências)
+      await supabase
+        .from('verification_requests')
+        .update({ 
+           status: 'approved',
+           requested_role: selectedRole
+        })
+        .eq('user_id', selectedUser.id)
+        .eq('status', 'pending');
+
+      // 3. Garantir que exista ao menos UM registro de aprovação
+      const { data: hasRecord } = await supabase
         .from('verification_requests')
         .select('id')
         .eq('user_id', selectedUser.id)
-        .maybeSingle();
+        .eq('status', 'approved')
+        .limit(1);
 
-      if (existingRequest) {
-        // Se já existe, atualizamos o cargo e o status para aprovação/upgrade
-        const { error: updateError } = await supabase
-          .from('verification_requests')
-          .update({
-            requested_role: selectedRole,
-            status: 'approved',
-            created_at: new Date().toISOString()
-          })
-          .eq('id', existingRequest.id);
-        
-        if (updateError) throw updateError;
-      } else {
-        // Se não existe, criamos um novo registro já aprovado
-        const { error: insertError } = await supabase
-          .from('verification_requests')
-          .insert({
-            user_id: selectedUser.id,
-            requested_role: selectedRole,
-            status: 'approved',
-            document_url: 'manual_verification'
-          });
-        
-        if (insertError) throw insertError;
+      if (!hasRecord || hasRecord.length === 0) {
+        await supabase.from('verification_requests').insert({
+          user_id: selectedUser.id,
+          requested_role: selectedRole,
+          status: 'approved',
+          document_url: 'manual_verification'
+        });
       }
 
       toast.success(`Usuário @${selectedUser.username} verificado manualmente como ${selectedRole}!`);
@@ -131,7 +131,57 @@ export function ManualVerificationModal({ isOpen, onClose, onVerified, initialUs
     }
   };
 
+  const handleRemoveVerification = async () => {
+    if (!selectedUser) return;
+
+    toast("Remover Verificação?", {
+      description: `Deseja realmente retirar o selo de @${selectedUser.username}?`,
+      action: {
+        label: "Confirmar",
+        onClick: async () => {
+          setLoading(true);
+          try {
+            const { error } = await supabase
+              .from('profiles')
+              .update({ 
+                is_verified: false, 
+                verification_label: null 
+              })
+              .eq('id', selectedUser.id);
+
+            if (error) throw error;
+
+            // Liquidar pedidos aprovados ao desativar selo
+            await supabase
+              .from('verification_requests')
+              .update({ status: 'rejected' })
+              .eq('user_id', selectedUser.id);
+            
+            toast.success("Selo removido com sucesso!");
+            onVerified?.();
+            onClose();
+            // Reset
+            setSelectedUser(null);
+            setSelectedRole("");
+            setSearch("");
+          } catch (err: any) {
+            toast.error("Erro ao remover selo: " + err.message);
+          } finally {
+            setLoading(false);
+          }
+        }
+      }
+    });
+  };
+
   const getPrice = (role: string) => {
+    if (typeof window === 'undefined') return "0,00";
+    const savedPrices = localStorage.getItem('feconecta_prices');
+    if (savedPrices) {
+      const prices = JSON.parse(savedPrices);
+      return prices[role] || "6,99";
+    }
+    // Fallback minimalista se não houver configs
     const l = role.toLowerCase();
     if (l.includes("bispo") || l.includes("postolo") || l.includes("pastor") || l.includes("missionário") || l.includes("missionario")) return "9,99";
     if (l.includes("igreja")) return "14,99";
@@ -252,13 +302,27 @@ export function ManualVerificationModal({ isOpen, onClose, onVerified, initialUs
                        </div>
                     </div>
 
-                    <button 
-                      disabled={!selectedRole || loading}
-                      onClick={handleSubmit}
-                      className="w-full py-4 bg-whatsapp-teal text-white rounded-[20px] font-bold text-sm uppercase tracking-widest shadow-2xl shadow-whatsapp-teal/20 active:scale-95 transition-all"
-                    >
-                      {loading ? "Processando..." : "Conferir Selo Agora"}
-                    </button>
+                     <div className="flex gap-3">
+                        {selectedUser?.is_verified && (
+                          <button 
+                            onClick={handleRemoveVerification}
+                            disabled={loading}
+                            className="flex-1 py-4 bg-red-500/10 text-red-500 border border-red-500/20 rounded-[20px] font-bold text-[10px] uppercase tracking-widest hover:bg-red-500/20 transition-all disabled:opacity-50"
+                          >
+                            Remover Selo
+                          </button>
+                        )}
+                        <button 
+                          disabled={!selectedRole || loading}
+                          onClick={handleSubmit}
+                          className={cn(
+                            "py-4 bg-whatsapp-teal text-white rounded-[20px] font-bold text-sm uppercase tracking-widest shadow-2xl shadow-whatsapp-teal/20 active:scale-95 transition-all text-center",
+                            selectedUser?.is_verified ? "flex-[1.5]" : "w-full"
+                          )}
+                        >
+                          {loading ? "Processando..." : selectedUser?.is_verified ? "Atualizar Selo" : "Confirmar Verificação"}
+                        </button>
+                     </div>
                  </div>
                )}
             </div>

@@ -27,7 +27,9 @@ import {
   Shield,
   Play,
   Flame,
-  Share2
+  Share2,
+  DollarSign,
+  ShieldCheck
 } from "lucide-react";
 import { StatsCard } from "@/components/cards/stats-card";
 import { 
@@ -55,7 +57,10 @@ export default function DashboardPage() {
     totalViews: 0,
     newToday: 0,
     hashtagCount: 0,
-    topHashtags: [] as { tag: string, count: number }[]
+    topHashtags: [] as { tag: string, count: number }[],
+    verifiedUsers: 0,
+    pendingVerifications: 0,
+    activeRooms: 0
   });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
@@ -140,6 +145,24 @@ export default function DashboardPage() {
       const { data: viewsData } = await supabase.from('posts').select('views_count');
       const totalViews = viewsData?.reduce((acc, curr) => acc + (Number(curr.views_count) || 0), 0) || 0;
 
+      const { count: verifiedCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .eq('is_verified', true);
+
+      // --- Pedidos de Verificação Pendentes ---
+      const { count: pendingCount } = await supabase
+        .from('verification_requests')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      // --- Salas de Guerra Ativas ---
+      const { count: roomsCount } = await supabase
+        .from('rooms')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'active')
+        .is('ended_at', null);
+
       setStats({
         totalUsers: userCount || 0,
         totalPosts: postCount || 0,
@@ -149,7 +172,10 @@ export default function DashboardPage() {
         totalViews: totalViews,
         newToday: newToday || 0,
         hashtagCount: totalTags,
-        topHashtags
+        topHashtags,
+        verifiedUsers: verifiedCount || 0,
+        pendingVerifications: pendingCount || 0,
+        activeRooms: roomsCount || 0
       });
 
       // --- Chart: Últimos 7 dias (dados reais) ---
@@ -242,6 +268,7 @@ export default function DashboardPage() {
              { name: 'Share Nativo', status: 'Ativo', icon: Share2, desc: 'Gaveta de apps externa' },
               { name: 'Stories de Áudio', status: 'Operacional', icon: Mic, desc: 'Capacidade de Áudio 30s' },
               { name: 'Arquitetura Modular v2', status: 'Ativo', icon: Layout, desc: 'Perfil 100% Componentizado e Lean' },
+              { name: 'Sistema de Verificação', status: 'Ativo', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade' },
            ].map(({ icon: Icon, ...feature }) => (
              <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
                 <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">
@@ -287,12 +314,31 @@ export default function DashboardPage() {
           color="bg-whatsapp-blue" 
         />
         <StatsCard 
-          title="Total de Lumes" 
-          value={loading ? "..." : stats.totalLumes.toLocaleString()} 
-          change="Novo" 
+          title="Aguardando Verificação" 
+          value={loading ? "..." : stats.pendingVerifications.toLocaleString()} 
+          change={stats.pendingVerifications > 0 ? "Ação Necessária" : "Tudo limpo"} 
+          trend={stats.pendingVerifications > 0 ? "up" : "down"} 
+          icon={ShieldAlert} 
+          color={stats.pendingVerifications > 0 ? "bg-orange-500" : "bg-whatsapp-green"} 
+          link="/admin/verifications"
+        />
+        <StatsCard 
+          title="Salas de Guerra Ativas" 
+          value={loading ? "..." : stats.activeRooms.toLocaleString()} 
+          change="Real-time" 
           trend="up" 
-          icon={TrendingUp} 
-          color="bg-whatsapp-tealLight" 
+          icon={Mic} 
+          color="bg-whatsapp-teal" 
+          link="/admin/rooms"
+        />
+        <StatsCard 
+          title="Perfis Verificados" 
+          value={loading ? "..." : stats.verifiedUsers.toLocaleString()} 
+          change={`${Math.min(100, Math.round((stats.verifiedUsers / (stats.totalUsers || 1)) * 100))}%`} 
+          trend="up" 
+          icon={ShieldCheck} 
+          color="bg-whatsapp-green" 
+          link="/admin/users"
         />
         <StatsCard 
           title="# Hashtags Ativas" 

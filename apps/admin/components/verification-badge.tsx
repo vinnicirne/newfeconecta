@@ -10,9 +10,10 @@ interface VerificationBadgeProps {
   className?: string;
   size?: "xs" | "sm" | "md" | "lg";
   showLabel?: boolean;
+  onClick?: () => void;
 }
 
-export function VerificationBadge({ role, className, size = "md", showLabel = false }: VerificationBadgeProps) {
+export function VerificationBadge({ role, className, size = "md", showLabel = false, onClick }: VerificationBadgeProps) {
   const [isHovered, setIsHovered] = useState(false);
   const label = role || "Verificado";
   const displayLabel = showLabel || isHovered;
@@ -84,8 +85,15 @@ export function VerificationBadge({ role, className, size = "md", showLabel = fa
     <motion.div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onClick={(e) => {
+        if (onClick) {
+          e.stopPropagation();
+          onClick();
+        }
+      }}
       className={cn(
         "relative flex items-center justify-center rounded-full transition-all duration-500 border border-white/30",
+        onClick && "cursor-pointer active:scale-90",
         containerSizes[size],
         className
       )}

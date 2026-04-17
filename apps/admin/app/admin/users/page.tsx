@@ -2,23 +2,30 @@
 
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { Plus, Search, MoreHorizontal, RefreshCw, Eye, X, Mail, Church, Calendar, AtSign, ShieldCheck, UserCircle2, ChevronLeft, ChevronRight, BadgeCheck, ShieldAlert, UserPlus, UserMinus } from "lucide-react";
+import { Plus, Search, MoreHorizontal, RefreshCw, Eye, X, Mail, Church, Calendar, AtSign, ShieldCheck, UserCircle2, ChevronLeft, ChevronRight, BadgeCheck, ShieldAlert, UserPlus, UserMinus, Edit2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import moment from "moment";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { toast } from "sonner";
+import { VerificationBadge } from "@/components/verification-badge";
+import { DigitalCredentialModal } from "@/components/admin/DigitalCredentialModal";
+import { EditProfileModal } from "@/components/profile/EditProfileModal";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
-  const { toast } = require("sonner");
   const [total, setTotal] = useState(0);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isFollowingSelected, setIsFollowingSelected] = useState(false);
+  const [isCredentialOpen, setIsCredentialOpen] = useState(false);
+  const [credentialUser, setCredentialUser] = useState<any | null>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [userToEdit, setUserToEdit] = useState<any | null>(null);
   const PAGE_SIZE = 15;
 
   useEffect(() => {
@@ -113,17 +120,40 @@ export default function UsersPage() {
 
   const handleToggleVerify = async (user: any) => {
     const newState = !user.is_verified;
+    
+    // Se for para remover, pede confirmação via toast
+    if (!newState) {
+      toast("Remover Verificação?", {
+        description: `Deseja realmente retirar o selo de @${user.username}?`,
+        action: {
+          label: "Confirmar",
+          onClick: () => executeToggle(user, newState)
+        }
+      });
+    } else {
+      executeToggle(user, newState);
+    }
+  };
+
+  const executeToggle = async (user: any, newState: boolean) => {
     const toastId = toast.loading(`${newState ? 'Verificando' : 'Removendo verificação'} de ${user.username}...`);
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ is_verified: newState })
+        .update({ 
+          is_verified: newState,
+          verification_label: newState ? (user.verification_label || 'Verificado') : null
+        })
         .eq('id', user.id);
       
       if (error) throw error;
       
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_verified: newState } : u));
-      toast.success(`Status de verificação atualizado!`, { id: toastId });
+      setUsers(prev => prev.map(u => u.id === user.id ? { 
+        ...u, 
+        is_verified: newState,
+        verification_label: newState ? (u.verification_label || 'Verificado') : null 
+      } : u));
+      toast.success(newState ? "Selo concedido!" : "Selo removido com sucesso!", { id: toastId });
     } catch (err: any) {
       toast.error("Erro ao atualizar: " + err.message, { id: toastId });
     }
@@ -212,7 +242,19 @@ export default function UsersPage() {
                           )}
                         </div>
                         <div>
-                          <p className="text-sm font-bold dark:text-white">{u.full_name || 'Usuário FéConecta'}</p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-sm font-bold dark:text-white">{u.full_name || 'Usuário FéConecta'}</p>
+                            {u.is_verified && (
+                              <VerificationBadge 
+                                role={u.verification_label} 
+                                size="xs" 
+                                onClick={() => {
+                                  setCredentialUser(u);
+                                  setIsCredentialOpen(true);
+                                }}
+                              />
+                            )}
+                          </div>
                           <p className="text-[10px] text-gray-500 font-medium">{u.email || 'n/a'}</p>
                         </div>
                       </div>
@@ -232,8 +274,18 @@ export default function UsersPage() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
                         <button 
+                          onClick={() => {
+                             setUserToEdit(u);
+                             setIsEditModalOpen(true);
+                          }}
+                          className="p-2 hover:bg-blue-500/10 rounded-lg transition-colors group"
+                          title="Editar Perfil"
+                        >
+                          <Edit2 className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                        </button>
+                        <button 
                           onClick={() => setSelectedUser(u)}
-                          className="p-2 hover:bg-whatsapp-teal/10 rounded-lg transition-colors"
+                          className="p-2 hover:bg-whatsapp-teal/10 rounded-lg transition-colors group"
                           title="Ver detalhes"
                         >
                           <Eye className="w-4 h-4 text-whatsapp-teal" />
@@ -246,6 +298,17 @@ export default function UsersPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
                             <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-3 py-2">Moderação Profética</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem 
+                              onClick={() => {
+                                setUserToEdit(u);
+                                setIsEditModalOpen(true);
+                              }}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors text-blue-500"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              <span className="font-bold text-xs">Editar Cadastro</span>
+                            </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
                               onClick={() => handleToggleVerify(u)}
@@ -343,7 +406,19 @@ export default function UsersPage() {
                 {/* User Info */}
                 <div className="px-6 pb-6 pt-3 space-y-5">
                   <div>
-                    <DialogPrimitive.Title className="text-xl font-bold">{selectedUser.full_name || "Sem nome"}</DialogPrimitive.Title>
+                    <div className="flex items-center gap-2">
+                      <DialogPrimitive.Title className="text-xl font-bold">{selectedUser.full_name || "Sem nome"}</DialogPrimitive.Title>
+                      {selectedUser.is_verified && (
+                        <VerificationBadge 
+                          role={selectedUser.verification_label} 
+                          size="sm" 
+                          onClick={() => {
+                             setCredentialUser(selectedUser);
+                             setIsCredentialOpen(true);
+                          }}
+                        />
+                      )}
+                    </div>
                     <p className="text-sm text-whatsapp-teal dark:text-whatsapp-green font-medium">@{selectedUser.username || "—"}</p>
                     {selectedUser.bio && <p className="text-sm text-gray-400 mt-2 whitespace-pre-wrap">{selectedUser.bio}</p>}
                   </div>
@@ -404,6 +479,24 @@ export default function UsersPage() {
           </DialogPrimitive.Content>
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
+
+      <DigitalCredentialModal 
+        isOpen={isCredentialOpen}
+        onClose={() => setIsCredentialOpen(false)}
+        user={credentialUser}
+      />
+
+      <EditProfileModal 
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setUserToEdit(null);
+        }}
+        user={userToEdit}
+        onUpdate={() => {
+           fetchUsers();
+        }}
+      />
     </div>
   );
 }
