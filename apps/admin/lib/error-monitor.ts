@@ -26,6 +26,7 @@ export class ErrorMonitor {
       // Safe metadata serialization
       const safeMetadata = metadata ? JSON.parse(JSON.stringify(metadata, Object.getOwnPropertyNames(metadata))) : {};
 
+      // Persistência real no banco de dados para auditoria administrativa
       const { error: insertError } = await supabase.from('system_errors').insert({
         module,
         error_message: errorMessage,
@@ -36,7 +37,7 @@ export class ErrorMonitor {
       });
 
       if (insertError) {
-        // Silenciar aviso se a tabela não existir (lixo de console)
+        // Silenciar aviso se a tabela não existir ou falhar por rede instável
         if (insertError.code !== 'PGRST204' && insertError.code !== 'PGRST205') {
           console.warn('ErrorMonitor failed to persist to database:', insertError);
         }

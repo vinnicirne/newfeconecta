@@ -32,11 +32,13 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
     if (file.type?.startsWith('image/')) {
        finalFile = await compressImage(file, 1080, 0.7);
     }
-    const fileExt = (file as File).name?.split('.').pop() || file.type?.split('/')[1] || 'bin';
+    const fileExt = (file as File).name?.split('.').pop() || (file.type?.includes('audio') ? 'mp3' : 'bin');
     const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
     const { data, error } = await supabase.storage
       .from('posts')
-      .upload(`${path}/${fileName}`, finalFile, { contentType: file.type });
+      .upload(`${path}/${fileName}`, finalFile, { 
+        contentType: file.type || (path === 'audio' ? 'audio/mpeg' : undefined) 
+      });
     if (error) throw error;
     const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(data.path);
     return publicUrl;
@@ -75,9 +77,11 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
       
       if (media_url && media_url.startsWith('blob:')) {
          const fileBlob = await fetch(media_url).then(r => r.blob());
-         media_url = await uploadMedia(fileBlob, data.post_type === 'video' ? 'videos' : 'images');
+         const path = data.post_type === 'audio' ? 'audio' : (data.post_type === 'video' ? 'videos' : 'images');
+         media_url = await uploadMedia(fileBlob, path);
       } else if (data.blob) {
-         media_url = await uploadMedia(data.blob, data.post_type === 'video' ? 'videos' : 'images');
+         const path = data.post_type === 'audio' ? 'audio' : (data.post_type === 'video' ? 'videos' : 'images');
+         media_url = await uploadMedia(data.blob, path);
       } else if (data.audio_url && data.post_type === 'audio') {
          const audioBlob = await fetch(data.audio_url).then(r => r.blob());
          media_url = await uploadMedia(audioBlob, 'audio');
@@ -140,7 +144,8 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated }: 
         }
       }
 
-      const media_url = await uploadMedia(file, isVideo ? 'videos' : 'images');
+      const path = isVideo ? 'videos' : 'images';
+      const media_url = await uploadMedia(file, path);
       const userId = user?.id || "296f0f37-c8b8-4ad1-855c-4625f3f14731";
       const payload = {
         author_id: userId,

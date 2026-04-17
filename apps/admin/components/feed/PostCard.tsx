@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote, Volume2, VolumeX, ArrowUpRight } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { Flame, MessageCircle, Share2, MoreHorizontal, Pencil, Trash2, Repeat, Play, Pause, Bookmark, Eye, Sparkles, Quote, Volume2, VolumeX, ArrowUpRight, ShieldAlert } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import CommentsSection from './CommentsSection';
 import { supabase } from '@/lib/supabase';
@@ -200,6 +200,18 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [isMuted, setIsMuted] = useState(true);
   const [mediaError, setMediaError] = useState(false);
   const router = useRouter();
+ 
+  // Deep Clean: Identifica mídias legadas sem extensão de forma SÍNCRONA
+  const isLegacyMedia = useMemo(() => {
+    if (!post.media_url) return false;
+    const fileName = post.media_url.split('/').pop() || "";
+    return !fileName.includes('.');
+  }, [post.media_url]);
+ 
+  if (mediaError || isLegacyMedia) {
+    if (isLegacyMedia) console.log("🧹 [PostCard] Bloqueando render de mídia legada (Sem extensão):", post.id);
+    return null;
+  }
 
 
   const getYoutubeId = (url: string) => {
@@ -525,6 +537,21 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     }
   };
 
+  const handleReport = async () => {
+    try {
+      const { error } = await supabase.from('system_errors').insert({
+        module: 'system',
+        error_message: `[DENÚNCIA] Publicação ${post.id} sinalizada por conteúdo impróprio.`,
+        user_id: currentUser?.id,
+        metadata: { post_id: post.id, author: post.author_username, snippet: post.content?.substring(0, 100) }
+      });
+      if (error) throw error;
+      toast.success("Denúncia enviada para análise da moderação.");
+    } catch (err) {
+      toast.error("Erro ao enviar denúncia.");
+    }
+  };
+
   const renderContent = (content: string) => {
     if (!content) return null;
 
@@ -696,6 +723,11 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
                 </DropdownMenuItem>
               </>
             )}
+            {!isOwner && (
+              <DropdownMenuItem onClick={handleReport} className="text-orange-500">
+                <ShieldAlert className="w-4 h-4 mr-2" /> Denunciar Publicação
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -866,6 +898,10 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
             preload="metadata"
             onTimeUpdate={() => audioRef.current && setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)}
             onEnded={() => { setIsPlaying(false); setAudioProgress(0); }}
+            onError={() => {
+              console.warn("⚠️ [PostCard] Erro ao carregar áudio:", post.media_url);
+              setMediaError(true);
+            }}
             className="hidden"
           />
         </div>
