@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 interface StatsCardProps {
   title: string;
@@ -11,15 +12,12 @@ interface StatsCardProps {
   trend?: "up" | "down" | "neutral";
   icon: LucideIcon;
   color: string;
+  link?: string;
 }
 
-export function StatsCard({ title, value, change, trend, icon: Icon, color }: StatsCardProps) {
-  return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-whatsapp-darkLighter p-6 rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow transition-all hover:scale-[1.02]"
-    >
+export function StatsCard({ title, value, change, trend, icon: Icon, color, link }: StatsCardProps) {
+  const CardContent = (
+    <>
       <div className="flex items-center justify-between mb-4">
         <div className={cn("p-2 rounded-xl bg-opacity-10", color.replace('bg-', 'bg-opacity-10 text-'))}>
           <Icon className={cn("w-6 h-6", color.replace('bg-', 'text-'))} />
@@ -37,6 +35,31 @@ export function StatsCard({ title, value, change, trend, icon: Icon, color }: St
         <p className="text-gray-500 dark:text-gray-400 text-sm font-medium">{title}</p>
         <h3 className="text-2xl font-bold dark:text-white mt-1">{value}</h3>
       </div>
+    </>
+  );
+
+  const containerClasses = "bg-white dark:bg-whatsapp-darkLighter p-6 rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow transition-all hover:scale-[1.02] block";
+
+  if (link) {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+      >
+        <Link href={link} className={containerClasses}>
+          {CardContent}
+        </Link>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={containerClasses}
+    >
+      {CardContent}
     </motion.div>
   );
 }
