@@ -7,13 +7,17 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
 
   const AvatarRing = ({ group, children }: any) => {
     const viewed = group?.allViewed;
+    const isLive = group?.is_live;
+
     return (
       <div
         className={cn(
-          "w-[72px] h-[72px] rounded-[28px] flex items-center justify-center p-[2.5px] transition-all active:scale-95 shadow-sm",
-          viewed 
-            ? "bg-gray-200 dark:bg-white/10" 
-            : "bg-gradient-to-tr from-whatsapp-green via-whatsapp-teal to-whatsapp-green"
+          "w-[72px] h-[72px] rounded-[28px] flex items-center justify-center p-[2.5px] transition-all active:scale-95 shadow-sm relative",
+          isLive
+            ? "bg-gradient-to-tr from-red-600 via-pink-600 to-orange-500 animate-pulse"
+            : viewed 
+              ? "bg-gray-200 dark:bg-white/10" 
+              : "bg-gradient-to-tr from-whatsapp-green via-whatsapp-teal to-whatsapp-green"
         )}
       >
         <div className="w-full h-full rounded-[26px] bg-white dark:bg-whatsapp-dark p-[2px]">
@@ -21,6 +25,12 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
             {children}
           </div>
         </div>
+        
+        {isLive && (
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 bg-red-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded-md border-2 border-white dark:border-whatsapp-dark uppercase tracking-tighter z-20 shadow-lg whitespace-nowrap">
+            AO VIVO
+          </div>
+        )}
       </div>
     );
   };

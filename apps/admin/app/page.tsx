@@ -117,7 +117,9 @@ export default function RootPage() {
         }
       } catch (err: any) {
         if (err?.message?.includes('lock') || err?.message?.includes('steal')) {
-          console.warn("Supabase auth lock contention, ignoring safely.");
+          console.warn("🛡️ [Auth] Lock detectado no catch, carregando modo público...");
+          loadInitialPosts();
+          loadStories();
           return;
         }
         console.error("Auth error:", err);
@@ -165,6 +167,14 @@ export default function RootPage() {
         if (payload.new.recipient_id === currentUser?.id) {
           setUnreadCount(prev => prev + 1);
         }
+      })
+      // ROOMS REALTIME (Para o selo de LIVE nos Stories)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'rooms' 
+      }, () => {
+        loadStories();
       })
       .subscribe();
 
@@ -386,41 +396,68 @@ export default function RootPage() {
 
   const loadStories = async () => {
     try {
+      // 1. Buscar Stories Ativos
       const { data: storiesData } = await supabase
         .from('stories')
         .select('*')
         .gt('expires_at', new Date().toISOString())
         .order('created_at', { ascending: true });
 
-      if (storiesData && storiesData.length > 0) {
-        const userIds = Array.from(new Set(storiesData.map(s => s.author_id)));
+      // 2. Buscar Salas Ativas (Live) - Filtro de 12 horas para evitar salas zumbis
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+      const { data: activeRooms } = await supabase
+        .from('rooms')
+        .select('*')
+        .eq('status', 'active')
+        .gt('created_at', twelveHoursAgo);
+      
+      const liveUserIds = activeRooms?.map(r => r.creator_id).filter(Boolean) || [];
+      const roomsMap = (activeRooms || []).reduce((acc: any, r: any) => {
+        acc[r.creator_id] = r;
+        return acc;
+      }, {});
+
+      // 3. Unificar todos os IDs válidos
+      const storyUserIds = storiesData?.map(s => s.author_id) || [];
+      const allDisplayIds = Array.from(new Set([...storyUserIds, ...liveUserIds]))
+        .filter(id => id && String(id).length > 20);
+
+      if (allDisplayIds.length > 0) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('id, full_name, avatar_url, username')
-          .in('id', userIds);
+          .in('id', allDisplayIds);
 
         const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
           acc[p.id] = p;
           return acc;
         }, {});
 
-        const groups = userIds.map(uid => {
-          const userStories = storiesData.filter(s => s.author_id === uid);
+        const groups = allDisplayIds.map(uid => {
+          const userStories = (storiesData || []).filter(s => s.author_id === uid);
           const author = profilesMap[uid] || {};
+          const room = roomsMap[uid];
+          
           return {
             author_id: uid,
-            author_name: author.full_name || 'Usuário',
-            author_avatar: author.avatar_url,
-            stories: userStories
+            author_name: author.full_name || room?.name || 'Usuário',
+            author_avatar: author.avatar_url || null,
+            stories: userStories,
+            is_live: !!room,
+            room_id: room?.id,
+            room_title: room?.name
           };
         });
+
+        // Ordenação: LIVE primeiro
+        groups.sort((a, b) => (a.is_live === b.is_live ? 0 : a.is_live ? -1 : 1));
 
         setStoryGroups(groups);
       } else {
         setStoryGroups([]);
       }
     } catch (err) {
-      console.error("Erro stories:", err);
+      console.error("❌ Erro loadStories unificado:", err);
     }
   };
 
@@ -538,7 +575,11 @@ export default function RootPage() {
               </DropdownMenu>
             )}
             
-            {isMounted && <div className="w-9 h-9 rounded-2xl bg-whatsapp-teal/20 flex items-center justify-center text-whatsapp-teal"><Flame className="w-5 h-5 fill-whatsapp-teal" /></div>}
+            {isMounted && (
+              <div className="w-9 h-9 rounded-2xl bg-whatsapp-teal/20 flex items-center justify-center text-whatsapp-teal">
+                <Flame className="w-5 h-5 fill-whatsapp-teal" />
+              </div>
+            )}
             <h1 className="text-xl font-black text-gray-900 dark:text-white tracking-tight">FéConecta</h1>
           </div>
 
@@ -608,7 +649,13 @@ export default function RootPage() {
           myStoryGroup={storyGroups.find(g => g.author_id === currentUser?.id)}
           currentUser={currentUser} 
           onAddStory={() => setShowStoryCreator(true)} 
-          onViewGroup={(group: any) => setViewingStoryGroup(group)} 
+          onViewGroup={(group: any) => {
+            if (group.is_live && group.stories.length === 0) {
+              router.push(`/room/${group.room_id}`);
+            } else {
+              setViewingStoryGroup(group);
+            }
+          }} 
         />
 
         {/* Create Post Section (Web View Only) */}

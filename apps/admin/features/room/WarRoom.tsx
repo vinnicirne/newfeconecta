@@ -457,29 +457,26 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
   const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant?.identity === roomData.creator_id ? localParticipant : null);
   const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
 
-  const handleExit = () => {
-    if (myRole === 'creator') {
-      toast("Deseja encerrar o clamor para todos?", {
-        description: "Isso encerrará a conexão de todos os participantes.",
-        action: {
-          label: "Encerrar",
-          onClick: async () => {
-            try {
-              room.disconnect();
-            } catch (e) {}
-
-            await supabase.from('rooms').update({
-              status: 'ended',
-              ended_at: new Date().toISOString()
-            }).eq('id', roomData.id);
-            onExit();
-          },
-        },
-      });
-    } else {
-      try { room.disconnect(); } catch (e) {}
-      onExit();
+  const handleExit = async () => {
+    try {
+      if (room) {
+        room.disconnect();
+      }
+    } catch (e) {
+      console.error("Erro ao desconectar LiveKit:", e);
     }
+
+    if (myRole === 'creator') {
+      // Se for o criador, encerra a sala no banco definitivamente
+      await supabase.from('rooms').update({
+        status: 'ended',
+        ended_at: new Date().toISOString()
+      }).eq('id', roomData.id);
+      
+      toast.success("Sala de Guerra encerrada com sucesso! 🙏");
+    }
+
+    onExit();
   };
 
   return (

@@ -6,6 +6,8 @@ import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+import { useRouter } from 'next/navigation';
+
 // Helper simples para tempo relativo sem dependências extras
 function formatTime(date: Date) {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
@@ -21,6 +23,7 @@ const PHOTO_DURATION = 5000;
 const VIDEO_DURATION = 30000;
 
 export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUser, onClose }: any) {
+  const router = useRouter();
   const [userIdx, setUserIdx] = useState(startUserIndex);
   const [storyIdx, setStoryIdx] = useState(0);
   const [progress, setProgress] = useState(0);
@@ -453,9 +456,22 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
              </div>
               <div>
                 <p className="text-white text-sm font-bold leading-none mb-1">{group.author_name}</p>
-                <p className="text-white/60 text-[10px] uppercase font-bold tracking-widest">
-                  {story.created_at ? formatTime(new Date(story.created_at)) : 'Agora'}
-                </p>
+                <div className="flex items-center gap-2">
+                  <p className="text-white/60 text-[10px] uppercase font-bold tracking-widest leading-none">
+                    {story.created_at ? formatTime(new Date(story.created_at)) : 'Agora'}
+                  </p>
+                  {group.is_live && (
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/room/${group.room_id}`);
+                      }}
+                      className="bg-red-600 text-white text-[8px] font-black px-2 py-0.5 rounded-md animate-pulse border border-white/20 whitespace-nowrap"
+                    >
+                      AO VIVO
+                    </button>
+                  )}
+                </div>
               </div>
           </div>
           <div className="flex items-center gap-2 pointer-events-auto">

@@ -44,6 +44,7 @@ import {
   Area 
 } from "recharts";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
 
 const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
 
@@ -160,8 +161,7 @@ export default function DashboardPage() {
       const { count: roomsCount } = await supabase
         .from('rooms')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'active')
-        .is('ended_at', null);
+        .eq('status', 'active');
 
       setStats({
         totalUsers: userCount || 0,
@@ -256,33 +256,38 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
            {[
-             { name: 'Rede de Vídeos', status: 'Ativo', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
-             { name: 'Sala de Guerra', status: 'Ativo', icon: Mic, desc: 'Audio, Moderação e Viralização' },
-             { name: 'Otimização Mídia', status: 'Ativo', icon: Zap, desc: 'Global: 90s Feed / 30s Stories (Compressão Flash)' },
-             { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Atividade em tempo real' },
+             { name: 'Rede de Vídeos', status: stats.totalLumes > 0 ? 'Operacional' : 'Aguardando', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
+             { name: 'Sala de Guerra', status: stats.activeRooms > 0 ? `${stats.activeRooms} Ativas` : 'Sem Lives', icon: Mic, desc: 'Audio, Moderação e Viralização', link: '/admin/rooms' },
+             { name: 'Gestão de Preços PIX', status: 'Configurado', icon: DollarSign, desc: 'Configuração de Checkouts', link: '/admin/pricing' },
+             { name: 'Otimização Mídia', status: 'Ativo', icon: Zap, desc: 'Compressão Flash Ativa' },
              { name: 'Stories Galeria', status: 'Operacional', icon: Image, desc: 'Upload e Gravação 30s' },
-             { name: 'Chat Multimídia', status: 'Operacional', icon: Camera, desc: 'Câmera e Galeria integrados' },
+             { name: 'Sistema de Verificação', status: stats.pendingVerifications > 0 ? `${stats.pendingVerifications} Pendentes` : 'Tudo Limpo', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade', link: '/admin/verifications' },
+             { name: 'Presença Mobile', status: 'Online', icon: Smartphone, desc: 'Atividade em tempo real' },
              { name: 'Tipografia Feed', status: 'Ativo', icon: Type, desc: 'Escala Dinâmica 17~24px' },
-             { name: 'Auto-Card DFCH', status: 'Ativo', icon: Sparkles, desc: 'Mensagem do Dia automática' },
-             { name: 'Social Lumes', status: 'Ativo', icon: Flame, desc: 'Frequência e Fogoviva' },
-             { name: 'Share Nativo', status: 'Ativo', icon: Share2, desc: 'Gaveta de apps externa' },
-              { name: 'Stories de Áudio', status: 'Operacional', icon: Mic, desc: 'Capacidade de Áudio 30s' },
-              { name: 'Arquitetura Modular v2', status: 'Ativo', icon: Layout, desc: 'Perfil 100% Componentizado e Lean' },
-              { name: 'Sistema de Verificação', status: 'Ativo', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade' },
            ].map(({ icon: Icon, ...feature }) => (
-             <div key={feature.name} className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3">
-                <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green">
+             <a 
+               href={(feature as any).link || '#'} 
+               key={feature.name} 
+               className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3 hover:border-whatsapp-green/40 transition-all group"
+             >
+                <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green group-hover:scale-110 transition-transform">
                    <Icon className="w-4 h-4" />
                 </div>
                 <div>
-                   <h4 className="text-xs font-bold dark:text-white">{feature.name}</h4>
-                   <p className="text-[10px] text-gray-500 mb-1">{feature.desc}</p>
+                   <h4 className="text-xs font-bold dark:text-white leading-none mb-1">{feature.name}</h4>
+                   <p className="text-[10px] text-gray-500 mb-1 leading-tight">{feature.desc}</p>
                    <div className="flex items-center gap-1.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
-                      <span className="text-[9px] font-black uppercase text-whatsapp-green">{feature.status}</span>
+                      <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", 
+                        feature.status.includes('Pendentes') ? 'bg-orange-500' : 'bg-whatsapp-green'
+                      )} />
+                      <span className={cn("text-[9px] font-black uppercase",
+                         feature.status.includes('Pendentes') ? 'text-orange-500' : 'text-whatsapp-green'
+                      )}>
+                        {feature.status}
+                      </span>
                    </div>
                 </div>
-             </div>
+             </a>
            ))}
         </div>
       </section>
