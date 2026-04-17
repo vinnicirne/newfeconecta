@@ -23,6 +23,9 @@ import {
   Mic,
   Image,
   Sparkles,
+  Zap,
+  Shield,
+  Play,
   Flame,
   Share2
 } from "lucide-react";
