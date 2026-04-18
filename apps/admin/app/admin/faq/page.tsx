@@ -14,7 +14,8 @@ import {
   RefreshCw,
   X,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
