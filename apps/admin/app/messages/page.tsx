@@ -5,6 +5,7 @@ import { Search, Send, MessageSquare, ArrowLeft, Phone, Video, Info, MoreVertica
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function MessagesPage() {
   const router = useRouter();
