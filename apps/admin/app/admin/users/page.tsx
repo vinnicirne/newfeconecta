@@ -185,6 +185,23 @@ export default function UsersPage() {
     }
   };
 
+  const handleRoleUpdate = async (user: any, newRole: string) => {
+    const toastId = toast.loading(`Atualizando privilégios de ${user.username}...`);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', user.id);
+      
+      if (error) throw error;
+      
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u));
+      toast.success(`Usuário agora é ${newRole === 'admin' ? 'Administrador' : 'Membro'}!`, { id: toastId });
+    } catch (err: any) {
+      toast.error("Erro ao mudar cargo: " + err.message, { id: toastId });
+    }
+  };
+
   const handleCreateUser = () => {
     toast.info("A funcionalidade de criação direta exige configuração do Provedor de E-mail (SMTP) no Supabase. Por enquanto, utilize o convite via Auth Dash.");
   };
