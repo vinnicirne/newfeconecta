@@ -115,10 +115,14 @@ function YouTubePlayer({ videoId, postId }: { videoId: string, postId: string })
             widget_referrer: window.location.origin
           },
           events: {
+            'onReady': (event: any) => {
+              event.target.setVolume(100);
+            },
             'onStateChange': (event: any) => {
               setPlayerState(event.data);
               const YT_CONST = (window as any).YT;
               if (event.data === YT_CONST.PlayerState.PLAYING) {
+                event.target.setVolume(100); // Reforço ao dar play
                 startSilenceLoop();
                 setupMediaSession();
                 if ('mediaSession' in navigator) {
@@ -201,25 +205,26 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const [mediaError, setMediaError] = useState(false);
   const router = useRouter();
  
-  // Deep Clean: Identifica mídias legadas sem extensão de forma SÍNCRONA
+  // Higienização Atômica: Trata strings "null" como nulo real
+  const mediaUrl = (post.media_url === 'null' || !post.media_url) ? null : post.media_url;
+  const postType = post.post_type === 'null' ? 'text' : post.post_type;
+
   const isLegacyMedia = useMemo(() => {
-    if (!post.media_url) return false;
-    const fileName = post.media_url.split('/').pop() || "";
+    if (!mediaUrl) return false;
+    const fileName = mediaUrl.split('/').pop() || "";
     return !fileName.includes('.');
-  }, [post.media_url]);
+  }, [mediaUrl]);
  
-  if (mediaError || isLegacyMedia) {
-    if (isLegacyMedia) console.log("🧹 [PostCard] Bloqueando render de mídia legada (Sem extensão):", post.id);
-    return null;
-  }
+  // Se a mídia for legada ou der erro, apenas marcamos para não renderizar a mídia, 
+  // mas mantemos o PostCard vivo para mostrar o conteúdo e YouTube.
+  const shouldSkipMedia = mediaError || isLegacyMedia;
 
 
   const getYoutubeId = (url: string) => {
-    // Regex refinado para ignorar playlists e focar apenas no ID do vídeo (11 caracs)
-    if (url.includes('list=')) return null; 
-    const regExp = /^.*(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    // RegEx Universal para capturar ID de 11 caracteres (YouTube Desktop, Mobile, Shorts e Embed)
+    const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
     const match = url.match(regExp);
-    return (match && match[1].length === 11) ? match[1] : null;
+    return (match && match[1]) ? match[1] : null;
   };
 
   // VIEWS FEATURE
@@ -269,18 +274,18 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
   const isOwner = isAuthor || isAdmin;
 
   // Áudio
-  const isAudio = post.post_type === 'audio' ||
+  const isAudio = postType === 'audio' ||
     post.media_type === 'audio' ||
-    post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
+    mediaUrl?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
 
-  const isVideo = post.post_type === 'video' ||
+  const isVideo = postType === 'video' ||
     post.media_type === 'video' ||
-    post.media_url?.match(/\.(mp4|webm|mov|mkv)/i);
+    mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i);
 
-  const isShortText = post.content && post.content.length < 90 && !post.content.includes('\n') && !post.media_url;
+  const isShortText = post.content && post.content.length < 90 && !post.content.includes('\n') && !mediaUrl;
   const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
   const hasExternalMedia = !!urlMatch;
-  const isMediaPost = !!(post.media_url || isVideo || isAudio || hasExternalMedia);
+  const isMediaPost = !!(mediaUrl || isVideo || isAudio || hasExternalMedia);
   const isVerseRepost = post.type === 'repost_verse' || !!post.content?.startsWith('📖');
   const isDFCH = !!(post.content?.startsWith('📖') || post.is_testimony) || isVerseRepost;
 
@@ -733,7 +738,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       </div>
 
       {/* YouTube Embed / Link Preview */}
-      {!isVideo && !isAudio && !post.media_url && post.content && (
+      {!isVideo && !isAudio && (!mediaUrl || shouldSkipMedia) && post.content && (
         <div className="px-3 pb-0">
           {(() => {
             const urlMatch = post.content.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
@@ -779,17 +784,17 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       )}
 
       {/* Imagem */}
-      {post.media_url &&
-        (post.post_type === 'image' ||
-          post.post_type === 'photo' ||
+      {mediaUrl && !shouldSkipMedia &&
+        (postType === 'image' ||
+          postType === 'photo' ||
           post.media_type === 'image') && (
           <div
             className="rounded-2xl overflow-hidden mt-3 border border-white/10 cursor-zoom-in relative group"
-            onClick={() => setLightboxUrl(post.media_url)}
+            onClick={() => setLightboxUrl(mediaUrl)}
             onDoubleClick={handleDoubleClickLike}
           >
             <img
-              src={post.media_url}
+              src={mediaUrl}
               className="w-full h-auto object-cover max-h-[520px] transition-transform duration-500 group-hover:scale-[1.02]"
               alt="Imagem do post"
               onError={() => setMediaError(true)}
@@ -806,7 +811,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         )}
 
       {/* Vídeo / Lumes (Instagram Style) */}
-      {post.media_url && isVideo && (
+      {mediaUrl && isVideo && !shouldSkipMedia && (
         <div
           className="rounded-2xl overflow-hidden mt-3 h-[450px] bg-black/95 relative group cursor-pointer border border-white/5 mx-auto max-w-[340px] shadow-2xl"
           onClick={() => router.push(`/lumes?id=${post.id}`)}
@@ -814,7 +819,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         >
           <video
             className="w-full h-full object-cover"
-            src={post.media_url}
+            src={mediaUrl}
             muted={isMuted}
             autoPlay
             loop
@@ -850,7 +855,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       )}
 
       {/* Áudio */}
-      {isAudio && post.media_url && (
+      {isAudio && mediaUrl && !shouldSkipMedia && (
         <div className="bg-[#111b21] p-4 rounded-2xl border border-white/5 shadow-2xl mt-3 overflow-hidden relative group transition-all hover:bg-[#182229]">
           <style dangerouslySetInnerHTML={{
             __html: `
@@ -893,7 +898,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
           <audio
             ref={audioRef}
-            src={post.media_url}
+            src={mediaUrl}
             crossOrigin="anonymous"
             preload="metadata"
             onTimeUpdate={() => audioRef.current && setAudioProgress((audioRef.current.currentTime / audioRef.current.duration) * 100)}
@@ -909,13 +914,13 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
       {/* Legenda (Abaixo da Mídia) */}
       {post.content && (
-        <div className={cn("px-4", (!isMediaPost || isDFCH) && !post.media_url ? "py-10" : "pb-3 pt-0 -mt-1.5")}>
+        <div className={cn("px-4", (!isMediaPost || isDFCH) && !mediaUrl ? "py-10" : "pb-3 pt-0 -mt-1.5")}>
           <div
             className={cn(
               isShortText || isDFCH ? "text-[24px] font-black leading-[1.1] tracking-tight" : "text-[17px] font-medium leading-relaxed",
               "whitespace-pre-wrap break-words transition-all mb-1",
               isMediaPost && !isDFCH ? "text-left" : "text-center",
-              (post.background || (isDFCH && !post.media_url)) && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5 bg-gray-50/5 dark:bg-zinc-900/50",
+              (post.background || (isDFCH && !mediaUrl)) && "min-h-[240px] flex items-center justify-center p-10 rounded-3xl m-1 text-center shadow-xl border border-white/5 bg-gray-50/5 dark:bg-zinc-900/50",
               isVerseRepost && "bg-gradient-to-br from-indigo-900 via-purple-900 to-zinc-900 border-indigo-500/30 text-white min-h-[300px] flex-col gap-4 italic font-serif"
             )}
             style={{ background: post.background || undefined }}

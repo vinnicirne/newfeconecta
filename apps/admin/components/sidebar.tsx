@@ -47,6 +47,7 @@ const menuItems: any[] = [
   { name: "Dashboard", icon: LayoutDashboard, href: "/admin" },
   { name: "Usuários", icon: Users, href: "/admin/users" },
   { name: "Verificações", icon: ShieldCheck, href: "/admin/verifications" },
+  { name: "Moderação de Posts", icon: MessageSquare, href: "/admin/posts" },
   { name: "Denúncias", icon: ShieldAlert, href: "/admin/reports" },
   { name: "Salas de Guerra", icon: Mic, href: "/admin/rooms" },
 
