@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
-import { ShieldCheck, Check, X, Eye, RefreshCw, Clock, AlertCircle, ExternalLink, Plus, ShieldOff } from "lucide-react";
+import { ShieldCheck, Check, X, Eye, RefreshCw, Clock, AlertCircle, ExternalLink, Plus, ShieldOff, Settings2, RotateCcw, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import moment from "moment";
@@ -18,10 +18,32 @@ export default function VerificationsPage() {
   const [selectedVerifyUser, setSelectedVerifyUser] = useState<any | null>(null);
   const [isCredentialOpen, setIsCredentialOpen] = useState(false);
   const [credentialUser, setCredentialUser] = useState<any | null>(null);
+  const [stats, setStats] = useState({
+    pending: 0,
+    activeVerified: 0,
+    totalProcessed: 0
+  });
 
   useEffect(() => {
     fetchRequests();
+    fetchStats();
   }, []);
+
+  const fetchStats = async () => {
+    try {
+      const { count: pendingCount } = await supabase.from('verification_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+      const { count: activeCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('is_verified', true);
+      const { count: totalLogs } = await supabase.from('verification_requests').select('*', { count: 'exact', head: true });
+      
+      setStats({
+        pending: pendingCount || 0,
+        activeVerified: activeCount || 0,
+        totalProcessed: totalLogs || 0
+      });
+    } catch (err) {
+      console.error("Error fetching stats:", err);
+    }
+  };
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -67,6 +89,7 @@ export default function VerificationsPage() {
       }
 
       fetchRequests();
+      fetchStats();
     } catch (err: any) {
       toast.error("Erro ao processar: " + err.message);
     }
@@ -95,6 +118,7 @@ export default function VerificationsPage() {
 
             toast.success("Selo removido com sucesso!");
             fetchRequests();
+            fetchStats();
           } catch (err: any) {
             toast.error("Erro ao remover selo: " + err.message);
           }
@@ -118,6 +142,7 @@ export default function VerificationsPage() {
             if (error) throw error;
             toast.success("Solicitação excluída! Usuário liberado para tentar novamente.");
             fetchRequests();
+            fetchStats();
           } catch (err: any) {
             toast.error("Erro ao excluir: " + err.message);
           }
@@ -142,9 +167,9 @@ export default function VerificationsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {[
-          { label: "Pendentes", value: requests.filter(r => r.status === 'pending').length, icon: Clock, color: "text-orange-500" },
-          { label: "Aprovados", value: requests.filter(r => r.status === 'approved').length, icon: ShieldCheck, color: "text-whatsapp-green" },
-          { label: "Total Processado", value: requests.length, icon: RefreshCw, color: "text-blue-500" },
+          { label: "Pendentes Hoje", value: stats.pending, icon: Clock, color: "text-orange-500" },
+          { label: "Verificados Ativos", value: stats.activeVerified, icon: ShieldCheck, color: "text-whatsapp-green" },
+          { label: "Logs de Auditoria", value: stats.totalProcessed, icon: RefreshCw, color: "text-blue-500" },
         ].map((stat, i) => (
           <div key={i} className="bg-white dark:bg-whatsapp-darkLighter p-6 rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow">
             <stat.icon className={cn("w-5 h-5 mb-3", stat.color)} />
@@ -281,7 +306,7 @@ export default function VerificationsPage() {
                             className="p-1.5 hover:bg-gray-100 dark:hover:bg-white/5 rounded-lg text-gray-400 hover:text-orange-500 transition-all border border-transparent hover:border-orange-500/20"
                             title="Fazer Upgrade / Alterar Cargo"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <Settings2 className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}
@@ -294,13 +319,13 @@ export default function VerificationsPage() {
                           >
                             <Check className="w-3.5 h-3.5" />
                           </button>
-                          <button
+                          <button 
                             onClick={() => {
                               setSelectedVerifyUser({
                                 id: req.user_id,
-                                username: req.profiles.username,
-                                full_name: req.profiles.full_name,
-                                avatar_url: req.profiles.avatar_url,
+                                username: req.profiles?.username,
+                                full_name: req.profiles?.full_name,
+                                avatar_url: req.profiles?.avatar_url,
                                 verification_label: req.requested_role,
                                 is_verified: false
                               });
@@ -309,14 +334,14 @@ export default function VerificationsPage() {
                             className="p-1.5 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg text-gray-400 hover:text-orange-500 transition-all border border-transparent hover:border-orange-500/20"
                             title="Editar e Reativar"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <RotateCcw className="w-3.5 h-3.5" />
                           </button>
-                          <button
+                          <button 
                             onClick={() => handleDeleteRequest(req)}
                             className="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg text-gray-400 hover:text-blue-500 transition-all border border-transparent hover:border-blue-500/20"
-                            title="Liberar para Nova Tentativa (Reset)"
+                            title="Excluir Registro de Auditoria"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </>
                       )}

@@ -47,22 +47,15 @@ export default function NotesPage() {
   useEffect(() => {
     fetchNotes();
     
-    // LIMPEZA SEGURA E CONFIRMAÇÃO
+    // LIMPEZA IMEDIATA E CONFIRMAÇÃO
     if (typeof window !== 'undefined' && localStorage.getItem("prefill_note")) {
-      console.log("🎯 [DIÁRIO] IMPORTAÇÃO ATÔMICA DETECTADA!");
-      
-      // Delay apenas para o UX do Toast
-      setTimeout(() => {
-        localStorage.removeItem("prefill_note");
-        localStorage.removeItem("prefill_title");
-        localStorage.removeItem("prefill_tags");
-        toast.info("Análise Bíblica importada! 🙌");
-      }, 500);
+      localStorage.removeItem("prefill_note");
+      localStorage.removeItem("prefill_title");
+      localStorage.removeItem("prefill_tags");
+      toast.info("Análise Bíblica importada com sucesso! 🙌");
     }
   }, [filter]);
 
-  // Log de monitoramento em tempo real (Render)
-  console.log("🖥️ [DIÁRIO RENDER ATÔMICO] Título:", title, "| Content-Length:", content?.length, "| Modo:", isDevotional ? "Devocional" : "Simples");
 
   async function fetchNotes() {
     try {
@@ -189,8 +182,8 @@ export default function NotesPage() {
   const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && tagInput.trim()) {
       e.preventDefault();
-      const newTag = tagInput.trim().replace(/^#/, ""); // Remove # se o usuário digitou
-      if (!tags.includes(newTag)) {
+      const newTag = tagInput.trim().replace(/^#/, "").toLowerCase(); 
+      if (newTag && !tags.includes(newTag)) {
         setTags([...tags, newTag]);
       }
       setTagInput("");

@@ -57,6 +57,18 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
     async function init() {
       const { data: room, error: roomError } = await supabase.from('rooms').select('*, profiles:creator_id(full_name, avatar_url)').eq('id', roomId).single();
       if (roomError || !room) { toast.error("Sala não encontrada"); onExit(); return; }
+      
+      // --- VERIFICAÇÃO ATÔMICA DE SALA ZUMBI ---
+      const endTime = moment(room.created_at).add(room.duration_minutes || 60, 'minutes');
+      if (endTime.isBefore(moment()) || room.status === 'ended') {
+        if (room.status !== 'ended') {
+          await supabase.from('rooms').update({ status: 'ended', ended_at: new Date().toISOString() }).eq('id', roomId);
+        }
+        toast.error("Este momento de clamor já foi encerrado. 🙏");
+        onExit();
+        return;
+      }
+
       setRoomData(room);
 
       const isCreator = room.creator_id === user.id;
@@ -442,8 +454,14 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     const enableMic = async () => {
       try {
         if (canSpeak) {
-          await new Promise(resolve => setTimeout(resolve, 1200));
-          await localParticipant.setMicrophoneEnabled(true);
+          // Handshake Robusto: Esperamos o participante local estar 'joined'
+          let retry = 0;
+          while (!localParticipant.isMicrophoneEnabled && retry < 5) {
+            await localParticipant.setMicrophoneEnabled(true);
+            if (localParticipant.isMicrophoneEnabled) break;
+            await new Promise(r => setTimeout(r, 800));
+            retry++;
+          }
         } else {
           await localParticipant.setMicrophoneEnabled(false);
         }
@@ -454,7 +472,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     enableMic();
   }, [myRole, localParticipant]);
 
-  const creatorInLive = participants.find(p => p.identity === roomData.creator_id) || (localParticipant?.identity === roomData.creator_id ? localParticipant : null);
+  const creatorInLive = participants.find(p => p.identity === roomData?.creator_id) || (localParticipant?.identity === roomData?.creator_id ? localParticipant : null);
   const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
 
   const handleExit = async () => {
@@ -467,17 +485,18 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     }
 
     if (myRole === 'creator') {
-      // Se for o criador, encerra a sala no banco definitivamente
       await supabase.from('rooms').update({
         status: 'ended',
         ended_at: new Date().toISOString()
-      }).eq('id', roomData.id);
+      }).eq('id', roomData?.id);
       
       toast.success("Sala de Guerra encerrada com sucesso! 🙏");
     }
 
     onExit();
   };
+
+  const activeParticipants = participants.filter(p => p.identity !== roomData?.creator_id);
 
   return (
     <div className="relative flex h-screen w-full flex-col overflow-hidden bg-[#0a0a0a] text-white font-body antialiased">
@@ -649,21 +668,28 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         </div>
 
         <div className="flex items-center justify-center -space-x-3 mb-2">
-          {dbParticipants.slice(0, 3).map((p, i) => {
-            const isOnline = participants.some(lp => lp.identity === p.user_id) || localParticipant?.identity === p.user_id;
+          {activeParticipants.slice(0, 3).map((p, i) => {
+            const meta = JSON.parse(p.metadata || '{}');
             return (
-              <div key={i} className={cn("relative transition-all", !isOnline ? "opacity-40 grayscale" : "opacity-100 saturate-150")}>
+              <div key={i} className="relative transition-all opacity-100 saturate-150">
                 <img
-                  src={(Array.isArray(p.profiles) ? p.profiles[0]?.avatar_url : p.profiles?.avatar_url) || "https://github.com/shadcn.png"}
-                  className={cn("size-12 rounded-full border-2 object-cover shadow-xl", isOnline ? "border-[#3fff8b] avatar-glow" : "border-white/10")}
+                  src={meta.avatar || "https://github.com/shadcn.png"}
+                  className="size-12 rounded-full border-2 border-[#3fff8b] avatar-glow object-cover shadow-xl"
                   alt=""
                 />
               </div>
             );
           })}
-          <div className="size-12 rounded-full border-2 border-[#0e0e0e] bg-[#1a1a1a] flex items-center justify-center">
-            <span className="text-[#3fff8b] text-xs font-bold">+{Math.max(0, dbParticipants.length - 3)}</span>
-          </div>
+          {activeParticipants.length > 3 && (
+            <div className="size-12 rounded-full border-2 border-[#0e0e0e] bg-[#1a1a1a] flex items-center justify-center relative z-10">
+              <span className="text-[#3fff8b] text-xs font-bold">+{activeParticipants.length - 3}</span>
+            </div>
+          )}
+          {activeParticipants.length === 0 && (
+            <div className="flex flex-col items-center opacity-30">
+               <span className="text-[8px] font-black uppercase tracking-widest text-white/50">Sala Ativa</span>
+            </div>
+          )}
         </div>
 
         <div className="w-full max-w-[320px] flex flex-col gap-1.5 mb-1 shrink-0">

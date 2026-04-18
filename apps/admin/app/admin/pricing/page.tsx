@@ -11,10 +11,8 @@ import {
   RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
-
-// Este componente simula a configuração de valores para o MVP.
-// Em um sistema real, estes valores seriam salvos em uma tabela 'system_configs' ou similar.
 
 const DEFAULT_PLANS = [
   { role: "Bispo", price: "9,99", category: "Liderança" },
@@ -32,20 +30,53 @@ const DEFAULT_PLANS = [
 
 export default function PricingPage() {
   const [plans, setPlans] = useState(DEFAULT_PLANS);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchConfigs();
+  }, []);
+
+  const fetchConfigs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_configs')
+        .select('value')
+        .eq('key', 'verification_prices')
+        .single();
+      
+      if (data?.value) {
+        setPlans(data.value);
+      }
+    } catch (err) {
+      console.log("Usando planos padrão (aguardando criação da tabela)");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePriceChange = (role: string, newPrice: string) => {
     setPlans(prev => prev.map(p => p.role === role ? { ...p, price: newPrice } : p));
   };
 
-  const handleSave = () => {
-    setLoading(true);
-    // Simulando persistência
-    setTimeout(() => {
-      localStorage.setItem('verification_prices', JSON.stringify(plans));
-      toast.success("Configurações de valores salvas com sucesso!");
-      setLoading(false);
-    }, 1000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('system_configs')
+        .upsert({ 
+          key: 'verification_prices', 
+          value: plans,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      toast.success("Tabela de preços atualizada com sucesso no banco de dados! 💰✨");
+    } catch (err: any) {
+      toast.error("Erro ao salvar: Verifique se a tabela 'system_configs' existe.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -56,11 +87,11 @@ export default function PricingPage() {
       >
         <button 
           onClick={handleSave}
-          disabled={loading}
+          disabled={saving || loading}
           className="flex items-center gap-2 bg-whatsapp-teal text-white px-6 py-2 rounded-xl text-sm font-bold shadow-lg shadow-whatsapp-teal/20 hover:bg-whatsapp-tealLight transition-all active:scale-95 disabled:opacity-50"
         >
-          {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          Salvar Alterações
+          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+          {saving ? "Salvando..." : "Salvar Alterações"}
         </button>
       </PageHeader>
 

@@ -169,91 +169,96 @@ export default function CreatePost({ user, onPostCreated }: any) {
   const [pendingMedia, setPendingMedia] = useState<any>(null);
   const [caption, setCaption] = useState("");
 
+  const generateVideoThumbnail = (file: File): Promise<Blob> => {
+    return new Promise((resolve) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () => {
+        video.currentTime = 1; // Captura o frame do segundo 1
+      };
+      video.onseeked = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob);
+        }, "image/jpeg", 0.7);
+      };
+      video.src = URL.createObjectURL(file);
+    });
+  };
+
   const handleGallery = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 12 * 1024 * 1024) {
-      toast.error("O vídeo é muito pesado! Máximo 12MB.");
-      return;
-    }
+    const isVideo = file.type.startsWith('video/');
+    const isImage = file.type.startsWith('image/');
 
-    // Validar duração do vídeo para garantir performance "Flash"
-    if (file.type.startsWith('video/')) {
+    if (isVideo) {
+      if (file.size > 50 * 1024 * 1024) { // Aumentado para 50MB considerando Transcoding futuro
+        toast.error("Vídeo muito pesado! Máximo 50MB.");
+        return;
+      }
+
       const video = document.createElement('video');
       video.preload = 'metadata';
-      video.onloadedmetadata = () => {
+      video.onloadedmetadata = async () => {
         window.URL.revokeObjectURL(video.src);
-        if (video.duration > 90) {
-          toast.error("Vídeo muito longo! Máximo 90 segundos para o Feed.");
-          setPendingMedia(null);
+        if (video.duration > 120) {
+          toast.error("Máximo 120 segundos para o Feed.");
           return;
         }
+
+        toast.info("Processando miniatura do vídeo... 🎬");
+        const thumbBlob = await generateVideoThumbnail(file);
+        setPendingMedia({ file, thumbBlob, type: 'video', url: URL.createObjectURL(file) });
       };
       video.src = URL.createObjectURL(file);
+    } else if (isImage) {
+      setPendingMedia({ file, type: 'image', url: URL.createObjectURL(file) });
     }
-
-    const type = file.type.startsWith('video') ? 'video' : 'image';
-    
-    if (type === 'video') {
-       const isValid = await new Promise((resolve) => {
-          const v = document.createElement('video');
-          v.preload = 'metadata';
-          v.onloadedmetadata = () => {
-            window.URL.revokeObjectURL(v.src);
-            resolve(v.duration <= 90);
-          };
-          v.onerror = () => resolve(false);
-          v.src = URL.createObjectURL(file);
-       });
-
-       if (!isValid) {
-         toast.error("O vídeo é muito longo! Máximo 90 segundos.");
-         return;
-       }
-    }
-
-    const url = URL.createObjectURL(file);
-    setPendingMedia({ file, type, url });
   };
 
   const submitPendingPost = async () => {
-    if (!pendingMedia || !user?.id) {
-      if (!user?.id) {
-        toast.error("Você precisa estar logado para publicar.");
-      }
-      return;
-    }
+    if (!pendingMedia || !user?.id) return;
     
     setIsSubmitting(true);
-    setUploadProgress(30);
-    const toastId = toast.loading("Publicando seu poster...");
-    const progressInterval = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) return 90;
-        return prev + 5;
-      });
-    }, 500);
+    setUploadProgress(10);
+    const toastId = toast.loading("Preparando mídia sagrada...");
     
     try {
+      // 1. Upload da Miniatura se for Vídeo
+      let thumbnailUrl = null;
+      if (pendingMedia.type === 'video' && pendingMedia.thumbBlob) {
+        setUploadProgress(20);
+        thumbnailUrl = await uploadMedia(pendingMedia.thumbBlob, 'thumbnails');
+      }
+
+      // 2. Upload da Mídia Principal
+      setUploadProgress(40);
       const mediaUrl = await uploadMedia(pendingMedia.file, pendingMedia.type === 'video' ? 'videos' : 'images');
       
-      setUploadProgress(90);
+      setUploadProgress(85);
       const { data: newPost, error } = await supabase.from('posts').insert({
         author_id: user.id,
         user_id: user.id,
         content: caption,
         media_url: mediaUrl,
+        thumbnail_url: thumbnailUrl, // Agora o banco recebe a miniatura!
         post_type: pendingMedia.type,
       }).select().single();
 
-      // Notificar Hashtags
+      if (error) throw error;
+
       if (caption) {
         await NotificationService.notifyHashtagFollowers(caption, user.id, newPost?.id || "");
       }
       
       setUploadProgress(100);
-      toast.success("Poster publicado com sucesso!", { id: toastId });
+      toast.success("Publicado com sucesso!", { id: toastId });
       setPendingMedia(null);
       setCaption("");
       onPostCreated?.();
@@ -261,9 +266,8 @@ export default function CreatePost({ user, onPostCreated }: any) {
       setUploadProgress(0);
       toast.error(`Erro ao publicar: ${err.message}`, { id: toastId });
     } finally {
-      clearInterval(progressInterval);
       setIsSubmitting(false);
-      setUploadProgress(0);
+      setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 

@@ -159,21 +159,34 @@ export default function UsersPage() {
     }
   };
 
-  const handleRoleUpdate = async (user: any, role: string) => {
-    const toastId = toast.loading(`Alterando nível de ${user.username}...`);
+  const handleBanUser = async (user: any) => {
+    const isBanned = user.verification_label === 'BANIDO';
+    const toastId = toast.loading(`${isBanned ? 'Reativando' : 'Banindo'} ${user.username}...`);
+    
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ role: role })
+        .update({ 
+          is_verified: false,
+          verification_label: isBanned ? null : 'BANIDO'
+        })
         .eq('id', user.id);
       
       if (error) throw error;
       
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: role } : u));
-      toast.success(`Nível de acesso alterado para ${role}!`, { id: toastId });
+      setUsers(prev => prev.map(u => u.id === user.id ? { 
+        ...u, 
+        is_verified: false,
+        verification_label: isBanned ? null : 'BANIDO' 
+      } : u));
+      toast.success(isBanned ? "Usuário reativado!" : "Usuário banido com sucesso!", { id: toastId });
     } catch (err: any) {
-      toast.error("Erro ao alterar nível: " + err.message, { id: toastId });
+      toast.error("Erro na operação: " + err.message, { id: toastId });
     }
+  };
+
+  const handleCreateUser = () => {
+    toast.info("A funcionalidade de criação direta exige configuração do Provedor de E-mail (SMTP) no Supabase. Por enquanto, utilize o convite via Auth Dash.");
   };
 
   useEffect(() => {
@@ -188,7 +201,10 @@ export default function UsersPage() {
         title="Gestão de Usuários" 
         description={`${total} usuário${total !== 1 ? "s" : ""} cadastrado${total !== 1 ? "s" : ""} na plataforma.`}
       >
-        <button className="flex items-center gap-2 bg-whatsapp-teal text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-whatsapp-tealLight transition-all">
+        <button 
+          onClick={handleCreateUser}
+          className="flex items-center gap-2 bg-whatsapp-teal text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-whatsapp-tealLight transition-all active:scale-95 shadow-lg shadow-whatsapp-teal/20"
+        >
           <Plus className="w-4 h-4" /> Novo Usuário
         </button>
       </PageHeader>
@@ -329,11 +345,11 @@ export default function UsersPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
-                              onClick={() => toast.warning("Funcionalidade de banimento em auditoria.")}
-                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer text-red-500 focus:bg-red-500/10"
+                              onClick={() => handleBanUser(u)}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer text-red-500 focus:bg-red-500/10 transition-colors"
                             >
                               <ShieldAlert className="w-4 h-4" />
-                              <span className="font-bold text-xs">Banir Usuário</span>
+                              <span className="font-bold text-xs">{u.verification_label === 'BANIDO' ? 'Reativar Usuário' : 'Banir Usuário'}</span>
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>

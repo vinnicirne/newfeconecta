@@ -220,7 +220,7 @@ export default function MessagesPage() {
 
     if (error) {
       console.error("Erro ao enviar:", error);
-      alert("Falha ao enviar mensagem.");
+      toast.error("Falha ao enviar mensagem.");
     }
   };
 
@@ -229,13 +229,15 @@ export default function MessagesPage() {
     if (!file || !currentUser || !selectedId) return;
 
     setIsUploading(true);
+    const toastId = toast.loading("Enviando mídia sagrada...");
+    
     try {
       const fileExt = file.name.split('.').pop() || 'jpg';
       const fileName = `${currentUser.id}/${Date.now()}.${fileExt}`;
       const filePath = `chat-media/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('avatars') // Usando bucket existente para simplificar
+        .from('avatars') 
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
@@ -245,9 +247,10 @@ export default function MessagesPage() {
         .getPublicUrl(filePath);
 
       await handleSendMessage(undefined, publicUrl);
+      toast.success("Mídia enviada!", { id: toastId });
     } catch (err: any) {
       console.error("Erro no upload:", err);
-      alert("Erro ao enviar imagem.");
+      toast.error("Erro ao enviar imagem.", { id: toastId });
     } finally {
       setIsUploading(false);
       if (e.target) e.target.value = '';
@@ -295,7 +298,6 @@ export default function MessagesPage() {
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Ativos Agora</span>
            </div>
            <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1">
-              {/* Simulando ativos baseada nas conversas */}
               {conversations.map((chat) => (
                 <div 
                   key={`active-${chat.id}`} 
@@ -306,7 +308,6 @@ export default function MessagesPage() {
                       <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-whatsapp-green/20 p-0.5">
                          <img src={chat.avatar} className="w-full h-full object-cover rounded-[14px]" alt="" />
                       </div>
-                      <div className="absolute bottom-0 right-0 w-4 h-4 bg-whatsapp-green rounded-full border-[3px] border-white dark:border-[#111b21]" />
                    </div>
                    <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 truncate w-14 text-center">{chat.name.split(' ')[0]}</span>
                 </div>
@@ -329,8 +330,6 @@ export default function MessagesPage() {
                     <div className="w-full h-full rounded-full overflow-hidden border border-black/5 dark:border-white/5">
                        <img src={chat.avatar} className="w-full h-full object-cover" alt="" />
                     </div>
-                    {/* Indicador Online - Simulado para todos os contatos ativos */}
-                    <div className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-whatsapp-green rounded-full border-[3px] border-white dark:border-[#111b21]" />
                  </div>
                  <div className="flex-1 min-w-0">
                     <div className="flex justify-between items-baseline mb-1">
@@ -373,14 +372,9 @@ export default function MessagesPage() {
                       <div className="w-full h-full rounded-full border border-black/5 dark:border-white/10 overflow-hidden">
                          <img src={selectedChat?.avatar} className="w-full h-full object-cover" alt="" />
                       </div>
-                      <div className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-white dark:border-[#202c33]" />
                   </div>
                   <div>
                      <h2 className="font-bold text-sm sm:text-base leading-none text-gray-900 dark:text-white">{selectedChat?.name}</h2>
-                     <span className="text-[10px] text-whatsapp-green font-bold flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-whatsapp-green animate-pulse" />
-                        online
-                     </span>
                   </div>
                </div>
                <div className="flex items-center gap-3 sm:gap-5 text-gray-400">

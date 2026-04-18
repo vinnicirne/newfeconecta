@@ -73,10 +73,16 @@ export default function PostsManagementPage() {
         return acc;
       }, {});
 
-      const combined = postsData.map(post => ({
-        ...post,
-        profiles: profilesMap[post.author_id] || null
-      }));
+      const combined = postsData.map(post => {
+        // Higienização Atômica (Previne renderização de strings 'null' do banco)
+        const cleanMediaUrl = (post.media_url === 'null' || !post.media_url) ? null : post.media_url;
+        
+        return {
+          ...post,
+          media_url: cleanMediaUrl,
+          profiles: profilesMap[post.author_id] || null
+        };
+      });
 
       setPosts(combined as any);
     } catch (err: any) {
@@ -125,12 +131,28 @@ export default function PostsManagementPage() {
           </button>
 
           <div className="bg-white dark:bg-[#080808] w-full max-w-4xl rounded-[40px] overflow-hidden shadow-2xl flex flex-col md:flex-row max-h-[90vh]">
-            <div className="flex-1 bg-black/5 dark:bg-white/5 flex items-center justify-center overflow-hidden min-h-[300px] relative">
+            <div className="flex-1 bg-black/5 dark:bg-[#111] flex items-center justify-center overflow-hidden min-h-[300px] relative">
               {previewPost.post_type === 'image' && previewPost.media_url && (
                 <img src={previewPost.media_url} className="w-full h-full object-contain" alt="" />
               )}
               {previewPost.post_type === 'video' && previewPost.media_url && (
-                <video src={previewPost.media_url} controls className="w-full h-full" autoPlay />
+                <div className="w-full h-full flex items-center justify-center">
+                  {/* Motor Universal (Suporte YouTube no Admin) */}
+                  {(() => {
+                    const ytId = previewPost.media_url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i)?.[1];
+                    if (ytId) {
+                      return (
+                        <iframe
+                          className="w-full aspect-video rounded-2xl shadow-2xl"
+                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&mute=0`}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      );
+                    }
+                    return <video src={previewPost.media_url} controls className="w-full h-full" autoPlay />;
+                  })()}
+                </div>
               )}
               {!previewPost.media_url && (
                 <div className="flex flex-col items-center gap-3 text-gray-400">
@@ -310,17 +332,17 @@ export default function PostsManagementPage() {
                       )}
                     </td>
                     <td className="p-6 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center justify-end gap-2">
                         <button 
                           onClick={() => setPreviewPost(post)}
-                          className="p-3 text-whatsapp-teal hover:bg-whatsapp-teal/10 rounded-2xl transition-all"
+                          className="p-2 text-whatsapp-teal hover:bg-whatsapp-teal/10 rounded-xl transition-all"
                           title="Visualizar Detalhes"
                         >
                           <Eye className="w-5 h-5" />
                         </button>
                         <button 
                           onClick={() => deletePost(post.id)}
-                          className="p-3 text-red-500 hover:bg-red-500/10 rounded-2xl transition-all"
+                          className="p-2 text-red-500 hover:bg-red-500/10 rounded-xl transition-all"
                           title="Excluir Post"
                         >
                           <Trash2 className="w-5 h-5" />

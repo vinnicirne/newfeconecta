@@ -45,7 +45,7 @@ export default function MobileMenu({ open, onClose, user }: MobileMenuProps) {
     { name: "Deus Falou", icon: Sparkles, href: "/dfch", color: "text-whatsapp-teal", bg: "bg-whatsapp-teal/10" },
     { name: "Meu Diário", icon: BookOpen, href: "/notes", color: "text-amber-500", bg: "bg-amber-500/10" },
     { name: "Bíblia Sagrada", icon: ScrollText, href: "/bible", color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { name: "Meu Perfil", icon: UserSquare2, href: "/profile", color: "text-blue-500", bg: "bg-blue-500/10" },
+    { name: "Meu Perfil", icon: UserSquare2, href: user?.username ? `/profile/${user.username}` : "/profile", color: "text-blue-500", bg: "bg-blue-500/10" },
     { name: "Dashboard", icon: LayoutDashboard, href: "/admin", color: "text-purple-500", bg: "bg-purple-500/10" },
   ];
 

@@ -37,6 +37,8 @@ export default function FeedPage() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -44,32 +46,40 @@ export default function FeedPage() {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-          const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-          setCurrentUser(data || user);
-          if (data?.id) loadUnreadCount(data.id);
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        if (authUser) {
+          // Busca perfil com fallback imediato para o objeto de auth
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
+          const identity = profile || { 
+            id: authUser.id, 
+            full_name: authUser.user_metadata?.full_name || 'Usuário',
+            username: authUser.user_metadata?.username || 'user',
+            avatar_url: authUser.user_metadata?.avatar_url
+          };
+          setCurrentUser(identity);
+          loadUnreadCount(identity.id);
         }
       } catch (err: any) {
-        if (err?.message?.includes('lock') || err?.message?.includes('steal')) {
-          console.warn("Supabase auth lock contention in Feed, ignoring safely.");
-          return;
-        }
         console.error("Auth error in Feed:", err);
       }
     };
 
     initAuth();
     
-    // Inscrição Realtime para novos posts
+    // Inscrição Realtime com Blindagem de Canal
     const postChannel = supabase
       .channel('public:posts')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, () => {
         loadData(true);
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'TIMED_OUT' || status === 'CLOSED') {
+          console.warn("⚠️ Conexão do Feed perdida. Reiniciando...");
+          postChannel.track({}); // Tentativa de re-track
+        }
+      });
 
-    // Inscrição Realtime para notificações
+    // Inscrição de Notificações com Vínculo de ID
     const notifChannel = supabase
       .channel('public:notifications')
       .on('postgres_changes', { 
@@ -83,7 +93,8 @@ export default function FeedPage() {
       })
       .subscribe();
 
-    loadData();
+    // Só dispara o carregamento se já tivermos tentado o Auth ou se for o primeiro mount
+    if (loading) loadData();
 
     return () => {
       supabase.removeChannel(postChannel);
@@ -132,100 +143,146 @@ export default function FeedPage() {
     if (loading && !reset) return;
     setLoading(true);
     
-    const currentPage = reset ? 1 : page;
-    const limit = 20;
-    const from = (currentPage - 1) * limit;
-    const to = from + limit - 1;
+    try {
+      const currentPage = reset ? 1 : page;
+      const limit = 15;
+      const from = (currentPage - 1) * limit;
+      const to = from + limit - 1;
 
-    const { data: postsData } = await supabase
-      .from('posts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to);
-    
-    const { data: repostsData } = await supabase
-      .from('reposts')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .range(from, to);
+      // 1. CARREGAR STORIES REAIS (Últimas 24h)
+      if (reset) {
+        const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+        const { data: storiesData } = await supabase
+          .from('stories')
+          .select('*, profiles(id, full_name, avatar_url, username)')
+          .gt('created_at', twentyFourHoursAgo)
+          .order('created_at', { ascending: false });
 
-    const postsList = postsData || [];
-    const repostsList = repostsData || [];
-
-    // Checar se carregou todos os posts
-    if (postsList.length < limit && repostsList.length < limit) {
-      setHasMore(false);
-    }
-
-    const repostedPostIds = repostsList.map((r: any) => r.post_id);
-    const missingPostIds = repostedPostIds.filter((id: any) => !postsList.some((p: any) => p.id === id));
-
-    let missingPosts: any[] = [];
-    if (missingPostIds.length > 0) {
-      const { data } = await supabase.from('posts').select('*').in('id', missingPostIds);
-      missingPosts = data || [];
-    }
-
-    const feed: any[] = [];
-    postsList.forEach((p: any) => feed.push({ ...p, display_date: p.created_at, is_repost: false }));
-    
-    repostsList.forEach((r: any) => {
-      const originalPost = postsList.find((p: any) => p.id === r.post_id) || missingPosts.find((p: any) => p.id === r.post_id);
-      if (originalPost) {
-        feed.push({
-          ...originalPost,
-          id: `${originalPost.id}-repost-${r.profile_id}`,
-          original_post_id: originalPost.id,
-          display_date: r.created_at,
-          is_repost: true,
-          reposter_id: r.profile_id
-        });
+        if (storiesData) {
+          const grouped: Record<string, any> = {};
+          storiesData.forEach((s: any) => {
+            const uid = s.user_id;
+            if (!grouped[uid]) {
+              grouped[uid] = {
+                user_id: uid,
+                user_name: s.profiles?.full_name || s.profiles?.username || "Usuário",
+                user_avatar: s.profiles?.avatar_url,
+                stories: []
+              };
+            }
+            grouped[uid].stories.push(s);
+          });
+          setStoryGroups(Object.values(grouped));
+        }
       }
-    });
 
-    feed.sort((a, b) => new Date(b.display_date).getTime() - new Date(a.display_date).getTime());
+      // 2. CARREGAR POSTS E REPOSTS
+      const { data: postsData } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      
+      const { data: repostsData } = await supabase
+        .from('reposts')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
-    const userIds = new Set<string>();
-    feed.forEach(item => {
-      if (item.user_id || item.author_id) userIds.add(item.user_id || item.author_id);
-      if (item.reposter_id) userIds.add(item.reposter_id);
-    });
+      const postsList = postsData || [];
+      const repostsList = repostsData || [];
 
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('id, full_name, avatar_url, username, is_verified, verification_label')
-      .in('id', Array.from(userIds));
+      if (postsList.length < limit && repostsList.length < limit) {
+        setHasMore(false);
+      }
 
-    const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
-      acc[p.id] = p;
-      return acc;
-    }, {});
+      const repostedPostIds = repostsList.map((r: any) => r.post_id);
+      const existingIdsInPage = new Set(postsList.map((p: any) => p.id));
+      const missingPostIds = repostedPostIds.filter((id: any) => !existingIdsInPage.has(id));
 
-    const newPosts = feed.map(item => {
-      const profile = profilesMap[item.author_id || item.user_id] || {};
-      const reposter = item.is_repost ? profilesMap[item.reposter_id] : null;
-      return {
-        ...item,
-        author_name: profile.full_name || 'Usuário',
-        author_avatar: profile.avatar_url,
-        author_username: profile.username || 'usuario',
-        is_verified: profile.is_verified,
-        verification_label: profile.verification_label,
-        post_type: item.post_type || item.media_type || 'text',
-        reposted_by_name: reposter ? reposter.full_name : null
-      };
-    });
+      let missingPosts: any[] = [];
+      if (missingPostIds.length > 0) {
+        const { data } = await supabase.from('posts').select('*').in('id', missingPostIds);
+        missingPosts = data || [];
+      }
 
-    if (reset) {
-      setPosts(newPosts);
-      setPage(1);
-      setHasMore(true);
-    } else {
-      setPosts(prev => [...prev, ...newPosts]);
-      setPage(prev => prev + 1);
+      const feed: any[] = [];
+      postsList.forEach((p: any) => feed.push({ ...p, display_date: p.created_at, is_repost: false, feed_uid: `post-${p.id}` }));
+      
+      repostsList.forEach((r: any) => {
+        const originalPost = postsList.find((p: any) => p.id === r.post_id) || missingPosts.find((p: any) => p.id === r.post_id);
+        if (originalPost) {
+          feed.push({
+            ...originalPost,
+            feed_uid: `repost-${originalPost.id}-${r.profile_id}`,
+            original_post_id: originalPost.id,
+            display_date: r.created_at,
+            is_repost: true,
+            reposter_id: r.profile_id
+          });
+        }
+      });
+
+      let finalFeed = feed;
+      if (searchTerm.trim()) {
+        const lowerSearch = searchTerm.toLowerCase();
+        finalFeed = feed.filter(item => 
+          item.content?.toLowerCase().includes(lowerSearch) || 
+          item.author_name?.toLowerCase().includes(lowerSearch) ||
+          item.author_username?.toLowerCase().includes(lowerSearch)
+        );
+      }
+
+      finalFeed.sort((a, b) => new Date(b.display_date).getTime() - new Date(a.display_date).getTime());
+
+      // 3. MAPEAR PERFIS (OTIMIZADO)
+      const userIds = new Set<string>();
+      feed.forEach(item => {
+        if (item.user_id || item.author_id) userIds.add(item.user_id || item.author_id);
+        if (item.reposter_id) userIds.add(item.reposter_id);
+      });
+
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, username, is_verified, verification_label')
+        .in('id', Array.from(userIds));
+
+      const profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+        acc[p.id] = p;
+        return acc;
+      }, {});
+
+      const newPosts = feed.map(item => {
+        const profile = profilesMap[item.author_id || item.user_id] || {};
+        const reposter = item.is_repost ? profilesMap[item.reposter_id] : null;
+        return {
+          ...item,
+          author_name: profile.full_name || 'Usuário',
+          author_avatar: profile.avatar_url,
+          author_username: profile.username || 'usuario',
+          is_verified: profile.is_verified,
+          verification_label: profile.verification_label,
+          post_type: item.post_type || item.media_type || 'text',
+          reposted_by_name: reposter ? reposter.full_name : null
+        };
+      });
+
+      if (reset) {
+        setPosts(newPosts);
+        setPage(2);
+        setHasMore(true);
+      } else {
+        // Blindagem contra duplicatas entre páginas
+        const existingGlobalIds = new Set(posts.map(p => p.feed_uid));
+        const filteredNewPosts = newPosts.filter(p => !existingGlobalIds.has(p.feed_uid));
+        setPosts(prev => [...prev, ...filteredNewPosts]);
+        setPage(prev => prev + 1);
+      }
+    } catch (err) {
+      console.error("Feed Critical Error:", err);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -255,9 +312,28 @@ export default function FeedPage() {
             <h1 className="text-xl font-black dark:text-white tracking-tight">FéConecta</h1>
          </div>
          <div className="flex items-center gap-2">
-            <button className="p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all">
-               <Search className="w-5 h-5" />
-            </button>
+            {isSearching ? (
+               <div className="relative animate-in slide-in-from-right-2 duration-300">
+                  <input 
+                    autoFocus
+                    type="text" 
+                    placeholder="Buscar no feed..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onBlur={() => !searchTerm && setIsSearching(false)}
+                    className="w-40 sm:w-64 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-xl py-2 pl-4 pr-10 text-xs focus:outline-none focus:ring-1 focus:ring-whatsapp-teal"
+                  />
+                  <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-whatsapp-teal" />
+               </div>
+            ) : (
+               <button 
+                 onClick={() => setIsSearching(true)}
+                 className="p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all"
+               >
+                  <Search className="w-5 h-5" />
+               </button>
+            )}
+            
             <button 
               onClick={() => setShowNotifications(true)}
               className="p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all relative"

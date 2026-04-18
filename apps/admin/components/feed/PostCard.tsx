@@ -657,7 +657,10 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       )}
 
       <div className="flex items-center gap-3 px-4 py-3">
-        <Link href={`/profile/${post.author_username}`} className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0 border border-gray-100 dark:border-white/10 hover:opacity-80 transition-opacity">
+        <Link 
+          href={`/profile/${post.author_username || 'usuario'}`} 
+          className="w-9 h-9 rounded-full overflow-hidden bg-muted flex-shrink-0 border border-gray-100 dark:border-white/10 hover:opacity-80 transition-opacity"
+        >
           {post.author_avatar ? (
             <img src={post.author_avatar} className="w-full h-full object-cover" alt="" />
           ) : (
@@ -813,13 +816,22 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       {/* Vídeo / Lumes (Instagram Style) */}
       {mediaUrl && isVideo && !shouldSkipMedia && (
         <div
-          className="rounded-2xl overflow-hidden mt-3 h-[450px] bg-black/95 relative group cursor-pointer border border-white/5 mx-auto max-w-[340px] shadow-2xl"
+          className="rounded-2xl overflow-hidden mt-3 h-[450px] bg-black relative group cursor-pointer border border-white/5 mx-auto max-w-[340px] shadow-2xl"
           onClick={() => router.push(`/lumes?id=${post.id}`)}
           onDoubleClick={handleDoubleClickLike}
         >
+          {/* Camada de Blur Placeholder (Flash-Fast UX) */}
+          {post.thumbnail_url && (
+            <div 
+              className="absolute inset-0 bg-cover bg-center blur-xl opacity-40 scale-110 pointer-events-none"
+              style={{ backgroundImage: `url(${post.thumbnail_url})` }}
+            />
+          )}
+
           <video
-            className="w-full h-full object-cover"
+            className="w-full h-full object-cover relative z-10"
             src={mediaUrl}
+            poster={post.thumbnail_url || undefined} // Atributo nativo para carregamento visual instantâneo
             muted={isMuted}
             autoPlay
             loop

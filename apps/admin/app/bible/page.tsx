@@ -48,15 +48,6 @@ interface Interaction {
   created_at?: string;
 }
 
-interface Interaction {
-  id?: string;
-  verse_number: number;
-  comment?: string;
-  is_favorite?: boolean;
-  highlight_color?: string;
-  created_at?: string;
-}
-
 export default function BiblePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -160,7 +151,10 @@ export default function BiblePage() {
       if (!book) return;
       if (!bibleCache[selectedVersion.id]) {
         const res = await fetch(`/bible/${selectedVersion.id}.json`);
-        if (!res.ok) throw new Error(`Falha ao carregar versão ${selectedVersion.name}`);
+        if (!res.ok) {
+          toast.error(`Tradução ${selectedVersion.name} indisponível.`);
+          return null;
+        }
         bibleCache[selectedVersion.id] = await res.json();
       }
       const bookData = bibleCache[selectedVersion.id].find((b: any) => b.abbrev === selectedBook || b.name === selectedBookName);
@@ -172,7 +166,8 @@ export default function BiblePage() {
       }
       return [];
     } catch (error) {
-      console.error("Erro ao carregar capítulos:", error);
+      console.error("Erro Crítico Bíblia:", error);
+      toast.error("Erro ao carregar os manuscritos digitais.");
       return null;
     } finally {
       setLoading(false);
@@ -357,29 +352,29 @@ export default function BiblePage() {
                 </div>
                 <div className="flex-1">
                   <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-lg font-medium font-outfit">{verse.text}</p>
-                  <div className="flex flex-wrap items-center gap-4 mt-4 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
-                    <button onClick={() => toggleFavorite(verse)} className={cn("text-[9px] font-black uppercase transition-all", favorites[verse.number] ? "text-amber-500 scale-110" : "text-gray-400 hover:text-amber-500")}>
-                      <Heart size={14} className={favorites[verse.number] ? "fill-current" : ""} />
+                  <div className="flex flex-wrap items-center gap-6 mt-6 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all bg-white/5 dark:bg-white/5 p-3 rounded-2xl md:bg-transparent w-fit">
+                    <button onClick={() => toggleFavorite(verse)} className={cn("flex items-center gap-1.5 transition-all active:scale-90", favorites[verse.number] ? "text-amber-500 scale-110" : "text-gray-400 hover:text-amber-500")}>
+                      <Heart size={20} className={favorites[verse.number] ? "fill-current" : ""} />
                     </button>
-                    <button onClick={() => setCommentingVerse(verse)} className="text-[9px] font-black uppercase text-gray-400 hover:text-emerald-500 transition-all hover:scale-110">
-                      <Plus size={14} />
+                    <button onClick={() => setCommentingVerse(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-500 transition-all hover:scale-110 active:scale-90">
+                      <Plus size={22} />
                     </button>
-                    <button onClick={() => createNoteFromVerse(verse)} className="text-[9px] font-black uppercase text-gray-400 hover:text-blue-500 transition-all hover:scale-110">
-                      <FileText size={14} />
+                    <button onClick={() => createNoteFromVerse(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-blue-500 transition-all hover:scale-110 active:scale-90">
+                      <FileText size={20} />
                     </button>
-                    <button onClick={() => shareToFeed(verse)} className="text-[9px] font-black uppercase text-gray-400 hover:text-whatsapp-teal transition-all hover:scale-110">
-                      <Send size={14} />
+                    <button onClick={() => shareToFeed(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-whatsapp-teal transition-all hover:scale-110 active:scale-90">
+                      <Send size={20} />
                     </button>
                     {aiOperational && (
-                      <button onClick={() => handleAIStudy(verse)} className="text-[9px] font-black uppercase text-whatsapp-teal animate-in fade-in duration-1000 transition-all hover:scale-110">
-                        <Sparkles size={14} className="fill-whatsapp-teal/20" />
+                      <button onClick={() => handleAIStudy(verse)} className="flex items-center gap-1.5 text-whatsapp-teal animate-in fade-in duration-1000 transition-all hover:scale-125 active:scale-90">
+                        <Sparkles size={20} className="fill-whatsapp-teal/20" />
                       </button>
                     )}
-                    <button onClick={() => { setCompareVerse(verse); openCompare(verse); }} className="text-[9px] font-black uppercase text-gray-400 hover:text-violet-500 transition-all hover:scale-110">
-                      <Columns3 size={14} />
+                    <button onClick={() => { setCompareVerse(verse); openCompare(verse); }} className="flex items-center gap-1.5 text-gray-400 hover:text-violet-500 transition-all hover:scale-110 active:scale-90">
+                      <Columns3 size={20} />
                     </button>
-                    <button onClick={() => setHighlightPickerVerse(verse.number)} className="text-[9px] font-black uppercase text-gray-400 hover:text-yellow-500 transition-all hover:scale-110">
-                      <Highlighter size={14} />
+                    <button onClick={() => setHighlightPickerVerse(verse.number)} className="flex items-center gap-1.5 text-gray-400 hover:text-yellow-500 transition-all hover:scale-110 active:scale-90">
+                      <Highlighter size={20} />
                     </button>
                   </div>
                   {highlightPickerVerse === verse.number && (

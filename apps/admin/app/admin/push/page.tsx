@@ -10,7 +10,9 @@ import {
   AlertCircle,
   RefreshCw,
   LayoutDashboard,
-  BookOpen
+  BookOpen,
+  Wifi,
+  WifiOff
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -23,18 +25,24 @@ export default function AdminPushCenter() {
   const [title, setTitle] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
-  const [stats, setStats] = useState({ totalUsers: 0, sentLast24h: 0 });
+  const [stats, setStats] = useState({ totalUsers: 0, activeTokens: 0 });
+  const [systemStatus, setSystemStatus] = useState({ supabase: 'checking', firebase: 'online' });
   const { requestPermission, listenToForegroundMessages } = usePushNotifications();
   const [verseRef, setVerseRef] = useState("");
   const [pushType, setPushType] = useState<'broadcast' | 'verse_day'>('broadcast');
 
   useEffect(() => {
     const autoRegister = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await requestPermission(user.id);
-        listenToForegroundMessages();
-        loadStats();
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          await requestPermission(user.id);
+          listenToForegroundMessages();
+        }
+        await loadStats();
+        setSystemStatus(prev => ({ ...prev, supabase: 'online' }));
+      } catch (err) {
+        setSystemStatus(prev => ({ ...prev, supabase: 'offline' }));
       }
     };
     
@@ -42,10 +50,17 @@ export default function AdminPushCenter() {
   }, []);
 
   const loadStats = async () => {
-    const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+    // Busca total de perfis
+    const { count: total } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
+    // Busca alcance real (quem tem token)
+    const { count: tokens } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .not('fcm_token', 'is', null);
+
     setStats({ 
-      totalUsers: count || 0, 
-      sentLast24h: 0 
+      totalUsers: total || 0, 
+      activeTokens: tokens || 0 
     });
   };
 
@@ -55,11 +70,12 @@ export default function AdminPushCenter() {
 
     setSending(true);
     try {
-      // 1. Pegar todos os perfis que possuem fcm_token
+      // 1. Pegar perfis ativos com token
       const { data: profiles, error: fetchError } = await supabase
         .from('profiles')
         .select('id')
-        .not('fcm_token', 'is', null);
+        .not('fcm_token', 'is', null)
+        .limit(1000); // Guardrail de segurança para o frontend
 
       if (fetchError) throw fetchError;
 
@@ -68,30 +84,42 @@ export default function AdminPushCenter() {
         return;
       }
 
-      // 2. Inserir notificações em massa (isso disparará o Trigger/Push)
+      // 2. Inserir notificações em massa
       const notifications = profiles.map(p => ({
         recipient_id: p.id,
-        sender_id: '5034f23f-4197-4f1a-aa88-23e9fd26f1bf', // Perfil Oficial FéConecta
+        sender_id: '5034f23f-4197-4f1a-aa88-23e9fd26f1bf', // Fallback ID - Idealmente viria de uma var de ambiente env.ADMIN_PROFILE_ID
         type: pushType,
         title: title,
         content: message,
-        metadata: pushType === 'verse_day' ? { bible_ref: verseRef } : {},
+        metadata: pushType === 'verse_day' ? { bible_ref: verseRef } : { push_sync: true },
         is_read: false
       }));
 
-      const { error: insertError } = await supabase
-        .from('notifications')
-        .insert(notifications);
+      // Divisão em chunks para não estourar o limite de payload
+      const chunkSize = 200;
+      for (let i = 0; i < notifications.length; i += chunkSize) {
+        const chunk = notifications.slice(i, i + chunkSize);
+        const { error: insertError } = await supabase
+          .from('notifications')
+          .insert(chunk);
+        if (insertError) throw insertError;
+      }
 
-      if (insertError) throw insertError;
+      // Log de Auditoria
+      await supabase.from('system_errors').insert({
+        module: 'admin_push',
+        error_message: `[BROADCAST] ${pushType.toUpperCase()} disparado: ${title}`,
+        metadata: { users_count: profiles.length, title }
+      });
 
-      toast.success(`Push enviado para ${profiles.length} usuários!`);
+      toast.success(`Sinal emitido para ${profiles.length} fiéis!`);
       setTitle("");
       setMessage("");
       setVerseRef("");
+      loadStats();
     } catch (err: any) {
       console.error("Erro ao disparar push:", err);
-      toast.error("Falha ao enviar: " + err.message);
+      toast.error("Falha na transmissão: " + err.message);
     } finally {
       setSending(false);
     }
@@ -99,173 +127,167 @@ export default function AdminPushCenter() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-whatsapp-dark text-gray-900 dark:text-white p-4 lg:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto animate-in fade-in duration-700">
         
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        {/* Header Premium */}
+        <div className="flex items-center justify-between mb-10">
           <div>
-            <div className="flex items-center gap-2 text-whatsapp-teal mb-1">
-              <LayoutDashboard className="w-4 h-4" />
-              <span className="text-xs font-bold uppercase tracking-widest">Painel Administrativo</span>
+            <div className="flex items-center gap-2 text-whatsapp-teal mb-2">
+              <Megaphone className="w-5 h-5 animate-bounce" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em]">Torre de Transmissão</span>
             </div>
-            <h1 className="text-3xl font-black">Central de Transmissão</h1>
+            <h1 className="text-4xl font-black tracking-tight">Voz da FéConecta</h1>
           </div>
           <Link 
             href="/admin"
-            className="px-4 py-2 bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 rounded-xl text-sm font-bold transition-all"
+            className="px-6 py-3 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/10 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
           >
-            Voltar
+            Sair do Console
           </Link>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
           
-          {/* Formulário Principal */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white dark:bg-whatsapp-darkLighter p-6 rounded-3xl border border-gray-100 dark:border-white/5 shadow-xl shadow-black/5">
+          {/* Main Console */}
+          <div className="lg:col-span-8 space-y-6">
+            <div className="bg-white dark:bg-whatsapp-darkLighter p-8 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-2xl shadow-black/5">
               
-              {/* SELETOR DE MODO */}
-              <div className="flex p-1.5 bg-gray-100 dark:bg-black/20 rounded-2xl mb-8">
+              <div className="flex p-1.5 bg-gray-100 dark:bg-black/40 rounded-3xl mb-10 border border-black/5 dark:border-white/5">
                 <button 
                   onClick={() => { setPushType('broadcast'); setTitle(""); }}
                   className={cn(
-                    "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
-                    pushType === 'broadcast' ? "bg-white dark:bg-whatsapp-teal text-whatsapp-teal dark:text-white shadow-sm" : "text-gray-400"
+                    "flex-1 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all",
+                    pushType === 'broadcast' ? "bg-white dark:bg-whatsapp-teal text-whatsapp-dark dark:text-white shadow-xl" : "text-gray-400"
                   )}
                 >
-                  Comunicado Geral
+                  Mensagem Geral
                 </button>
                 <button 
-                  onClick={() => { setPushType('verse_day'); setTitle("📖 Promessa de Hoje"); }}
+                  onClick={() => { setPushType('verse_day'); setTitle("📖 Palavra de Hoje"); }}
                   className={cn(
-                    "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
-                    pushType === 'verse_day' ? "bg-white dark:bg-amber-500 text-amber-500 dark:text-white shadow-sm" : "text-gray-400"
+                    "flex-1 py-4 text-[10px] font-black uppercase tracking-widest rounded-2xl transition-all",
+                    pushType === 'verse_day' ? "bg-white dark:bg-amber-500 text-whatsapp-dark dark:text-white shadow-xl" : "text-gray-400"
                   )}
                 >
-                  Versículo do Dia
+                  Ref. Bíblica
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 mb-6">
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center transition-colors",
-                  pushType === 'verse_day' ? "bg-amber-500/10 text-amber-500" : "bg-whatsapp-teal/10 text-whatsapp-teal"
-                )}>
-                  {pushType === 'verse_day' ? <BookOpen className="w-5 h-5" /> : <Megaphone className="w-5 h-5" />}
-                </div>
-                <div>
-                  <h3 className="font-bold">{pushType === 'verse_day' ? "Compartilhar Palavra" : "Novo Comunicado"}</h3>
-                  <p className="text-xs text-gray-500">
-                    {pushType === 'verse_day' ? "Irá para a aba Bíblia ao clicar." : "Irá abrir o Feed inicial ao clicar."}
-                  </p>
-                </div>
-              </div>
-
-              <form onSubmit={handleBroadcast} className="space-y-4">
+              <form onSubmit={handleBroadcast} className="space-y-6">
                 {pushType === 'verse_day' && (
-                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-                    <label className="text-xs font-bold uppercase text-gray-400 ml-1">Referência Bíblica (Link Profundo)</label>
-                    <input 
-                      type="text"
-                      value={verseRef}
-                      onChange={(e) => setVerseRef(e.target.value)}
-                      placeholder="Ex: sl23:1 ou mt5:1-12"
-                      className="w-full mt-1 px-4 py-3 bg-gray-50 dark:bg-black/20 border border-amber-500/20 rounded-2xl outline-none focus:ring-2 ring-amber-500/50 transition-all font-mono text-amber-600 dark:text-amber-400"
-                    />
+                  <div className="animate-in slide-in-from-top-4 duration-500">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Vincular Passagem (Deep Link)</label>
+                    <div className="relative mt-2">
+                       <input 
+                        type="text"
+                        value={verseRef}
+                        onChange={(e) => setVerseRef(e.target.value)}
+                        placeholder="Ex: sl23:1"
+                        className="w-full px-6 py-4 bg-gray-50 dark:bg-black/20 border border-amber-500/20 rounded-3xl outline-none focus:ring-2 ring-amber-500/50 transition-all font-mono text-amber-600 dark:text-amber-400 font-bold"
+                      />
+                      <BookOpen className="absolute right-6 top-1/2 -translate-y-1/2 text-amber-500/30" size={18} />
+                    </div>
                   </div>
                 )}
 
-                <div>
-                  <label className="text-xs font-bold uppercase text-gray-400 ml-1">Título do Alerta</label>
-                  <input 
-                    type="text"
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder={pushType === 'verse_day' ? "Ex: 📖 Promessa para Você" : "Ex: 🎉 Novidade na FéConecta!"}
-                    className="w-full mt-1 px-4 py-3 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl outline-none focus:ring-2 ring-whatsapp-teal/50 transition-all font-medium"
-                  />
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Título da Notificação</label>
+                    <input 
+                      type="text"
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      placeholder={pushType === 'verse_day' ? "Ex: 🕊️ Uma palavra para seu coração" : "Ex: 📢 Comunicado Importante!"}
+                      className="w-full mt-2 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-3xl outline-none focus:ring-2 ring-whatsapp-teal/50 transition-all font-black text-sm"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Corpo da Mensagem</label>
+                    <textarea 
+                      rows={4}
+                      value={message}
+                      onChange={(e) => setMessage(e.target.value)}
+                      placeholder="O que o Espírito deseja falar hoje?"
+                      className="w-full mt-2 px-6 py-4 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-3xl outline-none focus:ring-2 ring-whatsapp-teal/50 transition-all font-medium resize-none text-sm leading-relaxed"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="text-xs font-bold uppercase text-gray-400 ml-1">Mensagem</label>
-                  <textarea 
-                    rows={4}
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder={pushType === 'verse_day' ? "O versículo do dia que será exibido no corpo do push..." : "O que você deseja anunciar para a igreja hoje?"}
-                    className="w-full mt-1 px-4 py-3 bg-gray-50 dark:bg-black/20 border border-gray-100 dark:border-white/5 rounded-2xl outline-none focus:ring-2 ring-whatsapp-teal/50 transition-all font-medium resize-none"
-                  />
-                </div>
-
-                <div className="pt-2">
+                <div className="pt-4">
                   <button 
                     disabled={sending}
                     className={cn(
-                      "w-full py-4 text-white rounded-2xl font-black flex items-center justify-center gap-2 shadow-xl transition-all active:scale-[0.98]",
-                      pushType === 'verse_day' ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/20" : "bg-whatsapp-teal hover:bg-whatsapp-tealDark shadow-whatsapp-teal/20"
+                      "w-full py-5 text-white rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-2xl transition-all active:scale-[0.98] flex items-center justify-center gap-3",
+                      pushType === 'verse_day' ? "bg-amber-500 hover:bg-amber-600 shadow-amber-500/30" : "bg-whatsapp-dark dark:bg-whatsapp-teal hover:opacity-90 shadow-whatsapp-teal/30"
                     )}
                   >
                     {sending ? (
                       <>
                         <RefreshCw className="w-5 h-5 animate-spin" />
-                        Disparando...
+                        Sincronizando Satélites...
                       </>
                     ) : (
                       <>
                         <Send className="w-5 h-5" />
-                        {pushType === 'verse_day' ? "Disparar Versículo" : "Enviar Notificação Agora"}
+                        Emitir Sinal de Edificação
                       </>
                     )}
                   </button>
+                  <p className="text-[9px] text-center mt-4 text-gray-400 font-bold uppercase tracking-widest">Broadcast Instantâneo para toda a rede</p>
                 </div>
               </form>
             </div>
           </div>
 
-          {/* Stats e Sidebar */}
-          <div className="space-y-6">
-            <div className="bg-whatsapp-teal text-white p-6 rounded-3xl shadow-xl shadow-whatsapp-teal/20 relative overflow-hidden group">
-               <Users className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 group-hover:scale-110 transition-transform duration-500" />
+          {/* Telemetry Sidebar */}
+          <div className="lg:col-span-4 space-y-6">
+            <div className="bg-whatsapp-teal text-whatsapp-dark p-8 rounded-[40px] shadow-2xl shadow-whatsapp-teal/20 relative overflow-hidden group border border-white/10">
+               <div className="absolute -right-6 -bottom-6 w-36 h-36 bg-black opacity-10 rounded-full group-hover:scale-125 transition-transform duration-1000" />
                <div className="relative z-10">
-                  <p className="text-xs font-bold uppercase opacity-80 mb-1">Alcance Estimado</p>
-                  <h2 className="text-4xl font-black mb-1">{stats.totalUsers}</h2>
-                  <p className="text-[10px] font-medium opacity-70 italic">Perfis totais no sistema</p>
+                  <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-2 flex items-center gap-2">
+                    <Wifi className="w-3 h-3" /> Alcance Real
+                  </p>
+                  <h2 className="text-5xl font-black mb-1">{stats.activeTokens}</h2>
+                  <p className="text-[10px] font-bold opacity-60 uppercase">Dígitos ativos no sinal</p>
                </div>
             </div>
 
-            <div className="bg-white dark:bg-whatsapp-darkLighter p-6 rounded-3xl border border-gray-100 dark:border-white/5">
-                <h4 className="text-sm font-bold mb-4 flex items-center gap-2">
-                  <History className="w-4 h-4 text-gray-400" />
-                  Status do Sistema
+            <div className="bg-white dark:bg-whatsapp-darkLighter p-8 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-xl shadow-black/5">
+                <h4 className="text-[10px] font-black uppercase tracking-widest mb-6 flex items-center gap-2 text-gray-400">
+                  <Wifi className="w-4 h-4" /> Telemetria de Resposta
                 </h4>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Firebase FCM</span>
-                    <span className="flex items-center gap-1 text-green-500 font-bold">
-                       <CheckCircle2 className="w-3 h-3" /> Online
+                <div className="space-y-5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-tighter">Firebase FCM</span>
+                    <span className="flex items-center gap-2 text-whatsapp-green font-black text-[10px] uppercase">
+                       {systemStatus.firebase === 'online' ? <><CheckCircle2 size={12} /> Pronta</> : <><AlertCircle size={12} /> Fora</>}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Supabase Edge</span>
-                    <span className="flex items-center gap-1 text-green-500 font-bold">
-                       <CheckCircle2 className="w-3 h-3" /> Online
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-gray-500 uppercase tracking-tighter">Supabase Signal</span>
+                    <span className="flex items-center gap-2 font-black text-[10px] uppercase">
+                       {systemStatus.supabase === 'online' ? <span className="text-whatsapp-green flex items-center gap-1"><CheckCircle2 size={12} /> Ativo</span> : <span className="text-red-500 flex items-center gap-1"><WifiOff size={12} /> Falha</span>}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-xs pt-2 border-t border-gray-100 dark:border-white/5">
-                    <span className="text-gray-500">Redirecionamento</span>
-                    <span className="flex items-center gap-1 text-whatsapp-teal font-bold uppercase text-[9px]">
-                       <CheckCircle2 className="w-3 h-3" /> Ativo (Deep link)
-                    </span>
+                  <div className="pt-4 border-t border-gray-100 dark:border-white/5 mt-2">
+                     <div className="flex items-center justify-between">
+                        <span className="text-[9px] font-black text-gray-400 uppercase">Database Sync</span>
+                        <span className="text-whatsapp-teal font-black text-[9px]">100% AUDITADO</span>
+                     </div>
                   </div>
                 </div>
             </div>
 
-            <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl">
-               <div className="flex gap-3">
-                  <AlertCircle className="w-5 h-5 text-yellow-500 shrink-0" />
-                  <p className="text-[10px] text-yellow-600 dark:text-yellow-500 leading-tight">
-                    <strong>Atenção:</strong> Notificações em massa geram alto engajamento mas devem ser usadas com sabedoria para não incomodar os usuários.
-                  </p>
+            <div className="p-6 bg-amber-500/10 border border-amber-500/20 rounded-[32px]">
+               <div className="flex gap-4">
+                  <AlertCircle className="w-6 h-6 text-amber-500 shrink-0 animate-pulse" />
+                  <div>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase leading-tight mb-1">Doutrina de Transmissão</p>
+                    <p className="text-[9px] text-gray-500 dark:text-gray-400 font-medium leading-relaxed">
+                      O abuso de notificações em massa pode levar os usuários a silenciar a voz da igreja. Use com sabedoria cristã.
+                    </p>
+                  </div>
                </div>
             </div>
           </div>

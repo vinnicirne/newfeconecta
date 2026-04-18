@@ -65,7 +65,9 @@ export default function DashboardPage() {
     pendingVerifications: 0,
     activeRooms: 0,
     activePrices: 0,
-    storiesToday: 0
+    storiesToday: 0,
+    mediaOperational: true,
+    onlineNow: 0
   });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
@@ -134,6 +136,21 @@ export default function DashboardPage() {
       // Total de Posts reais
       const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
 
+      // Usuarios Online (atividade nos últimos 10 min)
+      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const { count: onlineCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true })
+        .gt('updated_at', tenMinsAgo);
+
+      // Verificação de Erros de Mídia (Sharp/Storage) nas últimas 24h
+      const { count: mediaErrors } = await supabase
+        .from('system_errors')
+        .select('*', { count: 'exact', head: true })
+        .in('module', ['camera', 'gallery', 'audio', 'story'])
+        .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .eq('resolved', false);
+
       // Filtro para Lumes (Vídeos)
       const { count: lumesCount } = await supabase
         .from('posts')
@@ -148,8 +165,8 @@ export default function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .gt('created_at', today.toISOString());
 
-      // Processamento em tempo real das Hashtags
-      const { data: allPosts } = await supabase.from('posts').select('content');
+      // Processamento OTIMIZADO das Hashtags (Apenas últimos 500 posts para evitar crash)
+      const { data: allPosts } = await supabase.from('posts').select('content').order('created_at', { ascending: false }).limit(500);
       const tagMap: Record<string, number> = {};
       let totalTags = 0;
 
@@ -190,16 +207,18 @@ export default function DashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
 
-      // --- Salas de Guerra Ativas (Sincronizado com Expiração) ---
-      const { data: roomsData } = await supabase
+      // --- Salas de Guerra Ativas (Filtragem Otimizada via Servidor) ---
+      const now = moment().toISOString();
+      const { data: roomsData, error: roomError } = await supabase
         .from('rooms')
-        .select('created_at, duration_minutes')
-        .eq('status', 'active');
+        .select('id')
+        .eq('status', 'active')
+        .gt('expires_at', now); // Usando a coluna expires_at que deve estar no banco
 
-      const realActiveRooms = (roomsData || []).filter(r => {
-        const end = moment(r.created_at).add(r.duration_minutes || 60, 'minutes');
-        return end.isAfter(moment());
-      }).length;
+      const realActiveRooms = roomsData?.length || 0;
+
+      // Se a coluna expires_at não existir, mantemos fallback seguro
+      const { count: fallbackRooms } = !roomsData ? await supabase.from('rooms').select('*', { count: 'exact', head: true }).eq('status', 'active') : { count: realActiveRooms };
 
       // --- Gestão de Preços Ativos (Real) ---
       const { count: pricesCount } = await supabase.from('pricing_plans').select('*', { count: 'exact', head: true });
@@ -223,9 +242,11 @@ export default function DashboardPage() {
         topHashtags,
         verifiedUsers: verifiedCount || 0,
         pendingVerifications: pendingCount || 0,
-        activeRooms: realActiveRooms,
+        activeRooms: roomsData ? realActiveRooms : (fallbackRooms || 0),
         activePrices: pricesCount || 0,
-        storiesToday: storiesCount || 0
+        storiesToday: storiesCount || 0,
+        mediaOperational: (mediaErrors || 0) === 0,
+        onlineNow: onlineCount || 0
       });
 
       // --- Chart: Últimos 7 dias (dados reais) ---
@@ -327,14 +348,14 @@ export default function DashboardPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { name: 'Rede de Vídeos', status: stats.totalLumes > 0 ? 'Operacional' : 'Aguardando', icon: TrendingUp, desc: 'Lumes e YouTube integrado' },
+            { name: 'Rede de Vídeos', status: stats.totalLumes > 0 ? 'Operacional' : 'Aguardando', icon: TrendingUp, desc: 'Lumes e YouTube integrado', link: '/admin/posts' },
             { name: 'Sala de Guerra', status: livekitOperational ? `${stats.activeRooms} Salas Ativas` : 'Servidor Offline', icon: Mic, desc: 'Audio, Transmissão e LiveKit', link: '/admin/rooms' },
             { name: 'Motor de Análise Bíblica', status: aiOperational === true ? 'Conectado' : (aiOperational === false ? 'Requer Chave' : 'Verificando...'), icon: Sparkles, desc: 'Análise Teológica Gemini 2.5', link: '/bible' },
             { name: 'Gestão de Preços PIX', status: stats.activePrices > 0 ? `${stats.activePrices} Planos Ativos` : 'Requer Configuração', icon: DollarSign, desc: 'Checkouts e Assinaturas', link: '/admin/pricing' },
-            { name: 'Otimização Mídia', status: 'Ativo (Sharp)', icon: Zap, desc: 'Compressão Dinâmica Flash' },
-            { name: 'Stories Galeria', status: stats.storiesToday > 0 ? `${stats.storiesToday} Hoje` : 'Ativo (Aguardando)', icon: Image, desc: 'Upload e Gravação 30s' },
+            { name: 'Otimização Mídia', status: stats.mediaOperational ? 'Operacional' : 'Falha Detectada', icon: Zap, desc: 'Compressão Dinâmica Flash', link: '/admin/monitoramento' },
+            { name: 'Stories Galeria', status: stats.storiesToday > 0 ? `${stats.storiesToday} Hoje` : 'Ativo (Aguardando)', icon: Image, desc: 'Upload e Gravação 30s', link: '/admin/posts' },
             { name: 'Sistema de Verificação', status: stats.pendingVerifications > 0 ? `${stats.pendingVerifications} Pendentes` : 'Sem Pedidos', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade', link: '/admin/verifications' },
-            { name: 'Presença Mobile', status: loading ? 'Sincronizando' : 'Sincronizado', icon: Smartphone, desc: 'App e Admin integrados' },
+            { name: 'Presença Mobile', status: stats.onlineNow > 0 ? `${stats.onlineNow} Online Agora` : 'Sincronizado', icon: Smartphone, desc: 'App e Admin integrados', link: '/admin/users' },
             { name: 'Tipografia Feed', status: 'Calibrado', icon: Type, desc: 'Escala Dinâmica 17~24px' },
           ].map(({ icon: Icon, ...feature }) => (
             <a
@@ -350,10 +371,10 @@ export default function DashboardPage() {
                 <p className="text-[10px] text-gray-500 mb-1 leading-tight">{feature.desc}</p>
                 <div className="flex items-center gap-1.5">
                   <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse",
-                    feature.status.includes('Pendentes') ? 'bg-orange-500' : 'bg-whatsapp-green'
+                    feature.status.includes('Pendentes') || feature.status.includes('Falha') || feature.status.includes('Offline') ? 'bg-orange-500' : 'bg-whatsapp-green'
                   )} />
                   <span className={cn("text-[9px] font-black uppercase",
-                    feature.status.includes('Pendentes') ? 'text-orange-500' : 'text-whatsapp-green'
+                    feature.status.includes('Pendentes') || feature.status.includes('Falha') || feature.status.includes('Offline') ? 'text-orange-500' : 'text-whatsapp-green'
                   )}>
                     {feature.status}
                   </span>
@@ -373,6 +394,7 @@ export default function DashboardPage() {
           trend="up"
           icon={Users}
           color="bg-whatsapp-teal"
+          link="/admin/users"
         />
         <StatsCard
           title="Novos (24h)"
@@ -381,6 +403,7 @@ export default function DashboardPage() {
           trend="up"
           icon={UserPlus}
           color="bg-whatsapp-green"
+          link="/admin/users"
         />
         <StatsCard
           title="Total de Posts"
@@ -389,6 +412,7 @@ export default function DashboardPage() {
           trend="up"
           icon={MessageSquare}
           color="bg-whatsapp-blue"
+          link="/admin/posts"
         />
         <StatsCard
           title="Aguardando Verificação"

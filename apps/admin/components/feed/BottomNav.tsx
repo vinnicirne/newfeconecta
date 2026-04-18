@@ -30,11 +30,16 @@ export default function BottomNav() {
       if (session?.user) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('avatar_url')
+          .select('avatar_url, username, full_name')
           .eq('id', session.user.id)
           .single();
         
-        setUser({ ...session.user, avatar_url: profile?.avatar_url });
+        setUser({ 
+          ...session.user, 
+          avatar_url: profile?.avatar_url,
+          username: profile?.username,
+          full_name: profile?.full_name 
+        });
       }
     }).catch(err => {
       if (err?.message?.includes('lock') || err?.message?.includes('steal')) return;
@@ -49,7 +54,7 @@ export default function BottomNav() {
     { id: 'room', icon: Swords, href: "/room", label: "Sala" },
     { id: 'post', icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
     { id: 'lumes', icon: Flame, href: "/lumes", label: "Lumes" },
-    { id: 'profile', icon: UserCircle2, href: "/profile", label: "Perfil" },
+    { id: 'profile', icon: UserCircle2, href: user?.username ? `/profile/${user.username}` : "/profile", label: "Perfil" },
   ];
 
   return (

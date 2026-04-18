@@ -36,8 +36,36 @@ export default function PublicProfilePage() {
       }
     };
     window.addEventListener('user-follow-changed', handleGlobalSync);
-    return () => window.removeEventListener('user-follow-changed', handleGlobalSync);
+
+    // --- BLOCO NUCLEAR: SINCRONISMO REALTIME DE AUTORIDADE ---
+    const followChannel = supabase
+      .channel(`profile-sync-${username}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'follows',
+        filter: `following_id=eq.${user?.id}`
+      }, () => {
+        // Se houver qualquer mudança em follows para este usuário, atualizamos o count
+        updateCounts();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('user-follow-changed', handleGlobalSync);
+      supabase.removeChannel(followChannel);
+    };
   }, [username, user?.id]);
+
+  const updateCounts = async () => {
+    if (!user?.id) return;
+    const { count: followerCount } = await supabase
+      .from('follows')
+      .select('*', { count: 'exact', head: true })
+      .eq('following_id', user.id);
+    
+    setUser((prev: any) => ({ ...prev, followerCount: followerCount || 0 }));
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -55,9 +83,19 @@ export default function PublicProfilePage() {
         return;
       }
 
-      setUser(profile);
+      // 2. BUSCAR ESTATÍSTICAS REAIS (Deep Clean)
+      const { data: fers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profile.id);
+      const { data: fing } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id);
+      const { data: pCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_id', profile.id);
 
-      // 2. Buscamos o usuário logado com resiliência de lock
+      setUser({ 
+        ...profile, 
+        followerCount: fers?.length || 0,
+        followingCount: fing?.length || 0,
+        postCount: pCount?.length || 0 
+      });
+
+      // 3. Buscamos o usuário logado com resiliência de lock
       let authUser: any = null;
       try {
         const { data } = await supabase.auth.getUser();
@@ -69,26 +107,21 @@ export default function PublicProfilePage() {
 
       if (authUser) {
         setCurrentUser(authUser);
-        
-        // 3. Verificamos se já segue
-        const { data: follow } = await supabase
-          .from('follows')
-          .select('id')
-          .eq('follower_id', authUser.id)
-          .eq('following_id', profile.id)
-          .maybeSingle();
-        
+        const { data: follow } = await supabase.from('follows').select('id').eq('follower_id', authUser.id).eq('following_id', profile.id).maybeSingle();
         setIsFollowing(!!follow);
       }
 
-      // 4. Buscamos as postagens
-      const { data: posts } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('author_id', profile.id)
-        .order('created_at', { ascending: false });
-      
+      // 4. Buscamos as postagens e Curtidas (Flame) - Limite de 50 para performance
+      const { data: posts } = await supabase.from('posts').select('*').eq('author_id', profile.id).order('created_at', { ascending: false }).limit(50);
       setUserPosts(posts || []);
+
+      const { data: likedPostsData } = await supabase
+        .from('likes')
+        .select('post_id, posts(*)')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      setLikedPosts((likedPostsData || []).map((l: any) => l.posts).filter(Boolean));
 
     } catch (err) {
       console.error("Error fetching profile:", err);
@@ -97,11 +130,19 @@ export default function PublicProfilePage() {
     }
   };
 
+  const [likedPosts, setLikedPosts] = useState<any[]>([]);
+
   const toggleFollow = async () => {
     if (!currentUser || !user) return;
     
     const oldFollowing = isFollowing;
     setIsFollowing(!oldFollowing);
+    
+    // Atualização Otimista do Contador
+    setUser((prev: any) => ({
+      ...prev,
+      followerCount: oldFollowing ? prev.followerCount - 1 : prev.followerCount + 1
+    }));
 
     try {
       if (oldFollowing) {
@@ -117,12 +158,16 @@ export default function PublicProfilePage() {
         if (error) throw error;
       }
 
-      // Sincronizar globalmente com outros componentes na tela
       window.dispatchEvent(new CustomEvent('user-follow-changed', {
         detail: { userId: user.id, isFollowing: !oldFollowing }
       }));
     } catch (err) {
       setIsFollowing(oldFollowing);
+      // Reverter contador em erro
+      setUser((prev: any) => ({
+        ...prev,
+        followerCount: oldFollowing ? prev.followerCount + 1 : prev.followerCount - 1
+      }));
       toast.error("Erro ao processar seguimento");
     }
   };
@@ -130,12 +175,12 @@ export default function PublicProfilePage() {
   if (loading) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4">
       <RefreshCw className="w-8 h-8 animate-spin text-whatsapp-teal" />
-      <p className="text-xs font-bold uppercase tracking-widest opacity-40">Carregando Perfil...</p>
+      <p className="text-xs font-bold uppercase tracking-widest opacity-40">Sincronizando Rede...</p>
     </div>
   );
 
   return (
-    <div className="min-h-screen pb-20 max-w-2xl mx-auto border-x">
+    <div className="min-h-screen pb-20 max-w-2xl mx-auto border-x bg-black">
       {/* Banner */}
       <div className="relative h-48 w-full bg-gray-900 overflow-hidden">
         {user?.banner_url ? (
@@ -147,14 +192,13 @@ export default function PublicProfilePage() {
 
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-4 absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent">
-        <button onClick={() => router.back()} className="p-2 hover:bg-white/10 rounded-lg transition-all">
+        <button onClick={() => router.back()} className="p-2 hover:bg-white/10 rounded-lg transition-all text-white">
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h1 className="text-lg font-bold tracking-tight">@{user?.username}</h1>
-        <div className="w-10" /> {/* Spacer */}
+        <h1 className="text-lg font-bold tracking-tight text-white">@{user?.username}</h1>
+        <div className="w-10" /> 
       </div>
 
-      {/* Profile Header Stats */}
       <div className="px-5 -mt-12 relative z-10 pb-2">
         <div className="flex items-center justify-between gap-4 mb-6 pt-12">
           <div className="w-[100px] h-[100px] rounded-[32px] p-[3px] bg-black">
@@ -163,23 +207,23 @@ export default function PublicProfilePage() {
              </div>
           </div>
 
-          <div className="flex-1 flex justify-around text-center pt-8">
+          <div className="flex-1 flex justify-around text-center pt-8 text-white">
             <div className="flex flex-col">
-              <span className="font-bold text-lg leading-none">{user?.posts_count || userPosts.length}</span>
+              <span className="font-bold text-lg leading-none">{user?.postCount || 0}</span>
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Posts</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-lg leading-none">{user?.followers_count || 0}</span>
+              <span className="font-bold text-lg leading-none">{user?.followerCount || 0}</span>
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Seguidores</span>
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-lg leading-none">{user?.following_count || 0}</span>
+              <span className="font-bold text-lg leading-none">{user?.followingCount || 0}</span>
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Seguindo</span>
             </div>
           </div>
         </div>
 
-        <div className="space-y-0.5 mb-6">
+        <div className="space-y-0.5 mb-6 text-white">
           <div className="flex items-center gap-1.5 overflow-hidden">
             <h2 className="font-bold text-sm tracking-tight truncate">{user?.full_name}</h2>
             {user?.is_verified && (
@@ -189,13 +233,13 @@ export default function PublicProfilePage() {
               />
             )}
           </div>
-          <p className="text-sm text-gray-100/90 leading-relaxed">{user?.bio}</p>
+          <p className="text-sm text-gray-300 leading-relaxed">{user?.bio}</p>
           {user?.church && <p className="text-xs text-whatsapp-green font-bold uppercase tracking-wider mt-1">{user.church}</p>}
         </div>
 
         <div className="flex gap-2 mb-6">
-          {currentUser?.id === user.id ? (
-            <button onClick={() => router.push('/profile')} className="flex-1 bg-white/10 py-2 rounded-xl text-sm font-bold uppercase tracking-wide">Meu Perfil</button>
+          {currentUser?.id === user?.id ? (
+            <button onClick={() => router.push('/settings')} className="flex-1 bg-white/10 py-2 rounded-xl text-sm font-bold uppercase tracking-wide text-white">Editar Perfil</button>
           ) : (
             <button 
               onClick={toggleFollow}
@@ -210,16 +254,11 @@ export default function PublicProfilePage() {
             </button>
           )}
           <button 
-            onClick={() => router.push(`/messages?userId=${user.id}`)}
-            className="flex-1 bg-white/10 hover:bg-white/15 flex items-center justify-center gap-2 rounded-xl transition-all border border-white/5 active:scale-95 text-sm font-bold uppercase tracking-wide"
-            title="Enviar Mensagem"
+            onClick={() => router.push(`/messages?userId=${user?.id}`)}
+            className="flex-1 bg-white/10 hover:bg-white/15 flex items-center justify-center gap-2 rounded-xl transition-all border border-white/5 active:scale-95 text-sm font-bold uppercase tracking-wide text-white"
           >
             <MessageSquare className="w-4 h-4 text-gray-300" />
             Chat
-          </button>
-
-          <button className="w-10 bg-white/10 flex items-center justify-center rounded-xl border border-white/5">
-            <ChevronDown className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -237,10 +276,9 @@ export default function PublicProfilePage() {
       </div>
 
       <div className="grid grid-cols-3 gap-[2px]">
-        {userPosts
+        {(view === 'likes' ? likedPosts : userPosts)
           .filter((post) => {
             if (view === 'lumes') return post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i);
-            if (view === 'likes') return false; 
             return true;
           })
           .map((post) => {
