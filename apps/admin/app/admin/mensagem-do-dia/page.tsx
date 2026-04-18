@@ -439,7 +439,7 @@ export default function DailyVerseAdmin() {
                         <CheckCircle2 size={20} />
                       </button>
                       <button 
-                        onClick={() => deleteVerse(id)}
+                        onClick={() => deleteVerse(v.id)}
                         className="w-12 h-12 rounded-xl bg-white dark:bg-white/5 text-gray-400 hover:bg-red-500/10 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-90"
                         title="Expurgar do Histórico"
                       >
