@@ -44,23 +44,39 @@ export default function PostsManagementPage() {
   async function fetchPosts() {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      // 1. Busca os Posts (sem join quebrado)
+      const { data: postsData, error: postsError } = await supabase
         .from('posts')
-        .select(`
-          id,
-          content,
-          post_type,
-          created_at,
-          profiles!author_id (
-            full_name,
-            avatar_url,
-            username
-          )
-        `)
+        .select(`id, content, post_type, created_at, author_id`)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setPosts(data as any || []);
+      if (postsError) throw postsError;
+      if (!postsData) return setPosts([]);
+
+      // 2. Extrai IDs únicos dos autores
+      const authorIds = Array.from(new Set(postsData.map(p => p.author_id).filter(Boolean)));
+      
+      // 3. Busca os Perfis em massa
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url, username')
+        .in('id', authorIds);
+
+      if (profilesError) throw profilesError;
+
+      // 4. Mapeia Perfis para fácil acesso
+      const profilesMap = (profilesData || []).reduce((acc: any, curr: any) => {
+        acc[curr.id] = curr;
+        return acc;
+      }, {});
+
+      // 5. Combina os dados
+      const combined = postsData.map(post => ({
+        ...post,
+        profiles: profilesMap[post.author_id] || null
+      }));
+
+      setPosts(combined as any);
     } catch (err: any) {
       toast.error("Erro ao carregar posts: " + err.message);
     } finally {
