@@ -19,15 +19,6 @@ export const usePushNotifications = () => {
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js');
         await navigator.serviceWorker.ready;
 
-        // Limpeza de token antigo se necessário
-        let currentToken = null;
-        try {
-          // Tenta pegar o token atual antes de gerar um novo
-          currentToken = await getToken(messaging, { vapidKey, serviceWorkerRegistration: registration });
-        } catch (e) {
-          console.log("Nenhum token prévio.");
-        }
-
         let token = null;
         try {
           token = await getToken(messaging, { 

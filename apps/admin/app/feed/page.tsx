@@ -263,7 +263,8 @@ export default function FeedPage() {
           is_verified: profile.is_verified,
           verification_label: profile.verification_label,
           post_type: item.post_type || item.media_type || 'text',
-          reposted_by_name: reposter ? reposter.full_name : null
+          reposted_by_name: reposter ? reposter.full_name : null,
+          comments_count: item.comments_count ?? 0
         };
       });
 
@@ -371,7 +372,7 @@ export default function FeedPage() {
         )}>
           {posts.map(post => (
             <PostCard 
-              key={post.id} 
+              key={post.feed_uid || post.id} 
               post={post} 
               currentUser={currentUser} 
               onDeleted={() => loadData(true)}

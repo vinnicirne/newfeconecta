@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 import Link from 'next/link';
 import { NotificationService } from '@/lib/notifications';
 
-export default function CommentsSection({ postId, verseId, user, postAuthorId }: any) {
+export default function CommentsSection({ postId, verseId, user, postAuthorId, onCommentAdded, onCommentDeleted }: any) {
   const [comments, setComments] = useState<any[]>([]);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -119,6 +119,7 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId }:
       setReplyingTo(null);
       setEditingComment(null);
       fetchComments();
+      if (!editingComment) onCommentAdded?.();
     } catch (err: any) {
       toast.error("Erro ao salvar comentário: " + err.message);
     } finally {
@@ -132,6 +133,7 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId }:
     if (!error) {
       setComments(prev => prev.filter(c => c.id !== id));
       toast.success("Comentário removido!");
+      onCommentDeleted?.();
     }
   };
 
@@ -231,7 +233,7 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId }:
               <Flame className={cn("w-3 h-3", isLiked && "fill-orange-500")} />
               <span>{c.likes?.length || 0}</span>
             </button>
-            <button onClick={() => { setReplyingTo(c); setText(`@${c.author?.username || c.author?.full_name?.split(' ')[0]} `); }} className="text-[10px] text-gray-500 font-bold hover:underline flex items-center gap-1">
+            <button onClick={() => { setReplyingTo(c); setText(`@${c.author?.username || c.author?.full_name?.split(' ')[0] || 'usuario'} `); }} className="text-[10px] text-gray-500 font-bold hover:underline flex items-center gap-1">
               <Reply className="w-3 h-3" /> Responder
             </button>
             

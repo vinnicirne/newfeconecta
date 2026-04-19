@@ -84,15 +84,15 @@ export default function PublicProfilePage() {
       }
 
       // 2. BUSCAR ESTATÍSTICAS REAIS (Deep Clean)
-      const { data: fers } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profile.id);
-      const { data: fing } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id);
-      const { data: pCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_id', profile.id);
+      const { count: followerCount } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('following_id', profile.id);
+      const { count: followingCount } = await supabase.from('follows').select('*', { count: 'exact', head: true }).eq('follower_id', profile.id);
+      const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true }).eq('author_id', profile.id);
 
       setUser({ 
         ...profile, 
-        followerCount: fers?.length || 0,
-        followingCount: fing?.length || 0,
-        postCount: pCount?.length || 0 
+        followerCount: followerCount || 0,
+        followingCount: followingCount || 0,
+        postCount: postCount || 0 
       });
 
       // 3. Buscamos o usuário logado com resiliência de lock

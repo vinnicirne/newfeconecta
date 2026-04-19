@@ -157,6 +157,16 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     elapsed.current = 0;
     setProgress(0);
     setPaused(false);
+
+    // Registrar Visualização no banco (upsert: sem duplicatas)
+    if (currentUser?.id && story.author_id !== currentUser.id) {
+      supabase.from('story_views').upsert(
+        { story_id: story.id, viewer_id: currentUser.id },
+        { onConflict: 'story_id,viewer_id', ignoreDuplicates: true }
+      ).then(({ error }) => {
+        if (error) console.error("Erro ao registrar visualização:", error.message);
+      });
+    }
   }, [story?.id]);
 
   // 2. Controle do Timer (Execução/Pausa)
@@ -206,29 +216,56 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
     if (action === 'next') advance();
   };
 
-  const handleLike = async () => {
-    if (!currentUser) return;
-    setIsLiked(!isLiked);
-    if (!isLiked) {
-      const emojis = ['🔥', '❤️', '🙌', '✨', '👏'];
-      const newEmoji = {
-        id: Date.now(),
-        char: emojis[Math.floor(Math.random() * emojis.length)],
-        left: Math.random() * 80 + 10
-      };
-      setFloatingEmojis(prev => [...prev, newEmoji]);
-      setTimeout(() => {
-        setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
-      }, 2000);
+  const [isLiking, setIsLiking] = useState(false);
 
-      try {
-        // Persistir o Like no Banco
-        await supabase.from('story_likes').insert({
+  // Sincronizar estado de Like quando o Story mudar
+  useEffect(() => {
+    if (!story?.id || !currentUser?.id) return;
+    
+    const checkLike = async () => {
+      const { data } = await supabase
+        .from('story_likes')
+        .select('id')
+        .eq('story_id', story.id)
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
+      
+      setIsLiked(!!data);
+    };
+
+    checkLike();
+  }, [story?.id, currentUser?.id]);
+
+  const handleLike = async () => {
+    if (!currentUser || isLiking) return;
+    setIsLiking(true);
+
+    const oldState = isLiked;
+    const newState = !oldState;
+    setIsLiked(newState); // Otimista
+
+    try {
+      if (newState) {
+        // Explode emojis apenas se estiver curtindo
+        const emojis = ['🔥', '❤️', '🙌', '✨', '👏'];
+        const newEmoji = {
+          id: Date.now(),
+          char: emojis[Math.floor(Math.random() * emojis.length)],
+          left: Math.random() * 80 + 10
+        };
+        setFloatingEmojis(prev => [...prev, newEmoji]);
+        setTimeout(() => {
+          setFloatingEmojis(prev => prev.filter(e => e.id !== newEmoji.id));
+        }, 2000);
+
+        // Persistir o Like
+        const { error } = await supabase.from('story_likes').insert({
           story_id: story.id,
           user_id: currentUser.id
         });
+        if (error && !error.message.includes('unique')) throw error;
 
-        // Gerar Notificação
+        // Notificação
         if (currentUser.id !== story.author_id) {
           await supabase.from('notifications').insert({
             recipient_id: story.author_id,
@@ -238,12 +275,15 @@ export default function StoryViewer({ storyGroups, startUserIndex = 0, currentUs
             content: 'curtiu seu status'
           });
         }
-      } catch (err) {
-        console.error("Erro ao salvar like do story:", err);
+      } else {
+        // Remover Like
+        await supabase.from('story_likes').delete().eq('story_id', story.id).eq('user_id', currentUser.id);
       }
-    } else {
-      // Remover Like
-      await supabase.from('story_likes').delete().eq('story_id', story.id).eq('user_id', currentUser.id);
+    } catch (err) {
+      console.error("Erro ao processar like:", err);
+      setIsLiked(oldState); // Reverte em caso de falha real
+    } finally {
+      setIsLiking(false);
     }
   };
 

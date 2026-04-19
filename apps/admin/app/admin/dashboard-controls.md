@@ -308,7 +308,72 @@
 - **Ação:** Implementado filtro de relacionamento (`NOT IN follows`). Ativado botão de **Follow Direto** com feedback `Sonner`. Adicionada resiliência visual em avatares.
 - **Impacto:** Aumento no engajamento social; sugestões agora são 100% úteis e interativas sem troca de página.
 
+## 37. Deep Clean Nuclear — Engajamento de Stories
+- **Arquivo:** `components/feed/StoryViewer.tsx`
+- **Ação:** Implementado Sincronismo de Identidade de Curtida (Database Sync em cada troca de status). Adicionada **Trava de Concorrência** (Liking Guard) para evitar duplicatas.
+- **Impacto:** Fim das curtidas que "não funcionam"; interface agora reflete fielmente o estado do banco.
+
+## 38. Deep Clean Nuclear — Ações Sociais Completas
+- **Arquivos:** `app/feed/page.tsx`, `components/feed/PostCard.tsx`, `components/feed/CommentsSection.tsx`, `components/feed/StoryViewer.tsx`
+- **Ações:**
+  - ✅ **Views (PostCard):** `increment_view` RPC ativado + bug de closure corrigido
+  - ✅ **"Quem Visualizou" (Stories):** `story_views.upsert` implementado a cada story visualizado
+  - ✅ **Contador de Comentários:** `select('*, comments(count)')` ativado no feed + normalização do resultado
+  - ✅ **Sync de Comentário em Tempo Real:** Callbacks `onCommentAdded/Deleted` implementados entre PostCard e CommentsSection
+  - ✅ **Menção em Reply:** Corrigido para usar `username` em vez de `full_name`
+- **Impacto:** Todas as ações dos usuários agora são 100% persistidas e refletidas na UI em tempo real.
+
+## 39. Deep Clean Nuclear — Motor de Viralidade e Views
+- **Arquivos:** `components/feed/PostCard.tsx`, `app/admin/page.tsx`
+- **Ações:**
+  - ✅ **RPC Fallback:** `increment_view` agora tem fallback com `update` direto caso a função SQL não exista no Supabase
+  - ✅ **Posts em Alta (Viral Engine):** Query implementada no admin (`views_count` DESC, últimos 7 dias)
+  - ✅ **Widget "Posts em Alta":** Adicionado ao dashboard admin com ranking visual (posição 1 = destaque laranja), exibindo views e likes de cada post
+- **Impacto:** O sistema agora identifica e exibe posts virais em tempo real no painel administrativo.
+
+## 40. Deep Clean Nuclear — Contadores de Seguidores no Perfil
+- **Arquivo:** `app/profile/[username]/page.tsx`
+- **Bug:** Queries com `head: true` retornam `data = null`. O código usava `data.length` → sempre `0`.
+- **Ação:** Substituído `{ data: fers }` por `{ count: followerCount }` nas 3 queries (seguidores, seguindo, posts).
+- **Impacto:** Contadores de Seguidores, Seguindo e Posts agora exibem valores reais do banco.
+
+## 41. Regressão Crítica — Posts Sumindo do Feed (Reversão de Emergência)
+- **Arquivo:** `app/feed/page.tsx`
+- **Causa:** `select('*, comments(count)')` exige FK registrada no Supabase schema entre comments→posts. Sem ela, a query falha e `postsData = null` → feed vazio.
+- **Ação:** Revertido para `select('*')` (estado funcional original). Removido mapeamento `item.comments?.[0]?.count` que ficou orphan.
+- **Impacto:** Posts voltam ao feed. `comments_count` usa o campo nativo da tabela `posts`.
+- **⚠️ Nota:** Para ativar comentários em tempo real no contador do card, criar a FK no Supabase: `comments.post_id → posts.id` e reativar o `select('*, comments(count)')`.
+
 ## Próximos Passos
 - Implementar compressão de vídeo via Cloudinary ou Mux (client-side é inviável para vídeos longos).
 - Monitorar `system_errors` para falhas silenciosas na compressão.
 - Adicionar auditoria de alteração de selos (logs de admin).
+
+## 42. Bug Crítico — Imagens Somindo do Feed (Detecção por Extensão)
+- **Arquivo:** `components/feed/PostCard.tsx` — linha 795
+- **Bug:** Detecção de imagem dependia apenas de `post_type` e `media_type`. Posts com essas colunas `null` no banco (mas com `media_url` válido com extensão de imagem) nunca renderizavam a imagem.
+- **Contexto:** `isAudio` e `isVideo` já tinham detecção por extensão de URL (regex). Imagem não tinha.
+- **Ação:** Adicionado fallback `mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|heic|avif)/i)` exatamente como o padrão já existente para áudio/vídeo.
+- **Impacto:** Imagens com `post_type = null` agora renderizam corretamente no feed.
+
+## 43. Bug Regressão — Key Collision em Reposts no Feed
+- **Arquivo:** `app/feed/page.tsx` — linha 374
+- **Bug:** `key={post.id}` causava colisão de chave React quando o mesmo post aparecia como original + repost. React reutilizava o componente sem remontá-lo, corrompendo estado interno.
+- **Ação:** Alterado para `key={post.feed_uid || post.id}` — `feed_uid` é único por item do feed (`post-${id}` ou `repost-${id}-${reposter_id}`).
+- **Impacto:** React remonta corretamente cada instância do PostCard.
+
+## 44. Bug Console — Push Notification AbortError (Lock Conflict)
+- **Arquivo:** `hooks/usePushNotifications.ts`
+- **Bug:** `getToken()` era chamado **duas vezes**: a 1ª adquiria o lock do Service Worker e descartava o resultado; a 2ª tentava roubar o lock → `AbortError`. O guard interno só protegia o 2º catch, mas o `AbortError` escapava para o 1º try externo (linha 63).
+- **Ação:** Removida a chamada redundante inicial de `getToken` (era "limpeza de token antigo" que não estava sendo usada).
+- **Impacto:** Eliminado o `AbortError: Lock broken` do console. Lock adquirido uma única vez.
+
+## 45. Bug Histórico — Posts Antigos do Supabase Sem Extensão no Filename
+- **Arquivo:** `components/feed/PostCard.tsx`
+- **Causa:** Posts antigos do Supabase Storage têm URLs sem extensão no filename (ex: `.../media/1701234567890`). Dois gatilhos bloqueavam a renderização:
+  1. `isLegacyMedia = true` (URL sem `.` no último segmento) → `shouldSkipMedia = true`
+  2. Condição de imagem exigia extensão reconhecida (`.jpg`, `.png`, etc)
+- **Ações:**
+  - ✅ `isLegacyMedia` agora isenta URLs `supabase.co/storage` — o Supabase serve qualquer arquivo mesmo sem extensão
+  - ✅ Condição de renderização de imagem agora inclui fallback: `mediaUrl.includes('supabase.co/storage')` quando não é vídeo nem áudio
+- **Impacto:** Posts antigos com `media_url` do Supabase agora renderizam a imagem corretamente.

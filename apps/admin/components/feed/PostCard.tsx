@@ -211,6 +211,8 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
 
   const isLegacyMedia = useMemo(() => {
     if (!mediaUrl) return false;
+    // URLs do Supabase Storage são sempre válidas mesmo sem extensão no filename
+    if (mediaUrl.includes('supabase.co/storage') || mediaUrl.includes('supabase.in/storage')) return false;
     const fileName = mediaUrl.split('/').pop() || "";
     return !fileName.includes('.');
   }, [mediaUrl]);
@@ -239,11 +241,16 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     if (hasViewedRef.current) return;
     hasViewedRef.current = true;
 
-    setViewsCount(prev => prev + 1);
+    const newCount = viewsCount + 1;
+    setViewsCount(newCount);
 
     try {
-      // await supabase.rpc('increment_view', { p_post_id: post.id });
-      onUpdated?.({ ...post, views_count: viewsCount + 1 });
+      const { error: rpcError } = await supabase.rpc('increment_view', { p_post_id: post.id });
+      // Fallback: se a RPC não existir no banco, usa update direto
+      if (rpcError) {
+        await supabase.from('posts').update({ views_count: newCount }).eq('id', post.id);
+      }
+      onUpdated?.({ ...post, views_count: newCount });
     } catch (e) {
       console.error("Erro ao computar visualização", e);
     }
@@ -309,7 +316,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const commentCount = Number(post.comments_count) || 0;
+  const [commentCount, setCommentCount] = useState(Number(post.comments_count) || 0);
   const likeCount = likes?.length || 0;
 
   const checkIfSaved = async () => {
@@ -790,7 +797,9 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
       {mediaUrl && !shouldSkipMedia &&
         (postType === 'image' ||
           postType === 'photo' ||
-          post.media_type === 'image') && (
+          post.media_type === 'image' ||
+          (!isVideo && !isAudio && mediaUrl.match(/\.(jpg|jpeg|png|gif|webp|heic|avif)/i)) ||
+          (!isVideo && !isAudio && mediaUrl.includes('supabase.co/storage'))) && (
           <div
             className="rounded-2xl overflow-hidden mt-3 border border-white/10 cursor-zoom-in relative group"
             onClick={() => setLightboxUrl(mediaUrl)}
@@ -1080,7 +1089,7 @@ export default function PostCard({ post, currentUser, onDeleted, onUpdated }: an
         </button>
       </div>
 
-      {showComments && <CommentsSection postId={post.id} postAuthorId={post.author_id} user={currentUser} />}
+      {showComments && <CommentsSection postId={post.id} postAuthorId={post.author_id} user={currentUser} onCommentAdded={() => setCommentCount(prev => prev + 1)} onCommentDeleted={() => setCommentCount(prev => Math.max(0, prev - 1))} />}
 
       {/* Lightbox / Media Expansion */}
       {lightboxUrl && (

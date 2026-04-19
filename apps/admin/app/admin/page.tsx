@@ -74,6 +74,7 @@ export default function DashboardPage() {
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
   const [totalLikes, setTotalLikes] = useState(0);
   const [retentionRate, setRetentionRate] = useState(0);
+  const [topPosts, setTopPosts] = useState<any[]>([]);
 
   const [adminName, setAdminName] = useState("Admin");
   const [aiOperational, setAiOperational] = useState<boolean | null>(null);
@@ -294,6 +295,17 @@ export default function DashboardPage() {
         ? Math.min(Math.round(((activePosts30d || 0) / userCount) * 100), 100)
         : 0;
       setRetentionRate(rate);
+
+      // --- Posts em Alta (Top 5 por views nos últimos 7 dias) ---
+      const sevenDaysAgoViral = new Date();
+      sevenDaysAgoViral.setDate(sevenDaysAgoViral.getDate() - 7);
+      const { data: viralData } = await supabase
+        .from('posts')
+        .select('id, content, views_count, likes, author_name, post_type')
+        .gte('created_at', sevenDaysAgoViral.toISOString())
+        .order('views_count', { ascending: false })
+        .limit(5);
+      setTopPosts(viralData || []);
 
     } catch (err) {
       console.error("Error fetching stats:", err);
@@ -600,6 +612,38 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+      {/* Posts em Alta — Viral Engine */}
+      {topPosts.length > 0 && (
+        <div className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow overflow-hidden">
+          <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center gap-3">
+            <Flame className="w-5 h-5 text-orange-500" />
+            <h3 className="font-bold dark:text-white">Posts em Alta (últimos 7 dias)</h3>
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-white/5">
+            {topPosts.map((p, i) => (
+              <div key={p.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                <span className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0",
+                  i === 0 ? "bg-orange-500 text-white" : "bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400"
+                )}>{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm dark:text-white font-medium truncate">{p.content?.substring(0, 60) || `Post ${p.post_type}`}...</p>
+                  <p className="text-[11px] text-gray-400">{p.author_name}</p>
+                </div>
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="flex items-center gap-1 text-blue-500">
+                    <Eye className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold">{(p.views_count || 0).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-orange-500">
+                    <Flame className="w-3.5 h-3.5" />
+                    <span className="text-xs font-bold">{(p.likes?.length || 0).toLocaleString()}</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
