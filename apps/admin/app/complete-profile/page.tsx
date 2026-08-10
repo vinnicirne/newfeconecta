@@ -19,6 +19,8 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 import { z } from "zod";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -126,7 +128,7 @@ export default function CompleteProfilePage() {
 
   const validate = () => {
     const errs: Record<string, string> = {};
-    if (!formData.accepted_terms) errs.accepted_terms = "Você precisa aceitar os Termos de Uso e Política de Privacidade";
+    if (!formData.accepted_terms) errs.accepted_terms = "Você precisa aceitar os Termos de Uso";
     if (!formData.username.trim()) errs.username = "Nome de usuário é obrigatório";
     else if (usernameStatus === 'taken') errs.username = "Este nome de usuário já está em uso";
     else if (usernameStatus === 'checking') errs.username = "Verificando disponibilidade...";
@@ -135,7 +137,7 @@ export default function CompleteProfilePage() {
     if (!formData.country.trim()) errs.country = "País é obrigatório";
     if (!formData.state.trim()) errs.state = "Estado é obrigatório";
     if (!formData.city.trim()) errs.city = "Cidade é obrigatória";
-    if (!formData.phone.trim()) errs.phone = "Telefone / WhatsApp é obrigatório";
+    if (!formData.phone.trim()) errs.phone = "Telefone é obrigatório";
     else if (formData.phone.length < 14) errs.phone = "Telefone inválido";
     
     setErrors(errs);
@@ -189,7 +191,6 @@ export default function CompleteProfilePage() {
 
       if (error) throw error;
 
-      // Disparar o e-mail de boas-vindas assíncronamente (sem bloquear o fluxo)
       const firstName = updateData.username.split('_')[0] || currentUser.first_name || 'Usuário';
       fetch('/api/emails/welcome', {
         method: 'POST',
@@ -197,12 +198,10 @@ export default function CompleteProfilePage() {
         body: JSON.stringify({ email: currentUser.email, name: firstName })
       }).catch(err => console.error("Erro ao disparar welcome email:", err));
 
-      // Pedir notificação antes de redirecionar
       if ('Notification' in window && Notification.permission === 'default') {
         await Notification.requestPermission();
       }
 
-      // Atualizar o cache local para o AuthGuard
       const updatedProfile = { ...currentUser, ...updateData };
       localStorage.setItem('fc_profile_cache', JSON.stringify(updatedProfile));
       window.dispatchEvent(new CustomEvent('profile-hydrated', { detail: updatedProfile }));
@@ -221,224 +220,209 @@ export default function CompleteProfilePage() {
     }
   };
 
-  const fieldClass =
-    "w-full bg-white/5 border border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm text-white focus:ring-2 focus:ring-whatsapp-green/20 outline-none placeholder:text-gray-600 transition-all";
-  const errorFieldClass =
-    "w-full bg-white/5 border border-red-500/50 rounded-xl pl-11 pr-4 py-3 text-sm text-white focus:ring-2 focus:ring-red-500/20 outline-none placeholder:text-gray-600 transition-all";
-
   if (isFetching) {
     return (
-      <div className="min-h-[100dvh] flex items-center justify-center bg-[#0a0a0a]">
+      <div className="min-h-[100dvh] flex items-center justify-center bg-background">
          <Loader2 className="w-8 h-8 text-whatsapp-teal animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col bg-[#0a0a0a] w-full relative overflow-y-auto px-4 pb-28">
-      {/* Background decorations */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-whatsapp-teal/5 rounded-full blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-[300px] h-[300px] bg-whatsapp-green/5 rounded-full blur-[100px] pointer-events-none" />
-
-      <div className="flex-[0.5] min-h-[64px]" />
-
-      <div className="relative w-full max-w-md mx-auto flex flex-col shrink-0 mb-12">
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 rounded-[20px] bg-gradient-to-br from-whatsapp-teal to-whatsapp-green flex items-center justify-center mb-2 shadow-xl shadow-whatsapp-teal/20">
-            <Flame className="w-6 h-6 text-white fill-white" />
+    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background w-full relative px-4 py-12">
+      <div className="relative w-full max-w-md mx-auto flex flex-col shrink-0">
+        
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 rounded-[24px] bg-gradient-to-br from-whatsapp-teal to-whatsapp-green flex items-center justify-center mb-4 shadow-xl shadow-whatsapp-teal/20">
+            <Flame className="w-8 h-8 text-white fill-white" />
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Completar Perfil</h1>
-          <p className="text-gray-500 text-xs mt-1 text-center">Falta pouco para você acessar a comunidade FéConecta.</p>
+          <h1 className="text-3xl font-black text-foreground tracking-tight">Completar Perfil</h1>
+          <p className="text-muted-foreground text-sm mt-2 text-center">Falta pouco para você acessar a comunidade FéConecta.</p>
         </div>
 
-        <div className="bg-white/[0.03] border border-white/10 rounded-[24px] p-6 backdrop-blur-sm space-y-5">
-            <h3 className="text-xs font-black uppercase tracking-widest text-gray-500 mb-4">
+        <div className="bg-card border border-border/50 rounded-[24px] p-6 sm:p-8 shadow-sm space-y-6">
+            <h3 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">
                 Informações Pendentes
             </h3>
 
-            {/* Termos de Uso */}
-            <div className="space-y-1.5 mb-6">
-            <label className="flex items-start gap-3 cursor-pointer group">
-                <div className="mt-0.5 flex-shrink-0">
-                <input
-                    type="checkbox"
-                    checked={formData.accepted_terms}
-                    onChange={(e) => updateField("accepted_terms", e.target.checked)}
-                    className="sr-only peer"
-                />
-                <div className="w-5 h-5 rounded-md border-2 border-white/20 peer-checked:bg-whatsapp-green peer-checked:border-whatsapp-green flex items-center justify-center transition-all group-hover:border-white/40">
-                    {formData.accepted_terms && <ShieldCheck className="w-3.5 h-3.5 text-black" />}
-                </div>
-                </div>
-                <span className="text-sm text-gray-300 leading-relaxed">
-                Li e aceito os{" "}
-                <Link href="/terms" target="_blank" className="text-whatsapp-green font-bold hover:underline">
-                    Termos de Uso
-                </Link>{" "}
-                e a{" "}
-                <Link href="/privacy" target="_blank" className="text-whatsapp-green font-bold hover:underline">
-                    Política de Privacidade
-                </Link>
-                </span>
-            </label>
-            {errors.accepted_terms && <p className="text-red-400 text-[11px] ml-1">{errors.accepted_terms}</p>}
-            </div>
-
             {/* Username */}
-            <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-400 ml-1">Nome de Usuário</label>
-            <div className="relative">
-                <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                type="text"
-                value={formData.username}
-                onChange={(e) =>
-                    updateField("username", e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))
-                }
-                className={cn(
-                    errors.username ? errorFieldClass : fieldClass,
-                    "pr-10",
-                    usernameStatus === "available" && "border-green-500/50 focus:border-green-500/50"
-                )}
-                placeholder="nome_usuario"
-                />
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center bg-transparent z-20 pointer-events-none">
-                {usernameStatus === "checking" && (
-                    <Loader2 className="w-4 h-4 text-whatsapp-teal animate-spin" />
-                )}
-                {usernameStatus === "available" && formData.username.length >= 3 && (
-                    <CheckCircle2 className="w-4 h-4 text-green-500 animate-in zoom-in duration-300" />
-                )}
-                {usernameStatus === "taken" && (
-                    <XCircle className="w-4 h-4 text-red-500 animate-in zoom-in duration-300" />
-                )}
-                </div>
-            </div>
-            {errors.username && <p className="text-red-400 text-[11px] ml-1">{errors.username}</p>}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground ml-1">Nome de Usuário</label>
+              <div className="relative">
+                  <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                  <Input
+                    type="text"
+                    value={formData.username}
+                    onChange={(e) =>
+                        updateField("username", e.target.value.toLowerCase().replace(/[^a-z0-9._]/g, ""))
+                    }
+                    className={cn(
+                        "pl-10 pr-10",
+                        errors.username && "border-red-500 focus-visible:ring-red-500",
+                        usernameStatus === "available" && "border-green-500 focus-visible:ring-green-500"
+                    )}
+                    placeholder="nome_usuario"
+                  />
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center bg-transparent z-20 pointer-events-none">
+                  {usernameStatus === "checking" && (
+                      <Loader2 className="w-4 h-4 text-whatsapp-teal animate-spin" />
+                  )}
+                  {usernameStatus === "available" && formData.username.length >= 3 && (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 animate-in zoom-in duration-300" />
+                  )}
+                  {usernameStatus === "taken" && (
+                      <XCircle className="w-4 h-4 text-red-500 animate-in zoom-in duration-300" />
+                  )}
+                  </div>
+              </div>
+              {errors.username && <p className="text-red-500 text-[11px] ml-1">{errors.username}</p>}
             </div>
 
             {/* Data de Nascimento */}
-            <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-400 ml-1">Data de Nascimento</label>
-            <div className="relative">
-                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                type="date"
-                value={formData.birthdate}
-                onChange={(e) => updateField("birthdate", e.target.value)}
-                className={`${errors.birthdate ? errorFieldClass : fieldClass} [color-scheme:dark]`}
-                />
-            </div>
-            {errors.birthdate && <p className="text-red-400 text-[11px] ml-1">{errors.birthdate}</p>}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground ml-1">Data de Nascimento</label>
+              <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                  <Input
+                    type="date"
+                    value={formData.birthdate}
+                    onChange={(e) => updateField("birthdate", e.target.value)}
+                    className={cn("pl-10", errors.birthdate && "border-red-500 focus-visible:ring-red-500")}
+                  />
+              </div>
+              {errors.birthdate && <p className="text-red-500 text-[11px] ml-1">{errors.birthdate}</p>}
             </div>
 
             {/* Telefone */}
-            <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-400 ml-1">Telefone / WhatsApp</label>
-            <div className="relative">
-                <Smartphone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => {
-                    let val = e.target.value.replace(/\D/g, '');
-                    if (val.length > 11) val = val.slice(0, 11);
-                    if (val.length > 2) val = `(${val.slice(0,2)}) ${val.slice(2)}`;
-                    if (val.length > 9) val = `${val.slice(0,9)}-${val.slice(9)}`;
-                    updateField("phone", val);
-                }}
-                className={errors.phone ? errorFieldClass : fieldClass}
-                placeholder="(11) 99999-9999"
-                />
-            </div>
-            {errors.phone && <p className="text-red-400 text-[11px] ml-1">{errors.phone}</p>}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground ml-1">Telefone / WhatsApp</label>
+              <div className="relative">
+                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                  <Input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => {
+                        let val = e.target.value.replace(/\D/g, '');
+                        if (val.length > 11) val = val.slice(0, 11);
+                        if (val.length > 2) val = `(${val.slice(0,2)}) ${val.slice(2)}`;
+                        if (val.length > 9) val = `${val.slice(0,9)}-${val.slice(9)}`;
+                        updateField("phone", val);
+                    }}
+                    className={cn("pl-10", errors.phone && "border-red-500 focus-visible:ring-red-500")}
+                    placeholder="(11) 99999-9999"
+                  />
+              </div>
+              {errors.phone && <p className="text-red-500 text-[11px] ml-1">{errors.phone}</p>}
             </div>
 
             {/* Gênero */}
-            <div className="space-y-1.5">
-            <label className="text-xs font-bold text-gray-400 ml-1">Gênero</label>
-            <div className="relative">
-                <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                <select
-                value={formData.gender}
-                onChange={(e) => updateField("gender", e.target.value)}
-                className={`${errors.gender ? errorFieldClass : fieldClass} appearance-none cursor-pointer [color-scheme:dark]`}
-                >
-                <option value="" className="bg-[#1a1a1a] text-white">Selecione...</option>
-                <option value="masculino" className="bg-[#1a1a1a] text-white">Masculino</option>
-                <option value="feminino" className="bg-[#1a1a1a] text-white">Feminino</option>
-                </select>
-            </div>
-            {errors.gender && <p className="text-red-400 text-[11px] ml-1">{errors.gender}</p>}
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-foreground ml-1">Gênero</label>
+              <div className="relative flex h-10 w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm ring-offset-background focus-within:ring-2 focus-within:ring-whatsapp-green/20 dark:border-white/10 dark:bg-whatsapp-dark dark:text-white">
+                  <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  <select
+                    value={formData.gender}
+                    onChange={(e) => updateField("gender", e.target.value)}
+                    className="w-full bg-transparent pl-8 outline-none appearance-none"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="masculino">Masculino</option>
+                    <option value="feminino">Feminino</option>
+                  </select>
+              </div>
+              {errors.gender && <p className="text-red-500 text-[11px] ml-1">{errors.gender}</p>}
             </div>
 
-            {/* Localização */}
             <div className="pt-2">
-            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-whatsapp-teal mb-4">Localização</h4>
-            <div className="grid grid-cols-1 gap-4">
-                {/* País */}
-                <div className="space-y-1.5">
-                <label className="text-xs font-bold text-gray-400 ml-1">País</label>
-                <div className="relative">
-                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <input
-                    type="text"
-                    value={formData.country}
-                    onChange={(e) => updateField("country", e.target.value)}
-                    className={errors.country ? errorFieldClass : fieldClass}
-                    placeholder="Ex: Brasil"
-                    />
-                </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                {/* Estado */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 ml-1">Estado</label>
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-whatsapp-teal mb-4">Localização</h4>
+              <div className="grid grid-cols-1 gap-4">
+                  {/* País */}
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-foreground ml-1">País</label>
                     <div className="relative">
-                    <input
-                        type="text"
-                        value={formData.state}
-                        onChange={(e) => updateField("state", e.target.value)}
-                        className={errors.state ? errorFieldClass : fieldClass.replace('pl-11', 'pl-4')}
-                        placeholder="Ex: SP"
-                    />
+                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground z-10" />
+                        <Input
+                          type="text"
+                          value={formData.country}
+                          onChange={(e) => updateField("country", e.target.value)}
+                          className={cn("pl-10", errors.country && "border-red-500")}
+                          placeholder="Ex: Brasil"
+                        />
                     </div>
-                    {errors.state && <p className="text-red-400 text-[11px] ml-1">{errors.state}</p>}
-                </div>
+                  </div>
 
-                {/* Cidade */}
-                <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-gray-400 ml-1">Cidade</label>
-                    <div className="relative">
-                    <input
-                        type="text"
-                        value={formData.city}
-                        onChange={(e) => updateField("city", e.target.value)}
-                        className={errors.city ? errorFieldClass : fieldClass.replace('pl-11', 'pl-4')}
-                        placeholder="Sua cidade"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Estado */}
+                    <div className="space-y-2">
+                        <label className="text-xs font-semibold text-foreground ml-1">Estado</label>
+                        <Input
+                            type="text"
+                            value={formData.state}
+                            onChange={(e) => updateField("state", e.target.value)}
+                            className={cn(errors.state && "border-red-500")}
+                            placeholder="Ex: SP"
+                        />
+                        {errors.state && <p className="text-red-500 text-[11px] ml-1">{errors.state}</p>}
                     </div>
-                    {errors.city && <p className="text-red-400 text-[11px] ml-1">{errors.city}</p>}
-                </div>
-                </div>
+
+                    {/* Cidade */}
+                    <div className="space-y-2">
+                        <label className="text-xs font-semibold text-foreground ml-1">Cidade</label>
+                        <Input
+                            type="text"
+                            value={formData.city}
+                            onChange={(e) => updateField("city", e.target.value)}
+                            className={cn(errors.city && "border-red-500")}
+                            placeholder="Sua cidade"
+                        />
+                        {errors.city && <p className="text-red-500 text-[11px] ml-1">{errors.city}</p>}
+                    </div>
+                  </div>
+              </div>
             </div>
+
+            {/* Termos de Uso */}
+            <div className="pt-4 pb-2">
+              <label className="flex items-start gap-3 cursor-pointer group">
+                  <div className="mt-0.5 flex-shrink-0">
+                    <input
+                        type="checkbox"
+                        checked={formData.accepted_terms}
+                        onChange={(e) => updateField("accepted_terms", e.target.checked)}
+                        className="sr-only peer"
+                    />
+                    <div className="w-5 h-5 rounded-md border-2 border-muted-foreground/30 peer-checked:bg-whatsapp-green peer-checked:border-whatsapp-green flex items-center justify-center transition-all group-hover:border-whatsapp-green/50">
+                        {formData.accepted_terms && <ShieldCheck className="w-3.5 h-3.5 text-white" />}
+                    </div>
+                  </div>
+                  <span className="text-sm text-muted-foreground leading-relaxed">
+                  Li e aceito os{" "}
+                  <Link href="/terms" target="_blank" className="text-whatsapp-teal font-semibold hover:underline">
+                      Termos de Uso
+                  </Link>{" "}
+                  e a{" "}
+                  <Link href="/privacy" target="_blank" className="text-whatsapp-teal font-semibold hover:underline">
+                      Política de Privacidade
+                  </Link>
+                  </span>
+              </label>
+              {errors.accepted_terms && <p className="text-red-500 text-[11px] ml-1 mt-1">{errors.accepted_terms}</p>}
             </div>
             
-            <button
+            <Button
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading || !formData.accepted_terms}
-                className="w-full mt-4 bg-gradient-to-r from-whatsapp-green to-whatsapp-tealLight text-whatsapp-dark py-3.5 rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-all active:scale-[0.98] disabled:opacity-40 shadow-lg shadow-whatsapp-green/20"
+                className="w-full h-12 bg-gradient-to-r from-whatsapp-green to-whatsapp-tealLight hover:from-whatsapp-teal hover:to-whatsapp-teal text-white font-bold rounded-xl"
             >
                 {loading ? (
-                <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                  <Loader2 className="w-5 h-5 animate-spin" />
                 ) : (
                 <>
-                    <ShieldCheck className="w-4 h-4" /> Concluir Cadastro
+                    <ShieldCheck className="w-5 h-5 mr-2" /> Concluir Cadastro
                 </>
                 )}
-            </button>
+            </Button>
         </div>
       </div>
     </div>
