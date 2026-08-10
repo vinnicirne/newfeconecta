@@ -1,0 +1,23 @@
+{
+  "name": "feconecta-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @feconecta/admin",
+    "build": "npm run build -w @feconecta/admin",
+    "start": "npm run start -w @feconecta/admin",
+    "postinstall": "patch-package"
+  },
+  "dependencies": {
+    "@capacitor/browser": "^6.0.6",
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
+    "source-map": "^0.7.6"
+  }
+}

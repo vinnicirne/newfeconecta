@@ -1,0 +1,281 @@
+import { create } from 'zustand';
+import { MusicTrack } from '../../domain/entities/MusicTrack';
+import { IMusicProvider } from '../../domain/providers/IMusicProvider';
+import { YouTubeProvider } from '../providers/YouTubeProvider';
+
+interface PlayerState {
+  currentTrack: MusicTrack | null;
+  isPlaying: boolean;
+  progressMs: number;
+  provider: IMusicProvider | null;
+  queue: MusicTrack[];
+  durationMs: number;
+  isFullScreen: boolean;
+  isLoading: boolean;
+  isVideoVisible: boolean;
+  likedTracks: MusicTrack[];
+  isShuffled: boolean;
+  repeatMode: 'off' | 'all' | 'one';
+  consecutiveFailures: number; // ← guard contra loop infinito de auto-skip
+  
+  // Actions
+  loadLikes: () => void;
+  toggleLike: (track: MusicTrack) => void;
+  setProvider: (provider: IMusicProvider) => void;
+  setFullScreen: (val: boolean) => void;
+  play: (track: MusicTrack, newQueue?: MusicTrack[]) => Promise<void>;
+  pause: () => Promise<void>;
+  resume: () => Promise<void>;
+  next: (isManual?: boolean) => Promise<void>;
+  previous: (isManual?: boolean) => Promise<void>;
+  seek: (ms: number) => Promise<void>;
+  addToQueue: (track: MusicTrack) => void;
+  updateProgress: (ms: number) => void;
+  setDuration: (ms: number) => void;
+  setVideoVisible: (val: boolean) => void;
+  toggleShuffle: () => void;
+  cycleRepeat: () => void;
+  incrementFailures: () => void;
+  resetFailures: () => void;
+}
+
+export const usePlayerStore = create<PlayerState>((set, get) => ({
+  currentTrack: null,
+  isPlaying: false,
+  progressMs: 0,
+  durationMs: 0,
+  provider: new YouTubeProvider(),
+  queue: [],
+  isFullScreen: false,
+  isLoading: false,
+  isVideoVisible: false,
+  likedTracks: [],
+  isShuffled: false,
+  repeatMode: 'off',
+  consecutiveFailures: 0,
+
+  loadLikes: () => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('fc_music_likes');
+        if (stored) {
+          set({ likedTracks: JSON.parse(stored) });
+        }
+      } catch (e) {
+        console.error("Failed to load likes", e);
+      }
+    }
+  },
+
+  toggleLike: (track) => {
+    const { likedTracks } = get();
+    const isLiked = likedTracks.some(t => t.id === track.id);
+    let newLikes;
+    
+    if (isLiked) {
+      newLikes = likedTracks.filter(t => t.id !== track.id);
+    } else {
+      newLikes = [track, ...likedTracks];
+    }
+    
+    set({ likedTracks: newLikes });
+    
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('fc_music_likes', JSON.stringify(newLikes));
+      } catch (e) {
+        console.error("Failed to save likes", e);
+      }
+    }
+  },
+
+  toggleShuffle: () => {
+    const { isShuffled } = get();
+    set({ isShuffled: !isShuffled });
+  },
+
+  cycleRepeat: () => {
+    const { repeatMode } = get();
+    const next = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    set({ repeatMode: next });
+  },
+
+  setProvider: (provider) => set({ provider }),
+  setFullScreen: (val) => set({ isFullScreen: val, isVideoVisible: false }),
+  setVideoVisible: (val) => set({ isVideoVisible: val }),
+
+  play: async (track, newQueue) => {
+    const { provider } = get();
+    if (!provider) {
+      console.warn("Nenhum MusicProvider configurado.");
+      return;
+    }
+    
+    if (newQueue && newQueue.length > 0) {
+      const uniqueQueue = Array.from(
+        new Map(newQueue.filter(Boolean).map(t => [t.providerTrackId || t.id, t])).values()
+      );
+      set({ queue: uniqueQueue });
+    } else {
+      const { queue } = get();
+      const exists = queue.some(t => t.id === track.id || (t.providerTrackId && t.providerTrackId === track.providerTrackId));
+      if (!exists || queue.length === 0) {
+        set({ queue: [track] });
+      }
+    }
+    
+    // Salvar no histórico local
+    if (typeof window !== 'undefined') {
+      try {
+        const historyStr = localStorage.getItem('fc_music_history');
+        let history = historyStr ? JSON.parse(historyStr) : [];
+        history = history.filter((t: MusicTrack) => t.id !== track.id);
+        history.unshift(track);
+        if (history.length > 20) history = history.slice(0, 20);
+        localStorage.setItem('fc_music_history', JSON.stringify(history));
+      } catch (e) {
+        console.error("Failed to save music history", e);
+      }
+    }
+
+    // Reset do contador de falhas só ocorre quando a música realmente toca (no YouTubeProvider)
+
+    // Abre o fullscreen imediatamente e mostra o estado de carregamento
+    // IMPORTANTE: NÃO setar isPlaying: false aqui! Isso dispara active.pause() no usePlayerControls
+    // o que cria um loop: play → set(isPlaying:false) → audio.pause() → onPause → set(isPlaying:false)
+    console.log(`[PlayerStore] Iniciando PLAY: track_id=${track.id}, track_title="${track.title}"`);
+    set({ currentTrack: track, isFullScreen: true, isLoading: true });
+
+    try {
+      await provider.play(track);
+      set({ isPlaying: true, progressMs: 0, durationMs: 0, consecutiveFailures: 0, isLoading: false });
+    } catch (e) {
+      console.warn("Failed to play track:", e);
+      set({ currentTrack: null, isPlaying: false, isFullScreen: false, isLoading: false });
+    }
+  },
+
+  pause: async () => {
+    console.log('[PlayerStore] Chamando PAUSE()');
+    const { provider } = get();
+    if (provider) await provider.pause();
+    set({ isPlaying: false });
+  },
+
+  resume: async () => {
+    console.log('[PlayerStore] Chamando RESUME()');
+    const { provider } = get();
+    if (provider) await provider.resume();
+    set({ isPlaying: true });
+  },
+
+  next: async (isManual = false) => {
+    const { queue, currentTrack, play, pause, isShuffled, repeatMode } = get();
+    console.log(`[PlayerStore] NEXT() chamado (isManual: ${isManual}, queue: ${queue.length})`);
+    if (queue.length > 0 && currentTrack) {
+      // Repeat One: reinicia a mesma faixa apenas se for automático
+      if (repeatMode === 'one' && !isManual) {
+        console.log('[PlayerStore] NEXT: Repeat One automático - repetindo');
+        await play(currentTrack, queue);
+        return;
+      }
+
+      const idx = queue.findIndex(
+        t => t.id === currentTrack.id || (t.providerTrackId && t.providerTrackId === currentTrack.providerTrackId)
+      );
+
+      // Shuffle: escolhe faixa aleatória diferente da atual
+      if (isShuffled && queue.length > 1) {
+        let randomIdx = Math.floor(Math.random() * queue.length);
+        while (randomIdx === idx) randomIdx = Math.floor(Math.random() * queue.length);
+        await play(queue[randomIdx], queue);
+        return;
+      }
+
+      if (idx !== -1 && idx < queue.length - 1) {
+        console.log(`[PlayerStore] NEXT: Avançando para próximo índice (${idx + 1})`);
+        await play(queue[idx + 1], queue);
+      } else if (repeatMode === 'all' || repeatMode === 'one') {
+        console.log('[PlayerStore] NEXT: Fim da fila com repeatMode - voltando ao início');
+        // Se for repeat all (ou repeat one pulado manualmente no fim da fila), volta para o início
+        await play(queue[0], queue);
+      } else if (idx === -1 && queue.length > 0) {
+        console.log('[PlayerStore] NEXT: Índice -1 com fila maior que 0 - voltando ao início');
+        await play(queue[0], queue);
+      } else {
+        console.log('[PlayerStore] NEXT: Fim da fila sem repeat - pausando player');
+        await pause();
+        set({ isPlaying: false });
+      }
+    }
+  },
+
+  previous: async (isManual = false) => {
+    const { queue, currentTrack, play, pause, progressMs, repeatMode } = get();
+    console.log(`[PlayerStore] PREVIOUS() chamado (isManual: ${isManual}, progressMs: ${progressMs})`);
+    // Se passou mais de 3s e é manual, reinicia a música atual
+    if (progressMs > 3000 && isManual) {
+      console.log('[PlayerStore] PREVIOUS: Acima de 3s - reiniciando música');
+      const { seek } = get();
+      await seek(0);
+      return;
+    }
+
+    if (queue.length > 0 && currentTrack) {
+      const idx = queue.findIndex(
+        t => t.id === currentTrack.id || (t.providerTrackId && t.providerTrackId === currentTrack.providerTrackId)
+      );
+      if (idx > 0) {
+        console.log(`[PlayerStore] PREVIOUS: Voltando para índice (${idx - 1})`);
+        await play(queue[idx - 1], queue);
+      } else if (idx === -1 && queue.length > 0) {
+        console.log('[PlayerStore] PREVIOUS: Índice -1 com fila - tocando última');
+        await play(queue[queue.length - 1], queue);
+      } else if (queue.length > 1 && (repeatMode === 'all' || repeatMode === 'one')) {
+        console.log('[PlayerStore] PREVIOUS: Início da fila com repeat - tocando última');
+        await play(queue[queue.length - 1], queue);
+      } else {
+        console.log('[PlayerStore] PREVIOUS: Início da fila sem repeat - reiniciando');
+        // Se é a primeira da fila e não tem repeat, reinicia ela mesma
+        const { seek } = get();
+        await seek(0);
+        await play(currentTrack, queue);
+      }
+    }
+  },
+
+  seek: async (ms) => {
+    const { provider } = get();
+    if (provider) await provider.seek(ms);
+    set({ progressMs: ms });
+  },
+
+  addToQueue: (track) => set((state) => ({ queue: [...state.queue, track] })),
+  
+  updateProgress: (ms) => set({ progressMs: ms }),
+  setDuration: (ms) => set({ durationMs: ms }),
+
+  // Guard contra loop infinito de auto-skip
+  incrementFailures: () => {
+    const { consecutiveFailures, pause, queue, next } = get();
+    const nextFails = consecutiveFailures + 1;
+    set({ consecutiveFailures: nextFails });
+
+    const MAX_FAILURES = 5;
+    if (nextFails >= MAX_FAILURES) {
+      console.warn(`[PlayerStore] ${nextFails} falhas consecutivas. Parando o player para não sobrecarregar a VPS.`);
+      pause();
+      set({ isPlaying: false, queue: [], consecutiveFailures: 0 });
+      import('sonner').then(({ toast }) => {
+        toast.error('Playlist indisponível', {
+          description: 'Todas as músicas nesta sessão estão indisponíveis no YouTube. Tente outra sessão.',
+          duration: 6000,
+        });
+      });
+    } else {
+      next();
+    }
+  },
+
+  resetFailures: () => set({ consecutiveFailures: 0 }),
+}));

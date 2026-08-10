@@ -1,0 +1,186 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 🧱 Base (neutros) */
+    --background: 0 0% 100%;       /* #FFFFFF */
+    --card: 0 0% 100%;             /* #FFFFFF */
+    --popover: 0 0% 100%;          /* #FFFFFF */
+    --muted: 0 0% 98%;             /* #FAFAFA (Fundo Secundário) */
+    --font-outfit: 'Outfit', sans-serif;
+    
+    /* 🔤 Texto */
+    --foreground: 0 0% 15%;        /* #262626 (Texto Principal) */
+    --card-foreground: 0 0% 15%;
+    --popover-foreground: 0 0% 15%;
+    --muted-foreground: 0 0% 56%;  /* #8E8E8E (Texto Secundário) */
+    --disabled-foreground: 0 0% 78%; /* #C7C7C7 (Texto Desabilitado) */
+
+    /* Bordas/divisores */
+    --border: 0 0% 86%;            /* #DBDBDB */
+    --input: 0 0% 86%;             /* #DBDBDB */
+    
+    /* 🔵 Ação (botões / links) */
+    --primary: 204 100% 48%;       /* #0095F6 (Azul principal) */
+    --primary-active: 214 89% 52%; /* #1877F2 (Azul pressionado) */
+    --primary-foreground: 0 0% 100%;
+    --ring: 204 100% 48%;          /* #0095F6 */
+
+    --secondary: 171 40% 31%;
+    --secondary-foreground: 0 0% 15%;
+    --accent: 142 70% 49%;
+    --accent-foreground: 11 100% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* 🌑 Base (AMOLED) */
+    --background: 0 0% 0%;         /* #000000 (Preto puro) */
+    --card: 0 0% 11%;              /* #1C1C1C (Cards / superfícies) */
+    --popover: 0 0% 11%;           /* #1C1C1C */
+    --muted: 0 0% 7%;              /* #121212 (Fundo Secundário) */
+    
+    /* 🔤 Texto */
+    --foreground: 0 0% 100%;       /* #FFFFFF (Texto Principal) */
+    --card-foreground: 0 0% 100%;
+    --popover-foreground: 0 0% 100%;
+    --muted-foreground: 0 0% 66%;  /* #A8A8A8 (Texto Secundário) */
+    --disabled-foreground: 0 0% 43%; /* #6E6E6E (Texto Desabilitado) */
+
+    /* Bordas/divisores */
+    --border: 0 0% 15%;            /* #262626 (Borda Neutra Instagram) */
+    --input: 0 0% 15%;             /* #262626 */
+    
+    /* 🔵 Ação (botões / links) */
+    --primary: 204 100% 48%;       /* #0095F6 (Azul principal) */
+    --primary-active: 214 89% 52%; /* #1877F2 (Azul pressionado) */
+    --primary-foreground: 0 0% 100%;
+    --ring: 204 100% 48%;          /* #0095F6 */
+
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 100%;
+    --accent: 142 70% 49%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 100%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background-repeat: repeat;
+    background-attachment: fixed;
+    background-size: 400px;
+  }
+
+  .dark body {
+    background-image: none;
+  }
+}
+
+.glass {
+  @apply bg-white/10 backdrop-blur-md border border-white/20;
+}
+
+.glass-dark {
+  @apply bg-black/20 backdrop-blur-md border border-white/10;
+}
+
+.whatsapp-shadow {
+  box-shadow: 0 1px 0.5px rgba(0,0,0,0.13);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-primary/20 rounded-full hover:bg-primary/40 transition-colors;
+}
+
+.feconecta-vibe {
+  filter: contrast(1.02) saturate(1.05) brightness(1.02);
+  transition: filter 0.3s ease;
+}
+
+.feconecta-vibe:hover {
+  filter: contrast(1.08) saturate(1.1) brightness(1.05);
+}
+
+/* Premium Animations for Performance & Feedback */
+@keyframes progress-fast {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(-30%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-progress-fast {
+  animation: progress-fast 2s infinite ease-in-out;
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(0.98); }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 3s infinite ease-in-out;
+}
+
+/* Esconde TODOS os botões de play nativos do Chrome/Android que ficam gigantes no object-cover */
+video::-webkit-media-controls,
+video::-webkit-media-controls-enclosure,
+video::-webkit-media-controls-overlay-play-button,
+video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  opacity: 0 !important;
+  -webkit-appearance: none !important;
+}
+
+/* --- WAR ROOM CLASSES --- */
+:root {
+  --war-bg: #0a0a0a;
+  --war-surface: #0e0e0e;
+  --war-surface-low: #0f0f0f;
+  --war-surface-high: #1a1a1a;
+  --war-text: #ffffff;
+  --war-text-dim: #adaaaa;
+  --war-glass: rgba(18, 18, 18, 0.8);
+}
+.emerald-glow { box-shadow: 0 0 40px 0 rgba(63, 255, 139, 0.12); }
+.avatar-glow { box-shadow: 0 0 12px 0 rgba(63, 255, 139, 0.4); }
+.glass-panel { background: var(--war-glass); backdrop-filter: blur(20px); }
+.primary-gradient { background: linear-gradient(135deg, #3fff8b 0%, #13ea79 100%); }
+.chat-mask {
+  mask-image: linear-gradient(to top, black 85%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to top, black 85%, transparent 100%);
+}
+.reaction-explosion {
+  text-shadow: 
+    0 0 20px rgba(63, 255, 139, 0.8),
+    0 0 40px rgba(63, 255, 139, 0.4);
+}

@@ -1,0 +1,36 @@
+node_modules/
+.next/
+dist/
+.expo/
+*.local
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.DS_Store
+*.pem
+.env
+
+# Archives
+Feconecta.rar
+newfeconecta-main.zip
+# APK files
+*.apk
+
+# Java Crash Logs
+hs_err_pid*.log
+replay_pid*.log
+.temp/  
+apps/fenamoro/  
+google-services.json
+scratch/
+
+# Playwright
+apps/admin/playwright-report/
+apps/admin/test-results/
+
+# Arquivos sensíveis e scripts temporários
+/*.py
+/*.js
+/*.sql
+*.jks
+*.tar.gz
