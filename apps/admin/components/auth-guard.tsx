@@ -256,34 +256,31 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
-  if (loading) {
-    return (
-      <div suppressHydrationWarning className="fixed inset-0 bg-white dark:bg-black flex flex-col items-center justify-center z-[9999] transition-colors duration-300">
-        <div className="w-16 h-16 rounded-full bg-whatsapp-teal/10 flex items-center justify-center mb-4 text-whatsapp-teal">
-          <Loader2 className="w-8 h-8 animate-spin" aria-hidden="true" />
-        </div>
-        <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.5em] animate-pulse">Sincronizando Fé...</span>
-      </div>
-    );
-  }
-
-  // Blindagem Nuclear: Evita flash de conteúdo inadequado durante transições
   const isPostRoute = pathname.startsWith("/post/");
   const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
   const isPublicRoute = isEntryRoute || isPostRoute;
 
-  if (authorized && isEntryRoute) return null;
-  if (!authorized && !isPublicRoute) return null;
-  
-  // Se está autorizado mas o perfil não tá completo e não tá na rota certa, não mostra nada
-  if (authorized && !isSyncingProfile && !isProfileComplete && pathname !== "/complete-profile") return null;
-  
-  // Blindagem adicional para rotas administrativas (garante que admin não dê flash para não-admins)
-  if (pathname.startsWith("/admin") && userRole !== 'admin') return null;
+  // Determine if children should be visible
+  let shouldRenderChildren = true;
+  if (loading) shouldRenderChildren = false;
+  else if (authorized && isEntryRoute) shouldRenderChildren = false;
+  else if (!authorized && !isPublicRoute) shouldRenderChildren = false;
+  else if (authorized && !isSyncingProfile && !isProfileComplete && pathname !== "/complete-profile") shouldRenderChildren = false;
+  else if (pathname.startsWith("/admin") && userRole !== 'admin') shouldRenderChildren = false;
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300" suppressHydrationWarning>
-      {children}
+      {loading && (
+        <div suppressHydrationWarning className="fixed inset-0 bg-white dark:bg-black flex flex-col items-center justify-center z-[9999] transition-colors duration-300">
+          <div className="w-16 h-16 rounded-full bg-whatsapp-teal/10 flex items-center justify-center mb-4 text-whatsapp-teal">
+            <Loader2 className="w-8 h-8 animate-spin" aria-hidden="true" />
+          </div>
+          <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.5em] animate-pulse">Sincronizando Fé...</span>
+        </div>
+      )}
+      <div className={shouldRenderChildren ? "contents" : "hidden"}>
+        {children}
+      </div>
     </div>
   );
 }
