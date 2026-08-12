@@ -1,14 +1,12 @@
-import type { Config } from "tailwindcss";
-
-const config: Config = {
+/** @type {import('tailwindcss').Config} */
+module.exports = {
   content: [
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./features/**/*.{js,ts,jsx,tsx,mdx}",
     "./shared/**/*.{js,ts,jsx,tsx,mdx}",
     "./domains/**/*.{js,ts,jsx,tsx,mdx}",
-    "../../apps/admin/app/**/*.{js,ts,jsx,tsx,mdx}",
-    "../../apps/admin/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./modules/**/*.{js,ts,jsx,tsx,mdx}",
   ],
   darkMode: ["class"],
   theme: {
@@ -95,5 +93,4 @@ const config: Config = {
   },
   plugins: [],
 };
-export default config;
-// Cache buster: 1
+// Cache buster: 2
