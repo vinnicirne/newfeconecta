@@ -1,130 +1,194 @@
 import React from "react";
-import { Users, ArrowLeft, Flame, Globe, Zap } from "lucide-react";
+import { ArrowLeft, Heart, Sparkles, Users, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Sobre Nós | FéConecta",
-  description: "A primeira rede social focada exclusivamente na edificação, comunhão e expansão do Reino de Deus através da tecnologia.",
+  description: "Não somos uma rede social. Somos um movimento. Conheça a história por trás da FéConecta.",
 };
 
 export default function AboutPage() {
-
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
+    <div className="min-h-screen bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white">
+
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-[#0a0a0a]/90 backdrop-blur-xl border-b border-white/5">
-        <div className="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-          <Link 
-            href="/"
-            className="p-2 hover:bg-white/5 rounded-xl transition-colors inline-block"
-          >
+      <div className="sticky top-0 z-50 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5">
+        <div className="max-w-2xl mx-auto px-5 py-4 flex items-center gap-3">
+          <Link href="/" className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-xl transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </Link>
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-whatsapp-teal to-whatsapp-green flex items-center justify-center">
-              <Users className="w-5 h-5 text-white" />
-            </div>
-            <h1 className="text-lg font-bold">Sobre Nós</h1>
-          </div>
+          <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">Sobre a FéConecta</span>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="max-w-3xl mx-auto px-6 py-10">
-        <div className="space-y-16 text-gray-300 leading-relaxed">
-          {/* Hero Section */}
-          <div className="space-y-6 pt-10">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-whatsapp-teal to-whatsapp-green p-0.5 shadow-2xl shadow-whatsapp-teal/20 mx-auto">
-              <div className="w-full h-full rounded-[22px] bg-[#0a0a0a] flex items-center justify-center">
-                <Flame className="w-10 h-10 text-whatsapp-green fill-whatsapp-green" />
+      <div className="max-w-2xl mx-auto px-5">
+
+        {/* Hero — Carta do Fundador */}
+        <section className="pt-14 pb-12">
+          {/* Eyebrow */}
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500 mb-6">Nossa história</p>
+
+          <h1 className="text-[2.6rem] leading-[1.1] font-black text-gray-900 dark:text-white tracking-tight mb-6">
+            Não criamos uma plataforma.<br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-teal-400">
+              Abrimos um espaço sagrado.
+            </span>
+          </h1>
+
+          <p className="text-lg text-gray-500 dark:text-gray-400 leading-relaxed">
+            Em 2023, um grupo de cristãos que amava tecnologia se fez uma pergunta simples: <em className="text-gray-700 dark:text-gray-200 not-italic font-medium">por que nossas redes sociais nos afastam de Deus em vez de nos aproximar?</em>
+          </p>
+        </section>
+
+        {/* Divisor com citação */}
+        <blockquote className="border-l-4 border-green-400 pl-5 my-2 mb-12">
+          <p className="text-xl font-semibold text-gray-800 dark:text-gray-100 leading-snug italic">
+            "E perseveravam na doutrina dos apóstolos, e na comunhão..."
+          </p>
+          <cite className="text-sm text-gray-400 mt-2 block not-italic">— Atos 2:42</cite>
+        </blockquote>
+
+        {/* Corpo da carta */}
+        <section className="space-y-5 text-gray-600 dark:text-gray-400 leading-relaxed text-[1.05rem] pb-14 border-b border-gray-100 dark:border-white/5">
+          <p>
+            As redes que existiam nos vendiam atenção. Cada scroll projetado para nos manter presos, consumindo conteúdo de tudo — menos do que realmente edifica.
+          </p>
+          <p>
+            Então decidimos construir do zero. Não um produto. Um <strong className="text-gray-900 dark:text-white font-semibold">movimento digital</strong>. Um lugar onde você pode postar sua oração sem vergonha, descobrir uma célula do outro lado da cidade, ou simplesmente ler a palavra do dia sem anúncio de cerveja no meio.
+          </p>
+          <p>
+            A FéConecta não nasceu de investidores ou de uma estratégia de mercado. Nasceu de uma necessidade real — <strong className="text-gray-900 dark:text-white font-semibold">a nossa mesma.</strong>
+          </p>
+        </section>
+
+        {/* Valores — layout humano, sem ícone engessado */}
+        <section className="py-14 space-y-10">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500">O que nos move</p>
+
+          <div className="space-y-8">
+
+            <div className="group">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-xl bg-green-400/10 flex items-center justify-center shrink-0">
+                  <Heart className="w-4 h-4 text-green-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Comunhão de verdade</h3>
               </div>
-            </div>
-            <div className="text-center space-y-4">
-              <h2 className="text-4xl font-black text-white tracking-tight">Um Reino Conectado</h2>
-              <p className="text-xl text-gray-400 max-w-xl mx-auto">
-                A FéConecta é a primeira rede social focada exclusivamente na edificação, comunhão e expansão do Reino de Deus através da tecnologia.
+              <p className="text-gray-500 dark:text-gray-400 leading-relaxed pl-11">
+                Aqui você não é um usuário. É um irmão. Cada recurso foi pensado para aproximar pessoas, não para criar dependência da tela.
               </p>
             </div>
+
+            <div className="group">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-xl bg-teal-400/10 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-4 h-4 text-teal-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Tecnologia a serviço do Reino</h3>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 leading-relaxed pl-11">
+                Usamos o que há de mais moderno — IA, tempo real, notificações inteligentes — mas sempre com um único propósito: amplificar a voz das igrejas, não substituí-la.
+              </p>
+            </div>
+
+            <div className="group">
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-8 h-8 rounded-xl bg-amber-400/10 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4 text-amber-400" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Construído por quem usa</h3>
+              </div>
+              <p className="text-gray-500 dark:text-gray-400 leading-relaxed pl-11">
+                Nossa equipe frequenta igrejas. Vai ao culto de quarta. Pede oração no grupo do WhatsApp. Isso muda tudo na forma como projetamos cada detalhe.
+              </p>
+            </div>
+
           </div>
+        </section>
 
-          {/* Mission/Vision */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                <Globe className="w-6 h-6 text-whatsapp-teal" /> Nossa Missão
-              </h3>
-              <p>Proporcionar um ambiente digital seguro e inspirador onde cristãos de todo o mundo possam compartilhar sua fé, descobrir novos ministérios e crescer em comunidade.</p>
+        {/* Timeline — minimalista, editorial */}
+        <section className="pb-14 border-t border-gray-100 dark:border-white/5 pt-14">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500 mb-10">A jornada</p>
+
+          <div className="space-y-0">
+            {[
+              {
+                year: "2023",
+                title: "A centelha",
+                text: "Uma conversa após o culto. Um grupo de WhatsApp com memes de Biblia e uma pergunta: e se a gente fizesse algo de verdade?",
+                color: "bg-green-400",
+              },
+              {
+                year: "2024",
+                title: "O primeiro commit",
+                text: "Primeiras linhas de código. Primeiras igrejas testando. Primeiro pastor que chegou e disse: "era isso que eu precisava."",
+                color: "bg-teal-400",
+              },
+              {
+                year: "2025",
+                title: "A comunidade cresce",
+                text: "Ministérios, células, santuários de oração. A plataforma ganhou vida própria — os usuários nos ensinaram o que precisávamos construir.",
+                color: "bg-emerald-400",
+              },
+              {
+                year: "Hoje",
+                title: "Você faz parte disso",
+                text: "Cada perfil criado, cada oração compartilhada, cada conexão entre irmãos. Isso é a FéConecta — e ela é sua também.",
+                color: "bg-green-400",
+              },
+            ].map((item, i, arr) => (
+              <div key={i} className="flex gap-5">
+                {/* linha vertical */}
+                <div className="flex flex-col items-center">
+                  <div className={`w-3 h-3 rounded-full ${item.color} mt-1.5 shrink-0`} />
+                  {i < arr.length - 1 && (
+                    <div className="w-px flex-1 bg-gray-100 dark:bg-white/5 mt-2 mb-2" />
+                  )}
+                </div>
+                {/* conteúdo */}
+                <div className={`pb-10 ${i === arr.length - 1 ? "pb-0" : ""}`}>
+                  <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{item.year}</span>
+                  <h4 className="text-base font-bold text-gray-900 dark:text-white mt-0.5 mb-1">{item.title}</h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 leading-relaxed">{item.text}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CTA — sem botões genéricos */}
+        <section className="pb-20 pt-4">
+          <div className="bg-gradient-to-br from-green-500/10 to-teal-500/10 rounded-3xl p-8 text-center border border-green-500/10">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-teal-400 flex items-center justify-center mx-auto mb-4">
+              <MessageCircle className="w-6 h-6 text-white" />
             </div>
-            <div className="space-y-4">
-              <h3 className="text-2xl font-bold text-white flex items-center gap-3">
-                <Zap className="w-6 h-6 text-whatsapp-green" /> Tecnologia Cristã
-              </h3>
-              <p>Acreditamos que a tecnologia é uma ferramenta poderosa para o evangelismo. Por isso, desenvolvemos recursos de ponta para potencializar a voz da igreja no século XXI.</p>
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Quer falar com a gente?</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-xs mx-auto leading-relaxed">
+              Tem uma sugestão, um bug para reportar ou só quer mandar um salve? A gente lê tudo.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <Link
+                href="/register"
+                className="px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity shadow-lg shadow-green-500/20"
+              >
+                Entrar para a comunidade
+              </Link>
+              <Link
+                href="/"
+                className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 font-bold rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+              >
+                Ver o feed
+              </Link>
             </div>
           </div>
+        </section>
 
-          {/* Journey Section with Glassmorphism */}
-          <section className="p-8 bg-white/5 rounded-[40px] border border-white/5 backdrop-blur-sm space-y-8">
-            <h3 className="text-2xl font-black text-white text-center">Nossa Jornada</h3>
-            <div className="relative space-y-12 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-whatsapp-teal/0 before:via-white/10 before:to-whatsapp-green/0">
-              
-              {/* Marco 1 */}
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group animate-in slide-in-from-left duration-500">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 bg-[#0a0a0a] text-whatsapp-teal font-bold shadow-xl shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                   1
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-[24px] bg-white/5 border border-white/5 backdrop-blur-md group-hover:bg-white/10 transition-all">
-                  <h4 className="font-bold text-white mb-1">A Visão (2023)</h4>
-                  <p className="text-sm text-gray-400">Nasceu o desejo de criar algo puro no meio do ruído digital. Uma visão de comunhão sem distrações mundanas.</p>
-                </div>
-              </div>
-
-              {/* Marco 2 */}
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group animate-in slide-in-from-right duration-500">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 bg-[#0a0a0a] text-whatsapp-green font-bold shadow-xl shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                   2
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-[24px] bg-white/5 border border-white/5 backdrop-blur-md group-hover:bg-white/10 transition-all">
-                  <h4 className="font-bold text-white mb-1">O Lançamento (2024)</h4>
-                  <p className="text-sm text-gray-400">A FéConecta v1.0 é apresentada ao Brasil, conectando as primeiras igrejas e ministérios em um feed 100% cristão.</p>
-                </div>
-              </div>
-
-              {/* Marco 3 */}
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group animate-in slide-in-from-left duration-500">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 bg-[#0a0a0a] text-whatsapp-teal font-bold shadow-xl shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                   3
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-[24px] bg-white/5 border border-white/5 backdrop-blur-md group-hover:bg-white/10 transition-all">
-                  <h4 className="font-bold text-white mb-1">A Era da IA (2025)</h4>
-                  <p className="text-sm text-gray-400">Integramos Agentes de Inteligência Artificial para suporte e moderação de conteúdo, protegendo a família digital.</p>
-                </div>
-              </div>
-
-              {/* Marco 4 */}
-              <div className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group animate-in slide-in-from-right duration-500">
-                <div className="flex items-center justify-center w-10 h-10 rounded-full border border-white/20 bg-[#0a0a0a] text-whatsapp-green font-bold shadow-xl shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2">
-                   4
-                </div>
-                <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-6 rounded-[24px] bg-white/5 border border-white/5 backdrop-blur-md group-hover:bg-white/10 transition-all">
-                  <h4 className="font-bold text-white mb-1">Eternidade (2026)</h4>
-                  <p className="text-sm text-gray-400">Nos tornamos o principal ecossistema digital do Reino, unindo tecnologia de ponta com valores inegociáveis.</p>
-                </div>
-              </div>
-
-            </div>
-          </section>
-
-          <section className="text-center space-y-6 pb-20">
-             <h3 className="text-2xl font-black text-white">Siga o Caminho</h3>
-             <p className="text-gray-400">Junte-se a milhares de irmãos que já estão transformando sua experiência digital.</p>
-             <div className="flex justify-center gap-4">
-               <button className="px-8 py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold transition-all">Nossa Equipe</button>
-               <button className="px-10 py-3 bg-whatsapp-teal hover:bg-whatsapp-tealLight rounded-xl font-bold transition-all shadow-xl shadow-whatsapp-teal/20">Criar Conta</button>
-             </div>
-          </section>
+        {/* Rodapé discreto */}
+        <div className="text-center pb-10 text-xs text-gray-300 dark:text-gray-600">
+          Feito com fé, café e muita oração. 🙏
         </div>
+
       </div>
     </div>
   );
