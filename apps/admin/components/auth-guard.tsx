@@ -6,7 +6,7 @@ import { supabase as supabaseClient } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 
-// BUILD_TS: 2026-05-05T04:57:00
+// BUILD_TS: 2026-08-12T14:00:00
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -20,6 +20,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { requestPermission, listenToForegroundMessages, listenToInternalNotifications } = usePushNotifications();
+  // Use refs to hold latest versions of these functions without causing re-renders
+  const requestPermissionRef = useRef(requestPermission);
+  const listenForegroundRef = useRef(listenToForegroundMessages);
+  const listenInternalRef = useRef(listenToInternalNotifications);
+  useEffect(() => { requestPermissionRef.current = requestPermission; }, [requestPermission]);
+  useEffect(() => { listenForegroundRef.current = listenToForegroundMessages; }, [listenToForegroundMessages]);
+  useEffect(() => { listenInternalRef.current = listenToInternalNotifications; }, [listenToInternalNotifications]);
 
   // Logger de Auditoria (Dashboard de Controle) - Totalmente Assíncrono e Não Bloqueante
   const logSystemStatus = useCallback(async (module: string, message: string, severity: 'info' | 'medium' | 'high' = 'info') => {
@@ -40,8 +47,11 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, []);
 
   // Função Nuclear para Ativar Serviços (Prioridade Total ao Perfil)
+  // CRITICAL: Uses refs to avoid re-creating this callback on every render (infinite loop fix)
   const activateServices = useCallback(async (userId: string) => {
     if (initialized.current) return;
+    // Mark as initialized FIRST to prevent any re-entry race condition
+    initialized.current = true;
     
     try {
       // 1. PRIORIDADE ABSOLUTA: Busca de Dados para Hidratação
@@ -64,27 +74,23 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
            router.replace('/complete-profile');
         }
       } else if (profileError) {
-        // Silencia erros de lock que são comuns em dev/concurrent mounts
         if (!profileError.message?.includes('lock') && !profileError.message?.includes('steal')) {
           console.error("Erro ao buscar perfil:", profileError);
         }
       }
 
-      // 2. SERVIÇOS DE BACKGROUND
-      await requestPermission(userId).catch(e => console.warn("Push Permission denied"));
-      listenToForegroundMessages();
-      listenToInternalNotifications(userId);
-      initialized.current = true;
-
-      // 3. REGISTRO DE MONITORAMENTO (Background) - Silenciado para reduzir carga no plano Free
-      // logSystemStatus('AuthGuard', `Sessão ativa: ${userId} (${profile?.role || 'user'})`, 'info');
+      // 2. SERVIÇOS DE BACKGROUND - via refs to avoid dep loop
+      await requestPermissionRef.current(userId).catch(() => {});
+      listenForegroundRef.current();
+      listenInternalRef.current(userId);
       
     } catch (e: any) {
       console.error("Falha na ativação de serviços:", e.message || e);
     } finally {
       setIsSyncingProfile(false);
     }
-  }, [requestPermission, listenToForegroundMessages, logSystemStatus]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
 
   // 1. Motor de Sessão Protegido
@@ -278,9 +284,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.5em] animate-pulse">Sincronizando Fé...</span>
         </div>
       )}
-      <div className={shouldRenderChildren ? "contents" : "hidden"}>
-        {children}
-      </div>
+      {/* Use null instead of hidden to avoid hydration mismatch (React Error #418) */}
+      {shouldRenderChildren ? children : null}
     </div>
   );
 }
