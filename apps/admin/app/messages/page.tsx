@@ -8,7 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useChat } from '@/hooks/useChat';
 
-export default function MessagesPage() {
+function MessagesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const targetUserId = searchParams.get('userId');
@@ -373,5 +373,14 @@ export default function MessagesPage() {
         }
       ` }} />
     </div>
+  );
+}
+
+
+export default function MessagesPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <MessagesContent />
+    </React.Suspense>
   );
 }

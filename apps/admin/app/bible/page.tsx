@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Search, ChevronRight, ChevronLeft, Heart, Send,
@@ -30,7 +30,7 @@ const HIGHLIGHT_COLORS = [
   { id: "purple", bg: "rgba(139, 92, 246, 0.20)", bgDark: "rgba(139, 92, 246, 0.12)", dot: "#8b5cf6", label: "Roxo" },
 ];
 
-export default function BiblePage() {
+function BibleContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -492,5 +492,14 @@ export default function BiblePage() {
         </div>
       )}
     </div>
+  );
+}
+
+
+export default function BiblePage() {
+  return (
+    <React.Suspense fallback={null}>
+      <BibleContent />
+    </React.Suspense>
   );
 }
