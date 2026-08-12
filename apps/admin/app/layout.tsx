@@ -78,7 +78,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
-      <head />
+
       <body className="antialiased font-sans bg-white dark:bg-black text-gray-900 dark:text-white transition-colors duration-300" style={{ fontFamily: "'Poppins', sans-serif" }} suppressHydrationWarning>
         <script
           type="application/ld+json"
