@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -37,7 +36,7 @@ export function DisparoTab() {
 
       setUsersToEmail(pending);
     } catch (err: any) {
-      toast.error("Erro ao buscar usu·rios: " + err.message);
+      toast.error("Erro ao buscar usu√°rios: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -57,7 +56,7 @@ export function DisparoTab() {
     const selectedUsers = usersToEmail.filter(u => u.selected);
     
     if (selectedUsers.length === 0 && !manualEmail) {
-      toast.error("Selecione pelo menos um usu·rio ou insira um email manual.");
+      toast.error("Selecione pelo menos um usu√°rio ou insira um email manual.");
       return;
     }
 
@@ -71,7 +70,7 @@ export function DisparoTab() {
         const res = await fetch("/api/emails/welcome", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: manualEmail, name: manualName || "Usu·rio" })
+          body: JSON.stringify({ email: manualEmail, name: manualName || "Usu√°rio" })
         });
         if (res.ok) successCount++; else errorCount++;
       } catch {
@@ -117,7 +116,7 @@ export function DisparoTab() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2 uppercase tracking-wider">
-              <Users className="w-4 h-4" /> Usu·rios Pendentes ({usersToEmail.length})
+              <Users className="w-4 h-4" /> Usu√°rios Pendentes ({usersToEmail.length})
             </h3>
             <Button variant="outline" size="sm" onClick={fetchPendingUsers} disabled={loading} className="text-xs">
               {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Recarregar"}
@@ -128,7 +127,7 @@ export function DisparoTab() {
             {loading ? (
               <p className="text-gray-500 text-center py-4 text-xs">Buscando...</p>
             ) : usersToEmail.length === 0 ? (
-              <p className="text-gray-500 text-center py-4 text-xs">Todos os usu·rios j· receberam!</p>
+              <p className="text-gray-500 text-center py-4 text-xs">Todos os usu√°rios j√° receberam!</p>
             ) : (
               usersToEmail.map((u, i) => (
                 <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors" onClick={() => toggleSelect(i)}>
@@ -150,12 +149,12 @@ export function DisparoTab() {
           
           <div className="space-y-3 bg-black/30 p-4 rounded-lg border border-white/5">
             <div>
-              <label className="text-xs text-gray-500 mb-1 block">Nome do Usu·rio</label>
+              <label className="text-xs text-gray-500 mb-1 block">Nome do Usu√°rio</label>
               <input 
                 type="text" 
                 value={manualName} 
                 onChange={e => setManualName(e.target.value)} 
-                placeholder="Ex: Jo„o da Silva"
+                placeholder="Ex: Jo√£o da Silva"
                 className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none" 
               />
             </div>
@@ -189,4 +188,3 @@ export function DisparoTab() {
     </div>
   );
 }
-
