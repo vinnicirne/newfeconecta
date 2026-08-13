@@ -325,9 +325,9 @@ export default function CompleteProfilePage() {
                     onChange={(e) => updateField("gender", e.target.value)}
                     className="w-full bg-transparent pl-8 outline-none appearance-none"
                   >
-                    <option value="">Selecione...</option>
-                    <option value="masculino">Masculino</option>
-                    <option value="feminino">Feminino</option>
+                    <option value="" className="bg-white text-gray-900 dark:bg-[#0a0a0a] dark:text-white">Selecione...</option>
+                    <option value="masculino" className="bg-white text-gray-900 dark:bg-[#0a0a0a] dark:text-white">Masculino</option>
+                    <option value="feminino" className="bg-white text-gray-900 dark:bg-[#0a0a0a] dark:text-white">Feminino</option>
                   </select>
               </div>
               {errors.gender && <p className="text-red-500 text-[11px] ml-1">{errors.gender}</p>}

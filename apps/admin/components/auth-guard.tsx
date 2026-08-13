@@ -262,6 +262,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
+  // 5. Sincronização de Estado Inter-Componentes (Evita Loop Infinito)
+  useEffect(() => {
+    const handleProfileUpdate = (e: any) => {
+      const profile = e.detail;
+      if (profile) {
+        setUserRole(profile.role);
+        const complete = Boolean(profile.city && profile.phone && profile.birthdate && profile.accepted_terms);
+        setIsProfileComplete(complete);
+      }
+    };
+
+    window.addEventListener('profile-hydrated', handleProfileUpdate);
+    return () => window.removeEventListener('profile-hydrated', handleProfileUpdate);
+  }, []);
+
   const isPostRoute = pathname.startsWith("/post/");
   const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
   const isPublicRoute = isEntryRoute || isPostRoute;
