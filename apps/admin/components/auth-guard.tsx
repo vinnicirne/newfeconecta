@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase as supabaseClient } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { NotificationEnforcer } from "@/components/NotificationEnforcer";
 
 // BUILD_TS: 2026-08-12T14:00:00
 const PUBLIC_ROUTES = ["/login", "/register"];
@@ -299,6 +300,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.5em] animate-pulse">Sincronizando Fé...</span>
         </div>
       )}
+      <NotificationEnforcer userId={userId} />
       {/* Use null instead of hidden to avoid hydration mismatch (React Error #418) */}
       {shouldRenderChildren ? children : null}
     </div>
