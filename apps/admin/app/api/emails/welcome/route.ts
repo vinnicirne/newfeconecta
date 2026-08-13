@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import nodemailer from 'nodemailer';
 
 export async function POST(request: Request) {
   try {
@@ -19,12 +20,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Email e Nome são obrigatórios' }, { status: 400 });
     }
 
+    const smtpEmail = process.env.SMTP_EMAIL;
+    const smtpPassword = process.env.SMTP_PASSWORD;
+    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const smtpPort = Number(process.env.SMTP_PORT) || 465;
+
     const resendApiKey = process.env.RESEND_API_KEY;
     const senderEmail = process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.com.br>';
 
-    if (!resendApiKey) {
-      console.error('[Welcome Email] RESEND_API_KEY não configurada no servidor.');
-      return NextResponse.json({ message: 'E-mail ignorado: API Key não configurada' }, { status: 200 });
+    if (!smtpEmail && !resendApiKey) {
+      console.error('[Welcome Email] SMTP_EMAIL e RESEND_API_KEY não configurados.');
+      return NextResponse.json({ message: 'E-mail ignorado: Nenhum provedor configurado' }, { status: 200 });
     }
 
     // 1. Puxar o template do banco de dados
@@ -42,36 +48,79 @@ export async function POST(request: Request) {
     // 2. Substituir as variáveis do HTML
     const finalHtml = templateData.html_content.replace(/{{name}}/g, name);
 
-    // 3. Disparar via Resend
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: senderEmail,
-        to: [email],
-        subject: templateData.subject,
-        html: finalHtml,
-      }),
-    });
-
-    const data = await response.json();
-
-    // 4. Registrar no Banco de Dados (Log)
     let logStatus = 'success';
     let logErrorMessage = null;
+    let providerData = null;
+    let responseOk = false;
+    let responseStatus = 200;
 
-    if (!response.ok) {
-      logStatus = 'error';
-      logErrorMessage = data.message || JSON.stringify(data);
-      console.error('[Welcome Email] Erro do Resend:', data);
+    // 3. Disparar o email
+    if (smtpEmail && smtpPassword) {
+      // Disparo via SMTP (Gmail)
+      try {
+        const transporter = nodemailer.createTransport({
+          host: smtpHost,
+          port: smtpPort,
+          secure: smtpPort === 465,
+          auth: {
+            user: smtpEmail,
+            pass: smtpPassword,
+          }
+        });
+
+        const info = await transporter.sendMail({
+          from: `"FéConecta" <${smtpEmail}>`,
+          to: email,
+          subject: templateData.subject,
+          html: finalHtml,
+        });
+
+        responseOk = true;
+        providerData = info;
+        console.log(`[Welcome Email] Enviado com sucesso via SMTP para ${email}`);
+      } catch (err: any) {
+        logStatus = 'error';
+        logErrorMessage = err.message;
+        responseStatus = 500;
+        console.error('[Welcome Email] Erro SMTP:', err);
+      }
     } else {
-      console.log(`[Welcome Email] Enviado com sucesso para ${email}`);
+      // Fallback para Resend
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: senderEmail,
+            to: [email],
+            subject: templateData.subject,
+            html: finalHtml,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          logStatus = 'error';
+          logErrorMessage = data.message || JSON.stringify(data);
+          responseStatus = response.status;
+          console.error('[Welcome Email] Erro do Resend:', data);
+        } else {
+          responseOk = true;
+          providerData = data;
+          console.log(`[Welcome Email] Enviado com sucesso via Resend para ${email}`);
+        }
+      } catch (err: any) {
+        logStatus = 'error';
+        logErrorMessage = err.message;
+        responseStatus = 500;
+        console.error('[Welcome Email] Erro Resend:', err);
+      }
     }
 
-    // Salvar de forma assíncrona o log
+    // 4. Registrar no Banco de Dados (Log)
     await supabase.from('email_logs').insert({
       user_id: user_id || null, // Se o client mandar o id, atrela
       email: email,
@@ -80,15 +129,14 @@ export async function POST(request: Request) {
       error_message: logErrorMessage
     });
 
-    if (!response.ok) {
-      return NextResponse.json({ error: data }, { status: response.status });
+    if (!responseOk) {
+      return NextResponse.json({ error: logErrorMessage }, { status: responseStatus });
     }
 
-    return NextResponse.json({ success: true, data }, { status: 200 });
+    return NextResponse.json({ success: true, data: providerData }, { status: 200 });
 
   } catch (error: any) {
     console.error('[Welcome Email] Erro interno:', error);
     return NextResponse.json({ error: error.message || 'Erro ao enviar e-mail' }, { status: 500 });
   }
 }
-
