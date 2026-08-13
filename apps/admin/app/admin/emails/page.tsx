@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Mail, History, Code, Save, Loader2, RefreshCw, CheckCircle, XCircle, Maximize2, Minimize2 } from "lucide-react";
+import { Mail, History, Code, Save, Loader2, RefreshCw, CheckCircle, XCircle, Maximize2, Minimize2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { DisparoTab } from "@/components/DisparoTab";
 
 export default function EmailsAdminPage() {
-  const [activeTab, setActiveTab] = useState<'templates' | 'logs'>('templates');
+  const [activeTab, setActiveTab] = useState<'templates' | 'logs' | 'disparo'>('templates');
   const [templates, setTemplates] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +111,12 @@ export default function EmailsAdminPage() {
         >
           <History className="w-4 h-4" /> Histórico de Disparos
         </button>
+        <button
+          onClick={() => setActiveTab('disparo')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === 'disparo' ? 'bg-whatsapp-teal/20 text-whatsapp-teal' : 'text-gray-400 hover:text-white'}`}
+        >
+          <Send className="w-4 h-4" /> Enviar (Disparo)
+        </button>
       </div>
 
       {activeTab === 'templates' && editingTemplate && (
@@ -181,6 +188,8 @@ export default function EmailsAdminPage() {
           </div>
         </div>
       )}
+
+      {activeTab === 'disparo' && <DisparoTab />}
 
       {activeTab === 'logs' && (
         <div className="bg-[#111] border border-white/10 rounded-xl overflow-hidden">

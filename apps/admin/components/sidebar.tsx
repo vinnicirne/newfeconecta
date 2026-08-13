@@ -33,7 +33,8 @@ import {
   Sparkles,
   Bell,
   DollarSign,
-  Church
+  Church,
+  Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -41,6 +42,7 @@ import { supabase } from "@/lib/supabase";
 const menuItems: any[] = [
   // ── CONTEÚD0 ────────────────────────────────
   { type: 'divider', label: 'Conteúdo' },
+  { name: "Sistema de E-mails", icon: Mail, href: "/admin/emails" },
   { name: "Notificações Push", icon: Bell, href: "/admin/push" },
   { name: "Marketing & Avisos", icon: Megaphone, href: "/admin/marketing" },
 
