@@ -8,6 +8,8 @@ export function DisparoTab() {
   const [usersToEmail, setUsersToEmail] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
+  const [totalToSend, setTotalToSend] = useState(0);
   const [manualEmail, setManualEmail] = useState("");
   const [manualName, setManualName] = useState("");
   
@@ -60,7 +62,11 @@ export function DisparoTab() {
       return;
     }
 
+    const total = selectedUsers.length + (manualEmail ? 1 : 0);
     setSending(true);
+    setSentCount(0);
+    setTotalToSend(total);
+
     let successCount = 0;
     let errorCount = 0;
 
@@ -75,6 +81,8 @@ export function DisparoTab() {
         if (res.ok) successCount++; else errorCount++;
       } catch {
         errorCount++;
+      } finally {
+        setSentCount(prev => prev + 1);
       }
     }
 
@@ -93,6 +101,8 @@ export function DisparoTab() {
         }
       } catch {
         errorCount++;
+      } finally {
+        setSentCount(prev => prev + 1);
       }
     }
 
@@ -177,7 +187,7 @@ export function DisparoTab() {
               className="w-full bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-bold h-12 text-sm"
             >
               {sending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando...</>
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando {sentCount} de {totalToSend}...</>
               ) : (
                 <><Send className="w-4 h-4 mr-2" /> Disparar Emails Selecionados</>
               )}
