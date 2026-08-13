@@ -229,7 +229,7 @@ export default function CompleteProfilePage() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col items-center justify-center bg-background w-full relative px-4 py-12">
+    <div className="min-h-[100dvh] flex flex-col items-center justify-start sm:justify-center bg-background w-full relative px-4 pt-12 pb-32">
       <div className="relative w-full max-w-md mx-auto flex flex-col shrink-0">
         
         <div className="flex flex-col items-center mb-8">

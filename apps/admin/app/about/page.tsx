@@ -1,7 +1,7 @@
 import React from "react";
+import { Metadata } from "next";
 import { ArrowLeft, Heart, Sparkles, Users, MessageCircle } from "lucide-react";
 import Link from "next/link";
-import { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Sobre Nós | FéConecta",
@@ -11,7 +11,6 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#0a0a0a] text-gray-900 dark:text-white">
-
       {/* Header */}
       <div className="sticky top-0 z-50 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5">
         <div className="max-w-2xl mx-auto px-5 py-4 flex items-center gap-3">
@@ -23,7 +22,6 @@ export default function AboutPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-5">
-
         {/* Hero — Carta do Fundador */}
         <section className="pt-14 pb-12">
           {/* Eyebrow */}
@@ -62,12 +60,10 @@ export default function AboutPage() {
           </p>
         </section>
 
-        {/* Valores — layout humano, sem ícone engessado */}
+        {/* Valores */}
         <section className="py-14 space-y-10">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500">O que nos move</p>
-
           <div className="space-y-8">
-
             <div className="group">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-green-400/10 flex items-center justify-center shrink-0">
@@ -79,7 +75,6 @@ export default function AboutPage() {
                 Aqui você não é um usuário. É um irmão. Cada recurso foi pensado para aproximar pessoas, não para criar dependência da tela.
               </p>
             </div>
-
             <div className="group">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-teal-400/10 flex items-center justify-center shrink-0">
@@ -91,7 +86,6 @@ export default function AboutPage() {
                 Usamos o que há de mais moderno — IA, tempo real, notificações inteligentes — mas sempre com um único propósito: amplificar a voz das igrejas, não substituí-la.
               </p>
             </div>
-
             <div className="group">
               <div className="flex items-center gap-3 mb-2">
                 <div className="w-8 h-8 rounded-xl bg-amber-400/10 flex items-center justify-center shrink-0">
@@ -103,14 +97,12 @@ export default function AboutPage() {
                 Nossa equipe frequenta igrejas. Vai ao culto de quarta. Pede oração no grupo do WhatsApp. Isso muda tudo na forma como projetamos cada detalhe.
               </p>
             </div>
-
           </div>
         </section>
 
-        {/* Timeline — minimalista, editorial */}
+        {/* Timeline */}
         <section className="pb-14 border-t border-gray-100 dark:border-white/5 pt-14">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500 mb-10">A jornada</p>
-
           <div className="space-y-0">
             {[
               {
@@ -122,7 +114,7 @@ export default function AboutPage() {
               {
                 year: "2024",
                 title: "O primeiro commit",
-                text: "Primeiras linhas de código. Primeiras igrejas testando. Primeiro pastor que chegou e disse: "era isso que eu precisava."",
+                text: "Primeiras linhas de código. Primeiras igrejas testando. Primeiro pastor que chegou e disse: 'era isso que eu precisava.'",
                 color: "bg-teal-400",
               },
               {
@@ -139,14 +131,12 @@ export default function AboutPage() {
               },
             ].map((item, i, arr) => (
               <div key={i} className="flex gap-5">
-                {/* linha vertical */}
                 <div className="flex flex-col items-center">
                   <div className={`w-3 h-3 rounded-full ${item.color} mt-1.5 shrink-0`} />
                   {i < arr.length - 1 && (
                     <div className="w-px flex-1 bg-gray-100 dark:bg-white/5 mt-2 mb-2" />
                   )}
                 </div>
-                {/* conteúdo */}
                 <div className={`pb-10 ${i === arr.length - 1 ? "pb-0" : ""}`}>
                   <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{item.year}</span>
                   <h4 className="text-base font-bold text-gray-900 dark:text-white mt-0.5 mb-1">{item.title}</h4>
@@ -157,7 +147,7 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* CTA — sem botões genéricos */}
+        {/* CTA */}
         <section className="pb-20 pt-4">
           <div className="bg-gradient-to-br from-green-500/10 to-teal-500/10 rounded-3xl p-8 text-center border border-green-500/10">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-green-400 to-teal-400 flex items-center justify-center mx-auto mb-4">
@@ -168,27 +158,19 @@ export default function AboutPage() {
               Tem uma sugestão, um bug para reportar ou só quer mandar um salve? A gente lê tudo.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <Link
-                href="/register"
-                className="px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity shadow-lg shadow-green-500/20"
-              >
+              <Link href="/register" className="px-6 py-3 bg-gradient-to-r from-green-500 to-teal-500 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity shadow-lg shadow-green-500/20">
                 Entrar para a comunidade
               </Link>
-              <Link
-                href="/"
-                className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 font-bold rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
-              >
+              <Link href="/" className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 font-bold rounded-xl text-sm hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
                 Ver o feed
               </Link>
             </div>
           </div>
         </section>
 
-        {/* Rodapé discreto */}
         <div className="text-center pb-10 text-xs text-gray-300 dark:text-gray-600">
           Feito com fé, café e muita oração. 🙏
         </div>
-
       </div>
     </div>
   );
