@@ -195,7 +195,7 @@ export default function CompleteProfilePage() {
       fetch('/api/emails/welcome', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUser.email, name: firstName })
+        body: JSON.stringify({ email: currentUser.email, name: firstName, user_id: currentUser.id })
       }).catch(err => console.error("Erro ao disparar welcome email:", err));
 
       if ('Notification' in window && Notification.permission === 'default') {
