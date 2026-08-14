@@ -4,8 +4,6 @@ import { generateDailyMessage } from '@/lib/gemini';
 import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60; // Configura o limite de tempo para o Cron Job na Vercel (se estiver no plano Pro, se for Hobby será ignorado ou limitado a 10s/60s).
-
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization');
@@ -89,8 +87,8 @@ export async function GET(request: Request) {
 
     console.log(`[CRON] Iniciando envio em lote para ${profiles.length} usuários.`);
 
-    // 5. Disparo em lote
-    for (const user of profiles) {
+    // 5. Disparo em lote (Paralelo)
+    const sendPromises = profiles.map(async (user) => {
       const email = user.email;
       const name = user.full_name || user.username || 'Membro';
       const userId = user.id;
@@ -98,8 +96,7 @@ export async function GET(request: Request) {
       try {
         let finalHtml = generatedContent.html.replace(/{{name}}/g, name);
 
-        // Registrar no log
-        const { data: insertedLog, error: logError } = await supabase.from('email_logs').insert({
+        const { data: insertedLog } = await supabase.from('email_logs').insert({
           user_id: userId,
           email: email,
           template_key: 'mensagem_do_dia',
@@ -116,7 +113,6 @@ export async function GET(request: Request) {
         let sentSuccess = false;
         let errorMessage = null;
 
-        // Enviar
         if (transporter) {
           try {
             await transporter.sendMail({
@@ -161,7 +157,6 @@ export async function GET(request: Request) {
           }
         }
 
-        // Atualizar log
         if (logId) {
           await supabase.from('email_logs').update({
             status: sentSuccess ? 'success' : 'error',
@@ -176,10 +171,9 @@ export async function GET(request: Request) {
         console.error(`[CRON] Erro no envio para ${email}:`, err);
         errorCount++;
       }
+    });
 
-      // Pequeno delay para evitar rate limit de SMTP
-      await new Promise(r => setTimeout(r, 200));
-    }
+    await Promise.all(sendPromises);
 
     console.log(`[CRON] Finalizado. Sucessos: ${successCount}, Erros: ${errorCount}`);
     return NextResponse.json({ success: true, sent: successCount, failed: errorCount }, { status: 200 });
