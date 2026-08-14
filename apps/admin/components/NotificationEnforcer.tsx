@@ -65,7 +65,7 @@ export function NotificationEnforcer({ userId }: { userId: string | null }) {
 
         <h2 className="text-2xl font-black text-white mb-3">Ative as Notificações</h2>
         
-        {permissionStatus === "prompt" || permissionStatus === "default" ? (
+        {permissionStatus === "prompt" || (permissionStatus as string) === "default" ? (
           <>
             <p className="text-gray-400 mb-8 leading-relaxed">
               Para usar o FéConecta, é obrigatório permitir as notificações. Assim você não perde orações, alertas da Sala de Guerra e mensagens importantes.
