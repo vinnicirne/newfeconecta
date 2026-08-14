@@ -90,8 +90,14 @@ export async function POST(request: Request) {
         const info = await transporter.sendMail({
           from: `"FéConecta" <${smtpEmail}>`,
           to: email,
+          replyTo: smtpEmail,
           subject: templateData.subject,
+          text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: finalHtml,
+          headers: {
+            'List-Unsubscribe': `<mailto:${smtpEmail}?subject=unsubscribe>`,
+            'Precedence': 'bulk'
+          }
         });
 
         responseOk = true;
