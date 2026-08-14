@@ -23,7 +23,7 @@ export function DisparoTab() {
   const [manualEmail, setManualEmail] = useState("");
   const [manualName, setManualName] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [campaign, setCampaign] = useState<'welcome' | 'reengagement'>('welcome');
+  const [campaign, setCampaign] = useState<'welcome' | 'reengagement' | 'mensagem_do_dia'>('mensagem_do_dia');
   
   const fetchPendingUsers = async () => {
     setLoading(true);
@@ -170,9 +170,10 @@ export function DisparoTab() {
         </div>
         <select 
           value={campaign} 
-          onChange={(e) => setCampaign(e.target.value as 'welcome' | 'reengagement')}
+          onChange={(e) => setCampaign(e.target.value as 'welcome' | 'reengagement' | 'mensagem_do_dia')}
           className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
         >
+          <option value="mensagem_do_dia">Campanha: Mensagem do Dia (Devocional)</option>
           <option value="welcome">Campanha: Boas Vindas (Novatos)</option>
           <option value="reengagement">Campanha: Saudades (Inativos &gt; 3 dias)</option>
         </select>
