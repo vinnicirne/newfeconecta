@@ -110,15 +110,11 @@ Antes de escrever, faça internamente estas perguntas:
 
 ### Sobre o texto
 
-* O que o texto realmente está dizendo?
-* Quem está falando?
-* Para quem foi escrito?
-* Qual é o contexto?
-* Qual é a ideia principal?
-* Existe alguma promessa?
-* Existe alguma instrução?
-* Existe alguma advertência?
-* Existe algum princípio espiritual?
+* **REGRA DE OURO:** É ESTRITAMENTE PROIBIDO usar versículos isolados fora do seu contexto bíblico original. Garanta que a reflexão e o significado extraídos respeitem fielmente o capítulo em que o versículo está inserido. Evite criar "textos-pretexto" ou reflexões desconexas.
+* O que o texto realmente está dizendo dentro do seu contexto histórico e literário?
+* Quem está falando e para quem foi escrito?
+* Qual é a ideia principal do capítulo?
+* Existe alguma promessa, instrução ou advertência?
 
 ### Sobre Cristo
 
