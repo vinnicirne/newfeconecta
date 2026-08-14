@@ -211,7 +211,7 @@ export default function EmailsAdminPage() {
                 </tr>
               ) : logs.map((log) => (
                 <tr key={log.id} className="hover:bg-white/[0.02]">
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-6 py-4 whitespace-nowrap" suppressHydrationWarning>
                     {new Date(log.sent_at).toLocaleString('pt-BR')}
                   </td>
                   <td className="px-6 py-4 font-medium text-white">
@@ -233,7 +233,7 @@ export default function EmailsAdminPage() {
                   </td>
                   <td className="px-6 py-4">
                     {log.opened_at ? (
-                      <span className="flex items-center gap-1 text-whatsapp-teal font-bold bg-whatsapp-teal/10 px-2 py-1 rounded-md w-fit text-xs whitespace-nowrap">
+                      <span suppressHydrationWarning className="flex items-center gap-1 text-whatsapp-teal font-bold bg-whatsapp-teal/10 px-2 py-1 rounded-md w-fit text-xs whitespace-nowrap">
                         Aberto {new Date(log.opened_at).toLocaleDateString('pt-BR')} às {new Date(log.opened_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
                       </span>
                     ) : (
