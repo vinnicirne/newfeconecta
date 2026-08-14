@@ -74,7 +74,12 @@ export function DisparoTab() {
   }, [campaign]);
 
   const toggleSelect = (userId: string) => {
-    setUsersToEmail(prev => prev.map(u => u.id === userId ? { ...u, selected: !u.selected } : u));
+    setUsersToEmail(prev => prev.map(u => {
+      if (u.id === userId && !u.hasReceived) {
+        return { ...u, selected: !u.selected };
+      }
+      return u;
+    }));
   };
 
   const selectAllPending = () => {
@@ -87,6 +92,8 @@ export function DisparoTab() {
 
   const selectedCount = usersToEmail.filter(u => u.selected).length;
 
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
   const handleSendBatch = async () => {
     const selectedUsers = usersToEmail.filter(u => u.selected);
     
@@ -95,7 +102,17 @@ export function DisparoTab() {
       return;
     }
 
+    if (manualEmail && !isValidEmail(manualEmail)) {
+      toast.error("E-mail avulso inválido.");
+      return;
+    }
+
     const total = selectedUsers.length + (manualEmail ? 1 : 0);
+
+    if (total > 25 && !window.confirm(`Tem certeza que deseja enviar ${total} e-mails?`)) {
+      return;
+    }
+
     setSending(true);
     setSentCount(0);
     setTotalToSend(total);
@@ -103,41 +120,37 @@ export function DisparoTab() {
     let successCount = 0;
     let errorCount = 0;
 
-    // Disparo manual extra
-    if (manualEmail) {
+    const sendOne = async (payload: Record<string, any>) => {
       try {
         const res = await fetch("/api/emails/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: manualEmail, name: manualName || "Usuário", template_key: campaign })
+          body: JSON.stringify(payload)
         });
-        if (res.ok) successCount++; else errorCount++;
-      } catch {
-        errorCount++;
-      } finally {
-        setSentCount(prev => prev + 1);
-      }
-    }
-
-    // Disparo em lote
-    for (const user of selectedUsers) {
-      try {
-        const res = await fetch("/api/emails/send", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: user.email, name: user.full_name || user.username || "Membro", user_id: user.id, template_key: campaign })
-        });
+        const data = await res.json().catch(() => ({}));
         if (res.ok) {
           successCount++;
         } else {
           errorCount++;
+          console.error("Falha no envio:", data?.error || res.statusText);
         }
-      } catch {
+      } catch (err) {
         errorCount++;
+        console.error(err);
       } finally {
         setSentCount(prev => prev + 1);
-        await new Promise(resolve => setTimeout(resolve, 150));
       }
+    };
+
+    // Disparo manual extra
+    if (manualEmail) {
+      await sendOne({ email: manualEmail.trim(), name: manualName || "Usuário", template_key: campaign });
+    }
+
+    // Disparo em lote
+    for (const user of selectedUsers) {
+      await sendOne({ email: user.email, name: user.full_name || user.username || "Membro", user_id: user.id, template_key: campaign });
+      await new Promise(resolve => setTimeout(resolve, 150));
     }
 
     setSending(false);
@@ -158,7 +171,7 @@ export function DisparoTab() {
         </div>
         <select 
           value={campaign} 
-          onChange={(e) => setCampaign(e.target.value as any)}
+          onChange={(e) => setCampaign(e.target.value as 'welcome' | 'reengagement')}
           className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
         >
           <option value="welcome">Campanha: Boas Vindas (Novatos)</option>
@@ -208,7 +221,14 @@ export function DisparoTab() {
                 )
                 .map((u) => (
                   <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors" onClick={() => toggleSelect(u.id)}>
-                    <input type="checkbox" checked={u.selected} onChange={() => toggleSelect(u.id)} onClick={(e) => e.stopPropagation()} className="accent-whatsapp-teal" />
+                    <input 
+                      type="checkbox" 
+                      checked={u.selected} 
+                      disabled={u.hasReceived}
+                      onChange={() => toggleSelect(u.id)} 
+                      onClick={(e) => e.stopPropagation()} 
+                      className="accent-whatsapp-teal disabled:opacity-50" 
+                    />
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-white">
                         {u.full_name || u.username || "Sem Nome"}
