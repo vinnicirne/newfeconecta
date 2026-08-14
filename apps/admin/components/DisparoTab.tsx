@@ -12,19 +12,28 @@ export function DisparoTab() {
   const [totalToSend, setTotalToSend] = useState(0);
   const [manualEmail, setManualEmail] = useState("");
   const [manualName, setManualName] = useState("");
+  const [campaign, setCampaign] = useState<'welcome' | 'reengagement'>('welcome');
   
   const fetchPendingUsers = async () => {
     setLoading(true);
     try {
-      const { data: profiles, error: pError } = await supabase
+      let query = supabase
         .from("profiles")
-        .select("id, full_name, email, username")
+        .select("id, full_name, email, username, last_seen")
         .not("email", "is", null);
+
+      if (campaign === 'reengagement') {
+        const threeDaysAgo = new Date();
+        threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+        query = query.lte('last_seen', threeDaysAgo.toISOString());
+      }
+
+      const { data: profiles, error: pError } = await query;
       
       const { data: logs, error: lError } = await supabase
         .from("email_logs")
         .select("email, status")
-        .eq("template_key", "welcome")
+        .eq("template_key", campaign)
         .eq("status", "success");
 
       if (pError) throw pError;
@@ -46,7 +55,7 @@ export function DisparoTab() {
 
   useEffect(() => {
     fetchPendingUsers();
-  }, []);
+  }, [campaign]);
 
   const toggleSelect = (index: number) => {
     const updated = [...usersToEmail];
@@ -73,10 +82,10 @@ export function DisparoTab() {
     // Disparo manual extra
     if (manualEmail) {
       try {
-        const res = await fetch("/api/emails/welcome", {
+        const res = await fetch("/api/emails/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: manualEmail, name: manualName || "Usuário" })
+          body: JSON.stringify({ email: manualEmail, name: manualName || "Usuário", template_key: campaign })
         });
         if (res.ok) successCount++; else errorCount++;
       } catch {
@@ -89,10 +98,10 @@ export function DisparoTab() {
     // Disparo em lote
     for (const user of selectedUsers) {
       try {
-        const res = await fetch("/api/emails/welcome", {
+        const res = await fetch("/api/emails/send", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: user.email, name: user.full_name || user.username || "Membro", user_id: user.id })
+          body: JSON.stringify({ email: user.email, name: user.full_name || user.username || "Membro", user_id: user.id, template_key: campaign })
         });
         if (res.ok) {
           successCount++;
@@ -117,9 +126,19 @@ export function DisparoTab() {
 
   return (
     <div className="bg-[#111] border border-white/10 rounded-xl p-6 space-y-6">
-      <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-4">
-        <Send className="w-5 h-5 text-whatsapp-teal" />
-        <h2 className="text-xl font-bold text-white">Disparo Manual (Template: Welcome)</h2>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2 border-b border-white/10 pb-4">
+        <div className="flex items-center gap-2">
+          <Send className="w-5 h-5 text-whatsapp-teal" />
+          <h2 className="text-xl font-bold text-white">Disparo Manual</h2>
+        </div>
+        <select 
+          value={campaign} 
+          onChange={(e) => setCampaign(e.target.value as any)}
+          className="bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
+        >
+          <option value="welcome">Campanha: Boas Vindas (Novatos)</option>
+          <option value="reengagement">Campanha: Saudades (Inativos &gt; 3 dias)</option>
+        </select>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

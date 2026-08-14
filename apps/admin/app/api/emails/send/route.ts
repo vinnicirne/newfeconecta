@@ -14,7 +14,8 @@ export async function POST(request: Request) {
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    const { email, name, user_id } = await request.json();
+    const { email, name, user_id, template_key } = await request.json();
+    const tKey = template_key || 'welcome';
 
     if (!email || !name) {
       return NextResponse.json({ error: 'Email e Nome são obrigatórios' }, { status: 400 });
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
     const { data: templateData, error: templateError } = await supabase
       .from('email_templates')
       .select('subject, html_content')
-      .eq('key', 'welcome')
+      .eq('key', tKey)
       .single();
 
     if (templateError || !templateData) {
@@ -53,7 +54,7 @@ export async function POST(request: Request) {
     const { data: insertedLog, error: logError } = await supabase.from('email_logs').insert({
       user_id: user_id || null,
       email: email,
-      template_key: 'welcome',
+      template_key: tKey,
       status: 'sending'
     }).select('id').single();
 
@@ -149,7 +150,7 @@ export async function POST(request: Request) {
       await supabase.from('email_logs').insert({
         user_id: user_id || null,
         email: email,
-        template_key: 'welcome',
+        template_key: tKey,
         status: logStatus,
         error_message: logErrorMessage
       });
