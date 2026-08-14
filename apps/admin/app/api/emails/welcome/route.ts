@@ -46,7 +46,25 @@ export async function POST(request: Request) {
     }
 
     // 2. Substituir as variáveis do HTML
-    const finalHtml = templateData.html_content.replace(/{{name}}/g, name);
+    let finalHtml = templateData.html_content.replace(/{{name}}/g, name);
+
+    // 3. Registrar no Banco de Dados (Log) primeiro para gerar um ID
+    let logId = null;
+    const { data: insertedLog, error: logError } = await supabase.from('email_logs').insert({
+      user_id: user_id || null,
+      email: email,
+      template_key: 'welcome',
+      status: 'sending'
+    }).select('id').single();
+
+    if (!logError && insertedLog) {
+      logId = insertedLog.id;
+      // Adicionar o Tracking Pixel SVG com a marca d'água no final do HTML
+      const host = request.headers.get('host') || 'newfeconecta.vercel.app';
+      const protocol = host.includes('localhost') ? 'http' : 'https';
+      const trackingPixelUrl = `${protocol}://${host}/api/emails/track?id=${logId}`;
+      finalHtml += `\n<img src="${trackingPixelUrl}" alt="" width="1" height="1" style="display:block; opacity:0.01; margin-top:20px;" />`;
+    }
 
     let logStatus = 'success';
     let logErrorMessage = null;
@@ -54,7 +72,7 @@ export async function POST(request: Request) {
     let responseOk = false;
     let responseStatus = 200;
 
-    // 3. Disparar o email
+    // 4. Disparar o email
     if (smtpEmail && smtpPassword) {
       // Disparo via SMTP (Gmail)
       try {
@@ -120,14 +138,22 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Registrar no Banco de Dados (Log)
-    await supabase.from('email_logs').insert({
-      user_id: user_id || null, // Se o client mandar o id, atrela
-      email: email,
-      template_key: 'welcome',
-      status: logStatus,
-      error_message: logErrorMessage
-    });
+    // 5. Atualizar o Registro no Banco de Dados (Log)
+    if (logId) {
+      await supabase.from('email_logs').update({
+        status: logStatus,
+        error_message: logErrorMessage
+      }).eq('id', logId);
+    } else {
+      // Fallback caso a criação inicial tenha falhado
+      await supabase.from('email_logs').insert({
+        user_id: user_id || null,
+        email: email,
+        template_key: 'welcome',
+        status: logStatus,
+        error_message: logErrorMessage
+      });
+    }
 
     if (!responseOk) {
       return NextResponse.json({ error: logErrorMessage }, { status: responseStatus });
