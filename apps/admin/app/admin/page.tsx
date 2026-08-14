@@ -139,7 +139,7 @@ export default function DashboardPage() {
     checkLiveKitStatus();
     const interval = setInterval(() => {
       const start = Date.now();
-      fetch('/').then(() => setPing(Date.now() - start));
+      fetch('/').then(() => setPing(Date.now() - start)).catch(() => {});
     }, 3000);
     return () => clearInterval(interval);
   }, []);
