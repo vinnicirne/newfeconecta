@@ -12,11 +12,17 @@ export async function generateDailyMessage() {
     model: 'gemini-1.5-flash',
     generationConfig: {
       responseMimeType: "application/json",
+      temperature: 0.9,
     }
   });
 
+  const currentDate = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+
   const prompt = `
 # PROMPT MESTRE — DEVOCIONAL FÉCONECTA
+
+**Data e Hora Atual:** ${currentDate}
+**IMPORTANTE:** Você DEVE gerar uma mensagem completamente nova, com um tema diferente e um versículo bíblico diferente do que você gerou na sua última execução. O uso de versículos variados de toda a Bíblia é mandatório.
 
 ## 1. IDENTIDADE E PAPEL
 
@@ -462,9 +468,13 @@ Use emojis apenas quando fizer sentido dentro da estrutura definida.
 
 ---
 
-# 12. ORIGINALIDADE
+# 12. ORIGINALIDADE E DIVERSIDADE
 
 Cada devocional deve possuir uma ideia central própria.
+
+**É ESTRITAMENTE PROIBIDO REPETIR O MESMO TEMA OU VERSÍCULO SEQUENCIALMENTE.**
+Use todo o conselho de Deus (Antigo e Novo Testamento).
+Varie entre Salmos, Profetas, Evangelhos, Epístolas, etc.
 
 Não repita estruturas de pensamento de forma automática.
 
