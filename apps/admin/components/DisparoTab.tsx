@@ -4,8 +4,18 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { Loader2, Send, Users, UserPlus } from "lucide-react";
 
+interface UserToEmail {
+  id: string;
+  full_name: string | null;
+  email: string;
+  username: string | null;
+  last_seen: string | null;
+  hasReceived: boolean;
+  selected: boolean;
+}
+
 export function DisparoTab() {
-  const [usersToEmail, setUsersToEmail] = useState<any[]>([]);
+  const [usersToEmail, setUsersToEmail] = useState<UserToEmail[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentCount, setSentCount] = useState(0);
@@ -26,7 +36,7 @@ export function DisparoTab() {
       if (campaign === 'reengagement') {
         const threeDaysAgo = new Date();
         threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-        query = query.lte('last_seen', threeDaysAgo.toISOString());
+        query = query.or(`last_seen.lte.${threeDaysAgo.toISOString()},last_seen.is.null`);
       }
 
       const { data: profiles, error: pError } = await query;
@@ -38,6 +48,7 @@ export function DisparoTab() {
         .eq("status", "success");
 
       if (pError) throw pError;
+      if (lError) throw lError;
 
       const sentEmails = new Set((logs || []).map(l => l.email));
       
@@ -65,6 +76,16 @@ export function DisparoTab() {
   const toggleSelect = (userId: string) => {
     setUsersToEmail(prev => prev.map(u => u.id === userId ? { ...u, selected: !u.selected } : u));
   };
+
+  const selectAllPending = () => {
+    setUsersToEmail(prev => prev.map(u => ({ ...u, selected: !u.hasReceived })));
+  };
+
+  const deselectAll = () => {
+    setUsersToEmail(prev => prev.map(u => ({ ...u, selected: false })));
+  };
+
+  const selectedCount = usersToEmail.filter(u => u.selected).length;
 
   const handleSendBatch = async () => {
     const selectedUsers = usersToEmail.filter(u => u.selected);
@@ -115,6 +136,7 @@ export function DisparoTab() {
         errorCount++;
       } finally {
         setSentCount(prev => prev + 1);
+        await new Promise(resolve => setTimeout(resolve, 150));
       }
     }
 
@@ -151,9 +173,17 @@ export function DisparoTab() {
               <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2 uppercase tracking-wider">
                 <Users className="w-4 h-4" /> Usuários da Base ({usersToEmail.length})
               </h3>
-              <Button variant="outline" size="sm" onClick={fetchPendingUsers} disabled={loading} className="text-xs">
-                {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Recarregar"}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={selectAllPending} className="text-[10px] h-7 px-2 text-whatsapp-teal">
+                  Todos Pendentes
+                </Button>
+                <Button variant="ghost" size="sm" onClick={deselectAll} className="text-[10px] h-7 px-2 text-gray-500">
+                  Nenhum
+                </Button>
+                <Button variant="outline" size="sm" onClick={fetchPendingUsers} disabled={loading} className="text-xs h-7">
+                  {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Recarregar"}
+                </Button>
+              </div>
             </div>
             <input 
               type="text" 
@@ -178,7 +208,7 @@ export function DisparoTab() {
                 )
                 .map((u) => (
                   <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors" onClick={() => toggleSelect(u.id)}>
-                    <input type="checkbox" checked={u.selected} onChange={() => {}} className="accent-whatsapp-teal" />
+                    <input type="checkbox" checked={u.selected} onChange={() => toggleSelect(u.id)} onClick={(e) => e.stopPropagation()} className="accent-whatsapp-teal" />
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-white">
                         {u.full_name || u.username || "Sem Nome"}
@@ -223,13 +253,13 @@ export function DisparoTab() {
           <div className="pt-6">
             <Button 
               onClick={handleSendBatch} 
-              disabled={sending || (usersToEmail.filter(u => u.selected).length === 0 && !manualEmail)} 
+              disabled={sending || (selectedCount === 0 && !manualEmail)} 
               className="w-full bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-bold h-12 text-sm"
             >
               {sending ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Enviando {sentCount} de {totalToSend}...</>
               ) : (
-                <><Send className="w-4 h-4 mr-2" /> Disparar Emails Selecionados</>
+                <><Send className="w-4 h-4 mr-2" /> Disparar ({selectedCount + (manualEmail ? 1 : 0)} selecionados)</>
               )}
             </Button>
           </div>
