@@ -87,93 +87,104 @@ export async function GET(request: Request) {
 
     console.log(`[CRON] Iniciando envio em lote para ${profiles.length} usuários.`);
 
-    // 5. Disparo em lote (Paralelo)
-    const sendPromises = profiles.map(async (user) => {
-      const email = user.email;
-      const name = user.full_name || user.username || 'Membro';
-      const userId = user.id;
+    // 5. Disparo em lote com controle de Rate Limit (Evita erro 429 do Resend)
+    const BATCH_SIZE = 5;
+    
+    for (let i = 0; i < profiles.length; i += BATCH_SIZE) {
+      const batch = profiles.slice(i, i + BATCH_SIZE);
+      
+      const sendPromises = batch.map(async (user) => {
+        const email = user.email;
+        const name = user.full_name || user.username || 'Membro';
+        const userId = user.id;
 
-      try {
-        let finalHtml = generatedContent.html.replace(/{{name}}/g, name);
+        try {
+          let finalHtml = generatedContent.html.replace(/{{name}}/g, name);
 
-        const { data: insertedLog } = await supabase.from('email_logs').insert({
-          user_id: userId,
-          email: email,
-          template_key: 'mensagem_do_dia',
-          status: 'sending'
-        }).select('id').single();
+          const { data: insertedLog } = await supabase.from('email_logs').insert({
+            user_id: userId,
+            email: email,
+            template_key: 'mensagem_do_dia',
+            status: 'sending'
+          }).select('id').single();
 
-        let logId = insertedLog?.id;
+          let logId = insertedLog?.id;
 
-        if (logId) {
-          const trackingPixelUrl = `${protocol}://${host}/api/emails/track?id=${logId}`;
-          finalHtml += `\n<img src="${trackingPixelUrl}" alt="" width="1" height="1" style="display:block; opacity:0.01; margin-top:20px;" />`;
-        }
-
-        let sentSuccess = false;
-        let errorMessage = null;
-
-        if (transporter) {
-          try {
-            await transporter.sendMail({
-              from: `"FéConecta" <${smtpEmail}>`,
-              to: email,
-              replyTo: smtpEmail,
-              subject: generatedContent.subject,
-              text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-              html: finalHtml,
-              headers: {
-                'List-Unsubscribe': `<mailto:${smtpEmail}?subject=unsubscribe>`,
-                'Precedence': 'bulk'
-              }
-            });
-            sentSuccess = true;
-          } catch (e: any) {
-            errorMessage = e.message;
+          if (logId) {
+            const trackingPixelUrl = `${protocol}://${host}/api/emails/track?id=${logId}`;
+            finalHtml += `\n<img src="${trackingPixelUrl}" alt="" width="1" height="1" style="display:block; opacity:0.01; margin-top:20px;" />`;
           }
-        } else if (resendApiKey) {
-          try {
-            const resendRes = await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${resendApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                from: senderEmail,
-                to: [email],
+
+          let sentSuccess = false;
+          let errorMessage = null;
+
+          if (transporter) {
+            try {
+              await transporter.sendMail({
+                from: `"FéConecta" <${smtpEmail}>`,
+                to: email,
+                replyTo: smtpEmail,
                 subject: generatedContent.subject,
+                text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
                 html: finalHtml,
-              }),
-            });
-            if (resendRes.ok) {
+                headers: {
+                  'List-Unsubscribe': `<mailto:${smtpEmail}?subject=unsubscribe>`,
+                  'Precedence': 'bulk'
+                }
+              });
               sentSuccess = true;
-            } else {
-              const d = await resendRes.json();
-              errorMessage = d.message || 'Erro no Resend';
+            } catch (e: any) {
+              errorMessage = e.message;
             }
-          } catch (e: any) {
-            errorMessage = e.message;
+          } else if (resendApiKey) {
+            try {
+              const resendRes = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${resendApiKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  from: senderEmail,
+                  to: [email],
+                  subject: generatedContent.subject,
+                  html: finalHtml,
+                }),
+              });
+              if (resendRes.ok) {
+                sentSuccess = true;
+              } else {
+                const d = await resendRes.json();
+                errorMessage = d.message || 'Erro no Resend';
+              }
+            } catch (e: any) {
+              errorMessage = e.message;
+            }
           }
+
+          if (logId) {
+            await supabase.from('email_logs').update({
+              status: sentSuccess ? 'success' : 'error',
+              error_message: errorMessage
+            }).eq('id', logId);
+          }
+
+          if (sentSuccess) successCount++;
+          else errorCount++;
+
+        } catch (err) {
+          console.error(`[CRON] Erro no envio para ${email}:`, err);
+          errorCount++;
         }
+      });
 
-        if (logId) {
-          await supabase.from('email_logs').update({
-            status: sentSuccess ? 'success' : 'error',
-            error_message: errorMessage
-          }).eq('id', logId);
-        }
-
-        if (sentSuccess) successCount++;
-        else errorCount++;
-
-      } catch (err) {
-        console.error(`[CRON] Erro no envio para ${email}:`, err);
-        errorCount++;
+      await Promise.all(sendPromises);
+      
+      // Pequeno delay entre os lotes para não estourar limite do Resend
+      if (i + BATCH_SIZE < profiles.length) {
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
-    });
-
-    await Promise.all(sendPromises);
+    }
 
     console.log(`[CRON] Finalizado. Sucessos: ${successCount}, Erros: ${errorCount}`);
     return NextResponse.json({ success: true, sent: successCount, failed: errorCount }, { status: 200 });
