@@ -136,7 +136,15 @@ export default function EmailsAdminPage() {
               </button>
             </div>
             <div className="mb-4">
-              <input type="text" value={editingTemplate.key} disabled className="w-full bg-black/50 border border-white/5 rounded-lg px-3 py-2 text-white/50 text-sm" />
+              <select 
+                value={editingTemplate.id} 
+                onChange={(e) => setEditingTemplate(templates.find(t => t.id == e.target.value))}
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
+              >
+                {templates.map(t => (
+                  <option key={t.id} value={t.id}>{t.key} - {t.subject}</option>
+                ))}
+              </select>
             </div>
             
             <div className="mb-4">
