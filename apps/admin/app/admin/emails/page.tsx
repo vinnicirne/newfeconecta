@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
-import { Mail, History, Code, Save, Loader2, RefreshCw, CheckCircle, XCircle, Maximize2, Minimize2, Send } from "lucide-react";
+import { Mail, History, Code, Save, Loader2, RefreshCw, CheckCircle, XCircle, Maximize2, Minimize2, Send, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DisparoTab } from "@/components/DisparoTab";
@@ -15,6 +15,7 @@ export default function EmailsAdminPage() {
   const [saving, setSaving] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
 
   const fetchTemplates = async () => {
     const { data, error } = await supabase.from('email_templates').select('*').order('created_at', { ascending: false });
@@ -73,6 +74,34 @@ export default function EmailsAdminPage() {
       toast.error("Erro ao salvar: " + err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGenerateAI = async () => {
+    setGeneratingAI(true);
+    const toastId = toast.loading("O Espírito Santo está inspirando a mensagem... 🕊️", { duration: 10000 });
+    
+    try {
+      const response = await fetch('/api/emails/generate', {
+        method: 'POST',
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) throw new Error(data.error || "Erro desconhecido ao gerar");
+      
+      setEditingTemplate({
+        ...editingTemplate,
+        subject: data.data.subject,
+        html_content: data.data.html
+      });
+      
+      toast.success("Mensagem do dia gerada com sucesso! Aleluia! 🙏", { id: toastId });
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Erro ao gerar com IA: " + err.message, { id: toastId });
+    } finally {
+      setGeneratingAI(false);
     }
   };
 
@@ -167,7 +196,16 @@ export default function EmailsAdminPage() {
               />
             </div>
 
-            <div className="mt-4 flex justify-end">
+            <div className="mt-4 flex justify-between">
+              <Button 
+                onClick={handleGenerateAI} 
+                disabled={generatingAI} 
+                variant="outline"
+                className="bg-purple-600/20 text-purple-400 border-purple-500/30 hover:bg-purple-600/30 hover:text-purple-300 font-bold"
+              >
+                {generatingAI ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
+                ✨ Gerar Mensagem com IA
+              </Button>
               <Button onClick={handleSaveTemplate} disabled={saving} className="bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-bold">
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                 Salvar Alterações
