@@ -12,6 +12,7 @@ export function DisparoTab() {
   const [totalToSend, setTotalToSend] = useState(0);
   const [manualEmail, setManualEmail] = useState("");
   const [manualName, setManualName] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [campaign, setCampaign] = useState<'welcome' | 'reengagement'>('welcome');
   
   const fetchPendingUsers = async () => {
@@ -40,12 +41,16 @@ export function DisparoTab() {
 
       const sentEmails = new Set((logs || []).map(l => l.email));
       
-      const pending = (profiles || []).filter(p => !sentEmails.has(p.email)).map(p => ({
-        ...p,
-        selected: true
-      }));
+      const allUsers = (profiles || []).map(p => {
+        const received = sentEmails.has(p.email);
+        return {
+          ...p,
+          hasReceived: received,
+          selected: !received
+        };
+      });
 
-      setUsersToEmail(pending);
+      setUsersToEmail(allUsers);
     } catch (err: any) {
       toast.error("Erro ao buscar usuários: " + err.message);
     } finally {
@@ -57,10 +62,8 @@ export function DisparoTab() {
     fetchPendingUsers();
   }, [campaign]);
 
-  const toggleSelect = (index: number) => {
-    const updated = [...usersToEmail];
-    updated[index].selected = !updated[index].selected;
-    setUsersToEmail(updated);
+  const toggleSelect = (userId: string) => {
+    setUsersToEmail(prev => prev.map(u => u.id === userId ? { ...u, selected: !u.selected } : u));
   };
 
   const handleSendBatch = async () => {
@@ -143,30 +146,48 @@ export function DisparoTab() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2 uppercase tracking-wider">
-              <Users className="w-4 h-4" /> Usuários Pendentes ({usersToEmail.length})
-            </h3>
-            <Button variant="outline" size="sm" onClick={fetchPendingUsers} disabled={loading} className="text-xs">
-              {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Recarregar"}
-            </Button>
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-400 flex items-center gap-2 uppercase tracking-wider">
+                <Users className="w-4 h-4" /> Usuários da Base ({usersToEmail.length})
+              </h3>
+              <Button variant="outline" size="sm" onClick={fetchPendingUsers} disabled={loading} className="text-xs">
+                {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Recarregar"}
+              </Button>
+            </div>
+            <input 
+              type="text" 
+              placeholder="Buscar por nome ou e-mail..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
+            />
           </div>
           
           <div className="bg-black/50 rounded-lg p-2 max-h-[400px] overflow-y-auto border border-white/5 custom-scrollbar">
             {loading ? (
               <p className="text-gray-500 text-center py-4 text-xs">Buscando...</p>
             ) : usersToEmail.length === 0 ? (
-              <p className="text-gray-500 text-center py-4 text-xs">Todos os usuários já receberam!</p>
+              <p className="text-gray-500 text-center py-4 text-xs">Nenhum usuário encontrado na base.</p>
             ) : (
-              usersToEmail.map((u, i) => (
-                <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors" onClick={() => toggleSelect(i)}>
-                  <input type="checkbox" checked={u.selected} onChange={() => {}} className="accent-whatsapp-teal" />
-                  <div className="flex flex-col">
-                    <span className="text-sm font-bold text-white">{u.full_name || u.username || "Sem Nome"}</span>
-                    <span className="text-xs text-gray-400">{u.email}</span>
+              usersToEmail
+                .filter(u => 
+                  (u.full_name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) || 
+                  (u.username?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
+                  (u.email?.toLowerCase() || "").includes(searchTerm.toLowerCase())
+                )
+                .map((u) => (
+                  <div key={u.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-md cursor-pointer transition-colors" onClick={() => toggleSelect(u.id)}>
+                    <input type="checkbox" checked={u.selected} onChange={() => {}} className="accent-whatsapp-teal" />
+                    <div className="flex flex-col">
+                      <span className="text-sm font-bold text-white">
+                        {u.full_name || u.username || "Sem Nome"}
+                        {u.hasReceived && <span className="ml-2 text-[10px] bg-whatsapp-teal/20 text-whatsapp-teal px-1.5 py-0.5 rounded uppercase tracking-wider">Já recebeu</span>}
+                      </span>
+                      <span className="text-xs text-gray-400">{u.email}</span>
+                    </div>
                   </div>
-                </div>
-              ))
+                ))
             )}
           </div>
         </div>
