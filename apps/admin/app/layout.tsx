@@ -78,6 +78,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.addEventListener('unhandledrejection', function(event) {
+                if (event.reason && event.reason.stack && event.reason.stack.includes('chrome-extension')) {
+                  event.preventDefault();
+                }
+              });
+              window.addEventListener('error', function(event) {
+                if (event.filename && event.filename.includes('chrome-extension')) {
+                  event.preventDefault();
+                }
+              }, true);
+            `
+          }}
+        />
+      </head>
 
       <body className="antialiased font-sans bg-white dark:bg-black text-gray-900 dark:text-white transition-colors duration-300" style={{ fontFamily: "'Poppins', sans-serif" }} suppressHydrationWarning>
         <script
