@@ -74,16 +74,15 @@ export function DisparoTab() {
   }, [campaign]);
 
   const toggleSelect = (userId: string) => {
-    setUsersToEmail(prev => prev.map(u => {
-      if (u.id === userId && !u.hasReceived) {
-        return { ...u, selected: !u.selected };
-      }
-      return u;
-    }));
+    setUsersToEmail(prev => prev.map(u => u.id === userId ? { ...u, selected: !u.selected } : u));
   };
 
   const selectAllPending = () => {
     setUsersToEmail(prev => prev.map(u => ({ ...u, selected: !u.hasReceived })));
+  };
+
+  const selectAll = () => {
+    setUsersToEmail(prev => prev.map(u => ({ ...u, selected: true })));
   };
 
   const deselectAll = () => {
@@ -187,8 +186,11 @@ export function DisparoTab() {
                 <Users className="w-4 h-4" /> Usuários da Base ({usersToEmail.length})
               </h3>
               <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={selectAll} className="text-[10px] h-7 px-2 text-whatsapp-teal">
+                  Todos
+                </Button>
                 <Button variant="ghost" size="sm" onClick={selectAllPending} className="text-[10px] h-7 px-2 text-whatsapp-teal">
-                  Todos Pendentes
+                  Só Pendentes
                 </Button>
                 <Button variant="ghost" size="sm" onClick={deselectAll} className="text-[10px] h-7 px-2 text-gray-500">
                   Nenhum
@@ -224,10 +226,9 @@ export function DisparoTab() {
                     <input 
                       type="checkbox" 
                       checked={u.selected} 
-                      disabled={u.hasReceived}
                       onChange={() => toggleSelect(u.id)} 
                       onClick={(e) => e.stopPropagation()} 
-                      className="accent-whatsapp-teal disabled:opacity-50" 
+                      className="accent-whatsapp-teal" 
                     />
                     <div className="flex flex-col">
                       <span className="text-sm font-bold text-white">
