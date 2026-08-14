@@ -66,7 +66,7 @@ export default function EmailsAdminPage() {
           updated_at: new Date().toISOString()
         })
         .eq('id', editingTemplate.id);
-      
+
       if (error) throw error;
       toast.success("Template salvo com sucesso!");
       await fetchTemplates();
@@ -80,22 +80,22 @@ export default function EmailsAdminPage() {
   const handleGenerateAI = async () => {
     setGeneratingAI(true);
     const toastId = toast.loading("O Espírito Santo está inspirando a mensagem... 🕊️", { duration: 10000 });
-    
+
     try {
       const response = await fetch('/api/emails/generate', {
         method: 'POST',
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) throw new Error(data.error || "Erro desconhecido ao gerar");
-      
+
       setEditingTemplate({
         ...editingTemplate,
         subject: data.data.subject,
         html_content: data.data.html
       });
-      
+
       toast.success("Mensagem do dia gerada com sucesso! Aleluia! 🙏", { id: toastId });
     } catch (err: any) {
       console.error(err);
@@ -149,14 +149,14 @@ export default function EmailsAdminPage() {
       </div>
 
       {activeTab === 'templates' && editingTemplate && (
-        <div className={isExpanded 
-          ? "fixed inset-0 z-50 bg-[#0a0a0a] p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-2 gap-6 h-[100dvh] w-screen overflow-hidden" 
+        <div className={isExpanded
+          ? "fixed inset-0 z-50 bg-[#0a0a0a] p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-2 gap-6 h-[100dvh] w-screen overflow-hidden"
           : "grid grid-cols-1 lg:grid-cols-2 gap-6"
         }>
           <div className={`bg-[#111] border border-white/10 rounded-xl p-4 flex flex-col ${isExpanded ? 'h-full' : 'h-[70vh]'}`}>
             <div className="flex justify-between items-center mb-4">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest block">Chave / Identificador</label>
-              <button 
+              <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="text-gray-400 hover:text-white transition-colors bg-white/5 hover:bg-white/10 p-2 rounded-md flex items-center gap-2 text-xs"
               >
@@ -165,8 +165,8 @@ export default function EmailsAdminPage() {
               </button>
             </div>
             <div className="mb-4">
-              <select 
-                value={editingTemplate.id} 
+              <select
+                value={editingTemplate.id}
                 onChange={(e) => setEditingTemplate(templates.find(t => t.id == e.target.value))}
                 className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
               >
@@ -175,36 +175,36 @@ export default function EmailsAdminPage() {
                 ))}
               </select>
             </div>
-            
+
             <div className="mb-4">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 block">Assunto do E-mail</label>
-              <input 
-                type="text" 
-                value={editingTemplate.subject} 
-                onChange={e => setEditingTemplate({...editingTemplate, subject: e.target.value})}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none" 
+              <input
+                type="text"
+                value={editingTemplate.subject}
+                onChange={e => setEditingTemplate({ ...editingTemplate, subject: e.target.value })}
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:border-whatsapp-teal outline-none"
               />
             </div>
 
             <div className="flex-1 flex flex-col">
               <label className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1 block">Código HTML</label>
-              <textarea 
+              <textarea
                 value={editingTemplate.html_content}
-                onChange={e => setEditingTemplate({...editingTemplate, html_content: e.target.value})}
+                onChange={e => setEditingTemplate({ ...editingTemplate, html_content: e.target.value })}
                 className="w-full flex-1 bg-[#0a0a0a] border border-white/10 rounded-lg p-4 text-green-400 font-mono text-xs focus:border-whatsapp-teal outline-none resize-none"
                 spellCheck={false}
               />
             </div>
 
             <div className="mt-4 flex justify-between">
-              <Button 
-                onClick={handleGenerateAI} 
-                disabled={generatingAI} 
+              <Button
+                onClick={handleGenerateAI}
+                disabled={generatingAI}
                 variant="outline"
                 className="bg-purple-600/20 text-purple-400 border-purple-500/30 hover:bg-purple-600/30 hover:text-purple-300 font-bold"
               >
                 {generatingAI ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                ✨ Gerar Mensagem com IA
+                Mensagem do Dia
               </Button>
               <Button onClick={handleSaveTemplate} disabled={saving} className="bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-bold">
                 {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
@@ -215,18 +215,18 @@ export default function EmailsAdminPage() {
 
           <div className={`bg-white rounded-xl flex flex-col overflow-hidden shadow-2xl relative ${isExpanded ? 'h-full' : 'h-[70vh]'}`}>
             <div className="bg-gray-100 border-b border-gray-200 p-3 flex gap-2">
-               <div className="w-3 h-3 rounded-full bg-red-400" />
-               <div className="w-3 h-3 rounded-full bg-yellow-400" />
-               <div className="w-3 h-3 rounded-full bg-green-400" />
+              <div className="w-3 h-3 rounded-full bg-red-400" />
+              <div className="w-3 h-3 rounded-full bg-yellow-400" />
+              <div className="w-3 h-3 rounded-full bg-green-400" />
             </div>
             <div className="p-4 bg-gray-50 border-b border-gray-200">
-               <div className="text-sm text-black"><strong>De:</strong> FéConecta &lt;contato@feconecta.com.br&gt;</div>
-               <div className="text-sm text-black"><strong>Assunto:</strong> {editingTemplate.subject}</div>
+              <div className="text-sm text-black"><strong>De:</strong> FéConecta &lt;contato@feconecta.com.br&gt;</div>
+              <div className="text-sm text-black"><strong>Assunto:</strong> {editingTemplate.subject}</div>
             </div>
             <div className="flex-1 overflow-auto bg-white">
               {/* iframe isolado para não sujar o CSS do painel com o HTML do email */}
-              <iframe 
-                className="w-full h-full border-0" 
+              <iframe
+                className="w-full h-full border-0"
                 srcDoc={`<base target="_blank" />${editingTemplate.html_content.replace(/{{name}}/g, 'João da Silva')}`}
                 title="Preview"
               />
@@ -280,7 +280,7 @@ export default function EmailsAdminPage() {
                   <td className="px-6 py-4">
                     {log.opened_at ? (
                       <span suppressHydrationWarning className="flex items-center gap-1 text-whatsapp-teal font-bold bg-whatsapp-teal/10 px-2 py-1 rounded-md w-fit text-xs whitespace-nowrap">
-                        Aberto {new Date(log.opened_at).toLocaleDateString('pt-BR')} às {new Date(log.opened_at).toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'})}
+                        Aberto {new Date(log.opened_at).toLocaleDateString('pt-BR')} às {new Date(log.opened_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     ) : (
                       <span className="text-gray-500 text-xs font-mono whitespace-nowrap">Não lido</span>
