@@ -98,7 +98,6 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
     { icon: Image, label: 'Galeria', color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20', onClick: () => fileInputRef.current?.click() },
     { icon: Camera, label: 'Câmera', color: 'bg-green-100 text-green-600 dark:bg-green-500/20', onClick: () => openComposer('photo') },
     { icon: Mic, label: 'Áudio', color: 'bg-orange-100 text-orange-600 dark:bg-orange-500/20', onClick: () => openComposer('audio') },
-    { icon: Music, label: 'Música', color: 'bg-pink-100 text-pink-600 dark:bg-pink-500/20', onClick: () => setMusicComposerOpen(true) },
   ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, mode: 'gallery' | 'photo') => {
