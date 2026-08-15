@@ -344,6 +344,7 @@ export default function UsersPage() {
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Gênero</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">Telefone</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Data Cadastro</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Último Acesso</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
               </tr>
             </thead>
@@ -413,6 +414,9 @@ export default function UsersPage() {
                     </td>
                     <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-bold">
                       {moment(u.created_at).format('DD MMM YYYY')}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-whatsapp-teal dark:text-whatsapp-green font-bold whitespace-nowrap">
+                      {u.updated_at ? moment(u.updated_at).format('DD/MM/YY HH:mm') : '—'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-1">
