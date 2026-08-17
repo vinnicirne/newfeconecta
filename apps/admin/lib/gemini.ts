@@ -612,7 +612,7 @@ HTML BASE:
 </p>
 
 <div style="text-align: center; margin-bottom: 20px;">
-  <a href="intent://login-callback#Intent;scheme=feconecta;package=com.feconecta.myapp;S.browser_fallback_url=https://play.google.com/store/apps/details?id=com.feconecta.myapp;end" style="display: inline-block; background-color: #00A676; color: #FFFFFF; font-weight: bold; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 16px;">
+  <a href="https://newfeconecta.vercel.app/app" style="display: inline-block; background-color: #00A676; color: #FFFFFF; font-weight: bold; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-size: 16px;">
     Abrir o App FéConecta
   </a>
 </div>
