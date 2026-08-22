@@ -3,7 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Music, Search, Compass, Library } from 'lucide-react';
+import { Music, Search, Library, ArrowLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function MusicTopNav() {
@@ -26,33 +26,49 @@ export default function MusicTopNav() {
           Fase de testes &bull; Algumas m&uacute;sicas podem falhar
         </span>
       </div>
-      <div className="flex items-center justify-between px-2 pt-2 pb-2 overflow-x-auto no-scrollbar max-w-lg mx-auto">
-        {navItems.map((item) => {
-          const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
-          const Icon = item.icon;
-          
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex-1 flex flex-col items-center justify-center min-w-[60px] transition-all active:scale-90 outline-none",
-                isActive 
-                  ? "text-whatsapp-teal dark:text-whatsapp-green" 
-                  : "text-gray-400"
-              )}
-              style={{ WebkitTapHighlightColor: 'transparent' }}
-            >
-              <Icon className={cn("w-6 h-6", isActive && item.id === "home" && "fill-current")} />
-              <span className={cn(
-                "text-[9px] font-bold mt-1 uppercase tracking-tighter",
-                !isActive && "opacity-80"
-              )}>
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
+
+      {/* Nav row com botão de voltar */}
+      <div className="flex items-center px-3 pt-2 pb-2 max-w-lg mx-auto gap-2">
+
+        {/* Botão voltar ao Feed */}
+        <Link
+          href="/"
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-gray-400 hover:bg-black/5 dark:hover:bg-white/5 hover:text-whatsapp-teal transition-all shrink-0"
+          title="Voltar ao Feed"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-[10px] font-bold uppercase tracking-tight hidden sm:block">Feed</span>
+        </Link>
+
+        {/* Nav items */}
+        <div className="flex flex-1 items-center justify-around overflow-x-auto no-scrollbar">
+          {navItems.map((item) => {
+            const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
+            const Icon = item.icon;
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex-1 flex flex-col items-center justify-center min-w-[60px] transition-all active:scale-90 outline-none",
+                  isActive
+                    ? "text-whatsapp-teal dark:text-whatsapp-green"
+                    : "text-gray-400"
+                )}
+                style={{ WebkitTapHighlightColor: 'transparent' }}
+              >
+                <Icon className={cn("w-6 h-6", isActive && item.id === "home" && "fill-current")} />
+                <span className={cn(
+                  "text-[9px] font-bold mt-1 uppercase tracking-tighter",
+                  !isActive && "opacity-80"
+                )}>
+                  {item.label}
+                </span>
+              </Link>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

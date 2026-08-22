@@ -31,7 +31,8 @@ import {
   Sprout,
   Church,
   Heart,
-  Music
+  Music,
+  HelpCircle
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -769,6 +770,12 @@ export default function RootPage() {
                     </DropdownMenuItem>
                   </Link>
 
+                  <Link href="/suporte">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-gray-900 dark:text-white hover:bg-white/5 transition-colors mt-1">
+                      <HelpCircle className="w-4 h-4 mr-3 text-sky-500" /> Suporte
+                    </DropdownMenuItem>
+                  </Link>
+
                   <DropdownMenuItem
                     onClick={(e) => { e.preventDefault(); setTheme(theme === 'dark' ? 'light' : 'dark'); }}
                     className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm flex items-center justify-between mt-1 hover:bg-black/5 dark:hover:bg-white/5 text-gray-700 dark:text-gray-200 transition-colors"
@@ -878,9 +885,9 @@ export default function RootPage() {
         </div>
       </div>
 
-      <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[1fr,672px,1fr] xl:grid-cols-[280px,1fr,320px] gap-0 lg:gap-8 pb-24">
-        {/* Lado Esquerdo - Menu/Perfil (Oculto em Mobile, visível em XL) */}
-        <div className="hidden xl:flex xl:flex-col sticky top-14 self-start p-4 space-y-2" suppressHydrationWarning>
+      <div className="max-w-[1400px] mx-auto grid grid-cols-1 lg:grid-cols-[280px,1fr,320px] gap-0 lg:gap-8 pb-24">
+        {/* Lado Esquerdo - Menu/Perfil (Oculto em Mobile, visível em LG+) */}
+        <div className="hidden lg:flex lg:flex-col sticky top-14 self-start p-4 space-y-2" suppressHydrationWarning>
           {/* Perfil */}
           <Link href="/profile" className="flex items-center gap-3 p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all group">
             <div className="w-10 h-10 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform bg-whatsapp-teal/10">
@@ -907,10 +914,12 @@ export default function RootPage() {
             <Link href="/" className="w-full flex items-center gap-3 px-4 py-3 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</Link>
             <Link href="/bible" className="w-full flex items-center gap-3 px-4 py-3 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><ScrollText className="w-5 h-5" /> Bíblia Sagrada</Link>
             <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Notas</Link>
+            <Link href="/music" className="w-full flex items-center gap-3 px-4 py-3 text-purple-500 hover:bg-purple-500/5 rounded-2xl transition-all font-bold"><Music className="w-5 h-5" /> Música</Link>
             <Link href="/messages" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all font-bold"><MessageSquare className="w-5 h-5" /> Mensagens</Link>
             <Link href="/saved" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all font-bold"><Bookmark className="w-5 h-5" /> Salvos</Link>
             <Link href="/room" className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-500/5 rounded-2xl font-bold transition-all"><Mic className="w-5 h-5" /> Sala de Guerra</Link>
             <Link href="/tribo" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl font-bold transition-all"><Users className="w-5 h-5" /> Tribo</Link>
+            <Link href="/suporte" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl font-bold transition-all"><HelpCircle className="w-5 h-5 text-sky-500" /> Suporte</Link>
           </nav>
 
           {/* Lugar Secreto */}

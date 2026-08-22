@@ -34,3 +34,5 @@ apps/admin/test-results/
 /*.sql
 *.jks
 *.tar.gz
+temp_ssh/
+temp_repo/

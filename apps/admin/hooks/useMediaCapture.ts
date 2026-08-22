@@ -390,7 +390,8 @@ export function useMediaCapture(
         const blob = new Blob(chunksRef.current, { type: finalMime });
         setIsProcessingPhoto(false);
         resolve(blob);
-        stopCamera();
+        // Adia stopCamera para não interromper a drenagem de chunks pendentes no Android WebView
+        setTimeout(() => stopCamera(), 0);
       };
 
       recorderRef.current.stop();

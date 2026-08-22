@@ -114,6 +114,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
   
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [page, setPage] = useState(0); // Rastreia a página atual para evitar offset shift
   const PAGE_SIZE = 15;
 
   useEffect(() => {
@@ -122,6 +123,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
 
   async function loadFeed() {
     setLoading(true);
+    setPage(0); // Reseta a página
 
     // ✅ Rodada única: posts + likes do user em paralelo — church e user já vieram do contexto
     const postsQuery = supabase
@@ -129,7 +131,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
       .select('*, author:profiles(full_name, avatar_url, username)')
       .eq('church_id', church.id)
       .order('created_at', { ascending: false })
-      .limit(PAGE_SIZE);
+      .range(0, PAGE_SIZE - 1); // Usa range 0 ao invés de limit para consistência
 
     const likesQuery = currentUser
       ? supabase.from('church_post_likes').select('post_id').eq('user_id', currentUser.id)
@@ -162,15 +164,27 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
   async function loadMorePosts() {
     if (loadingMore || !hasMore || !church) return;
     setLoadingMore(true);
+    
+    const nextPage = page + 1;
+    const startOffset = nextPage * PAGE_SIZE;
+    const endOffset = startOffset + PAGE_SIZE - 1;
+
     const { data: more } = await supabase
       .from('church_posts')
       .select('*, author:profiles(full_name, avatar_url, username)')
       .eq('church_id', church.id)
       .order('created_at', { ascending: false })
-      .range(posts.length, posts.length + PAGE_SIZE - 1);
+      .range(startOffset, endOffset);
 
     if (more && more.length > 0) {
-      setPosts(prev => [...prev, ...more]);
+      setPage(nextPage); // Sucesso, atualiza a página
+      // Evita duplicação caso um post que estava na página 1 escorregue para a página 2 (novo post no db)
+      setPosts(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newUniquePosts = more.filter((p: any) => !existingIds.has(p.id));
+        return [...prev, ...newUniquePosts];
+      });
+      
       setHasMore(more.length === PAGE_SIZE);
       const counts: Record<string, number> = {};
       const cCounts: Record<string, number> = {};
@@ -199,13 +213,15 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
     };
 
     if (data.blob) {
-      const fileExt = data.blob.type.split('/')[1] || (data.post_type === 'video' ? 'mp4' : 'jpg');
+      // Extrai a extensão pura, sem sufixo de codec (ex: 'webm;codecs=opus' → 'webm')
+      const rawExt = data.blob.type.split('/')[1]?.split(';')[0];
+      const fallbackExt = data.post_type === 'video' ? 'mp4' : data.post_type === 'audio' ? 'webm' : 'jpg';
+      const fileExt = rawExt || fallbackExt;
       const fileName = `${currentUser.id}_${Date.now()}.${fileExt}`;
       const { data: uploadData, error: uploadError } = await supabase.storage.from('posts').upload(fileName, data.blob);
       if (uploadError) {
         toast.error(`Erro ao fazer upload: ${uploadError.message}`);
-        setIsComposerOpen(false);
-        return;
+        return; // ← não fecha o composer — usuário pode tentar de novo
       }
       const { data: publicUrlData } = supabase.storage.from('posts').getPublicUrl(fileName);
       newPost.media_url = publicUrlData.publicUrl;
@@ -216,12 +232,15 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
     if (error) {
       toast.error("Erro ao criar publicação.");
       console.error(error);
-    } else if (insertedPost) {
+      return; // ← não fecha o composer em caso de erro
+    }
+    
+    if (insertedPost) {
       setPosts(prev => [insertedPost, ...prev]);
       toast.success("Publicação criada!");
     }
     
-    setIsComposerOpen(false);
+    setIsComposerOpen(false); // ← fecha apenas no sucesso
   };
   
   const handleToggleLike = async (postId: string) => {
@@ -363,7 +382,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
             open={isComposerOpen} 
             onClose={() => setIsComposerOpen(false)} 
             initialMode={composerInitialMode}
-            user={null}
+            user={currentUser}
             allowedModes={['text', 'audio', 'photo', 'gallery']}
             onSubmit={async (data: any) => { await handlePostSubmit(data); }}
           />
@@ -444,6 +463,10 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
                     <div className="mt-3 rounded-xl overflow-hidden border border-border">
                       {post.post_type === 'video' ? (
                         <video src={post.media_url} controls className="w-full h-auto max-h-[500px] bg-black" />
+                      ) : post.post_type === 'audio' ? (
+                        <div className="p-6 bg-muted/30 flex justify-center">
+                          <audio src={post.media_url} controls className="w-full max-w-md" />
+                        </div>
                       ) : (
                         <img src={post.media_url} className="w-full h-auto max-h-[500px] object-cover" />
                       )}

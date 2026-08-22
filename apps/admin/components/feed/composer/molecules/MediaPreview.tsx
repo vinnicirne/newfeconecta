@@ -2,26 +2,92 @@ import { motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import { MediaCapture } from '../../UnifiedComposer';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 
 interface MediaPreviewProps {
   captured: MediaCapture;
   content: string;
   onContentChange: (content: string) => void;
   onClear: () => void;
+  onPublish?: (overrideBlob?: Blob) => void;
   disabled?: boolean;
 }
 
+const FILTERS = [
+  { id: 'none',      label: 'Normal',   css: 'none' },
+  { id: 'grayscale', label: 'P&B',      css: 'grayscale(100%)' },
+  { id: 'sepia',     label: 'Sépia',    css: 'sepia(80%)' },
+  { id: 'contrast',  label: 'Intenso',  css: 'contrast(120%) saturate(120%)' },
+];
 
-export function MediaPreview({ captured, content, onContentChange, onClear, onPublish, disabled }: MediaPreviewProps & { onPublish?: () => void }) {
+export function MediaPreview({ captured, content, onContentChange, onClear, onPublish, disabled }: MediaPreviewProps) {
   const [filter, setFilter] = useState<string>('none');
+  const [isApplyingFilter, setIsApplyingFilter] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
 
-  const FILTERS = [
-    { id: 'none', label: 'Normal', css: 'none' },
-    { id: 'grayscale', label: 'P&B', css: 'grayscale(100%)' },
-    { id: 'sepia', label: 'Sépia', css: 'sepia(80%)' },
-    { id: 'contrast', label: 'Intenso', css: 'contrast(120%) saturate(120%)' },
-  ];
+  /**
+   * Bug 8 fix: Para fotos com filtro ativo, re-renderiza a imagem num canvas
+   * com ctx.filter aplicado, gera um novo blob JPEG e passa ao onPublish.
+   * Isso garante que a foto publicada seja exatamente o que o usuário viu.
+   */
+  const handlePublishWithFilter = useCallback(async () => {
+    if (!onPublish) return;
+
+    // Vídeo e áudio — sem filtro, passa direto
+    if (captured.type !== 'photo' || filter === 'none') {
+      onPublish();
+      return;
+    }
+
+    setIsApplyingFilter(true);
+    try {
+      const img = imgRef.current;
+      if (!img || !img.naturalWidth) {
+        // Fallback: imagem ainda não carregou — aguarda
+        await new Promise<void>((res) => {
+          const tmpImg = new Image();
+          tmpImg.crossOrigin = 'anonymous';
+          tmpImg.onload = () => res();
+          tmpImg.onerror = () => res();
+          tmpImg.src = captured.url;
+        });
+      }
+
+      const source = imgRef.current ?? (() => {
+        const tmp = new Image();
+        tmp.src = captured.url;
+        return tmp;
+      })();
+
+      const w = source instanceof HTMLImageElement ? source.naturalWidth  : 1;
+      const h = source instanceof HTMLImageElement ? source.naturalHeight : 1;
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { onPublish(); return; }
+
+      const cssFilter = FILTERS.find(f => f.id === filter)?.css ?? 'none';
+      // ctx.filter é amplamente suportado em Chrome/WebKit (Android/iOS WebView)
+      ctx.filter = cssFilter;
+      ctx.drawImage(source, 0, 0, w, h);
+
+      const filteredBlob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob((b) => resolve(b), 'image/jpeg', 0.92);
+      });
+
+      onPublish(filteredBlob ?? undefined);
+    } catch (err) {
+      console.error('[MediaPreview] filter apply failed:', err);
+      // Fallback silencioso — publica sem filtro
+      onPublish();
+    } finally {
+      setIsApplyingFilter(false);
+    }
+  }, [onPublish, captured, filter]);
+
+  const isPublishing = disabled || isApplyingFilter;
 
   return (
     <motion.div 
@@ -36,7 +102,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
           e.stopPropagation();
           onClear();
         }}
-        disabled={disabled}
+        disabled={isPublishing}
         className="absolute top-[calc(env(safe-area-inset-top)+1.5rem)] left-6 z-20 p-2 bg-black/40 hover:bg-black/80 backdrop-blur-md rounded-full text-white transition-all shadow-lg"
       >
         <X className="w-5 h-5 drop-shadow-md" />
@@ -45,10 +111,12 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
       {captured.type === 'photo' && (
         <>
           <img 
+            ref={imgRef}
             src={captured.url} 
             alt="Captura" 
             className="absolute inset-0 w-full h-full object-cover"
             style={{ filter: FILTERS.find(f => f.id === filter)?.css }}
+            crossOrigin="anonymous"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
         </>
@@ -96,7 +164,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
               placeholder="Toque para adicionar uma descrição..."
               className="w-full bg-transparent border-none focus:ring-0 text-white text-lg font-medium placeholder:text-white/60 resize-none"
               rows={2}
-              disabled={disabled}
+              disabled={isPublishing}
             />
             
             <div className="flex items-center justify-between border-t border-white/10 pt-4">
@@ -111,11 +179,11 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
               </div>
 
               <button 
-                onClick={onPublish}
-                disabled={disabled}
+                onClick={handlePublishWithFilter}
+                disabled={isPublishing}
                 className="px-6 py-2.5 bg-white text-black rounded-full font-black text-sm uppercase tracking-widest shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"
               >
-                {disabled ? "ENVIANDO..." : "PUBLICAR"}
+                {isApplyingFilter ? "APLICANDO..." : isPublishing ? "ENVIANDO..." : "PUBLICAR"}
               </button>
             </div>
           </div>
@@ -130,7 +198,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
           <audio src={captured.url} controls className="w-full max-w-sm" />
           <div className="mt-8 flex gap-4 w-full max-w-sm">
              <button onClick={onClear} className="flex-1 py-3 bg-red-500/10 text-red-500 font-bold rounded-full">Refazer</button>
-             <button onClick={onPublish} disabled={disabled} className="flex-1 py-3 bg-whatsapp-teal text-white font-bold rounded-full">Publicar</button>
+             <button onClick={() => onPublish?.()} disabled={isPublishing} className="flex-1 py-3 bg-whatsapp-teal text-white font-bold rounded-full">Publicar</button>
           </div>
         </div>
       )}
@@ -138,4 +206,4 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
   );
 }
 
-//
+//

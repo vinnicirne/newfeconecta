@@ -1,29 +1,38 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { Bell, AlertTriangle, Settings, RefreshCw } from "lucide-react";
+import { Bell, AlertTriangle, Settings, RefreshCw, X } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { supabase } from "@/lib/supabase";
+
+// Chave para lembrar que o usuário escolheu pular
+const SKIP_KEY = "fc_notification_skipped";
 
 export function NotificationEnforcer({ userId }: { userId: string | null }) {
   const [permissionStatus, setPermissionStatus] = useState<"granted" | "denied" | "prompt" | "checking" | "unsupported">("checking");
   const { requestPermission } = usePushNotifications();
   const [isChecking, setIsChecking] = useState(false);
+  const [skipped, setSkipped] = useState(false);
 
   const checkStatus = useCallback(async () => {
     if (typeof window === "undefined") return;
+
+    // Se o usuário já pulou, não bloquear
+    if (sessionStorage.getItem(SKIP_KEY)) {
+      setSkipped(true);
+      return;
+    }
 
     if (Capacitor.isNativePlatform()) {
       try {
         const status = await PushNotifications.checkPermissions();
         setPermissionStatus(status.receive as any);
-      } catch (err) {
+      } catch {
         setPermissionStatus("unsupported");
       }
     } else {
-      if (!('Notification' in window)) {
+      if (!("Notification" in window)) {
         setPermissionStatus("unsupported");
         return;
       }
@@ -33,9 +42,14 @@ export function NotificationEnforcer({ userId }: { userId: string | null }) {
 
   useEffect(() => {
     if (!userId) return;
-    checkStatus();
 
-    // Recheck periodically in case user changes settings manually
+    // Verifica skip imediatamente
+    if (sessionStorage.getItem(SKIP_KEY)) {
+      setSkipped(true);
+      return;
+    }
+
+    checkStatus();
     const interval = setInterval(checkStatus, 2000);
     return () => clearInterval(interval);
   }, [userId, checkStatus]);
@@ -49,8 +63,25 @@ export function NotificationEnforcer({ userId }: { userId: string | null }) {
     setIsChecking(false);
   };
 
-  if (!userId || permissionStatus === "checking" || permissionStatus === "granted" || permissionStatus === "unsupported") {
-    return null; // Do not block if not logged in, still checking, already granted, or if device literally doesn't support it.
+  const handleSkip = () => {
+    sessionStorage.setItem(SKIP_KEY, "1");
+    setSkipped(true);
+  };
+
+  // Não bloquear se:
+  // - sem usuário logado
+  // - ainda verificando
+  // - já concedido
+  // - não suportado (incógnito/browser restrito)
+  // - usuário pulou
+  if (
+    !userId ||
+    permissionStatus === "checking" ||
+    permissionStatus === "granted" ||
+    permissionStatus === "unsupported" ||
+    skipped
+  ) {
+    return null;
   }
 
   return (
@@ -64,7 +95,7 @@ export function NotificationEnforcer({ userId }: { userId: string | null }) {
         </div>
 
         <h2 className="text-2xl font-black text-white mb-3">Ative as Notificações</h2>
-        
+
         {permissionStatus === "prompt" || (permissionStatus as string) === "default" ? (
           <>
             <p className="text-gray-400 mb-8 leading-relaxed">
@@ -73,28 +104,40 @@ export function NotificationEnforcer({ userId }: { userId: string | null }) {
             <button
               onClick={handleRequest}
               disabled={isChecking}
-              className="w-full bg-whatsapp-teal text-white font-black uppercase tracking-widest text-sm py-4 rounded-xl hover:bg-whatsapp-tealLight transition-colors flex items-center justify-center gap-2"
+              className="w-full bg-whatsapp-teal text-white font-black uppercase tracking-widest text-sm py-4 rounded-xl hover:bg-whatsapp-tealLight transition-colors flex items-center justify-center gap-2 mb-3"
             >
               {isChecking ? <RefreshCw className="w-5 h-5 animate-spin" /> : "Permitir Notificações"}
+            </button>
+            <button
+              onClick={handleSkip}
+              className="w-full text-gray-500 hover:text-gray-300 text-xs py-2 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <X className="w-3.5 h-3.5" /> Continuar sem notificações
             </button>
           </>
         ) : (
           <>
-            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-8">
+            <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
               <div className="flex items-center gap-2 text-red-400 font-bold mb-2 justify-center">
-                <AlertTriangle className="w-5 h-5" /> Você bloqueou o acesso
+                <AlertTriangle className="w-5 h-5" /> Notificações bloqueadas
               </div>
               <p className="text-sm text-red-200/70">
-                Você negou a permissão anteriormente. Para continuar, clique no cadeado na barra de endereços do seu navegador (ou vá nas configurações do celular) e <strong>Permita as notificações</strong> para este site.
+                Você negou a permissão anteriormente. Para ativar, clique no cadeado na barra de endereços e <strong>Permita as notificações</strong> para este site. Ou continue sem notificações por ora.
               </p>
             </div>
-            
+
             <button
               onClick={checkStatus}
-              className="w-full bg-white/10 text-white font-bold uppercase tracking-widest text-sm py-4 rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/10"
+              className="w-full bg-white/10 text-white font-bold uppercase tracking-widest text-sm py-4 rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2 border border-white/10 mb-3"
             >
               <Settings className="w-5 h-5" />
               Já liberei nas configurações
+            </button>
+            <button
+              onClick={handleSkip}
+              className="w-full text-gray-500 hover:text-gray-300 text-xs py-2 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <X className="w-3.5 h-3.5" /> Continuar sem notificações
             </button>
           </>
         )}

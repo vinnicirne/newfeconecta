@@ -222,6 +222,8 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Tracks the mode before entering 'gallery' so we can revert if user cancels the picker
+  const prevModeRef = useRef<ComposerMode>(initialMode);
   const [isPlaying, setIsPlaying] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
@@ -276,14 +278,22 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    // Reseta o input para permitir re-seleção do mesmo arquivo
+    e.target.value = '';
+    if (!file) {
+      // Usuário cancelou o seletor — volta ao modo anterior
+      setMode(prevModeRef.current);
+      return;
+    }
 
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
         toast.error('Formato de arquivo inválido. Escolha uma imagem ou vídeo.');
+        setMode(prevModeRef.current);
         return;
     }
     if (file.size > 50 * 1024 * 1024) {
         toast.error('O arquivo é muito grande (máximo 50MB).');
+        setMode(prevModeRef.current);
         return;
     }
 
@@ -294,17 +304,19 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
     setMode(type === 'video' ? 'video' : 'photo');
   };
 
-  const handlePublish = async () => {
+  // overrideBlob é passado pelo MediaPreview quando há filtro CSS aplicado na foto
+  const handlePublish = async (overrideBlob?: Blob) => {
     setIsSubmitting(true);
     try {
       if (mode === 'text') {
         await onSubmit({ content, background: bg, post_type: 'text' });
       } else if (captured) {
+        const postType = captured.type === 'photo' ? 'image' : captured.type === 'audio' ? 'audio' : 'video';
         await onSubmit({ 
           media_url: captured.url, 
-          post_type: captured.type === 'photo' ? 'image' : 'video', 
+          post_type: postType, 
           caption: content, 
-          blob: captured.blob 
+          blob: overrideBlob ?? captured.blob
         });
       }
       clearDraft();
@@ -415,19 +427,19 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
     }
   };
 
-  const handleStopRecording = async () => {
+  const handleStopRecording = useCallback(async () => {
     const blob = await stopRecording();
     if (blob) {
       if (captured?.url) URL.revokeObjectURL(captured.url);
       setCaptured({ type: mode === 'audio' ? 'audio' : 'video', url: URL.createObjectURL(blob), blob });
     }
-  };
+  }, [stopRecording, captured, setCaptured, mode]);
 
   useEffect(() => {
     if (recording && mode === "video" && seconds >= MAX_VIDEO_SECONDS) {
       handleStopRecording();
     }
-  }, [seconds, recording, mode]);
+  }, [seconds, recording, mode, handleStopRecording]);
 
   // Hardware Back Button Interceptor (Android)
   useEffect(() => {
@@ -572,6 +584,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
               {!recording && (
                 <button
                   onClick={() => {
+                    prevModeRef.current = mode; // salva modo atual para reverter em caso de cancelamento
                     setMode("gallery");
                     fileInputRef.current?.click();
                   }}
@@ -737,7 +750,8 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
     { id: 'gallery', icon: ImageIcon, label: 'Galeria' },
   ];
 
-  const isMediaMode = mode === 'photo' || mode === 'video' || captured;
+  // isMediaMode only applies to photo/video (full-screen camera UI), NOT audio
+  const isMediaMode = (mode === 'photo' || mode === 'video') && !captured;
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -805,12 +819,28 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
             </>
           )}
           {(!showEmojiPicker && mode === 'gallery') && (
-            <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
-               <ImageIcon className="w-12 h-12" />
-               <p className="text-sm font-bold uppercase tracking-widest">Acessando Galeria...</p>
-               <button onClick={() => fileInputRef.current?.click()} className="mt-4 px-6 py-2 bg-whatsapp-teal text-white rounded-full text-xs font-bold">
-                 Escolher Arquivo
-               </button>
+            <div className="flex flex-col items-center justify-center py-16 gap-5">
+              <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center">
+                <ImageIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-bold text-gray-700 dark:text-gray-200">Escolha uma mídia</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Imagem ou vídeo (máx. 50MB)</p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => { setMode(prevModeRef.current); }}
+                  className="px-5 py-2.5 rounded-full border border-gray-200 dark:border-white/10 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-5 py-2.5 rounded-full bg-whatsapp-teal text-white text-xs font-bold hover:bg-whatsapp-teal/90 transition-colors"
+                >
+                  Escolher arquivo
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -824,7 +854,10 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
           >
             <ComposerToolbar 
               mode={mode} 
-              onSetMode={(m) => setMode(m)} 
+              onSetMode={(m) => {
+                if (m === 'gallery') prevModeRef.current = mode;
+                setMode(m);
+              }}
               onShowEmoji={() => setShowEmojiPicker(true)}
               disabled={isSubmitting} 
               allowedModes={allowedModes}
