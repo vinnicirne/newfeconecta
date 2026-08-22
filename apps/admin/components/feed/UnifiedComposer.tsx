@@ -771,7 +771,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
           <h2 className="text-base font-bold dark:text-white absolute left-1/2 -translate-x-1/2">Novo post</h2>
           
           <Button 
-            onClick={handlePublish} 
+            onClick={() => handlePublish()} 
             disabled={isSubmitting || (mode === 'text' ? !content.trim() : !captured)} 
             className="rounded-full h-8 px-4 bg-whatsapp-teal hover:bg-whatsapp-teal/90 text-white font-bold text-xs tracking-wide shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
