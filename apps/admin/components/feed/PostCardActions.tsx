@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Flame, MessageCircle, Share2, Repeat, Eye, Bookmark, AlertCircle } from "lucide-react";
 import { usePostCardContext } from "./PostCardContext";
@@ -147,14 +148,14 @@ export default function PostCardActions() {
         />
       )}
 
-      {/* Lightbox / Media Expansion */}
-      {lightboxUrl && typeof lightboxUrl === 'string' && lightboxUrl.trim() !== '' && (
+      {/* Lightbox / Media Expansion (Portal de Alto Nível com Fundo 100% Opaco) */}
+      {lightboxUrl && typeof lightboxUrl === 'string' && lightboxUrl.trim() !== '' && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[1000] bg-black/98 flex flex-col items-center justify-center animate-in fade-in duration-300 touch-none overscroll-contain select-none"
+          className="fixed inset-0 z-[99999] bg-black w-screen h-screen flex flex-col items-center justify-center animate-in fade-in duration-200 touch-none overscroll-contain select-none"
           onClick={() => setLightboxUrl(null)}
           onTouchMove={(e) => e.stopPropagation()}
         >
-          <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent z-10">
+          <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent z-10">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20">
                 <img
@@ -191,11 +192,11 @@ export default function PostCardActions() {
             </button>
           </div>
 
-          <div className="relative max-w-full max-h-[80vh] flex items-center justify-center p-4">
+          <div className="relative w-full h-full max-w-full max-h-[85vh] flex items-center justify-center p-4">
             {lightboxUrl && !imageLoadFailed ? (
               <img
                 src={lightboxUrl}
-                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl animate-in zoom-in duration-300 pointer-events-auto cursor-default"
+                className="max-w-full max-h-full object-contain rounded-xl shadow-2xl animate-in zoom-in duration-300 pointer-events-auto cursor-default select-none"
                 alt="Expanded view"
                 onClick={(e) => e.stopPropagation()}
                 onDoubleClick={(e) => {
@@ -240,7 +241,7 @@ export default function PostCardActions() {
           </div>
 
           <div
-            className="absolute bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl flex items-center gap-8 shadow-2xl animate-in slide-in-from-bottom duration-500"
+            className="absolute bottom-10 left-1/2 -translate-x-1/2 px-8 py-4 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl flex items-center gap-8 shadow-2xl animate-in slide-in-from-bottom duration-500 z-10"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -318,7 +319,8 @@ export default function PostCardActions() {
               </span>
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {showLikesModal && (
