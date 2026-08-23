@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { MediaSession } from '@jofr/capacitor-media-session';
 import { Capacitor } from '@capacitor/core';
@@ -34,6 +34,8 @@ export function useMediaSession() {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progressMs = usePlayerStore((s) => s.progressMs);
   const durationMs = usePlayerStore((s) => s.durationMs);
+  // Throttle para setPositionState — evita NPE no service Java antes da notificação existir
+  const lastPositionAt = useRef(0);
 
   // ─── 1. Handlers ─────────────────────────────────────────────────────────
   // Re-registra em todo mount. CALLBACK_ID_DANGLING invalida handlers após
@@ -165,9 +167,15 @@ export function useMediaSession() {
     return () => clearTimeout(t);
   }, [isPlaying, currentTrack?.id]);
 
-  // ─── 4. Position state ───────────────────────────────────────────────────
+  // ─── 4. Position state (throttled a ~1s) ────────────────────────────────
   useEffect(() => {
     if (!currentTrack || !durationMs || durationMs <= 0) return;
+
+    // Throttle: evita spam a cada tick de progresso (250ms)
+    // que pode gerar NPE no service Java antes da notificação existir
+    const now = Date.now();
+    if (isPlaying && now - lastPositionAt.current < 900) return;
+    lastPositionAt.current = now;
 
     const position = Math.min(Math.max(progressMs / 1000, 0), durationMs / 1000);
     const duration = durationMs / 1000;
@@ -185,7 +193,7 @@ export function useMediaSession() {
         console.warn('[MediaSession] position web error:', e);
       }
     }
-  }, [progressMs, durationMs, currentTrack?.id]);
+  }, [progressMs, durationMs, currentTrack?.id, isPlaying]);
 
   // ─── 5. Cleanup quando sem track ─────────────────────────────────────────
   useEffect(() => {
