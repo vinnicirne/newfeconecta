@@ -63,6 +63,26 @@ export async function POST(request: Request) {
       if (insertError) {
         console.error('[Proxy] Cache insert error:', insertError);
       }
+
+      // NOVO: Garante que a msica seja salva no banco de dados principal de tracks
+      if (body.track) {
+        const { error: trackError } = await supabase
+          .from('music_tracks')
+          .upsert([{
+            provider: 'youtube',
+            provider_track_id: videoId,
+            title: body.track.title || 'Unknown Title',
+            artist: body.track.artist || 'Unknown Artist',
+            duration: body.track.duration || 0,
+            cover: body.track.cover || null
+          }], { onConflict: 'provider,provider_track_id' });
+          
+        if (trackError) {
+          console.error('[Proxy] Error inserting into music_tracks:', trackError);
+        } else {
+          console.log(`[Proxy] Track ${videoId} saved successfully to music_tracks`);
+        }
+      }
     }
 
     return NextResponse.json(data);

@@ -34,6 +34,29 @@ export default function FullscreenPlayer() {
 
   React.useEffect(() => { loadLikes(); }, [loadLikes]);
 
+  // Intercepta o botǜo "Voltar" do celular Android/iOS para fechar o player
+  // sem redirecionar para a pǭgina anterior (Feed)
+  React.useEffect(() => {
+    if (isFullScreen) {
+      window.history.pushState({ playerOpen: true }, '', window.location.href);
+      
+      const handlePopState = (e: PopStateEvent) => {
+        // Se o usuǭrio apertou voltar, o navegador removeu o nosso state.
+        // Ns apenas fechamos o player e evitamos que ele volte de rota.
+        setFullScreen(false);
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      return () => {
+        window.removeEventListener('popstate', handlePopState);
+        // Se o player for fechado via ChevronDown, removemos o state manualmente para nǜo quebrar a navegaǜo
+        if (window.history.state?.playerOpen) {
+          window.history.back();
+        }
+      };
+    }
+  }, [isFullScreen, setFullScreen]);
+
   if (!currentTrack) return null;
 
   const isLiked = likedTracks.some(t => t.id === currentTrack.id);

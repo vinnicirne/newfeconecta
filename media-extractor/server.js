@@ -23,7 +23,7 @@ if (!SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // Use the bundled yt-dlp binary from the npm package (same version as global)
-const YT_DLP_PATH = path.join(__dirname, 'node_modules/youtube-dl-exec/bin/yt-dlp');
+const YT_DLP_PATH = '/usr/local/bin/yt-dlp';
 const COOKIES_PATH = path.join(__dirname, 'cookies.txt');
 const NODE_PATH = '/usr/local/bin/node';
 const EXTERNAL_SUPABASE_URL = process.env.EXTERNAL_SUPABASE_URL || 'https://supabase.vps9432.panel.icontainer.cloud';
@@ -35,6 +35,7 @@ function buildYtDlpArgs(url, outputPath, format) {
         '--format', format,
         '--no-warnings',
         '--no-check-certificate',
+        '--proxy', 'http://agenciaiconedigital:i8D8yRUABi@166.1.20.224:50100',
         '--js-runtimes', `node:${NODE_PATH}`,
     ];
     if (fs.existsSync(COOKIES_PATH)) {

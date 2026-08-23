@@ -57,6 +57,7 @@ export class YouTubeProvider implements IMusicProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: `https://www.youtube.com/watch?v=${track.providerTrackId}`,
+          track: track
         }),
         signal: controller.signal,
       });
@@ -142,6 +143,7 @@ export class YouTubeProvider implements IMusicProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: `https://www.youtube.com/watch?v=${track.providerTrackId}`,
+          track: track
         }),
       });
 
