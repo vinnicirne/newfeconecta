@@ -83,7 +83,8 @@ export const NotificationService = {
 
     if (!matches) return [];
 
-    const usernames = matches.map(m => m.substring(1)); // Remove o '@'
+    // Limite de segurança: no máximo 5 menções únicas por vez para evitar sobrecarga no cliente
+    const usernames = Array.from(new Set(matches.map(m => m.substring(1)))).slice(0, 5);
     
     // Buscar perfis correspondentes
     const { data: profiles } = await supabase
@@ -128,11 +129,12 @@ export const NotificationService = {
    * Identifica hashtags no texto e notifica os seguidores de cada hashtag encontrada.
    */
   async notifyHashtagFollowers(text: string, senderId: string, postId: string) {
-    const hashtagRegex = /#([\wáàâãéèêíïóôõöúç-]+)/g;
+    const hashtagRegex = /#([\wǭǽǜǸǦǧ-]+)/g;
     const matches = text.match(hashtagRegex);
     if (!matches) return;
 
-    const tags = matches.map(m => m.substring(1).toLowerCase());
+    // Limite de segurança: processar no máximo 5 hashtags únicas
+    const tags = Array.from(new Set(matches.map(m => m.substring(1).toLowerCase()))).slice(0, 5);
 
     for (const tag of tags) {
       // Busca usuários que seguem esta hashtag (tabela hashtag_follows)
@@ -142,7 +144,9 @@ export const NotificationService = {
         .eq('hashtag', tag);
 
       if (followers && followers.length > 0) {
-        const notifications = followers.map(f => 
+        // Limita a 50 notificações por hashtag para não derrubar o cliente com Promise.all
+        const limitedFollowers = followers.slice(0, 50);
+        const notifications = limitedFollowers.map(f => 
           this.notify({
             recipientId: f.user_id,
             senderId,

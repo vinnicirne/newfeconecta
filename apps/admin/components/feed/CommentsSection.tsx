@@ -357,6 +357,7 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
             onChange={e => setText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
             placeholder={replyingTo ? "Escreva sua resposta..." : "Adicionar comentário..."}
+            maxLength={1000}
             className="text-xs h-10 bg-transparent border-none focus-visible:ring-0"
           />
           <button 

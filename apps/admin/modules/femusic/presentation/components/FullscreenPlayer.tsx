@@ -13,6 +13,8 @@ import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayer
 import { cn } from '@/lib/utils';
 import MusicComposerModal from '@/components/feed/MusicComposerModal';
 import TrackCommentsModal from './TrackCommentsModal';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
 
 export default function FullscreenPlayer() {
   const { 
@@ -34,26 +36,43 @@ export default function FullscreenPlayer() {
 
   React.useEffect(() => { loadLikes(); }, [loadLikes]);
 
+
+
   // Intercepta o botǜo "Voltar" do celular Android/iOS para fechar o player
   // sem redirecionar para a pǭgina anterior (Feed)
   React.useEffect(() => {
     if (isFullScreen) {
-      window.history.pushState({ playerOpen: true }, '', window.location.href);
-      
-      const handlePopState = (e: PopStateEvent) => {
-        // Se o usuǭrio apertou voltar, o navegador removeu o nosso state.
-        // Ns apenas fechamos o player e evitamos que ele volte de rota.
-        setFullScreen(false);
-      };
+      const isNative = typeof window !== 'undefined' && Capacitor.getPlatform() !== 'web';
 
-      window.addEventListener('popstate', handlePopState);
-      return () => {
-        window.removeEventListener('popstate', handlePopState);
-        // Se o player for fechado via ChevronDown, removemos o state manualmente para nǜo quebrar a navegaǜo
-        if (window.history.state?.playerOpen) {
-          window.history.back();
-        }
-      };
+      if (isNative) {
+        // No Android nativo, pushState "reseta" a Webview e faz o Media Session sumir/quebrar.
+        // Entǜo usamos o evento nativo do Capacitor:
+        let backListener: any;
+        CapApp.addListener('backButton', (info) => {
+          setFullScreen(false);
+        }).then(listener => {
+          backListener = listener;
+        });
+
+        return () => {
+          if (backListener) backListener.remove();
+        };
+      } else {
+        // Na Web (PWA), usamos pushState
+        window.history.pushState({ playerOpen: true }, '', window.location.href);
+        
+        const handlePopState = (e: PopStateEvent) => {
+          setFullScreen(false);
+        };
+
+        window.addEventListener('popstate', handlePopState);
+        return () => {
+          window.removeEventListener('popstate', handlePopState);
+          if (window.history.state?.playerOpen) {
+            window.history.back();
+          }
+        };
+      }
     }
   }, [isFullScreen, setFullScreen]);
 

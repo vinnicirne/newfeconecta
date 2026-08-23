@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     }
 
     // Fallback para YouTube/TikTok via VPS
-    const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://209.50.229.10:8080/extract';
+    const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://209.50.229.10:8086/extract';
 
     const response = await fetch(EXTRACTOR_URL, {
       method: 'POST',

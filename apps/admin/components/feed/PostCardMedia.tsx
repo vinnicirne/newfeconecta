@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-import { Flame, Play, Pause, Volume2, VolumeX } from "lucide-react";
+import { Flame, Play, Pause, Volume2, VolumeX, Music } from "lucide-react";
 import { usePostCardContext } from "./PostCardContext";
 import ExternalMediaNative, { parseExternalMedia } from "./ExternalMediaNative";
 import { LinkPreview } from "./LinkPreview";
@@ -171,59 +171,104 @@ export default function PostCardMedia() {
         </div>
       )}
 
-      {/* Audio Media */}
-      {isAudio && mediaUrl && !shouldSkipMedia && (
-        <div className="bg-[#111b21] p-4 rounded-2xl border border-white/5 shadow-2xl mt-3 overflow-hidden relative group transition-all hover:bg-[#182229]">
-          <style
-            dangerouslySetInnerHTML={{
-              __html: `
-              @keyframes audio-wave-anim {
-                0%, 100% { height: 6px; }
-                50% { height: 24px; }
-              }
-              .wave-bar-anim { animation: audio-wave-anim 0.8s ease-in-out infinite; }
-            `,
-            }}
-          />
+        {/* Audio Media */}
+        {isAudio && mediaUrl && !shouldSkipMedia && (
+          <div className="bg-gradient-to-br from-[#182229] to-[#111b21] p-1.5 rounded-2xl border border-white/10 shadow-xl mt-3 overflow-hidden relative group">
+            <style
+              dangerouslySetInnerHTML={{
+                __html: `
+                @keyframes audio-wave-anim {
+                  0%, 100% { height: 4px; }
+                  50% { height: 16px; }
+                }
+                .wave-bar-anim { animation: audio-wave-anim 0.8s ease-in-out infinite; }
+              `,
+              }}
+            />
 
-          <div className="flex items-center gap-4 relative z-10">
-            <button
-              onClick={toggleAudio}
-              className="w-11 h-11 rounded-full bg-whatsapp-teal flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 transition-transform active:scale-90 hover:scale-105"
-            >
-              {isPlaying ? (
-                <Pause className="w-5 h-5 text-white fill-white" />
-              ) : (
-                <Play className="w-5 h-5 text-white fill-white ml-0.5" />
-              )}
-            </button>
+            {/* Background blur from thumbnail if available */}
+            {post.thumbnail_url && (
+              <div 
+                className="absolute inset-0 opacity-20 blur-2xl scale-110 bg-cover bg-center pointer-events-none"
+                style={{ backgroundImage: `url(${post.thumbnail_url})` }}
+              />
+            )}
 
-            <div className="flex-1 flex items-center gap-[3px] h-10">
-              {[...Array(30)].map((_, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    "w-[3px] rounded-full transition-all duration-300",
-                    isPlaying
-                      ? "wave-bar-anim bg-whatsapp-teal"
-                      : "h-[6px] bg-whatsapp-teal/30",
+            <div className="relative z-10 flex flex-col p-3">
+              <div className="flex items-center gap-4">
+                {/* Thumbnail / Icon */}
+                <div className="w-16 h-16 shrink-0 rounded-xl overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center relative shadow-lg">
+                  {post.thumbnail_url ? (
+                    <img src={post.thumbnail_url} alt="Audio Cover" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-blue-600/50 flex items-center justify-center">
+                      <Music className="w-8 h-8 text-white/80" />
+                    </div>
                   )}
-                  style={{
-                    animationDelay: `${i * 0.05}s`,
-                    backgroundColor:
-                      audioProgress > (i / 30) * 100 ? "#00A884" : undefined,
-                    opacity: audioProgress > (i / 30) * 100 ? 1 : 0.3,
-                  }}
-                />
-              ))}
-            </div>
+                  {/* Play Button Overlay */}
+                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                    <button
+                      onClick={toggleAudio}
+                      className="w-10 h-10 rounded-full bg-whatsapp-teal/90 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all backdrop-blur-md"
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-5 h-5 text-white fill-white" />
+                      ) : (
+                        <Play className="w-5 h-5 text-white fill-white ml-1" />
+                      )}
+                    </button>
+                  </div>
+                </div>
 
-            <span className="text-[11px] font-mono text-gray-400 min-w-[38px] text-right">
-              {mounted && audioRef?.current
-                ? fmtTime(audioRef.current.currentTime)
-                : "0:00"}
-            </span>
-          </div>
+                {/* Track Info */}
+                <div className="flex-1 min-w-0 pr-2">
+                  <h4 className="text-white font-bold text-sm truncate mb-1">
+                    {post.metadata?.title || post.content?.substring(0, 30) || "Mensagem de Áudio"}
+                  </h4>
+                  <p className="text-whatsapp-teal text-xs font-semibold truncate">
+                    {post.metadata?.artist || post.author?.full_name || "Membro FéConecta"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Progress & Waveform */}
+              <div className="mt-4 flex items-center gap-3 px-1">
+                <span className="text-[10px] font-mono text-gray-400 font-medium min-w-[32px] text-right">
+                  {mounted && audioRef?.current ? fmtTime(audioRef.current.currentTime) : "0:00"}
+                </span>
+                
+                <div className="flex-1 flex items-center justify-between gap-[2px] h-6 cursor-pointer" onClick={(e) => {
+                  if (audioRef.current && audioRef.current.duration) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const percent = (e.clientX - rect.left) / rect.width;
+                    audioRef.current.currentTime = percent * audioRef.current.duration;
+                  }
+                }}>
+                  {[...Array(40)].map((_, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "w-1 rounded-full transition-all duration-300 pointer-events-none",
+                        isPlaying
+                          ? "wave-bar-anim bg-whatsapp-teal"
+                          : "h-1 bg-white/20"
+                      )}
+                      style={{
+                        animationDelay: `${i * 0.05}s`,
+                        backgroundColor: audioProgress > (i / 40) * 100 ? "#00A884" : undefined,
+                        opacity: audioProgress > (i / 40) * 100 ? 1 : 0.4,
+                      }}
+                    />
+                  ))}
+                </div>
+
+                <span className="text-[10px] font-mono text-gray-400 font-medium min-w-[32px]">
+                  {mounted && audioRef?.current && audioRef.current.duration && !isNaN(audioRef.current.duration) 
+                    ? fmtTime(audioRef.current.duration) 
+                    : "-:--"}
+                </span>
+              </div>
+            </div>
 
           <audio
             ref={audioRef}

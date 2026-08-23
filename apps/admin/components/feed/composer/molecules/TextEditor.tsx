@@ -62,6 +62,7 @@ export function TextEditor({ content, bg, onContentChange, onBgChange, onSubmit,
           onChange={(e) => onContentChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="No que você está pensando?"
+          maxLength={5000}
           className={cn(
             "w-full flex-1 bg-transparent resize-none outline-none overflow-y-auto min-h-[150px]",
             bg ? "text-white placeholder:text-white/70 text-center text-2xl md:text-3xl font-bold flex items-center justify-center pt-[10%]" : "text-xl placeholder:text-gray-400 dark:placeholder:text-gray-500"
