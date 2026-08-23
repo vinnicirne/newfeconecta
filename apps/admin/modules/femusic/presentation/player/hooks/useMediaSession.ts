@@ -2,12 +2,14 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { MediaSession } from '@jofr/capacitor-media-session';
 import { Capacitor } from '@capacitor/core';
+import { usePathname } from 'next/navigation';
 
 export function useMediaSession() {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progressMs = usePlayerStore((s) => s.progressMs);
   const durationMs = usePlayerStore((s) => s.durationMs);
+  const pathname = usePathname();
   const handlersRegistered = useRef(false);
 
   // 1. Registrar handlers UMA vez
@@ -110,7 +112,8 @@ export function useMediaSession() {
     currentTrack?.title,
     currentTrack?.artist,
     currentTrack?.cover,
-    isPlaying
+    isPlaying,
+    pathname
   ]);
 
   // 4. Position state (barra de progresso)
