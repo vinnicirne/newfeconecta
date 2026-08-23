@@ -53,6 +53,25 @@
         />
         <meta-data android:name="com.google.firebase.messaging.default_notification_color" android:value="#00A884" />
 
+        <!-- @jofr/capacitor-media-session: Foreground Service para notificação de mídia nativa -->
+        <service
+            android:name="io.github.jofr.capacitor.mediasessionplugin.MediaSessionService"
+            android:enabled="true"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="androidx.media.session.MediaButtonReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MEDIA_BUTTON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
     <!-- Permissions -->

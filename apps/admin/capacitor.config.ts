@@ -8,6 +8,15 @@ const config: CapacitorConfig = {
     url: 'http://192.168.1.69:3000',
     cleartext: true
   },
+  plugins: {
+    // Inicia o Foreground Service IMEDIATAMENTE no load() do app.
+    // Sem isso, o service só é criado na primeira chamada setPlaybackState,
+    // que é assíncrona — causando race condition onde setMetadata chega
+    // antes do service estar pronto, e a notificação nunca aparece.
+    MediaSession: {
+      foregroundService: 'always'
+    }
+  },
   android: {
     buildOptions: {
       keystorePath: 'release-key.keystore',
