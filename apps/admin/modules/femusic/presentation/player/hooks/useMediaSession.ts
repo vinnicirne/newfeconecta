@@ -39,6 +39,14 @@ export function useMediaSession() {
             usePlayerStore.getState().seek(details.seekTime * 1000);
           }
         });
+        MediaSession.setActionHandler({ action: 'seekforward' }, () => {
+          const state = usePlayerStore.getState();
+          state.seek(state.progressMs + 10000); // Avança 10s
+        });
+        MediaSession.setActionHandler({ action: 'seekbackward' }, () => {
+          const state = usePlayerStore.getState();
+          state.seek(Math.max(0, state.progressMs - 10000)); // Volta 10s
+        });
       } catch (err) {
         console.warn('[MediaSession] Erro ao registrar handlers Capacitor:', err);
       }
@@ -50,6 +58,14 @@ export function useMediaSession() {
         navigator.mediaSession.setActionHandler('nexttrack', () => usePlayerStore.getState().next(true));
         navigator.mediaSession.setActionHandler('seekto', (details) => {
           if (details.seekTime != null) usePlayerStore.getState().seek(details.seekTime * 1000);
+        });
+        navigator.mediaSession.setActionHandler('seekforward', () => {
+          const state = usePlayerStore.getState();
+          state.seek(state.progressMs + 10000);
+        });
+        navigator.mediaSession.setActionHandler('seekbackward', () => {
+          const state = usePlayerStore.getState();
+          state.seek(Math.max(0, state.progressMs - 10000));
         });
       } catch (err) {
         console.warn('[MediaSession] Erro ao registrar handlers Web:', err);
@@ -82,6 +98,9 @@ export function useMediaSession() {
             ],
           });
           
+          // CRÍTICO: Delay obrigatório para estabilização do Android / Plugin Capacitor
+          await new Promise(r => setTimeout(r, 100));
+
           await MediaSession.setPlaybackState({ playbackState });
         } catch (err) {
           console.warn('[MediaSession] Erro no Android setup:', err);
