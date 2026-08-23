@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'FéConecta',
   webDir: 'public',
   server: {
-    url: 'http://192.168.1.69:3000',
+    url: 'https://newfeconecta.vercel.app',
     cleartext: true
   },
   plugins: {

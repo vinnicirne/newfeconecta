@@ -78,7 +78,8 @@ export default function FullscreenPlayer() {
 
   if (!currentTrack) return null;
 
-  const isLiked = likedTracks.some(t => t.id === currentTrack.id);
+  const currentId = currentTrack.providerTrackId || currentTrack.id;
+  const isLiked = likedTracks.some(t => (t.providerTrackId || t.id) === currentId);
 
   const fmt = (ms: number) => {
     if (!ms || isNaN(ms)) return '0:00';

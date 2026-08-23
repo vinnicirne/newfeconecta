@@ -70,13 +70,32 @@ export class YouTubeService {
   public static async search(query: string, limit: number = 15): Promise<MusicTrack[]> {
     let apiKey = this.getActiveApiKey();
 
-    if (!apiKey) {
-      console.warn('Missing YOUTUBE_API_KEY. Adicione a chave no arquivo .env ou no standby.');
-      return [];
-    }
-
     const cacheKey = this.getCacheKey(query, limit);
     const cached = this.cache.get(cacheKey);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    if (!apiKey) {
+      console.warn('Missing/Exhausted YOUTUBE_API_KEY. Usando endpoint de busca interna...');
+      try {
+        const fallbackRes = await fetch(`/api/music/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+        if (fallbackRes.ok) {
+          const fallbackJson = await fallbackRes.json();
+          if (fallbackJson.results && fallbackJson.results.length > 0) {
+            this.cache.set(cacheKey, {
+              data: fallbackJson.results,
+              expiresAt: Date.now() + this.CACHE_TTL,
+            });
+            return fallbackJson.results;
+          }
+        }
+      } catch (e) {
+        console.error('Erro na busca interna:', e);
+      }
+      return [];
+    }
 
     if (cached && cached.expiresAt > Date.now()) {
       return cached.data;
@@ -189,8 +208,23 @@ export class YouTubeService {
 
       return finalResults;
     } catch (error) {
-      console.error('YouTube Search Failed:', error);
-      throw error;
+      console.warn('[YouTubeService] API Oficial falhou ou cota esgotada. Acionando Fallback Interno via Scraper...');
+      try {
+        const fallbackRes = await fetch(`/api/music/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+        if (fallbackRes.ok) {
+          const fallbackJson = await fallbackRes.json();
+          if (fallbackJson.results && fallbackJson.results.length > 0) {
+            this.cache.set(cacheKey, {
+              data: fallbackJson.results,
+              expiresAt: Date.now() + this.CACHE_TTL,
+            });
+            return fallbackJson.results;
+          }
+        }
+      } catch (fallbackErr) {
+        console.error('[YouTubeService] Fallback Scraper também falhou:', fallbackErr);
+      }
+      return [];
     }
   }
 

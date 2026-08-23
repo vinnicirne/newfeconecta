@@ -1,16 +1,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Heart, Clock, ListMusic, Users, PlayCircle, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { Heart, Clock, ListMusic, Users, PlayCircle, Loader2, Sparkles } from 'lucide-react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
+import ReadySessions from '@/modules/femusic/presentation/components/ReadySessions';
+import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 
 type TabId = 'history' | 'likes' | 'playlists' | 'shared';
 
 export default function LibraryPage() {
   const [historyTracks, setHistoryTracks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<TabId>('history');
+  const [activeTab, setActiveTab] = useState<TabId>('playlists');
   
   const { play, likedTracks, toggleLike, loadLikes } = usePlayerStore();
 
@@ -33,17 +34,18 @@ export default function LibraryPage() {
   }, [loadLikes]);
 
   const menuItems = [
+    { id: 'playlists', icon: ListMusic, label: 'Sessões & Playlists', count: `${READY_SESSIONS.length}`, color: 'text-whatsapp-teal', bg: 'bg-whatsapp-teal/10' },
     { id: 'likes', icon: Heart, label: 'Músicas Curtidas', count: likedTracks.length.toString(), color: 'text-red-500', bg: 'bg-red-500/10' },
     { id: 'history', icon: Clock, label: 'Histórico', count: historyTracks.length.toString(), color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { id: 'playlists', icon: ListMusic, label: 'Minhas Playlists', count: '0', color: 'text-whatsapp-teal', bg: 'bg-whatsapp-teal/10' },
-    { id: 'shared', icon: Users, label: 'Compartilhadas Comigo', count: '0', color: 'text-purple-500', bg: 'bg-purple-500/10' },
+    { id: 'shared', icon: Users, label: 'Recomendados', count: 'FéConecta', color: 'text-purple-500', bg: 'bg-purple-500/10' },
   ];
 
   const getDisplayData = () => {
     switch (activeTab) {
       case 'likes': return { title: 'Músicas Curtidas', icon: Heart, list: likedTracks };
       case 'history': return { title: 'Tocadas Recentemente', icon: Clock, list: historyTracks.slice(0, 20) };
-      default: return { title: 'Em Breve', icon: ListMusic, list: [] };
+      case 'playlists': return { title: 'Sessões de Oração & Louvor', icon: ListMusic, list: [] };
+      default: return { title: 'Recomendações Especiais', icon: Sparkles, list: [] };
     }
   };
 
@@ -78,7 +80,7 @@ export default function LibraryPage() {
         })}
       </div>
 
-      {/* Listagem */}
+      {/* Conteúdo Dinâmico por Aba */}
       <div>
         <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
           <TitleIcon className={`w-5 h-5 ${activeTab === 'likes' ? 'text-red-500' : 'text-whatsapp-teal'}`} />
@@ -88,6 +90,13 @@ export default function LibraryPage() {
         {loading ? (
           <div className="flex justify-center py-6">
             <Loader2 className="w-6 h-6 animate-spin text-whatsapp-teal" />
+          </div>
+        ) : activeTab === 'playlists' || activeTab === 'shared' ? (
+          <div className="space-y-4">
+            <p className="text-xs text-gray-500 mb-2">
+              Escolha uma sessão pronta para iniciar um momento contínuo de oração e louvor:
+            </p>
+            <ReadySessions />
           </div>
         ) : list.length > 0 ? (
           <div className="flex flex-col gap-3">
@@ -116,7 +125,7 @@ export default function LibraryPage() {
                   onClick={(e) => { e.stopPropagation(); toggleLike(track); }}
                 >
                   <Heart className={
-                    likedTracks.some(t => t.id === track.id) 
+                    likedTracks.some(t => (t.providerTrackId || t.id) === (track.providerTrackId || track.id)) 
                       ? "w-5 h-5 text-red-500 fill-red-500 transition-colors" 
                       : "w-5 h-5 text-gray-400 hover:text-red-500 transition-colors"
                   } />
@@ -125,10 +134,18 @@ export default function LibraryPage() {
             ))}
           </div>
         ) : (
-          <div className="text-gray-500 text-sm">
-            {activeTab === 'likes' ? 'Você ainda não curtiu nenhuma música.' :
-             activeTab === 'history' ? 'Seu histórico está vazio.' :
-             'Esta funcionalidade será liberada em breve!'}
+          <div className="bg-white dark:bg-[#1a1b1e] border border-gray-100 dark:border-white/5 rounded-2xl p-8 text-center space-y-3">
+            <div className="w-12 h-12 rounded-full bg-whatsapp-teal/10 text-whatsapp-teal flex items-center justify-center mx-auto">
+              <TitleIcon className="w-6 h-6" />
+            </div>
+            <p className="font-bold text-sm text-gray-800 dark:text-gray-200">
+              {activeTab === 'likes' ? 'Nenhuma música favoritada ainda' : 'Seu histórico ainda está vazio'}
+            </p>
+            <p className="text-xs text-gray-500 max-w-xs mx-auto">
+              {activeTab === 'likes' 
+                ? 'Toque no ícone de coração durante a reprodução de qualquer louvor para salvar aqui.'
+                : 'As músicas que você ouvir no FéMusic ficarão salvas automaticamente no seu histórico.'}
+            </p>
           </div>
         )}
       </div>

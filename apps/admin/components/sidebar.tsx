@@ -34,7 +34,8 @@ import {
   Bell,
   DollarSign,
   Church,
-  Mail
+  Mail,
+  Music
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -63,6 +64,7 @@ const menuItems: any[] = [
 
   // ── SISTEMA ──────────────────────────────────
   { type: 'divider', label: 'Sistema' },
+  { name: "Doc FéMusic", icon: Music, href: "/admin/docs/music" },
   { name: "Design", icon: Palette, href: "/admin/design" },
   { name: "Ferramentas", icon: Wrench, href: "/admin/tools" },
   { name: "Configurações API", icon: Settings, href: "/admin/api-settings" },

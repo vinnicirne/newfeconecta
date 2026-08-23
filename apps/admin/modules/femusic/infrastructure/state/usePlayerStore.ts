@@ -54,12 +54,33 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   repeatMode: 'off',
   consecutiveFailures: 0,
 
-  loadLikes: () => {
+  loadLikes: async () => {
     if (typeof window !== 'undefined') {
       try {
         const stored = localStorage.getItem('fc_music_likes');
         if (stored) {
-          set({ likedTracks: JSON.parse(stored) });
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            set({ likedTracks: parsed });
+          }
+        }
+        
+        // Sincroniza com o Supabase se houver usuário autenticado
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from('music_likes')
+            .select('track_data')
+            .eq('user_id', user.id);
+
+          if (!error && data && data.length > 0) {
+            const dbTracks = data.map((row: any) => row.track_data).filter(Boolean);
+            if (dbTracks.length > 0) {
+              set({ likedTracks: dbTracks });
+              localStorage.setItem('fc_music_likes', JSON.stringify(dbTracks));
+            }
+          }
         }
       } catch (e) {
         console.error("Failed to load likes", e);
@@ -67,22 +88,57 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
   },
 
-  toggleLike: (track) => {
+  toggleLike: async (track) => {
+    if (!track) return;
+    const trackId = track.providerTrackId || track.id;
+    if (!trackId) return;
+
     const { likedTracks } = get();
-    const isLiked = likedTracks.some(t => t.id === track.id);
-    let newLikes;
-    
+    const isLiked = likedTracks.some(
+      (t) => (t.providerTrackId || t.id) === trackId
+    );
+
+    let newLikes: MusicTrack[];
     if (isLiked) {
-      newLikes = likedTracks.filter(t => t.id !== track.id);
+      newLikes = likedTracks.filter(
+        (t) => (t.providerTrackId || t.id) !== trackId
+      );
     } else {
-      newLikes = [track, ...likedTracks];
+      newLikes = [{ ...track, id: trackId, providerTrackId: trackId }, ...likedTracks];
     }
-    
+
     set({ likedTracks: newLikes });
-    
+
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem('fc_music_likes', JSON.stringify(newLikes));
+
+        // Toast de feedback
+        const { toast } = await import('sonner');
+        if (!isLiked) {
+          toast.success(`"${track.title}" salva em Curtidas! ❤️`);
+        } else {
+          toast.info(`"${track.title}" removida das Curtidas.`);
+        }
+
+        // Grava no Supabase
+        const { supabase } = await import('@/lib/supabase');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          if (!isLiked) {
+            await supabase.from('music_likes').upsert({
+              user_id: user.id,
+              track_id: trackId,
+              track_data: { ...track, id: trackId, providerTrackId: trackId },
+              created_at: new Date().toISOString()
+            }, { onConflict: 'user_id,track_id' });
+          } else {
+            await supabase.from('music_likes').delete().match({
+              user_id: user.id,
+              track_id: trackId
+            });
+          }
+        }
       } catch (e) {
         console.error("Failed to save likes", e);
       }
