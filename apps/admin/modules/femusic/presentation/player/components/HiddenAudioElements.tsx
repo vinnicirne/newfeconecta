@@ -28,6 +28,19 @@ export function HiddenAudioElements({
     usePlayerStore.setState({ isPlaying: true });
   };
 
+  const onPlaying = () => {
+    console.log('[Audio] onPlaying disparado - Áudio fisicamente tocando');
+    if (typeof window !== 'undefined') {
+      import('@jofr/capacitor-media-session').then(({ MediaSession }) => {
+        import('@capacitor/core').then(({ Capacitor }) => {
+          if (Capacitor.getPlatform() !== 'web') {
+            MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(e => console.warn('[MediaSession] Erro onPlaying:', e));
+          }
+        });
+      });
+    }
+  };
+
   const onPause = () => {
     const { isLoading } = usePlayerStore.getState();
     if (isCrossfading.current || isLoading) {
@@ -47,6 +60,7 @@ export function HiddenAudioElements({
         onEnded={handleEnded}
         onError={onError}
         onPlay={onPlay}
+        onPlaying={onPlaying}
         onPause={onPause}
         className="hidden"
         preload="auto"
@@ -60,6 +74,7 @@ export function HiddenAudioElements({
         onEnded={handleEnded}
         onError={onError}
         onPlay={onPlay}
+        onPlaying={onPlaying}
         onPause={onPause}
         className="hidden"
         preload="auto"
