@@ -51,7 +51,7 @@ export function HiddenAudioElements({
         className="hidden"
         preload="auto"
         playsInline
-        disableRemotePlayback
+        {...({ disableRemotePlayback: true } as any)}
       />
       <audio
         ref={audioBRef}
@@ -64,7 +64,7 @@ export function HiddenAudioElements({
         className="hidden"
         preload="auto"
         playsInline
-        disableRemotePlayback
+        {...({ disableRemotePlayback: true } as any)}
       />
     </>
   );
