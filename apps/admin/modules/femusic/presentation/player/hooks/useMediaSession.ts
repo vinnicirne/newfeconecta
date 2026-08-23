@@ -8,13 +8,13 @@ export function useMediaSession() {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progressMs = usePlayerStore((s) => s.progressMs);
   const durationMs = usePlayerStore((s) => s.durationMs);
-  const handlersRegistered = useRef(false);
 
-  // 1. Registrar handlers UMA vez
+  // Registrar handlers em CADA mount (não apenas uma vez).
+  // CRÍTICO: No Live Reload e após reloads da WebView, o Capacitor marca todos os
+  // PluginCall anteriores como CALLBACK_ID_DANGLING. hasActionHandler() retorna false
+  // para todos, a notificação fica sem botões e o Android a descarta silenciosamente.
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
-    if (handlersRegistered.current) return;
-    handlersRegistered.current = true;
 
     const platform = Capacitor.getPlatform();
 
@@ -39,12 +39,13 @@ export function useMediaSession() {
         });
         MediaSession.setActionHandler({ action: 'seekforward' }, () => {
           const state = usePlayerStore.getState();
-          state.seek(state.progressMs + 10000); // Avança 10s
+          state.seek(state.progressMs + 10000);
         });
         MediaSession.setActionHandler({ action: 'seekbackward' }, () => {
           const state = usePlayerStore.getState();
-          state.seek(Math.max(0, state.progressMs - 10000)); // Volta 10s
+          state.seek(Math.max(0, state.progressMs - 10000));
         });
+        console.log('[MediaSession] Action handlers registrados com sucesso');
       } catch (err) {
         console.warn('[MediaSession] Erro ao registrar handlers Capacitor:', err);
       }
@@ -69,6 +70,7 @@ export function useMediaSession() {
         console.warn('[MediaSession] Erro ao registrar handlers Web:', err);
       }
     }
+  // Sem deps = roda em cada mount, garantindo re-registro após qualquer reload da WebView
   }, []);
 
   // 2 & 3. Metadata e Playback State combinados para evitar Race Condition no Android!
