@@ -52,6 +52,18 @@ export default function StoryViewer({
   const group = storyGroups[state.userIdx];
   const story = group?.stories[state.storyIdx];
 
+  // Trava o scroll da página de fundo (Feed) enquanto o StoryViewer estiver aberto
+  useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.touchAction = originalTouchAction;
+    };
+  }, []);
+
   // ─── Navigation ───────────────────────────────────────────
   const advance = useCallback(() => {
     if (hasAdvancedRef.current) return;
@@ -509,7 +521,7 @@ export default function StoryViewer({
 
   return (
     <StoryViewerContext.Provider value={ctxValue}>
-      <div className="fixed inset-0 z-[400] bg-black flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-[400] bg-black flex flex-col items-center justify-center touch-none overscroll-contain">
         <div className="relative w-full h-full max-w-md bg-whatsapp-dark overflow-hidden sm:rounded-[40px] shadow-2xl">
           <StoryViewerMedia />
           <StoryViewerHeader />
