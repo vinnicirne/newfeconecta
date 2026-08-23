@@ -2,14 +2,12 @@ import { useEffect, useRef } from 'react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { MediaSession } from '@jofr/capacitor-media-session';
 import { Capacitor } from '@capacitor/core';
-import { usePathname } from 'next/navigation';
 
 export function useMediaSession() {
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progressMs = usePlayerStore((s) => s.progressMs);
   const durationMs = usePlayerStore((s) => s.durationMs);
-  const pathname = usePathname();
   const handlersRegistered = useRef(false);
 
   // 1. Registrar handlers UMA vez
@@ -99,9 +97,10 @@ export function useMediaSession() {
           });
           
           // CRÍTICO: Delay obrigatório para estabilização do Android / Plugin Capacitor
-          await new Promise(r => setTimeout(r, 100));
+          await new Promise(r => setTimeout(r, 150));
 
           await MediaSession.setPlaybackState({ playbackState });
+          console.log('[MediaSession] Metadata + state updated ->', playbackState);
         } catch (err) {
           console.warn('[MediaSession] Erro no Android setup:', err);
         }
@@ -131,9 +130,26 @@ export function useMediaSession() {
     currentTrack?.title,
     currentTrack?.artist,
     currentTrack?.cover,
-    isPlaying,
-    pathname
+    isPlaying
   ]);
+
+  // Force Media Session when playback actually starts
+  useEffect(() => {
+    if (!isPlaying || !currentTrack) return;
+
+    const force = async () => {
+      if (Capacitor.getPlatform() === 'web') return;
+
+      try {
+        await MediaSession.setPlaybackState({ playbackState: 'playing' });
+      } catch (e) {
+        console.warn('[MediaSession] force playing failed', e);
+      }
+    };
+
+    const t = setTimeout(force, 300);
+    return () => clearTimeout(t);
+  }, [isPlaying, currentTrack?.id]);
 
   // 4. Position state (barra de progresso)
   useEffect(() => {

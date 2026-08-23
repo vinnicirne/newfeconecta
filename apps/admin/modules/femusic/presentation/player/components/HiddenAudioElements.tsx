@@ -30,11 +30,15 @@ export function HiddenAudioElements({
 
   const onPlaying = () => {
     console.log('[Audio] onPlaying disparado - Áudio fisicamente tocando');
+    
+    usePlayerStore.setState({ isPlaying: true });
+
     if (typeof window !== 'undefined') {
       import('@jofr/capacitor-media-session').then(({ MediaSession }) => {
         import('@capacitor/core').then(({ Capacitor }) => {
           if (Capacitor.getPlatform() !== 'web') {
-            MediaSession.setPlaybackState({ playbackState: 'playing' }).catch(e => console.warn('[MediaSession] Erro onPlaying:', e));
+            MediaSession.setPlaybackState({ playbackState: 'playing' })
+              .catch(e => console.warn('[MediaSession] Erro onPlaying:', e));
           }
         });
       });
