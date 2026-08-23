@@ -150,8 +150,9 @@ export default function PostCardActions() {
       {/* Lightbox / Media Expansion */}
       {lightboxUrl && typeof lightboxUrl === 'string' && lightboxUrl.trim() !== '' && (
         <div
-          className="fixed inset-0 z-[1000] bg-black/98 flex flex-col items-center justify-center animate-in fade-in duration-300"
+          className="fixed inset-0 z-[1000] bg-black/98 flex flex-col items-center justify-center animate-in fade-in duration-300 touch-none overscroll-contain select-none"
           onClick={() => setLightboxUrl(null)}
+          onTouchMove={(e) => e.stopPropagation()}
         >
           <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/60 to-transparent z-10">
             <div className="flex items-center gap-3">
