@@ -1,29 +1,22 @@
 import { useEffect, useRef } from 'react';
-import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
-import { MediaSession } from '@jofr/capacitor-media-session';
 import { Capacitor } from '@capacitor/core';
-
-// CRÍTICO: urlToBitmap() no Java faz HTTP request para cada entrada do artwork.
-// Se qualquer download falhar (WebP, CORS, rede lenta), o setMetadata() inteiro lança
-// IOException e call.resolve() nunca é chamado — a notificação nunca aparece.
-// Solução: uma única URL JPEG estável garantida.
-const FALLBACK_ARTWORK = 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg';
+import { MediaSession } from '@jofr/capacitor-media-session';
+import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 
 const isNative = Capacitor.getPlatform() !== 'web';
 
+// URL de fallback estável, HTTPS, JPEG garantido
+const FALLBACK_ARTWORK =
+  'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/Camponotus_flavomarginatus_ant.jpg/320px-Camponotus_flavomarginatus_ant.jpg';
+
 function getSafeArtworkUrl(cover?: string | null): string {
-  // Só aceita URL HTTPS. Descarta WebP, blobs e data URIs.
   if (
     cover &&
-    cover.startsWith('https://') &&
-    !cover.includes('.webp') &&
+    /^https:\/\//i.test(cover) &&
     !cover.startsWith('blob:') &&
-    !cover.startsWith('data:')
+    !cover.startsWith('data:') &&
+    !cover.toLowerCase().includes('.webp')
   ) {
-    // Força conversão para JPEG em URLs do Unsplash e similares
-    if (cover.includes('unsplash.com')) {
-      return cover.replace(/&fm=\w+/, '').replace(/\?fm=\w+/, '?') + '&fm=jpg&q=80&w=512';
-    }
     return cover;
   }
   return FALLBACK_ARTWORK;
@@ -34,170 +27,148 @@ export function useMediaSession() {
   const isPlaying = usePlayerStore((s) => s.isPlaying);
   const progressMs = usePlayerStore((s) => s.progressMs);
   const durationMs = usePlayerStore((s) => s.durationMs);
-  // Throttle para setPositionState — evita NPE no service Java antes da notificação existir
   const lastPositionAt = useRef(0);
 
-  // ─── 1. Handlers ─────────────────────────────────────────────────────────
-  // Re-registra em todo mount. CALLBACK_ID_DANGLING invalida handlers após
-  // qualquer reload da WebView (Live Reload, navegação, etc).
+  // ══════════════════════════════════════════════════════════════════
+  // 1. HANDLERS — cada um tem seu próprio try/catch
+  //    Se seekto falhar, play/pause/next/prev ainda registram.
+  //    Re-registra em cada mount (CALLBACK_ID_DANGLING após WebView reload).
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!isNative && typeof navigator === 'undefined') return;
-    if (!isNative && !('mediaSession' in navigator)) return;
+    if (!isNative) return;
 
-    const register = async () => {
-      try {
-        if (isNative) {
-          await MediaSession.setActionHandler({ action: 'play' }, () => {
-            usePlayerStore.getState().resume();
-          });
-          await MediaSession.setActionHandler({ action: 'pause' }, () => {
-            usePlayerStore.getState().pause();
-          });
-          await MediaSession.setActionHandler({ action: 'previoustrack' }, () => {
-            usePlayerStore.getState().previous(true);
-          });
-          await MediaSession.setActionHandler({ action: 'nexttrack' }, () => {
-            usePlayerStore.getState().next(true);
-          });
-          await MediaSession.setActionHandler({ action: 'seekto' }, (details) => {
-            if (details?.seekTime != null) {
-              usePlayerStore.getState().seek(details.seekTime * 1000);
-            }
-          });
-          await MediaSession.setActionHandler({ action: 'seekforward' }, () => {
-            const s = usePlayerStore.getState();
-            s.seek(s.progressMs + 10000);
-          });
-          await MediaSession.setActionHandler({ action: 'seekbackward' }, () => {
-            const s = usePlayerStore.getState();
-            s.seek(Math.max(0, s.progressMs - 10000));
-          });
-          console.log('[MediaSession] ✅ Handlers registrados (native)');
-        } else {
-          navigator.mediaSession.setActionHandler('play', () => usePlayerStore.getState().resume());
-          navigator.mediaSession.setActionHandler('pause', () => usePlayerStore.getState().pause());
-          navigator.mediaSession.setActionHandler('previoustrack', () => usePlayerStore.getState().previous(true));
-          navigator.mediaSession.setActionHandler('nexttrack', () => usePlayerStore.getState().next(true));
-          navigator.mediaSession.setActionHandler('seekto', (d) => {
-            if (d.seekTime != null) usePlayerStore.getState().seek(d.seekTime * 1000);
-          });
-          navigator.mediaSession.setActionHandler('seekforward', () => {
-            const s = usePlayerStore.getState(); s.seek(s.progressMs + 10000);
-          });
-          navigator.mediaSession.setActionHandler('seekbackward', () => {
-            const s = usePlayerStore.getState(); s.seek(Math.max(0, s.progressMs - 10000));
-          });
-          console.log('[MediaSession] ✅ Handlers registrados (web)');
+    const handlers: Array<{ action: Parameters<typeof MediaSession.setActionHandler>[0]['action']; fn: () => void }> = [
+      { action: 'play',          fn: () => { console.log('[MS] ▶ PLAY');     usePlayerStore.getState().resume(); } },
+      { action: 'pause',         fn: () => { console.log('[MS] ⏸ PAUSE');    usePlayerStore.getState().pause(); } },
+      { action: 'previoustrack', fn: () => { console.log('[MS] ⏮ PREV');    usePlayerStore.getState().previous(true); } },
+      { action: 'nexttrack',     fn: () => { console.log('[MS] ⏭ NEXT');    usePlayerStore.getState().next(true); } },
+      { action: 'seekforward',   fn: () => { const s = usePlayerStore.getState(); s.seek(s.progressMs + 10000); } },
+      { action: 'seekbackward',  fn: () => { const s = usePlayerStore.getState(); s.seek(Math.max(0, s.progressMs - 10000)); } },
+    ];
+
+    // seekto tem assinatura diferente, registra separado
+    const registerAll = async () => {
+      for (const { action, fn } of handlers) {
+        try {
+          await MediaSession.setActionHandler({ action }, fn);
+          console.log(`[MS] Handler OK: ${action}`);
+        } catch (e) {
+          console.error(`[MS] Handler ERRO: ${action}`, e);
         }
-      } catch (e) {
-        console.warn('[MediaSession] ❌ Handlers failed:', e);
       }
+      try {
+        await MediaSession.setActionHandler({ action: 'seekto' }, (details: any) => {
+          if (details?.seekTime != null) usePlayerStore.getState().seek(details.seekTime * 1000);
+        });
+        console.log('[MS] Handler OK: seekto');
+      } catch (e) {
+        console.error('[MS] Handler ERRO: seekto', e);
+      }
+      console.log('[MS] ✅ Handlers completos');
     };
 
-    register();
-  }, []);
+    registerAll();
+  }, []); // sem deps = re-registra em cada mount
 
-  // ─── 2. Metadata + PlaybackState ─────────────────────────────────────────
-  // ORDEM CRÍTICA: setMetadata → delay → setPlaybackState
-  // Uma única URL JPEG no artwork (múltiplas causam IOException se qualquer uma falhar)
+  // ══════════════════════════════════════════════════════════════════
+  // 2. METADATA — independente do playback state
+  //    Falha no artwork NÃO bloqueia o efeito 3 (playback state).
+  //    Uma única URL JPEG (Java faz download de cada entrada do array).
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!currentTrack) return;
+    if (!isNative || !currentTrack) return;
 
-    const run = async () => {
-      // URL única, JPEG garantido — evita IOException no urlToBitmap() Java
-      const cover = getSafeArtworkUrl(currentTrack.cover);
-      const playbackState = isPlaying ? 'playing' : 'paused';
+    const cover = getSafeArtworkUrl(currentTrack.cover);
+    console.log('[MS] Metadata →', currentTrack.title, '| cover:', cover);
 
-      console.log('[MediaSession] Setup →', playbackState, '| track:', currentTrack.title, '| cover:', cover);
+    MediaSession.setMetadata({
+      title: currentTrack.title || 'Música',
+      artist: currentTrack.artist || 'FéConecta',
+      album: currentTrack.album || '',
+      artwork: [{ src: cover, sizes: '512x512', type: 'image/jpeg' }],
+    })
+      .then(() => console.log('[MS] ✅ Metadata OK'))
+      .catch((e) => console.error('[MS] ❌ Metadata ERRO:', e));
+      // IMPORTANTE: falha aqui NÃO impede o efeito de playback state abaixo
+  }, [currentTrack?.id, currentTrack?.title, currentTrack?.artist, currentTrack?.album, currentTrack?.cover]);
 
-      try {
-        if (isNative) {
-          // 1º: metadata com UMA artwork (Java itera o array e faz download de cada)
-          await MediaSession.setMetadata({
-            title: currentTrack.title || 'Música',
-            artist: currentTrack.artist || 'FéConecta',
-            album: currentTrack.album || '',
-            artwork: [
-              { src: cover, sizes: '512x512', type: 'image/jpeg' },
-            ],
-          });
-
-          // 2º: delay — Java precisa terminar o download da imagem antes
-          await new Promise((r) => setTimeout(r, 200));
-
-          // 3º: playback state
-          await MediaSession.setPlaybackState({ playbackState });
-          console.log('[MediaSession] ✅ Metadata + state →', playbackState);
-        } else if ('mediaSession' in navigator) {
-          navigator.mediaSession.metadata = new MediaMetadata({
-            title: currentTrack.title || 'Música',
-            artist: currentTrack.artist || 'FéConecta',
-            album: currentTrack.album || '',
-            artwork: [{ src: cover, sizes: '512x512', type: 'image/jpeg' }],
-          });
-          navigator.mediaSession.playbackState = playbackState;
-        }
-      } catch (e) {
-        console.warn('[MediaSession] ❌ Setup failed:', e);
-      }
-    };
-
-    run();
-  }, [
-    currentTrack?.id,
-    currentTrack?.title,
-    currentTrack?.artist,
-    currentTrack?.cover,
-    isPlaying,
-  ]);
-
-  // ─── 3. Force playing (segurança extra para alguns devices) ──────────────
+  // ══════════════════════════════════════════════════════════════════
+  // 3. PLAYBACK STATE — independente do metadata
+  //    Roda sempre que isPlaying ou track muda, mesmo que metadata falhou.
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!isNative || !isPlaying || !currentTrack) return;
+    if (!isNative || !currentTrack) return;
 
-    const t = setTimeout(async () => {
-      try {
-        await MediaSession.setPlaybackState({ playbackState: 'playing' });
-        console.log('[MediaSession] ✅ Force playing OK');
-      } catch (e) {
-        console.warn('[MediaSession] ❌ Force playing failed:', e);
-      }
-    }, 400);
+    const playbackState = isPlaying ? 'playing' : 'paused';
+    console.log('[MS] PlaybackState →', playbackState);
 
-    return () => clearTimeout(t);
+    MediaSession.setPlaybackState({ playbackState })
+      .then(() => console.log('[MS] ✅ PlaybackState OK:', playbackState))
+      .catch((e) => console.error('[MS] ❌ PlaybackState ERRO:', e));
   }, [isPlaying, currentTrack?.id]);
 
-  // ─── 4. Position state (throttled a ~1s) ────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  // 4. POSITION STATE — throttled a 1s para evitar NPE no service Java
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (!currentTrack || !durationMs || durationMs <= 0) return;
+    if (!isNative || !currentTrack || !durationMs || durationMs <= 0) return;
 
-    // Throttle: evita spam a cada tick de progresso (250ms)
-    // que pode gerar NPE no service Java antes da notificação existir
     const now = Date.now();
-    if (isPlaying && now - lastPositionAt.current < 900) return;
+    if (isPlaying && now - lastPositionAt.current < 1000) return;
     lastPositionAt.current = now;
 
-    const position = Math.min(Math.max(progressMs / 1000, 0), durationMs / 1000);
     const duration = durationMs / 1000;
+    const position = Math.min(Math.max(progressMs / 1000, 0), duration);
+    if (!Number.isFinite(position) || !Number.isFinite(duration)) return;
 
-    // Valores inválidos derrubam a notificação no Android
-    if (!Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0) return;
+    MediaSession.setPositionState({ duration, playbackRate: 1, position })
+      .catch((e) => console.warn('[MS] Position ERRO:', e));
+  }, [progressMs, durationMs, isPlaying, currentTrack?.id]);
 
-    if (isNative) {
-      MediaSession.setPositionState({ duration, playbackRate: 1, position })
-        .catch((e) => console.warn('[MediaSession] position error:', e));
-    } else if (typeof navigator !== 'undefined' && navigator.mediaSession?.setPositionState) {
-      try {
-        navigator.mediaSession.setPositionState({ duration, playbackRate: 1, position });
-      } catch (e) {
-        console.warn('[MediaSession] position web error:', e);
-      }
-    }
-  }, [progressMs, durationMs, currentTrack?.id, isPlaying]);
-
-  // ─── 5. Cleanup quando sem track ─────────────────────────────────────────
+  // ══════════════════════════════════════════════════════════════════
+  // Web fallback (PWA / Chrome desktop)
+  // ══════════════════════════════════════════════════════════════════
   useEffect(() => {
-    if (currentTrack || !isNative) return;
-    MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+    if (isNative || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+    if (!currentTrack) return;
+
+    try {
+      const cover = getSafeArtworkUrl(currentTrack.cover);
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentTrack.title || 'Música',
+        artist: currentTrack.artist || 'FéConecta',
+        album: currentTrack.album || '',
+        artwork: [{ src: cover, sizes: '512x512', type: 'image/jpeg' }],
+      });
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    } catch (e) {
+      console.warn('[MS] Web metadata ERRO:', e);
+    }
+  }, [currentTrack?.id, currentTrack?.title, currentTrack?.artist, currentTrack?.cover, isPlaying]);
+
+  useEffect(() => {
+    if (isNative || typeof navigator === 'undefined' || !('mediaSession' in navigator)) return;
+
+    const handlers: any = {
+      play: () => usePlayerStore.getState().resume(),
+      pause: () => usePlayerStore.getState().pause(),
+      previoustrack: () => usePlayerStore.getState().previous(true),
+      nexttrack: () => usePlayerStore.getState().next(true),
+      seekforward: () => { const s = usePlayerStore.getState(); s.seek(s.progressMs + 10000); },
+      seekbackward: () => { const s = usePlayerStore.getState(); s.seek(Math.max(0, s.progressMs - 10000)); },
+      seekto: (d: any) => { if (d?.seekTime != null) usePlayerStore.getState().seek(d.seekTime * 1000); },
+    };
+    Object.entries(handlers).forEach(([action, fn]) => {
+      try { navigator.mediaSession.setActionHandler(action as any, fn as any); } catch (_) {}
+    });
+  }, []);
+
+  // ══════════════════════════════════════════════════════════════════
+  // 5. CLEANUP — limpa sessão quando não há track
+  // ══════════════════════════════════════════════════════════════════
+  useEffect(() => {
+    if (isNative && !currentTrack) {
+      MediaSession.setPlaybackState({ playbackState: 'none' }).catch(() => {});
+    }
   }, [currentTrack]);
 }
