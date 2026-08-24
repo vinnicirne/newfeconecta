@@ -445,53 +445,103 @@ export default function StandaloneMusicDocsPage() {
 
             {/* SECTION: PUBLIC API REFERENCE */}
             {(activeSection === "public-api" || searchQuery) && (
-              <section id="public-api" className={`space-y-6 pt-6 border-t ${borderCol}`}>
+              <section id="public-api" className={`space-y-8 pt-6 border-t ${borderCol}`}>
                 <div>
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
+                    <span>REST API V1</span> / <span>INTEGRAÇÃO COM TERCEIROS</span>
+                  </div>
                   <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Public API Reference
+                    Public API Reference (Terceiros & Apps Externos)
                   </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Tabela de interfaces e contratos do módulo FéMusic.
+                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
+                    Endpoints REST públicos com suporte nativo a <strong>CORS (*), Embed HTML5 e metadados completos</strong> para você integrar o catálogo e reprodução do FéMusic em aplicativos parceiros, bots, sites ou sistemas externos.
                   </p>
                 </div>
 
+                {/* Tabela de Endpoints REST */}
                 <div className={`overflow-x-auto rounded-2xl border ${borderCol} bg-[#090f1e] shadow-xl`}>
                   <table className="w-full text-left text-xs">
                     <thead className={`bg-[#131d33]/80 border-b ${borderCol} text-[#94a3b8] font-mono uppercase`}>
                       <tr>
-                        <th className="py-3.5 px-4">Método / Função</th>
+                        <th className="py-3.5 px-4">Método & Rota</th>
                         <th className="py-3.5 px-4">Parâmetros</th>
                         <th className="py-3.5 px-4">Retorno</th>
-                        <th className="py-3.5 px-4">Descrição</th>
+                        <th className="py-3.5 px-4">Uso / Descrição</th>
                       </tr>
                     </thead>
                     <tbody className={`divide-y ${borderCol} text-[#cbd5e1]`}>
                       <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#00A884]">playTrack(track, queue?)</td>
-                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">track: MusicTrack, queue?: MusicTrack[]</td>
-                        <td className="py-3.5 px-4 font-mono text-[#38bdf8]">void</td>
-                        <td className="py-3.5 px-4">Define a faixa atual, atualiza a fila e inicia o crossfade no player ativo.</td>
-                      </tr>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#00A884]">toggleLike(track)</td>
-                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">track: MusicTrack</td>
-                        <td className="py-3.5 px-4 font-mono text-[#38bdf8]">Promise&lt;void&gt;</td>
-                        <td className="py-3.5 px-4">Favorita/desfavorita com normalização de ID e sincroniza com o Supabase.</td>
-                      </tr>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#00A884]">search(query, limit)</td>
-                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">query: string, limit?: number</td>
-                        <td className="py-3.5 px-4 font-mono text-[#38bdf8]">Promise&lt;MusicTrack[]&gt;</td>
-                        <td className="py-3.5 px-4">Busca resiliente no YouTubeService com rotação de API e fallback SSR.</td>
-                      </tr>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#00A884]">GET /api/music/search</td>
+                        <td className="py-3.5 px-4 font-mono font-bold text-[#38bdf8]">
+                          <span className="px-1.5 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] mr-2">GET</span>
+                          /api/v1/femusic/search
+                        </td>
                         <td className="py-3.5 px-4 font-mono text-[#94a3b8]">?q=termo&limit=20</td>
-                        <td className="py-3.5 px-4 font-mono text-[#38bdf8]">JSON &#123; results: [] &#125;</td>
-                        <td className="py-3.5 px-4">Endpoint serverless para extração de metadados sem autenticação/cota.</td>
+                        <td className="py-3.5 px-4 font-mono text-[#00A884]">JSON &#123; results: [] &#125;</td>
+                        <td className="py-3.5 px-4">Busca universal de músicas e louvores em tempo real com stream e embed.</td>
+                      </tr>
+                      <tr className="hover:bg-white/5 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-[#38bdf8]">
+                          <span className="px-1.5 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] mr-2">GET</span>
+                          /api/v1/femusic/sessions
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">?id=adoracao-30 (opcional)</td>
+                        <td className="py-3.5 px-4 font-mono text-[#00A884]">JSON &#123; sessions: [] &#125;</td>
+                        <td className="py-3.5 px-4">Retorna as playlists e sessões curadas de oração, louvor e devocionais.</td>
+                      </tr>
+                      <tr className="hover:bg-white/5 transition-colors">
+                        <td className="py-3.5 px-4 font-mono font-bold text-[#38bdf8]">
+                          <span className="px-1.5 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] mr-2">GET</span>
+                          /api/v1/femusic/track
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">?id=VIDEO_ID</td>
+                        <td className="py-3.5 px-4 font-mono text-[#00A884]">JSON &#123; id, artwork, urls &#125;</td>
+                        <td className="py-3.5 px-4">Resolve metadados, capas HD e URLs de player prontas para incorporação.</td>
                       </tr>
                     </tbody>
                   </table>
+                </div>
+
+                {/* Exemplo Prático de Consumo */}
+                <div className="rounded-2xl bg-[#070c18] border border-[#1e293b] overflow-hidden">
+                  <div className="px-4 py-3 bg-[#131d33]/60 border-b border-[#1e293b] flex items-center justify-between text-xs">
+                    <span className="font-semibold text-white flex items-center gap-2">
+                      <Terminal className="w-3.5 h-3.5 text-[#38bdf8]" />
+                      Exemplo de Chamada Externa (cURL / Fetch / Axios)
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard('curl "https://newfeconecta.vercel.app/api/v1/femusic/search?q=Gabriela+Rocha&limit=5"', 'api-curl')}
+                      className="flex items-center gap-1 text-[11px] font-mono text-[#94a3b8] hover:text-white transition-colors"
+                    >
+                      {copiedCode === 'api-curl' ? <Check className="w-3.5 h-3.5 text-[#00A884]" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>Copiar cURL</span>
+                    </button>
+                  </div>
+                  <div className="p-4 font-mono text-xs text-[#38bdf8] overflow-x-auto select-all">
+                    curl &quot;https://newfeconecta.vercel.app/api/v1/femusic/search?q=Gabriela+Rocha&amp;limit=5&quot;
+                  </div>
+                  <div className="p-4 bg-[#090f1e] border-t border-[#1e293b]/40 font-mono text-[11px] text-[#94a3b8] space-y-1">
+                    <div className="text-white font-bold text-xs mb-1">Exemplo de Payload de Resposta (200 OK):</div>
+                    <pre className="text-[#a5b4fc] overflow-x-auto text-[11px] leading-relaxed">
+{`{
+  "status": "success",
+  "query": "Gabriela Rocha",
+  "total": 5,
+  "results": [
+    {
+      "id": "abc123xyz",
+      "providerTrackId": "abc123xyz",
+      "title": "Lugar Secreto - Gabriela Rocha (Ao Vivo)",
+      "artist": "Gabriela Rocha",
+      "duration": 284,
+      "durationFormatted": "4:44",
+      "coverUrl": "https://i.ytimg.com/vi/abc123xyz/hqdefault.jpg",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/abc123xyz?autoplay=1",
+      "source": "youtube"
+    }
+  ]
+}`}
+                    </pre>
+                  </div>
                 </div>
               </section>
             )}
