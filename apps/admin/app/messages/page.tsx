@@ -84,14 +84,33 @@ function MessagesContent() {
         severity: 'high',
         user_id: currentUser.id
       });
-      toast.error("Erro ao enviar imagem.", { id: toastId });
     } finally {
       setIsUploading(false);
       if (e.target) e.target.value = '';
     }
   };
 
-  const selectedChat = conversations.find((c: any) => c.id === selectedId);
+  const [targetUserProfile, setTargetUserProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (selectedId && !conversations.some((c: any) => c.id === selectedId)) {
+      supabase
+        .from('profiles')
+        .select('id, full_name, username, avatar_url')
+        .eq('id', selectedId)
+        .single()
+        .then(({ data }) => {
+          if (data) setTargetUserProfile(data);
+        });
+    }
+  }, [selectedId, conversations]);
+
+  const selectedChat = conversations.find((c: any) => c.id === selectedId) || (targetUserProfile ? {
+    id: targetUserProfile.id,
+    name: targetUserProfile.full_name || targetUserProfile.username || 'Irmão(ã) FéConecta',
+    avatar: targetUserProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+    is_online: false
+  } : null);
 
   return (
     <div className="fixed inset-0 z-[100] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 overflow-hidden w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">

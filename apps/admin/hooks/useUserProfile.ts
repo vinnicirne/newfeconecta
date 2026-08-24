@@ -7,25 +7,57 @@ export function useUserProfile(userId: string | null) {
     async () => {
       if (!userId) return null;
 
-      const { data, error } = await supabase.rpc('get_full_profile_data', {
-        p_user_id: userId
-      });
-      
-      console.log("🔍 useUserProfile RPC Response:", { data, error, userId });
+      try {
+        const { data: rpcData, error: rpcError } = await supabase.rpc('get_full_profile_data', {
+          p_user_id: userId
+        });
 
-      if (error) {
-        console.error("❌ useUserProfile RPC Error:", error);
-        throw error;
+        if (!rpcError && rpcData?.profile) {
+          localStorage.setItem('fc_profile_cache', JSON.stringify({
+            data: rpcData.profile,
+            timestamp: Date.now()
+          }));
+          return rpcData;
+        }
+      } catch (rpcErr) {
+        console.warn("RPC get_full_profile_data fallback:", rpcErr);
       }
-      
-      if (data?.profile) {
+
+      // Fallback Direto em caso de falha da RPC
+      try {
+        const { data: profile, error: pErr } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+
+        if (pErr || !profile) throw pErr || new Error("Perfil não encontrado");
+
+        const [postsRes, likedRes, savedRes] = await Promise.all([
+          supabase.from('posts').select('*').or(`author_id.eq.${userId},user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50),
+          supabase.from('likes').select('post:posts(*)').eq('user_id', userId).limit(50),
+          supabase.from('saved_posts').select('post:posts(*)').eq('user_id', userId).limit(50)
+        ]);
+
+        const fallbackPayload = {
+          profile,
+          posts: postsRes.data || [],
+          liked: (likedRes.data || []).map((l: any) => l.post).filter(Boolean),
+          saved: (savedRes.data || []).map((s: any) => s.post).filter(Boolean),
+          stories: [],
+          highlights: []
+        };
+
         localStorage.setItem('fc_profile_cache', JSON.stringify({
-          data: data.profile,
+          data: profile,
           timestamp: Date.now()
         }));
+
+        return fallbackPayload;
+      } catch (fallbackErr) {
+        console.error("❌ useUserProfile Fallback Error:", fallbackErr);
+        throw fallbackErr;
       }
-      
-      return data;
     },
     {
       revalidateOnFocus: false,

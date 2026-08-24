@@ -519,6 +519,9 @@ export default function RootPage() {
           // FASE 3: Serviços de Background
           requestPermission(authUser.id);
           listenToForegroundMessages();
+
+          // Heartbeat de Presença no Banco (atualiza updated_at)
+          supabase.from('profiles').update({ updated_at: new Date().toISOString() }).eq('id', authUser.id).then();
         } else {
           await loadInitialPosts();
           loadStories();
@@ -530,11 +533,27 @@ export default function RootPage() {
 
     init();
 
+    // Heartbeat contínuo a cada 3 minutos para usuários ativos
+    const heartbeatInterval = setInterval(() => {
+      const cached = localStorage.getItem('fc_profile_cache');
+      const authUser = cached ? JSON.parse(cached) : null;
+      if (authUser?.id) {
+        supabase.from('profiles').update({ updated_at: new Date().toISOString() }).eq('id', authUser.id).then();
+      }
+    }, 180000);
+
+    const activeUserId = currentUser?.id || (() => {
+      try {
+        const cached = localStorage.getItem('fc_profile_cache');
+        return cached ? JSON.parse(cached).id : null;
+      } catch (e) { return null; }
+    })();
+
     const presenceChannel = supabase.channel('presence_online_users', {
-      config: { presence: { key: currentUser?.id || 'guest' } }
+      config: { presence: { key: activeUserId || 'guest' } }
     });
 
-    if (currentUser?.id) {
+    if (activeUserId) {
       presenceChannel
         .on('presence', { event: 'sync' }, () => {
           const state = presenceChannel.presenceState();
@@ -543,7 +562,7 @@ export default function RootPage() {
         })
         .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
-            await presenceChannel.track({ online_at: new Date().toISOString() });
+            await presenceChannel.track({ online_at: new Date().toISOString(), user_id: activeUserId });
           }
         });
     }
@@ -625,8 +644,9 @@ export default function RootPage() {
 
     return () => {
       mounted = false;
+      clearInterval(heartbeatInterval);
       supabase.removeChannel(channel);
-      if (currentUser?.id) supabase.removeChannel(presenceChannel);
+      if (activeUserId) supabase.removeChannel(presenceChannel);
     };
   }, [currentUser?.id || 'guest']);
 
@@ -715,6 +735,10 @@ export default function RootPage() {
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Atalhos</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3">
+                    <Link href="/messages" className="flex flex-col items-center justify-center p-3 rounded-xl bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 hover:bg-whatsapp-teal/20 dark:hover:bg-whatsapp-green/20 transition-colors border border-whatsapp-teal/20 dark:border-whatsapp-green/20">
+                      <MessageSquare className="w-6 h-6 mb-1 text-whatsapp-teal dark:text-whatsapp-green" />
+                      <span className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green">Mensagens</span>
+                    </Link>
                     <Link href="/saved" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                       <Bookmark className="w-6 h-6 mb-1 text-blue-500" />
                       <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Salvos</span>
@@ -726,10 +750,6 @@ export default function RootPage() {
                     <Link href="/notes" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                       <BookOpen className="w-6 h-6 mb-1 text-amber-500" />
                       <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Notas</span>
-                    </Link>
-                    <Link href="/room" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-                      <Mic className="w-6 h-6 mb-1 text-red-500" />
-                      <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">War Room</span>
                     </Link>
                     <Link href="/music" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                       <Music className="w-6 h-6 mb-1 text-pink-500" />
@@ -833,17 +853,6 @@ export default function RootPage() {
               )}
               <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight">FéConecta</span>
             </Link>
-
-            {/* Streak badge */}
-            {isMounted && currentUser && (
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 dark:bg-orange-500/5 rounded-full border border-orange-500/20 cursor-pointer hover:bg-orange-500/20 transition-colors"
-                onClick={() => toast.success(`Ofensiva de ${streak} dias!`, { description: "Continue acessando diariamente para manter o Fogo do Espírito aceso!" })}
-              >
-                <Flame className="w-4 h-4 text-orange-500 fill-orange-500 animate-pulse" />
-                <span className="text-sm font-black text-orange-500">{streak}</span>
-              </div>
-            )}
           </div>
 
           {/* CENTRO — Busca Global */}
@@ -870,9 +879,18 @@ export default function RootPage() {
                 >
                   <Search className="w-5 h-5" />
                 </button>
+                <Link
+                  href="/messages"
+                  className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all relative"
+                  title="Mensagens & Chat"
+                >
+                  <MessageSquare className="w-5 h-5" />
+                </Link>
+
                 <button
                   onClick={() => setShowNotifications(true)}
                   className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal relative"
+                  title="Notificações"
                 >
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
@@ -882,7 +900,7 @@ export default function RootPage() {
                   )}
                 </button>
 
-                <Link href="/bible" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-emerald-500 transition-all">
+                <Link href="/bible" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-emerald-500 transition-all" title="Bíblia Sagrada">
                   <ScrollText className="w-5 h-5" />
                 </Link>
               </>
@@ -922,7 +940,10 @@ export default function RootPage() {
             <Link href="/bible" className="w-full flex items-center gap-3 px-4 py-3 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><ScrollText className="w-5 h-5" /> Bíblia Sagrada</Link>
             <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Notas</Link>
             <Link href="/music" className="w-full flex items-center gap-3 px-4 py-3 text-purple-500 hover:bg-purple-500/5 rounded-2xl transition-all font-bold"><Music className="w-5 h-5" /> Música</Link>
-            <Link href="/messages" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all font-bold"><MessageSquare className="w-5 h-5" /> Mensagens</Link>
+            <Link href="/messages" className="w-full flex items-center justify-between px-4 py-3 text-whatsapp-teal dark:text-whatsapp-green hover:bg-whatsapp-teal/5 rounded-2xl transition-all font-bold">
+              <span className="flex items-center gap-3"><MessageSquare className="w-5 h-5" /> Mensagens & Chat</span>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 text-whatsapp-teal dark:text-whatsapp-green">Direto</span>
+            </Link>
             <Link href="/saved" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all font-bold"><Bookmark className="w-5 h-5" /> Salvos</Link>
             <Link href="/room" className="w-full flex items-center gap-3 px-4 py-3 text-red-500 hover:bg-red-500/5 rounded-2xl font-bold transition-all"><Mic className="w-5 h-5" /> Sala de Guerra</Link>
             <Link href="/tribo" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl font-bold transition-all"><Users className="w-5 h-5" /> Tribo</Link>

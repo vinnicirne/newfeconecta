@@ -347,7 +347,8 @@ export default function ProfilePage() {
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(`https://feconecta.com.br/profile/${user?.username}`);
+                  const url = typeof window !== 'undefined' ? `${window.location.origin}/profile/${user?.username}` : `https://feconecta.com.br/profile/${user?.username}`;
+                  navigator.clipboard.writeText(url);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}

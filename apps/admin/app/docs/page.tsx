@@ -76,13 +76,13 @@ export default function StandaloneMusicDocsPage() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          router.replace("/login?redirect=/docs/music");
+          router.replace("/login?redirect=/docs");
           return;
         }
         setSession(session);
         setUserEmail(session.user?.email || "admin@feconecta.com");
       } catch (err) {
-        router.replace("/login?redirect=/docs/music");
+        router.replace("/login?redirect=/docs");
       } finally {
         setLoadingAuth(false);
       }
@@ -92,7 +92,7 @@ export default function StandaloneMusicDocsPage() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
-        router.replace("/login?redirect=/docs/music");
+        router.replace("/login?redirect=/docs");
       } else {
         setSession(session);
         setUserEmail(session.user?.email || "admin@feconecta.com");
@@ -137,6 +137,27 @@ export default function StandaloneMusicDocsPage() {
       items: [
         { id: "feed-architecture", label: "Feed Engine & Realtime" },
         { id: "feed-security", label: "Segurança, XSS & Deduplicação" },
+      ]
+    },
+    {
+      group: "Chat & Mensagens Diretas",
+      items: [
+        { id: "chat-architecture", label: "Chat Engine & Realtime" },
+        { id: "chat-resilience", label: "Fallback Dual (RPC & Direto)" },
+      ]
+    },
+    {
+      group: "Perfil & Identidade",
+      items: [
+        { id: "profile-architecture", label: "Perfil Unificado & Cache SWR" },
+        { id: "profile-sync", label: "Uploads de Mídia & Realtime Follows" },
+      ]
+    },
+    {
+      group: "Radar de Presença (Online)",
+      items: [
+        { id: "radar-architecture", label: "Radar de Presença & Heartbeat" },
+        { id: "radar-realtime", label: "Supabase Presence Engine" },
       ]
     },
     {
@@ -603,6 +624,138 @@ export default function StandaloneMusicDocsPage() {
   ]
 }`}
                     </pre>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* SECTION: CHAT & DIRECT MESSAGES */}
+            {(activeSection === "chat-architecture" || activeSection === "chat-resilience" || searchQuery) && (
+              <section id="chat-architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
+                    <span>MENSAGERIA & REALTIME</span> / <span>CHAT DIRETO</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <MessageSquare className="w-6 h-6 text-whatsapp-green" />
+                    Chat & Mensagens Diretas (`/messages`)
+                  </h2>
+                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
+                    Subsistema de comunicação privada ponto a ponto entre usuários do FéConecta. Suporta envio de texto, mídias de chat, status de leitura em tempo real e fallback resiliente.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">RESILIÊNCIA DUAL</div>
+                    <div className="text-lg font-bold text-white mb-2">RPC + Direct Fallback</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Se as RPCs personalizadas do PostgreSQL falharem, o hook <code className="text-[#38bdf8]">useChat.ts</code> executa consulta direta otimizada na tabela <code className="text-[#38bdf8]">direct_messages</code>.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">REALTIME INSTANTÂNEO</div>
+                    <div className="text-lg font-bold text-white mb-2">Postgres Changes</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Canais dinâmicos por conversa ativa transmitem inserções, exclusões e recibos de leitura com atualização imediata de estado.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">INTEGRAÇÃO GLOBAL</div>
+                    <div className="text-lg font-bold text-white mb-2">Pontos de Entrada</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Acessível diretamente pelo Top Navbar, menu do Feed, botão flutuante em perfis e menu contextual de qualquer publicação.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* SECTION: PERFIL & IDENTIDADE */}
+            {(activeSection === "profile-architecture" || activeSection === "profile-sync" || searchQuery) && (
+              <section id="profile-architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
+                    <span>IDENTIDADE & CONEXÕES</span> / <span>MOTOR DE PERFIL</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <User className="w-6 h-6 text-[#38bdf8]" />
+                    Perfil Unificado & Gestão de Identidade (`/profile`)
+                  </h2>
+                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
+                    Motor de alta performance com agregação de posts, lumes (vídeos), curtidas, destaques de stories, conexões de seguidores/seguindo e edição de avatar/banner com cropper nativo.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">CACHE INTELIGENTE SWR</div>
+                    <div className="text-lg font-bold text-white mb-2">Zero Spam & Fast-Hydrate</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Cache local de 5 minutos com deduping automático e hidratação instantânea via <code className="text-[#38bdf8]">localStorage('fc_profile_cache')</code>.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">RESILIÊNCIA DE DADOS</div>
+                    <div className="text-lg font-bold text-white mb-2">RPC + Direct Fallback</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Fallback automático para consultas diretas nas tabelas <code className="text-[#38bdf8]">profiles</code>, <code className="text-[#38bdf8]">posts</code> e <code className="text-[#38bdf8]">follows</code> se a RPC falhar.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">ATUALIZAÇÃO OTIMISTA</div>
+                    <div className="text-lg font-bold text-white mb-2">Follows & Mídias</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Alternância instantânea do estado de "Seguindo" sem flicker visual, sincronizado globalmente com canais Realtime do Postgres.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* SECTION: RADAR DE PRESENÇA */}
+            {(activeSection === "radar-architecture" || activeSection === "radar-realtime" || searchQuery) && (
+              <section id="radar-architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
+                <div>
+                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
+                    <span>PRESENÇA EM TEMPO REAL</span> / <span>RADAR DE USUÁRIOS</span>
+                  </div>
+                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
+                    <Smartphone className="w-6 h-6 text-whatsapp-green" />
+                    Radar de Presença & Usuários Online
+                  </h2>
+                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
+                    Motor de monitoramento de usuários ativos com duplo canal de heartbeat: sincronização contínua via Supabase Presence Channel e registro periódico de timestamp (<code className="text-[#38bdf8]">updated_at</code>).
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">PRESENCE CHANNEL</div>
+                    <div className="text-lg font-bold text-white mb-2">WebSockets Instantâneos</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Conexão em tempo real (<code className="text-[#38bdf8]">presence_online_users</code>) que rastreia conexões ativas com evento <code className="text-[#38bdf8]">sync</code> sem sobrecarga no PostgreSQL.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">HEARTBEAT CONTÍNUO</div>
+                    <div className="text-lg font-bold text-white mb-2">3-Min Pulse Engine</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Intervalo automático de atualização em segundo plano que renova o <code className="text-[#38bdf8]">updated_at</code> no banco de dados para alimentar os painéis analíticos do Dashboard.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
+                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">RADAR VISUAL</div>
+                    <div className="text-lg font-bold text-white mb-2">Admin & Feed Widgets</div>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Exibição com anéis de pulso verde nos avatares no Painel Admin (<code className="text-[#38bdf8]">/admin</code> e <code className="text-[#38bdf8]">/admin/users</code>) e nos contatos diretos do Feed.
+                    </p>
                   </div>
                 </div>
               </section>

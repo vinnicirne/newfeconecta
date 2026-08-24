@@ -11,12 +11,69 @@ export function useChat(currentUserId: string | null, selectedId: string | null)
     currentUserId ? `conversations:${currentUserId}` : null,
     async () => {
       if (!currentUserId) return [];
-      const { data, error } = await supabase.rpc('get_my_conversations', { p_user_id: currentUserId });
-      console.log("📨 [useChat] Conversas recebidas:", data);
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase.rpc('get_my_conversations', { p_user_id: currentUserId });
+        if (!error && Array.isArray(data) && data.length > 0) {
+          return data;
+        }
+      } catch (rpcErr) {
+        console.warn("RPC get_my_conversations fallback:", rpcErr);
+      }
+
+      // Fallback Direto na tabela direct_messages
+      try {
+        const { data: rawMsgs, error: msgErr } = await supabase
+          .from('direct_messages')
+          .select('id, sender_id, receiver_id, content, created_at, is_read')
+          .or(`sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId}`)
+          .order('created_at', { ascending: false })
+          .limit(100);
+
+        if (msgErr || !rawMsgs || rawMsgs.length === 0) return [];
+
+        const otherUserIds = Array.from(new Set(
+          rawMsgs.map((m: any) => m.sender_id === currentUserId ? m.receiver_id : m.sender_id).filter(Boolean)
+        ));
+
+        if (otherUserIds.length === 0) return [];
+
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .in('id', otherUserIds);
+
+        const profileMap = (profiles || []).reduce((acc: any, p: any) => {
+          acc[p.id] = p;
+          return acc;
+        }, {});
+
+        const conversationMap = new Map<string, any>();
+
+        for (const msg of rawMsgs) {
+          const partnerId = msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id;
+          if (!conversationMap.has(partnerId)) {
+            const partner = profileMap[partnerId] || {};
+            conversationMap.set(partnerId, {
+              id: partnerId,
+              name: partner.full_name || partner.username || 'Irmão(ã) FéConecta',
+              avatar: partner.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+              lastMessage: msg.content,
+              time: msg.created_at,
+              unread: (msg.receiver_id === currentUserId && !msg.is_read) ? 1 : 0,
+              is_online: false,
+              sender_id: msg.sender_id,
+              is_read: msg.is_read
+            });
+          }
+        }
+
+        return Array.from(conversationMap.values());
+      } catch (fallbackErr) {
+        console.error("Erro ao carregar conversas via fallback:", fallbackErr);
+        return [];
+      }
     },
-    { refreshInterval: 60000 } // Revalida a cada minuto
+    { refreshInterval: 30000 }
   );
 
   // 2. Fetch de Histórico (Ativo)
@@ -27,15 +84,38 @@ export function useChat(currentUserId: string | null, selectedId: string | null)
     }
 
     const fetchHistory = async () => {
-      const { data, error } = await supabase.rpc('get_chat_history', {
-        p_user_id: currentUserId,
-        p_other_id: selectedId,
-        p_limit: 50
-      });
-      if (error) return;
-      // Reverter para ordem cronológica
-      setMessages((data || []).reverse());
-      scrollToBottom();
+      try {
+        const { data, error } = await supabase.rpc('get_chat_history', {
+          p_user_id: currentUserId,
+          p_other_id: selectedId,
+          p_limit: 50
+        });
+
+        if (!error && Array.isArray(data) && data.length > 0) {
+          setMessages([...data].reverse());
+          scrollToBottom();
+          return;
+        }
+      } catch (rpcErr) {
+        console.warn("RPC get_chat_history fallback:", rpcErr);
+      }
+
+      // Fallback Direto
+      try {
+        const { data: rawHistory, error: histErr } = await supabase
+          .from('direct_messages')
+          .select('*')
+          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${selectedId}),and(sender_id.eq.${selectedId},receiver_id.eq.${currentUserId})`)
+          .order('created_at', { ascending: true })
+          .limit(50);
+
+        if (!histErr && rawHistory) {
+          setMessages(rawHistory);
+          scrollToBottom();
+        }
+      } catch (err) {
+        console.error("Erro ao buscar histórico via fallback:", err);
+      }
     };
 
     fetchHistory();

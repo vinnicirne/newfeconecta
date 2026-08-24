@@ -64,7 +64,7 @@ const menuItems: any[] = [
 
   // ── SISTEMA ──────────────────────────────────
   { type: 'divider', label: 'Sistema' },
-  { name: "Doc FéConecta Global", icon: FileText, href: "/docs/music" },
+  { name: "Doc FéConecta Global", icon: FileText, href: "/docs" },
   { name: "Design", icon: Palette, href: "/admin/design" },
   { name: "Ferramentas", icon: Wrench, href: "/admin/tools" },
   { name: "Configurações API", icon: Settings, href: "/admin/api-settings" },

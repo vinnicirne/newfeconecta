@@ -146,7 +146,7 @@ apps/admin/
 │   │   ├── search/route.ts           # API REST Pública de Busca Universal
 │   │   ├── sessions/route.ts         # API REST Pública de Sessões e Playlists
 │   │   └── track/route.ts            # API REST Pública de Resolução de Faixas e Capas
-│   ├── docs/music/page.tsx           # Portal Autônomo e Seguro de Documentação
+│   ├── docs/page.tsx                 # Portal Global e Seguro de Documentação (/docs)
 │   └── music/
 │       ├── page.tsx                  # Home do FéMusic (Carrosséis de Trending e Adoração)
 │       ├── library/page.tsx          # Biblioteca com Sessões Prontas, Curtidas e Histórico
@@ -234,4 +234,62 @@ Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `compo
 3. **Isolamento de Erro e Sanitização de Mídia:**
    * **Cenário Identificado:** Imagens legadas sem extensão ou com falha de decodificação não quebram o layout do post; fallback transparente ativo em `PostCardMedia.tsx`.
    * **Segurança XSS:** O conteúdo textual do feed é higienizado contra tags HTML maliciosas antes da renderização de menções e hashtags via `utils/feed-formatter.tsx`.
+
+---
+
+## 8. 💬 Auditoria e Arquitetura Nuclear do Chat Interno (`/messages`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Pontos de Entrada e Acessibilidade:**
+   * **Menu Hambúrguer (Mobile):** Atalho direto e prioritário de Mensagens/Chat na grade de utilitários no topo do drawer lateral.
+   * **Top Navbar:** Botão de atalho direto para `/messages` com ícone `<MessageSquare>` e badge de mensagens.
+   * **Sidebar do Feed (Desktop):** Link de mensagens destacado com estilo nativo e acesso rápido.
+   * **Cards de Publicações (`PostCardHeader.tsx`):** Opção "Enviar Mensagem" adicionada ao menu de 3 pontos de qualquer autor.
+   * **Página de Perfil (`/profile/[username]`):** Botão "Chat" com redirecionamento direto (`/messages?userId=UUID`).
+   * **Navegação Inferior (Mobile BottomNav):** Preservada a distribuição nativa com Home, Sala (War Room), Postar, Tribo e Perfil.
+
+2. **Resiliência Dual no Hook `useChat.ts`:**
+   * Caso as stored procedures (`get_my_conversations` ou `get_chat_history`) estejam indisponíveis ou não migradas, o sistema executa automaticamente fallback direto na tabela `direct_messages` com joins dinâmicos em `profiles`.
+   * Tratamento de conversas iniciadas via URL sem histórico prévio (hidratação de perfil imediata).
+
+3. **Tempo Real & Notificações:**
+   * Canal cirúrgico Supabase Realtime (`chat_active_{selectedId}`) escutando `INSERT`, `UPDATE` (recibo de leitura) e `DELETE`.
+   * Envio automático de notificação push em segundo plano na tabela `notifications`.
+
+---
+
+## 9. 👤 Auditoria e Arquitetura Nuclear do Módulo de Perfil (`/profile`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Resiliência de Busca de Dados Dual (`useUserProfile.ts` e `/profile/[username]`):**
+   * **Problema Prevenido:** Quebra em cascata caso as RPCs `get_full_profile_data` ou `get_profile_with_state` retornassem erro ou não estivessem sincronizadas no banco.
+   * **Correção Nuclear:** Fallback inteligente que consulta as tabelas fundamentais `profiles`, `posts`, `likes` e `follows` em paralelo via `Promise.all`.
+
+2. **Compartilhamento de Perfil Dinâmico:**
+   * O link de compartilhamento de perfil agora utiliza dinamicamente `window.location.origin` em vez de URLs estáticas fixas, adaptando-se perfeitamente aos ambientes de desenvolvimento, staging e produção.
+
+3. **Cache SWR e Zero Spam:**
+   * Deduping interval de 60s/300s para evitar requisições redundantes.
+   * Atualização otimista imediata no contador de seguidores e no estado de "Seguindo", com sincronização em background via Supabase Realtime (`follows`).
+
+---
+
+## 10. 🛰️ Auditoria e Arquitetura Nuclear do Radar de Presença (Usuários Online)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Heartbeat Ativo e Contínuo no Feed (`RootClient.tsx`):**
+   * **Cenário Identificado:** Usuários que navegavam e consumiam o app sem fazer posts ou editar perfis não atualizavam o campo `updated_at`, sumindo do radar de presença após 10 minutos.
+   * **Correção Nuclear:** Implementado um `heartbeatInterval` contínuo a cada 3 minutos que dispara um ping silencioso no `profiles.updated_at`, garantindo que qualquer usuário ativo no app seja detectado em tempo real.
+
+2. **Canal de Presença WebSockets (`presence_online_users`):**
+   * Resolução instantânea do `activeUserId` no canal de presença do Supabase, rastreando conexões simultâneas via evento `sync` sem polling excessivo.
+
+3. **Renderização nos Dashboards (`/admin` e `/admin/users`):**
+   * Consulta de presença em janela deslizante de 10-15 minutos com contadores sincronizados e badge pulsante verde nos avatares.
+
+
+
 

@@ -1,9 +1,10 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import moment from "moment";
 import { VerificationBadge } from "@/components/verification-badge";
-import { Repeat, MoreHorizontal, Share2, Pencil, Trash2, ShieldAlert } from "lucide-react";
+import { Repeat, MoreHorizontal, Share2, Pencil, Trash2, ShieldAlert, MessageSquare } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,7 @@ export default function PostCardHeader({
   handleSaveEdit,
   isSavingEdit
 }: any) {
+  const router = useRouter();
   return (
     <>
       {/* Indicador de Publicação Pendente */}
@@ -141,6 +143,14 @@ export default function PostCardHeader({
             <DropdownMenuItem onClick={handleShare}>
               <Share2 className="w-4 h-4 mr-2" /> Compartilhar
             </DropdownMenuItem>
+            {!isAuthor && post.author_id && (
+              <DropdownMenuItem 
+                onClick={() => router.push(`/messages?userId=${post.author_id}`)}
+                className="text-whatsapp-teal dark:text-whatsapp-green font-medium"
+              >
+                <MessageSquare className="w-4 h-4 mr-2" /> Enviar Mensagem
+              </DropdownMenuItem>
+            )}
             {isOwner && (
               <>
                 <DropdownMenuItem

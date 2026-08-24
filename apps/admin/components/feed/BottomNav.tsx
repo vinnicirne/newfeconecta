@@ -11,7 +11,8 @@ import {
   Bell,
   Swords,
   Flame,
-  Music
+  Music,
+  MessageSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import MobilePostSheet from "./MobilePostSheet";

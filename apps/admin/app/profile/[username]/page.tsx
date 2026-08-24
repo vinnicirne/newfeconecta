@@ -110,22 +110,47 @@ export default function PublicProfilePage() {
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const pViewerId = isUUID(viewerId) ? viewerId : null;
 
-    const { data, error, status } = await supabase.rpc('get_profile_with_state', {
-      p_username: username,
-      p_viewer_id: pViewerId
-    });
+    let rpcData = null;
+    try {
+      const { data, error, status } = await supabase.rpc('get_profile_with_state', {
+        p_username: username,
+        p_viewer_id: pViewerId
+      });
 
-    if (error) {
-      console.error(`[RPC Error] get_profile_with_state (${username}):`, error);
-      // Anexa o status HTTP ao erro para o SWRProvider identificar o 400
-      const wrappedError = new Error(error.message);
-      (wrappedError as any).status = status;
-      (wrappedError as any).code = error.code;
-      throw wrappedError;
+      if (!error && data) {
+        return data;
+      }
+    } catch (rpcErr) {
+      console.warn(`[RPC Warning] get_profile_with_state (${username}):`, rpcErr);
     }
-    
-    if (!data) throw new Error("Perfil não encontrado");
-    return data;
+
+    // Fallback Direto em caso de ausência da RPC
+    try {
+      const { data: profile, error: pErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', username)
+        .single();
+
+      if (pErr || !profile) throw pErr || new Error("Perfil não encontrado");
+
+      const [postsRes, followRes] = await Promise.all([
+        supabase.from('posts').select('*').or(`author_id.eq.${profile.id},user_id.eq.${profile.id}`).order('created_at', { ascending: false }).limit(50),
+        pViewerId ? supabase.from('follows').select('id').eq('follower_id', pViewerId).eq('following_id', profile.id).maybeSingle() : Promise.resolve({ data: null })
+      ]);
+
+      return {
+        profile,
+        posts: postsRes.data || [],
+        liked_posts: [],
+        viewer_state: {
+          is_following: Boolean((followRes as any)?.data)
+        }
+      };
+    } catch (fallbackErr: any) {
+      console.error(`[Fallback Error] (${username}):`, fallbackErr);
+      throw fallbackErr;
+    }
   };
 
   const { data, error, mutate, isValidating } = useSWR(
