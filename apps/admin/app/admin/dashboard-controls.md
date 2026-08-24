@@ -925,6 +925,18 @@
   - ✅ **Inclusão do `BottomNav` no Bloco de Notas:** Menu móvel inferior integrado.
 - **Impacto:** Experiência de escrita e leitura de notas rica e profissional, com build de produção 100% aprovado e sem advertências críticas.
 
+## 96. Resolução Nuclear de Loop Infinito de Redirecionamento de Cadastro (`/complete-profile`, `AuthGuard`)
+- **Arquivos:** `components/auth-guard.tsx`, `app/complete-profile/page.tsx`, `lib/profile-cache.ts`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Loop Infinito de Redirecionamento (Bounce Loop):** O `AuthGuard` checava rigidez de campos secundários (`city`, `phone`, `birthdate`, `accepted_terms`) com estado interno dessincronizado de eventos. Ao salvar em `/complete-profile`, o guard na raiz (`/`) ainda possuía `isProfileComplete = false` em memória e disparava `router.replace('/complete-profile')`, enquanto a página `/complete-profile` identificava os dados salvos e disparava `router.replace('/')`. Esse conflito gerava um loop ricocheteando milhares de vezes por segundo e travando a aplicação.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Sincronização Reativa em Tempo Real:** `AuthGuard` agora escuta o evento `profile-hydrated`, atualizando instantaneamente `isProfileComplete = true` no momento em que o usuário salva o formulário.
+  - ✅ **Hidratação Inicial Síncrona do Cache:** `isProfileComplete` inicializa consultando `getStoredProfile()` diretamente do `localStorage`.
+  - ✅ **Critério Real de Completude:** O usuário é considerado apto para navegar se possuir cadastro básico de identificação (`username`, `full_name` ou dados cadastrais), evitando bloqueios e loops em contas antigas.
+  - ✅ **Eliminação de Conflitos de Redirecionamento:** Removidos redirecionamentos concorrentes e normalizado o fluxo via `setStoredProfile` e `router.replace('/')`.
+- **Impacto:** Fim definitivo de loops infinitos, travamentos de tela e disparos duplicados após o preenchimento de cadastro ou login.
+
+
 
 
 

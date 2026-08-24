@@ -17,11 +17,29 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [isSyncingProfile, setIsSyncingProfile] = useState(true);
-  const [isProfileComplete, setIsProfileComplete] = useState<boolean>(true);
+  const [isProfileComplete, setIsProfileComplete] = useState<boolean>(() => {
+    const cached = getStoredProfile();
+    return Boolean(cached?.username || cached?.full_name || cached?.id);
+  });
   const initialized = useRef(false);
   const pathname = usePathname();
   const router = useRouter();
   const { requestPermission, listenToForegroundMessages, listenToInternalNotifications } = usePushNotifications();
+  
+  // Reatividade em tempo real: ouve alterações do perfil emitidas em qualquer tela
+  useEffect(() => {
+    const handleHydrated = (e: any) => {
+      const p = e.detail;
+      if (p) {
+        if (p.role) setUserRole(p.role);
+        setIsProfileComplete(true);
+        setIsSyncingProfile(false);
+      }
+    };
+    window.addEventListener('profile-hydrated', handleHydrated);
+    return () => window.removeEventListener('profile-hydrated', handleHydrated);
+  }, []);
+
   // Use refs to hold latest versions of these functions without causing re-renders
   const requestPermissionRef = useRef(requestPermission);
   const listenForegroundRef = useRef(listenToForegroundMessages);
@@ -67,12 +85,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         setStoredProfile(profile);
         setUserRole(profile.role);
         
-        const complete = Boolean(profile.city && profile.phone && profile.birthdate && profile.accepted_terms);
+        // Perfil considerado válido se tiver identificador básico
+        const complete = Boolean(profile.username || profile.full_name || profile.city || profile.phone);
         setIsProfileComplete(complete);
-        
-        if (!complete && pathname !== '/complete-profile') {
-           router.replace('/complete-profile');
-        }
       } else if (profileError) {
         if (!profileError.message?.includes('lock') && !profileError.message?.includes('steal')) {
           console.error("Erro ao buscar perfil:", profileError);
@@ -97,12 +112,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initSession = async () => {
       try {
-        // Tenta buscar a sessão. Se houver lock, o Supabase vai esperar,
-        // mas nós já temos o listener onAuthStateChange ativo para capturar o resultado.
         const { data: { session }, error } = await supabaseClient.auth.getSession();
 
         if (error) {
-           // Se houver erro de lock (steal/contention), ignoramos e deixamos o listener resolver
            if (!error.message?.includes('lock') && !error.message?.includes('steal')) {
               console.error("Auth Error:", error);
            }
@@ -116,7 +128,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             setIsSyncingProfile(false);
           });
         } else {
-          // Se não houver sessão, verifica se estamos em rota protegida
           const isPublicRoute = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith("/post/");
           if (!isPublicRoute) {
             router.push('/login');
@@ -172,10 +183,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     const isPublic = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith("/post/");
-    
-    if (process.env.NODE_ENV === 'development') {
-      console.log("🛡️ [Auth] Navegando para:", pathname, { authorized, isPublic });
-    }
 
     if (!authorized && !isPublic) {
       router.replace("/login");
@@ -184,12 +191,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     
     if (authorized) {
       if (!isSyncingProfile) {
-        if (!isProfileComplete && pathname !== "/complete-profile") {
+        if (!isProfileComplete && pathname !== "/complete-profile" && !isPublic) {
           router.replace("/complete-profile");
-          return;
-        }
-        if (isProfileComplete && pathname === "/complete-profile") {
-          router.replace("/");
           return;
         }
       }

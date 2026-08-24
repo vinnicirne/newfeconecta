@@ -21,6 +21,7 @@ import Link from "next/link";
 import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { setStoredProfile } from "@/lib/profile-cache";
 
 export default function CompleteProfilePage() {
   const router = useRouter();
@@ -203,11 +204,10 @@ export default function CompleteProfilePage() {
       }
 
       const updatedProfile = { ...currentUser, ...updateData };
-      localStorage.setItem('fc_profile_cache', JSON.stringify(updatedProfile));
-      window.dispatchEvent(new CustomEvent('profile-hydrated', { detail: updatedProfile }));
+      setStoredProfile(updatedProfile);
 
       toast.success("Perfil atualizado com sucesso!");
-      router.push("/");
+      router.replace("/");
     } catch (err: any) {
       console.error("❌ Erro de Validação/Atualização:", err);
       if (err.name === 'ZodError') {

@@ -586,6 +586,19 @@ Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `compo
 2. **Conformidade Estrita no TypeScript (`santuario/[id]`):**
    * Ajustada a tipagem de `userId: string | null` em todas as rotinas de leitura de progresso do Altar Digital e acendimento de chamas, garantindo compatibilidade estrita no build de produção da Vercel.
 
+---
+
+## 29. 🛡️ Mitigação de Loops de Redirecionamento & Sincronização de Perfil
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Reatividade Global com `profile-hydrated` no `AuthGuard`:**
+   * Quando um usuário atualiza dados em `/complete-profile` ou no modal de edição, o `AuthGuard` atualiza seu estado interno imediatamente sem necessitar de recarregamento.
+
+2. **Critério Resiliente de Perfil Ativo:**
+   * Evita bloqueios cíclicos em contas que já possuem cadastro ativo ou identificador válido (`username`/`full_name`).
+
+
 
 
 
