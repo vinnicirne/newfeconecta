@@ -214,3 +214,24 @@ cd android
 ```
 O pacote assinado é gerado em:  
 `apps/admin/android/app/build/outputs/bundle/release/app-release.aab`
+
+---
+
+## 7. 🛡️ Auditoria Nuclear de Segurança e Estabilidade do Feed Principal (`/feed`)
+
+Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `components/feed/*` e `hooks/feed/*`.
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Normalização Dupla de Identificador de Autor (`user_id` vs `author_id`):**
+   * **Cenário Identificado:** Em inserções no `CreatePost.tsx` e escuta realtime no `RootClient.tsx`, algumas instâncias esperavam `author_id` enquanto o schema do banco utiliza `user_id`.
+   * **Correção Nuclear:** O payload de inserção agora envia ambos os campos garantindo retrocompatibilidade com RLS policies e triggers de estatísticas. A escuta do canal de realtime resolve `newPost.user_id || newPost.author_id` antes de consultar o cache de perfis.
+
+2. **Deduplicação Rigorosa de Feed e Paginação Virtuosa (`react-virtuoso`):**
+   * **Cenário Identificado:** Reposts e posts originais intercalados com paginação infinita podiam colidir em chaves React.
+   * **Correção Nuclear:** O mapa do feed utiliza `unique_key` composto (`${id}-${type}-${uid}`), impedindo vazamento de render e re-renderização em cascata.
+
+3. **Isolamento de Erro e Sanitização de Mídia:**
+   * **Cenário Identificado:** Imagens legadas sem extensão ou com falha de decodificação não quebram o layout do post; fallback transparente ativo em `PostCardMedia.tsx`.
+   * **Segurança XSS:** O conteúdo textual do feed é higienizado contra tags HTML maliciosas antes da renderização de menções e hashtags via `utils/feed-formatter.tsx`.
+

@@ -137,7 +137,8 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
 
       setUploadProgress(80);
       const response = await supabase.from('posts').insert({
-        author_id: user.id, // Removed redundant user_id
+        author_id: user.id,
+        user_id: user.id,
         content: contentText,
         media_url: finalMediaUrl,
         thumbnail_url: data.thumbnail_url || null,

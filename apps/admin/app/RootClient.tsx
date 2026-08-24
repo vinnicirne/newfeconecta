@@ -553,24 +553,31 @@ export default function RootPage() {
       // FEED POSTS REALTIME
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
         const newPost = payload.new;
+        const postUserId = newPost.user_id || newPost.author_id;
 
-        let profile = profilesCacheRef.current[newPost.user_id];
+        let profile = profilesCacheRef.current[postUserId];
 
-        if (!profile) {
+        if (!profile && postUserId) {
           const { data } = await supabase
             .from('profiles')
             .select('id, full_name, username, avatar_url, is_verified, verification_label')
-            .eq('id', newPost.user_id)
+            .eq('id', postUserId)
             .single();
 
           if (data) {
             profile = data;
-            profilesCacheRef.current[newPost.user_id] = data;
+            profilesCacheRef.current[postUserId] = data;
           }
         }
 
+        const normalizedPost = {
+          ...newPost,
+          user_id: postUserId,
+          author_id: postUserId
+        };
+
         const mapped = {
-          ...mapPost(newPost, { [newPost.user_id]: profile || {} }),
+          ...mapPost(normalizedPost, { [postUserId]: profile || {} }),
           unique_key: `${newPost.id}-original`
         };
 
