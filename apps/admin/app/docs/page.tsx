@@ -35,7 +35,8 @@ import {
   User,
   ShieldCheck,
   Sun,
-  Moon
+  Moon,
+  MessageSquare
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
