@@ -37,7 +37,7 @@ const PostCard = React.memo(function PostCard({
     const isAudioBucket = mediaUrl?.includes('/posts/audio/');
     
     const audio = postType === "audio" || post.media_type === "audio" || !!mediaUrl?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i) || isAudioBucket;
-    const video = (postType === "video" || post.media_type === "video" || !!mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i) || isVideoBucket) && postType !== "external_media" && !mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i);
+    const video = !audio && (postType === "video" || post.media_type === "video" || !!mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i) || isVideoBucket) && postType !== "external_media" && !mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i);
     
     const short = post.content && post.content.length < 90 && !post.content.includes("\n") && !mediaUrl;
     const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
@@ -138,7 +138,7 @@ const PostCard = React.memo(function PostCard({
           isShareModalOpen: actions.isShareModalOpen, setIsShareModalOpen: actions.setIsShareModalOpen
         }}>
           <PostCardMedia />
-          <PostCardText />
+          {!isAudio && <PostCardText />}
           
           {postType === "journey" && mediaUrl && (
             <div className="px-4 pb-4">

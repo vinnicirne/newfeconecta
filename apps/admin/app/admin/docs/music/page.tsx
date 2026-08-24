@@ -16,16 +16,14 @@ import {
   ChevronDown,
   ChevronRight,
   RefreshCw,
-  AlertTriangle
+  AlertTriangle,
+  Search,
+  Heart,
+  ListMusic
 } from "lucide-react";
 
 export default function MusicTechnicalDocsPage() {
   const [activeTab, setActiveTab] = useState<"architecture" | "postmortem" | "rules" | "diagnostics">("architecture");
-  const [expandedSection, setExpandedSection] = useState<string | null>("flow");
-
-  const toggleSection = (id: string) => {
-    setExpandedSection(expandedSection === id ? null : id);
-  };
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-whatsapp-dark p-6 lg:p-10">
@@ -43,9 +41,12 @@ export default function MusicTechnicalDocsPage() {
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-whatsapp-green/20 text-whatsapp-green border border-whatsapp-green/30">
                 Admin Only
               </span>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                v1.8.4 (Build 35)
+              </span>
             </div>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Engenharia do sistema de áudio, integração com Media Session nativo (Android/Capacitor) e manual de manutenção.
+              Engenharia do sistema de áudio, integração com Media Session nativo (Android/Capacitor), motor de busca resiliente e persistência de dados.
             </p>
           </div>
         </div>
@@ -85,32 +86,33 @@ export default function MusicTechnicalDocsPage() {
                 Como Funciona a Arquitetura Unificada
               </h2>
               <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
-                O FéMusic opera com um modelo de <strong>camada dupla de execução</strong>. O áudio fisicamente toca em elementos HTML5 invisíveis dentro da WebView, enquanto um <strong>Foreground Service nativo em Java</strong> mantém o sistema Android ciente da reprodução para gerar a notificação na tela de bloqueio e barra de status.
+                O FéMusic opera com um modelo de <strong>camada tripla de execução e resiliência</strong>:
+                áudio físico em elementos HTML5 invisíveis dentro da WebView, <strong>Foreground Service nativo em Java</strong> para controle de tela de bloqueio e <strong>Fallback Scraper SSR Serverless</strong> para buscas ilimitadas sem interrupção de cota.
               </p>
 
               {/* Diagrama Textual */}
               <div className="bg-gray-900 text-gray-100 p-5 rounded-xl font-mono text-xs overflow-x-auto leading-relaxed border border-gray-800">
-                <div className="text-whatsapp-green font-bold mb-2"># FLUXO DE SINCRONIZAÇÃO DO PLAYER</div>
-                {`[ Usuário clica Play ] 
+                <div className="text-whatsapp-green font-bold mb-2"># FLUXO DE SINCRONIZAÇÃO E BUSCA DO FÉMUSIC</div>
+                {`[ Usuário Pesquisa ou Dá Play ] 
+        │
+        ├──▶ [ Busca: YouTubeService.ts ]
+        │         ├── 1. Tenta API Oficial YouTube v3
+        │         └── 2. Se Cota 429 ou Sem Chave ──▶ Fallback: /api/music/search (Scraper SSR)
         │
         ▼
-[ usePlayerStore (Zustand) ] ── (Atualiza Faixa, Status isPlaying, Fila)
+[ usePlayerStore (Zustand) ] ── (Atualiza Faixa, Status isPlaying, Fila, Likes)
         │
         ├──▶ [ HiddenAudioElements.tsx ] 
         │         ├── Player A (<audio disableRemotePlayback>)
         │         └── Player B (<audio disableRemotePlayback>)  <-- Crossfade Suave
         │
-        └──▶ [ useMediaSession.ts ] 
-                  │
-                  ├── Se WEB: navigator.mediaSession (PWA / Chrome Desktop)
-                  │
-                  └── Se ANDROID: @jofr/capacitor-media-session
-                            │
-                            ▼
-                  [ MediaSessionService.java (Foreground Service) ]
-                            │
-                            ▼
-                  [ Notificação do Android & Controles da Lockscreen ]`}
+        ├──▶ [ useMediaSession.ts ] 
+        │         ├── Se WEB: navigator.mediaSession (PWA / Chrome Desktop)
+        │         └── Se ANDROID: @jofr/capacitor-media-session
+        │                   └──▶ [ MediaSessionService.java (Foreground Service) ]
+        │                             └──▶ [ Notificação Android & Lockscreen ]
+        │
+        └──▶ [ Supabase: music_likes ] (Sincronização bidirecional de Curtidas)`}
               </div>
             </div>
 
@@ -123,24 +125,34 @@ export default function MusicTechnicalDocsPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   {
+                    path: "apps/admin/app/api/music/search/route.ts",
+                    desc: "Endpoint SSR serverless que faz scraping limpo do YouTube em tempo real quando as cotas de API oficial estão esgotadas.",
+                    role: "Busca Resiliente"
+                  },
+                  {
+                    path: "apps/admin/modules/femusic/infrastructure/services/YouTubeService.ts",
+                    desc: "Serviço central de catálogo, gerencia rotação de chaves e aciona o fallback /api/music/search automaticamente.",
+                    role: "Motor de Catálogo"
+                  },
+                  {
+                    path: "apps/admin/modules/femusic/infrastructure/state/usePlayerStore.ts",
+                    desc: "Store global Zustand com persistência dupla (Local + Supabase music_likes), fila, reprodução e likes.",
+                    role: "Store Central"
+                  },
+                  {
+                    path: "apps/admin/app/music/library/page.tsx",
+                    desc: "Biblioteca com abas para Sessões de Oração & Adoração (ReadySessions), Músicas Curtidas e Histórico.",
+                    role: "Biblioteca / Playlists"
+                  },
+                  {
                     path: "apps/admin/modules/femusic/presentation/player/hooks/useMediaSession.ts",
-                    desc: "Sincroniza metadados (título, artista, capa) e estado de reprodução (playing/paused) com o SO.",
+                    desc: "Sincroniza metadados (título, artista, capa JPEG HTTPS) e estado de reprodução com o SO Android.",
                     role: "Ponte SO Nativa"
                   },
                   {
                     path: "apps/admin/modules/femusic/presentation/player/components/HiddenAudioElements.tsx",
-                    desc: "Dois elementos <audio> com disableRemotePlayback para crossfade sem interrupção.",
+                    desc: "Dois elementos <audio> com disableRemotePlayback para crossfade sem interrupção de background.",
                     role: "Saída de Áudio"
-                  },
-                  {
-                    path: "apps/admin/modules/femusic/infrastructure/state/usePlayerStore.ts",
-                    desc: "Gerenciamento de estado global com Zustand: fila, faixa atual, volume, progresso.",
-                    role: "Store Central"
-                  },
-                  {
-                    path: "apps/admin/modules/femusic/presentation/player/GlobalYouTubePlayer.tsx",
-                    desc: "Componente orquestrador global montado no app/layout.tsx.",
-                    role: "Orquestrador Global"
                   },
                 ].map((file, idx) => (
                   <div key={idx} className="p-4 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5">
@@ -161,6 +173,22 @@ export default function MusicTechnicalDocsPage() {
         {activeTab === "postmortem" && (
           <div className="space-y-4">
             {[
+              {
+                id: "bug6",
+                title: "6. Curtidas não persistiam ou não atualizavam o botão Like",
+                severity: "Médio",
+                cause: "Inconsistência de identificadores entre track.id e track.providerTrackId nos objetos retornados pelo YouTube. A checagem estrita t.id === track.id impedia o toggle correto e não sincronizava na nuvem.",
+                fix: "Normalização do identificador para (t.providerTrackId || t.id) === currentId no store, FullscreenPlayer e LibraryPage, acompanhado de sincronização com o Supabase (tabela music_likes).",
+                status: "Resolvido"
+              },
+              {
+                id: "bug5",
+                title: "5. Buscas de músicas retornando vazias (Erro 429 Quota Exceeded)",
+                severity: "Crítico",
+                cause: "A cota diária gratuita da API do YouTube v3 (100 buscas/dia) esgotou, fazendo as chamadas oficiais retornarem 429 e caírem em array vazio [].",
+                fix: "Criação da rota /api/music/search com parser HTML SSR que extrai os metadados do YouTube em tempo real e atua como fallback resiliente no YouTubeService.ts.",
+                status: "Resolvido"
+              },
               {
                 id: "bug1",
                 title: "1. Notificação nunca aparece (Race Condition no Boot)",
@@ -233,19 +261,27 @@ export default function MusicTechnicalDocsPage() {
             <div className="space-y-4">
               {[
                 {
-                  rule: "1. Nunca remova o atributo disableRemotePlayback das tags <audio>",
+                  rule: "1. Sempre compare faixas usando (track.providerTrackId || track.id)",
+                  why: "Garante compatibilidade total entre itens gerados pela busca direta, playlists estáticas, histórico e tabela de curtidas do Supabase."
+                },
+                {
+                  rule: "2. Mantenha a rota /api/music/search ativa como fallback no YouTubeService",
+                  why: "Protege o aplicativo contra bloqueios ou esgotamento de cotas de APIs externas, garantindo que o usuário nunca tenha uma tela de busca vazia."
+                },
+                {
+                  rule: "3. Nunca remova o atributo disableRemotePlayback das tags <audio>",
                   why: "Sem essa propriedade, o Chromium da WebView tenta abrir uma Media Session Web que compete com o Foreground Service nativo do Android, causando travamentos e notificações duplicadas."
                 },
                 {
-                  rule: "2. Não use pushState ao expandir o FullscreenPlayer",
+                  rule: "4. Não use pushState ao expandir o FullscreenPlayer",
                   why: "Alterações no histórico de navegação da WebView no Android 11+ reinicializam o foco de áudio do sistema operacional, matando a notificação instantaneamente."
                 },
                 {
-                  rule: "3. Cada setActionHandler deve ter seu próprio bloco try/catch",
+                  rule: "5. Cada setActionHandler deve ter seu próprio bloco try/catch",
                   why: "Se o registro de um controle secundário (como seekto) falhar no dispositivo de um fabricante específico, os botões essenciais (play/pause/next/prev) continuarão funcionando normalmente."
                 },
                 {
-                  rule: "4. Mantenha o capacitor.config.ts apontado para domínio HTTPS válido",
+                  rule: "6. Mantenha o capacitor.config.ts apontado para domínio HTTPS válido",
                   why: "IPs locais ou portas não roteadas causam falhas de DNS ou bloqueios de roteador (AP Isolation), resultando em tela preta ou erro net::ERR_NAME_NOT_RESOLVED."
                 },
               ].map((item, idx) => (
@@ -268,18 +304,28 @@ export default function MusicTechnicalDocsPage() {
 
             <div className="space-y-4">
               <div className="p-4 rounded-xl bg-gray-900 text-gray-100 font-mono text-xs space-y-3">
-                <div className="text-whatsapp-green font-bold"># 1. FILTRAR LOGS DE SESSÃO DE MÍDIA VIA ADB</div>
+                <div className="text-whatsapp-green font-bold"># 1. TESTAR ENDPOINT DE BUSCA RESILIENTE</div>
+                <div className="bg-black/50 p-2.5 rounded-lg select-all">
+                  curl "http://localhost:3000/api/music/search?q=gospel&limit=5"
+                </div>
+                <div className="text-gray-400 text-[11px]">
+                  Deve retornar JSON com array "results" preenchido com id, title, artist, duration e cover.
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-gray-900 text-gray-100 font-mono text-xs space-y-3">
+                <div className="text-whatsapp-green font-bold"># 2. FILTRAR LOGS DE SESSÃO DE MÍDIA VIA ADB</div>
                 <div className="bg-black/50 p-2.5 rounded-lg select-all">
                   adb logcat -d | findstr /i "MediaSession [MS] AudioTrack"
                 </div>
                 <div className="text-gray-400 text-[11px]">
-                  • Se aparecer "[MS] Handlers OK" e "[MS] PlaybackState OK: playing", o app está perfeito e o usuário provavelmente desativou as notificações nas configurações do Android.<br />
+                  • Se aparecer "[MS] Handlers OK" e "[MS] PlaybackState OK: playing", o app está perfeito e o serviço nativo está rodando.<br />
                   • Se aparecer "IOException: urlToBitmap", a imagem da capa da música está com formato corrompido.
                 </div>
               </div>
 
               <div className="p-4 rounded-xl bg-gray-900 text-gray-100 font-mono text-xs space-y-3">
-                <div className="text-whatsapp-green font-bold"># 2. VERIFICAR SE O SERVIÇO ANDROID ESTÁ ATIVO NO DISPOSITIVO</div>
+                <div className="text-whatsapp-green font-bold"># 3. VERIFICAR SE O SERVIÇO ANDROID ESTÁ ATIVO NO DISPOSITIVO</div>
                 <div className="bg-black/50 p-2.5 rounded-lg select-all">
                   adb shell dumpsys activity services | findstr "io.github.jofr.capacitor.mediasessionplugin.MediaSessionService"
                 </div>
@@ -289,9 +335,12 @@ export default function MusicTechnicalDocsPage() {
               </div>
 
               <div className="p-4 rounded-xl bg-gray-900 text-gray-100 font-mono text-xs space-y-3">
-                <div className="text-whatsapp-green font-bold"># 3. RECOMPILAR APK LIMPO (SEM CACHE)</div>
+                <div className="text-whatsapp-green font-bold"># 4. GERAR NOVO AAB DE PRODUÇÃO PARA PLAY STORE</div>
                 <div className="bg-black/50 p-2.5 rounded-lg select-all">
-                  cd apps/admin; npx cap copy android; cd android; .\gradlew clean; .\gradlew assembleDebug
+                  cd apps/admin; npx cap sync android; cd android; .\gradlew bundleRelease
+                </div>
+                <div className="text-gray-400 text-[11px]">
+                  Gera o arquivo assinado em android/app/build/outputs/bundle/release/app-release.aab.
                 </div>
               </div>
             </div>
