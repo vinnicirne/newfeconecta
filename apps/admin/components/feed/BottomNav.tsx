@@ -24,9 +24,9 @@ export default function BottomNav() {
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
   const [user, setUser] = React.useState<any>(() => getStoredProfile());
 
-  // Esconde a nav em páginas de autenticação e legais
-  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy"];
-  const isHidden = hiddenRoutes.includes(pathname) || pathname.includes('/celula/');
+  // Esconde a nav em páginas de autenticação, jogos e telas imersivas
+  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy", "/complete-profile"];
+  const isHidden = hiddenRoutes.includes(pathname) || pathname.includes('/celula/') || pathname.startsWith('/jogos/');
 
   React.useEffect(() => {
     // Listener para hidratação vinda do AuthGuard
