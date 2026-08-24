@@ -905,7 +905,7 @@ export default function RootPage() {
                 <Link
                   href="/messages"
                   className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all relative"
-                  title="Mensagens & Chat"
+                  title="Chat"
                 >
                   <MessageSquare className="w-5 h-5" />
                 </Link>
@@ -968,7 +968,7 @@ export default function RootPage() {
             <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Notas</Link>
             <Link href="/music" className="w-full flex items-center gap-3 px-4 py-3 text-purple-500 hover:bg-purple-500/5 rounded-2xl transition-all font-bold"><Music className="w-5 h-5" /> Música</Link>
             <Link href="/messages" className="w-full flex items-center justify-between px-4 py-3 text-whatsapp-teal dark:text-whatsapp-green hover:bg-whatsapp-teal/5 rounded-2xl transition-all font-bold">
-              <span className="flex items-center gap-3"><MessageSquare className="w-5 h-5" /> Mensagens & Chat</span>
+              <span className="flex items-center gap-3"><MessageSquare className="w-5 h-5" /> Chat</span>
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 text-whatsapp-teal dark:text-whatsapp-green">Direto</span>
             </Link>
             <Link href="/saved" className="w-full flex items-center gap-3 px-4 py-3 text-gray-500 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all font-bold"><Bookmark className="w-5 h-5" /> Salvos</Link>
