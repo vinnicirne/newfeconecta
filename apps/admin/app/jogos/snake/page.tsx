@@ -67,7 +67,7 @@ export default function GoogleSnakeGamePage() {
         localStorage.setItem("fc_snake_highscore", points.toString());
       }
 
-      const content = `🐍 Joguei o clássico Google Snake na Arena FéConecta!\n\n🍎 Pontuação: ${points} Maçãs\n🏆 Recorde: ${Math.max(points, highScore)} pontos\n🎖️ Consegue bater minha pontuação?\n\n👉 Jogue em /jogos/snake`;
+      const content = `🐍 Joguei o Jogo da Cobrinha do Google!\n\n🍎 Pontuação: ${points} maçãs\n🏆 Meu Recorde: ${Math.max(points, highScore)} pontos\n\nConsegue fazer mais pontos que eu? /jogos/snake`;
 
       const { error } = await supabase.from("posts").insert({
         author_id: user.id,

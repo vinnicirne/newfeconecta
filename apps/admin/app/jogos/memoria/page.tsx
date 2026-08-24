@@ -167,7 +167,7 @@ export default function MemoryGamePage() {
         return;
       }
 
-      const content = `✨ Concluí o Jogo da Memória Sagrado na Arena FéConecta!\n\n🏆 8 Pares Encontrados em ${moves} jogadas!\n⏱️ Tempo: ${seconds}s\n🎖️ +200 XP da Fé conquistados\n\n👉 Jogue também em /jogos`;
+      const content = `🕊️ Completei o Jogo da Memória!\n\n🎯 8 pares encontrados em ${moves} jogadas\n⏱️ Tempo: ${seconds}s (+200 XP)\n\nSerá que você consegue encontrar todos os pares em menos tentativas? /jogos/memoria`;
 
       const { error } = await supabase.from('posts').insert({
         author_id: userId,

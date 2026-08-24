@@ -174,7 +174,7 @@ export default function BibleQuizGamePage() {
       }
 
       const rankInfo = calculateRank(score, (correctCount / 5) * 100);
-      const content = `🧠 Acabei de jogar o Quiz Bíblico na Arena FéConecta!\n\n🏆 Pontuação: ${score} XP (${correctCount}/5 acertos)\n🎖️ Conquista: ${rankInfo.rank}\n⏱️ Tempo: ${totalTimeRef.current}s no nível ${difficulty.toUpperCase()}\n\n👉 Venha testar sua sabedoria na Palavra em /jogos`;
+      const content = `📖 Testei meus conhecimentos no Quiz da Bíblia!\n\n🎯 Acertei ${correctCount} de 5 perguntas (${score} XP)\n🎖️ Nível: ${difficulty.toUpperCase()} em ${totalTimeRef.current}s\n\nVenha testar o que você lembra das histórias bíblicas! /jogos/quiz`;
 
       const { error } = await supabase.from('posts').insert({
         author_id: userId,

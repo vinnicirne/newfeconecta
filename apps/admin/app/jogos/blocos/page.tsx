@@ -60,7 +60,7 @@ export default function BlockBlastGamePage() {
         localStorage.setItem("fc_blockblast_highscore", points.toString());
       }
 
-      const content = `🧱 Joguei o Block Blast na Arena FéConecta!\n\n💥 Pontuação: ${points} pontos\n🏆 Recorde: ${Math.max(points, highScore)} pontos\n🎖️ Consegue quebrar meu recorde?\n\n👉 Jogue em /jogos/blocos`;
+      const content = `🧱 Joguei o Block Blast de Encaixar Blocos!\n\n💥 Pontuação: ${points} pontos\n🏆 Meu Recorde: ${Math.max(points, highScore)} pontos\n\nDesafio você a quebrar meu recorde! /jogos/blocos`;
 
       const { error } = await supabase.from("posts").insert({
         author_id: user.id,
