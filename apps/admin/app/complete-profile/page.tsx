@@ -197,10 +197,15 @@ export default function CompleteProfilePage() {
       if (error) throw error;
 
       const firstName = updateData.username.split('_')[0] || currentUser.first_name || 'Usuário';
-      fetch('/api/emails/welcome', {
+      fetch('/api/emails/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: currentUser.email, name: firstName, user_id: currentUser.id })
+        body: JSON.stringify({ 
+          email: currentUser.email, 
+          name: firstName, 
+          user_id: currentUser.id,
+          template_key: 'welcome'
+        })
       }).catch(err => console.error("Erro ao disparar welcome email:", err));
 
       if ('Notification' in window && Notification.permission === 'default') {

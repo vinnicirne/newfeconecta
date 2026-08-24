@@ -327,10 +327,15 @@ export default function RegisterPage() {
       if (profileError) throw profileError;
 
       // Disparar o e-mail de boas-vindas assíncronamente (sem bloquear o fluxo)
-      fetch('/api/emails/welcome', {
+      fetch('/api/emails/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: formData.email, name: formData.first_name.trim() })
+        body: JSON.stringify({ 
+          email: formData.email, 
+          name: formData.first_name.trim(),
+          user_id: authData.user.id,
+          template_key: 'welcome'
+        })
       }).catch(err => console.error("Erro ao disparar welcome email:", err));
 
       // Pedir notificação antes de redirecionar
