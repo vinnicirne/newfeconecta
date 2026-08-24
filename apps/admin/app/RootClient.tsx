@@ -559,30 +559,12 @@ export default function RootPage() {
       }
     }, 180000);
 
-    const activeUserId = currentUser?.id || (() => {
-      try {
-        const cached = localStorage.getItem('fc_profile_cache');
-        return cached ? JSON.parse(cached).id : null;
-      } catch (e) { return null; }
-    })();
-
-    const presenceChannel = supabase.channel('presence_online_users', {
-      config: { presence: { key: activeUserId || 'guest' } }
-    });
-
-    if (activeUserId) {
-      presenceChannel
-        .on('presence', { event: 'sync' }, () => {
-          const state = presenceChannel.presenceState();
-          const onlineIds = Object.keys(state);
-          setOnlineUsers(new Set(onlineIds));
-        })
-        .subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-            await presenceChannel.track({ online_at: new Date().toISOString(), user_id: activeUserId });
-          }
-        });
-    }
+    const handlePresenceSync = (e: any) => {
+      if (e.detail && Array.isArray(e.detail)) {
+        setOnlineUsers(new Set(e.detail));
+      }
+    };
+    window.addEventListener('presence-sync', handlePresenceSync);
 
     const channel = supabase
       .channel('unified-feed-updates')
@@ -663,7 +645,7 @@ export default function RootPage() {
       mounted = false;
       clearInterval(heartbeatInterval);
       supabase.removeChannel(channel);
-      if (activeUserId) supabase.removeChannel(presenceChannel);
+      window.removeEventListener('presence-sync', handlePresenceSync);
     };
   }, [currentUser?.id || 'guest']);
 

@@ -55,15 +55,25 @@ export function PresenceTracker() {
 
         activeChannelRef.current = channel;
 
-        channel.subscribe(async (status) => {
-          if (status === "SUBSCRIBED" && userId) {
-            await channel.track({
-              user_id: userId,
-              online_at: new Date().toISOString(),
-              route: pathname
-            });
-          }
-        });
+        channel
+          .on("presence", { event: "sync" }, () => {
+            try {
+              const state = channel.presenceState();
+              const onlineIds = Object.keys(state);
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(new CustomEvent("presence-sync", { detail: onlineIds }));
+              }
+            } catch (err) {}
+          })
+          .subscribe(async (status) => {
+            if (status === "SUBSCRIBED" && userId) {
+              await channel.track({
+                user_id: userId,
+                online_at: new Date().toISOString(),
+                route: pathname
+              });
+            }
+          });
 
         // 3. Heartbeat periódico a cada 60s
         intervalId = setInterval(() => {
