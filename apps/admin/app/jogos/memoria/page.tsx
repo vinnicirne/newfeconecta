@@ -158,9 +158,11 @@ export default function MemoryGamePage() {
     setIsPublishing(true);
 
     try {
-      const user = profile || getStoredProfile();
-      if (!user?.id) {
-        toast.error("Faça login para compartilhar.");
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+
+      if (!userId) {
+        toast.error("Faça login para compartilhar no feed.");
         setIsPublishing(false);
         return;
       }
@@ -168,10 +170,11 @@ export default function MemoryGamePage() {
       const content = `✨ Concluí o Jogo da Memória Sagrado na Arena FéConecta!\n\n🏆 8 Pares Encontrados em ${moves} jogadas!\n⏱️ Tempo: ${seconds}s\n🎖️ +200 XP da Fé conquistados\n\n👉 Jogue também em /jogos`;
 
       const { error } = await supabase.from('posts').insert({
-        user_id: user.id,
+        author_id: userId,
+        user_id: userId,
+        profile_id: userId,
         content: content,
-        media_type: 'text',
-        created_at: new Date().toISOString()
+        post_type: 'text'
       });
 
       if (error) throw error;
@@ -179,6 +182,7 @@ export default function MemoryGamePage() {
       toast.success("Resultado publicado no Feed com sucesso!");
       router.push("/");
     } catch (err) {
+      console.error("Erro ao publicar:", err);
       toast.error("Erro ao publicar.");
     } finally {
       setIsPublishing(false);

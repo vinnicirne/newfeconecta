@@ -164,8 +164,10 @@ export default function BibleQuizGamePage() {
     setIsPublishing(true);
 
     try {
-      const user = profile || getStoredProfile();
-      if (!user?.id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+
+      if (!userId) {
         toast.error("Faça login para compartilhar no feed.");
         setIsPublishing(false);
         return;
@@ -175,10 +177,11 @@ export default function BibleQuizGamePage() {
       const content = `🧠 Acabei de jogar o Quiz Bíblico na Arena FéConecta!\n\n🏆 Pontuação: ${score} XP (${correctCount}/5 acertos)\n🎖️ Conquista: ${rankInfo.rank}\n⏱️ Tempo: ${totalTimeRef.current}s no nível ${difficulty.toUpperCase()}\n\n👉 Venha testar sua sabedoria na Palavra em /jogos`;
 
       const { error } = await supabase.from('posts').insert({
-        user_id: user.id,
+        author_id: userId,
+        user_id: userId,
+        profile_id: userId,
         content: content,
-        media_type: 'text',
-        created_at: new Date().toISOString()
+        post_type: 'text'
       });
 
       if (error) throw error;
