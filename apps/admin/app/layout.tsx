@@ -12,6 +12,7 @@ import { GoogleProvider } from "@/components/google-provider";
 import MiniPlayer from "@/modules/femusic/presentation/components/MiniPlayer";
 import dynamic from "next/dynamic";
 import FullscreenPlayer from "@/modules/femusic/presentation/components/FullscreenPlayer";
+import { PresenceTracker } from "@/components/presence-tracker";
 
 const GlobalYouTubePlayer = dynamic(
   () => import("@/modules/femusic/presentation/components/GlobalYouTubePlayer"),
@@ -139,6 +140,7 @@ export default function RootLayout({
               disableTransitionOnChange
             >
               <AuthGuard>
+                <PresenceTracker />
                 <MarketingOverlay />
                 {children}
                 <GlobalYouTubePlayer />

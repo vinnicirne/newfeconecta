@@ -210,11 +210,11 @@ export default function DashboardPage() {
     try {
       const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
       const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
-      const tenMinsAgo = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+      const activeCutoff = new Date(Date.now() - 4 * 60 * 1000).toISOString();
       const { count: onlineCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .gt('updated_at', tenMinsAgo);
+        .gt('updated_at', activeCutoff);
 
       const { count: mediaErrors } = await supabase
         .from('system_errors')
@@ -412,7 +412,7 @@ export default function DashboardPage() {
       const { data: latestOnline } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, updated_at, username, role')
-        .gt('updated_at', tenMinsAgo)
+        .gt('updated_at', activeCutoff)
         .order('updated_at', { ascending: false })
         .limit(10);
       setOnlineUsers(latestOnline || []);

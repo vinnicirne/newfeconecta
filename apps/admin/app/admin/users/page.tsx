@@ -48,12 +48,12 @@ export default function UsersPage() {
   }, [page, search, activeTab]);
 
   const fetchOnlineUsers = async () => {
-    const tenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const activeCutoff = new Date(Date.now() - 4 * 60 * 1000).toISOString();
     const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
     const { data } = await supabase
       .from(table)
       .select('id, full_name, avatar_url, updated_at, username, role')
-      .gt('updated_at', tenMinsAgo)
+      .gt('updated_at', activeCutoff)
       .order('updated_at', { ascending: false });
     if (data) setOnlineUsers(data);
   };
