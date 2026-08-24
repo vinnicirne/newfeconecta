@@ -1,6 +1,6 @@
-# 🎵 FéMusic — Documentação Técnica do Sistema de Áudio, Catálogo e Media Session
+# 🎵 FéMusic — Documentação Técnica do Sistema de Áudio, API Pública e Media Session
 
-> **Destino:** Manutenção, Suporte, Prevenção de Regressões e Engenharia de Produção  
+> **Destino:** Manutenção, Suporte, Integração com Terceiros e Engenharia de Produção  
 > **Módulo:** `/modules/femusic` | **Submódulos:** `player`, `state`, `infrastructure`, `presentation`  
 > **Versão do Sistema:** `1.8.4 (Build 35)`  
 > **Stack:** Next.js 14 (App Router) + Capacitor 6 (Android) + `@jofr/capacitor-media-session@4.0.0` + Supabase Cloud
@@ -9,7 +9,7 @@
 
 ## 1. 📌 Visão Geral da Arquitetura
 
-O sistema de áudio do **FéMusic** opera com um modelo de **camada tripla de execução e resiliência** através de um único código-fonte unificado:
+O sistema de áudio do **FéMusic** opera com um modelo de **camada quádrupla de execução e resiliência** através de um único código-fonte unificado:
 
 ```
                   ┌────────────────────────────────────────┐
@@ -19,30 +19,91 @@ O sistema de áudio do **FéMusic** opera com um modelo de **camada tripla de ex
                                       │
        ┌──────────────────────────────┼──────────────────────────────┐
        ▼                              ▼                              ▼
-┌───────────────┐           ┌──────────────────┐           ┌────────────────────┐
-│ Buscas / Scraper│         │ HiddenAudioElements│          │  useMediaSession   │
-│ YouTubeService │          │  2x <audio> HTML5│          │  Ponte com SO/Web  │
-│ /api/music/... │          │(Crossfade A / B) │          │(Foreground Service)│
-└───────┬───────┘           └─────────┬────────┘           └─────────┬──────────┘
+┌──────────────────┐        ┌──────────────────┐           ┌────────────────────┐
+│   REST API V1    │        │HiddenAudioElements│          │  useMediaSession   │
+│/api/v1/femusic/* │        │  2x <audio> HTML5│          │  Ponte com SO/Web  │
+│(CORS + Terceiros)│        │(Crossfade A / B) │          │(Foreground Service)│
+└───────┬──────────┘        └─────────┬────────┘           └─────────┬──────────┘
         │                             │                              │
         ▼                             ▼                              ▼
- [ YouTube SSR / Cache ]    [ AudioContext / WebView ]     [ Android Notif & Lockscreen ]
+ [ Apps Externos / Web ]    [ AudioContext / WebView ]     [ Android Notif & Lockscreen ]
 ```
 
-1. **Camada de Busca e Resiliência de Catálogo:**
+1. **Camada de API Pública para Terceiros (`/api/v1/femusic/*`):**
+   * Endpoints RESTful públicos com suporte nativo a CORS (`*`), ideais para aplicativos de terceiros, bots, sites ou players externos.
+   * `/api/v1/femusic/search`: Busca universal de faixas com URLs de stream e embed.
+   * `/api/v1/femusic/sessions`: Listagem e detalhes de sessões e playlists curadas.
+   * `/api/v1/femusic/track`: Resolução de metadados, capas HD e embeds.
+2. **Camada de Busca e Resiliência de Catálogo:**
    * O `YouTubeService.ts` gerencia o catálogo.
    * Caso a chave da API oficial do YouTube v3 estoure a cota diária (`429 Quota Exceeded`), o sistema aciona automaticamente a rota serverless interna `/api/music/search`, que realiza scraping SSR do YouTube em tempo real sem limite de requisições.
-2. **Camada de Renderização Sonora:** 
+3. **Camada de Renderização Sonora:** 
    * `HiddenAudioElements.tsx` monta dois elementos HTML5 `<audio>` invisíveis com `disableRemotePlayback` (Player A e Player B) para suportar reprodução contínua e *crossfade* sem engasgos.
-3. **Camada de Integração com o SO (Media Session):** 
+4. **Camada de Integração com o SO (Media Session):** 
    * `useMediaSession.ts` sincroniza metadados (título, artista, capa em JPEG HTTPS) e estado de reprodução diretamente com a barra de notificações do Android e a Lockscreen.
-4. **Camada de Persistência (Likes & Histórico):**
+5. **Camada de Persistência (Likes & Histórico):**
    * Persistência dupla com normalização de identificadores `(track.providerTrackId || track.id)`.
    * Salva instantaneamente no `localStorage('fc_music_likes')` e sincroniza em nuvem na tabela `music_likes` do Supabase para usuários logados.
 
 ---
 
-## 2. 🚨 Anatomia dos Bugs Históricos e Causas Raízes (Post-Mortem)
+## 2. 🌐 REST API v1 — Integração com Aplicativos de Terceiros
+
+Para conectar outros aplicativos e sistemas externos ao FéMusic, utilize os seguintes endpoints:
+
+### 🔍 1. `GET /api/v1/femusic/search`
+Realiza buscas em tempo real em todo o catálogo gospel/adoração.
+* **Query Params:**
+  * `q` *(obrigatório)*: Termo de pesquisa (ex: `Morada Para Onde Eu Iria`)
+  * `limit` *(opcional)*: Quantidade de resultados (default: `20`, máx: `50`)
+* **Exemplo cURL:**
+```bash
+curl "https://newfeconecta.vercel.app/api/v1/femusic/search?q=Gabriela+Rocha&limit=5"
+```
+* **Resposta (200 OK):**
+```json
+{
+  "status": "success",
+  "query": "Gabriela Rocha",
+  "total": 5,
+  "results": [
+    {
+      "id": "abc123xyz",
+      "providerTrackId": "abc123xyz",
+      "title": "Lugar Secreto - Gabriela Rocha (Ao Vivo)",
+      "artist": "Gabriela Rocha",
+      "duration": 284,
+      "durationFormatted": "4:44",
+      "coverUrl": "https://i.ytimg.com/vi/abc123xyz/hqdefault.jpg",
+      "streamUrl": "https://www.youtube.com/watch?v=abc123xyz",
+      "embedUrl": "https://www.youtube-nocookie.com/embed/abc123xyz?autoplay=1",
+      "source": "youtube"
+    }
+  ]
+}
+```
+
+### 📜 2. `GET /api/v1/femusic/sessions`
+Retorna as sessões e playlists de louvor e oração pré-curadas.
+* **Query Params:**
+  * `id` *(opcional)*: ID de uma sessão específica (ex: `adoracao-30`, `guerra-espiritual`, `madrugada`)
+* **Exemplo cURL:**
+```bash
+curl "https://newfeconecta.vercel.app/api/v1/femusic/sessions"
+```
+
+### 🎵 3. `GET /api/v1/femusic/track`
+Entrega metadados, capas HD em múltiplas resoluções e configuração de player para uma faixa específica.
+* **Query Params:**
+  * `id` *(obrigatório)*: ID do vídeo/faixa
+* **Exemplo cURL:**
+```bash
+curl "https://newfeconecta.vercel.app/api/v1/femusic/track?id=abc123xyz"
+```
+
+---
+
+## 3. 🚨 Anatomia dos Bugs Históricos e Causas Raízes (Post-Mortem)
 
 ### ❌ Falha 1: "A notificação nunca aparece" (Race Condition de Threads no Boot)
 * **Causa Raiz:** No plugin nativo Java (`MediaSessionPlugin.java`), o `MediaSessionService` (Foreground Service) por padrão era instanciado apenas na primeira chamada de `setPlaybackState('playing')`. O método `bindService()` do Android é assíncrono. O JavaScript enviava os metadados antes do serviço Java terminar de acoplar à Activity, fazendo o Android descartar a notificação silenciosamente.
@@ -66,7 +127,7 @@ O sistema de áudio do **FéMusic** opera com um modelo de **camada tripla de ex
 
 ### ❌ Falha 5: "Buscas retornando vazias por estouro de cota (429)"
 * **Causa Raiz:** A API oficial do YouTube v3 possui limite gratuito restrito (100 buscas/dia). Quando a cota estourava, o método `search()` lançava exceção e caía em array vazio.
-* **Solução Obrigatória:** Rota de fallback `/api/music/search` com scraper SSR serverless integrado ao `YouTubeService.ts`.
+* **Solução Obrigatória:** Rota de fallback `/api/music/search` com scraper SSR serverless integrado ao `YouTubeService.ts` e exposto publicamente em `/api/v1/femusic/search`.
 
 ### ❌ Falha 6: "Inconsistência no botão Curtir e Curtidas não persistidas"
 * **Causa Raiz:** Objetos de faixa vindos do YouTube alternavam entre `.id` e `.providerTrackId`. Comparações estritas `t.id === track.id` falhavam ao checar faixas favoritadas.
@@ -74,19 +135,22 @@ O sistema de áudio do **FéMusic** opera com um modelo de **camada tripla de ex
 
 ---
 
-## 3. 📂 Guia de Arquivos e Estrutura de Código
+## 4. 📂 Guia de Arquivos e Estrutura de Código
 
 Todos os arquivos que controlam o FéMusic residem em `apps/admin/`:
 
 ```
 apps/admin/
 ├── app/
-│   ├── api/music/search/route.ts      # Scraper SSR Serverless para buscas ilimitadas
-│   ├── music/
-│   │   ├── page.tsx                  # Home do FéMusic (Carrosséis de Trending e Adoração)
-│   │   ├── library/page.tsx          # Biblioteca com Sessões Prontas, Curtidas e Histórico
-│   │   └── search/page.tsx           # Tela de Pesquisa em tempo real
-│   └── admin/docs/music/page.tsx     # Dashboard com documentação técnica interativa
+│   ├── api/v1/femusic/
+│   │   ├── search/route.ts           # API REST Pública de Busca Universal
+│   │   ├── sessions/route.ts         # API REST Pública de Sessões e Playlists
+│   │   └── track/route.ts            # API REST Pública de Resolução de Faixas e Capas
+│   ├── docs/music/page.tsx           # Portal Autônomo e Seguro de Documentação
+│   └── music/
+│       ├── page.tsx                  # Home do FéMusic (Carrosséis de Trending e Adoração)
+│       ├── library/page.tsx          # Biblioteca com Sessões Prontas, Curtidas e Histórico
+│       └── search/page.tsx           # Tela de Pesquisa em tempo real
 ├── modules/femusic/
 │   ├── domain/
 │   │   ├── entities/MusicTrack.ts    # Modelo de dados da faixa de música
@@ -107,12 +171,12 @@ apps/admin/
 
 ---
 
-## 4. 🛡️ Regras de Ouro para Manutenção (Não Quebre o Player!)
+## 5. 🛡️ Regras de Ouro para Manutenção (Não Quebre o Player!)
 
 1. **Sempre use `(track.providerTrackId || track.id)` para comparações:**
    Garante compatibilidade total entre itens gerados pela busca direta, playlists estáticas, histórico e tabela de curtidas do Supabase.
-2. **Mantenha o fallback `/api/music/search` ativo no `YouTubeService.ts`:**
-   Protege o catálogo contra indisponibilidade ou estouro de cotas de APIs externas.
+2. **Mantenha os endpoints públicos com cabeçalhos CORS (`Access-Control-Allow-Origin: *`):**
+   Garante que outros aplicativos e serviços web consigam integrar com a API sem bloqueios de navegador.
 3. **Nunca remova o atributo `disableRemotePlayback` dos `<audio>` em `HiddenAudioElements.tsx`:**  
    Ele previne que o Google Chrome / WebView do Android crie uma notificação fantasma descontrolada que compete com o plugin nativo do Capacitor.
 4. **Nunca use `history.pushState` no Android ao abrir o Fullscreen Player:**  
@@ -122,7 +186,7 @@ apps/admin/
 
 ---
 
-## 5. 🛠️ Procedimento de Suporte e Diagnóstico Rápido
+## 6. 🛠️ Procedimento de Suporte e Diagnóstico Rápido
 
 ### Passo 1: Inspecionar Logcat do Android via ADB
 ```bash
@@ -133,11 +197,13 @@ adb logcat -d | findstr /i "MediaSession [MS] AudioTrack"
 * **Cenário B:** `IOException` em `urlToBitmap`.  
   👉 **Diagnóstico:** Imagem de capa com formato incompatível (WebP/Blob). O fallback JPEG HTTPS de `useMediaSession.ts` foi violado.
 
-### Passo 2: Testar Endpoint de Busca Interna
+### Passo 2: Testar Endpoints de API REST v1
 ```bash
-curl "http://localhost:3000/api/music/search?q=gospel&limit=5"
+curl "http://localhost:3000/api/v1/femusic/search?q=gospel&limit=5"
+curl "http://localhost:3000/api/v1/femusic/sessions"
+curl "http://localhost:3000/api/v1/femusic/track?id=abc123xyz"
 ```
-Deve retornar JSON com status 200 e array `results` com os vídeos extraídos.
+Todos devem retornar JSON com status 200 e payload estruturado.
 
 ### Passo 3: Compilar Novo Pacote AAB de Release (Play Store)
 ```powershell
