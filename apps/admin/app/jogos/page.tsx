@@ -69,6 +69,20 @@ export default function GamesHubPage() {
       iconColor: "text-emerald-400 bg-emerald-500/20",
       href: "/jogos/memoria",
       buttonText: "Jogar Memória"
+    },
+    {
+      id: "snake",
+      title: "Snake Sagrado (Google Snake)",
+      subtitle: "Colete os Frutos e Coroas Sagradas",
+      badge: "⚡ Clássico Arcade",
+      badgeColor: "bg-teal-500/20 text-teal-300 border-teal-500/30",
+      description: "O clássico jogo da cobrinha estilo Google Snake com tema sagrado! Colete frutos, pergaminhos e coroas da vida sem bater nas paredes.",
+      icon: Sparkles,
+      color: "from-teal-500/20 via-emerald-500/10 to-transparent",
+      borderColor: "border-teal-500/30 hover:border-teal-400/60",
+      iconColor: "text-teal-400 bg-teal-500/20",
+      href: "/jogos/snake",
+      buttonText: "Jogar Snake"
     }
   ];
 
@@ -144,7 +158,7 @@ export default function GamesHubPage() {
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-amber-400" /> Modos de Jogo
             </h3>
-            <span className="text-[11px] text-slate-500">2 jogos disponíveis</span>
+            <span className="text-[11px] text-slate-500">3 jogos disponíveis</span>
           </div>
 
           <div className="grid gap-4">
