@@ -163,7 +163,7 @@ export default function ZenReaderPage() {
     const fetchJourneyAndChapters = async () => {
       try {
         const cached = getStoredProfile();
-        let userId = cached?.id;
+        let userId: string | null = cached?.id || null;
         if (!userId) {
           const { data: { user } } = await supabase.auth.getUser();
           userId = user?.id || null;
@@ -218,11 +218,11 @@ export default function ZenReaderPage() {
     setSavingProgress(chapterId);
     try {
       const cached = getStoredProfile();
-      let userId = cached?.id || currentUserId;
+      let userId: string | null = cached?.id || currentUserId;
 
       if (!userId) {
         const { data: session } = await supabase.auth.getSession();
-        userId = session?.session?.user?.id;
+        userId = session?.session?.user?.id || null;
       }
 
       if (!userId) {
