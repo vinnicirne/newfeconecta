@@ -16,7 +16,8 @@ import {
   Zap,
   BookOpen,
   Award,
-  Crown
+  Crown,
+  Boxes
 } from "lucide-react";
 import BottomNav from "@/components/feed/BottomNav";
 import { getStoredProfile } from "@/lib/profile-cache";
@@ -83,6 +84,20 @@ export default function GamesHubPage() {
       iconColor: "text-teal-400 bg-teal-500/20",
       href: "/jogos/snake",
       buttonText: "Jogar Snake"
+    },
+    {
+      id: "blocos",
+      title: "Block Blast (Desafio dos Blocos)",
+      subtitle: "Encaixe os Blocos e Quebre Linhas",
+      badge: "🔥 Super Popular",
+      badgeColor: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+      description: "O viciante e relaxante jogo de encaixar blocos de 8x8! Limpe linhas horizontais e verticais para fazer combos e bater recordes de pontuação.",
+      icon: Boxes,
+      color: "from-purple-500/20 via-indigo-500/10 to-transparent",
+      borderColor: "border-purple-500/30 hover:border-purple-400/60",
+      iconColor: "text-purple-400 bg-purple-500/20",
+      href: "/jogos/blocos",
+      buttonText: "Jogar Block Blast"
     }
   ];
 
@@ -158,7 +173,7 @@ export default function GamesHubPage() {
             <h3 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5 text-amber-400" /> Modos de Jogo
             </h3>
-            <span className="text-[11px] text-slate-500">3 jogos disponíveis</span>
+            <span className="text-[11px] text-slate-500">4 jogos disponíveis</span>
           </div>
 
           <div className="grid gap-4">
