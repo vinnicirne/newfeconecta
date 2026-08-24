@@ -6,12 +6,26 @@ export function useNotifications(currentUserId: string | null) {
   const { data, mutate, error, isValidating } = useSWR(
     currentUserId ? `notifications:${currentUserId}` : null,
     async () => {
-      const { data, error } = await supabase.rpc('get_my_notifications', {
-        p_user_id: currentUserId,
-        p_limit: 50
-      });
-      if (error) throw error;
-      return data;
+      try {
+        const { data, error } = await supabase.rpc('get_my_notifications', {
+          p_user_id: currentUserId,
+          p_limit: 50
+        });
+        if (!error && data) return data;
+      } catch (e) {
+        console.warn("[useNotifications] RPC fallback to direct query");
+      }
+
+      // Fallback seguro direto na tabela
+      const { data: directData, error: directErr } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('recipient_id', currentUserId)
+        .order('created_at', { ascending: false })
+        .limit(50);
+      
+      if (directErr) throw directErr;
+      return directData || [];
     },
     { revalidateOnFocus: true }
   );
@@ -58,6 +72,20 @@ export function useNotifications(currentUserId: string | null) {
     await supabase.from('notifications').update({ is_read: true }).eq('id', id);
   };
 
+  const markAllAsRead = async () => {
+    mutate((currentNotifs: any) => {
+      return currentNotifs?.map((n: any) => ({ ...n, is_read: true })) || [];
+    }, false);
+
+    try {
+      await supabase.rpc('mark_all_notifications_as_read');
+    } catch (e) {
+      if (currentUserId) {
+        await supabase.from('notifications').update({ is_read: true }).eq('recipient_id', currentUserId);
+      }
+    }
+  };
+
   const deleteNotification = async (id: string) => {
     // UI Otimista: Remove da lista na hora
     mutate((currentNotifs: any) => {
@@ -71,6 +99,7 @@ export function useNotifications(currentUserId: string | null) {
     notifications: data || [],
     isLoading: !data && !error,
     markAsRead,
+    markAllAsRead,
     deleteNotification,
     refresh: mutate
   };

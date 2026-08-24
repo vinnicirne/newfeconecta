@@ -322,6 +322,8 @@ export default function StoryViewer({
           await supabase.from("notifications").insert({
             recipient_id: story.author_id,
             sender_id: currentUser.id,
+            profile_id: story.author_id,
+            user_id: story.author_id,
             type: "story_reaction",
             story_id: story.id,
             content: "curtiu seu status 🔥",
@@ -349,15 +351,18 @@ export default function StoryViewer({
     dispatch({ type: "ADD_EMOJI", payload: newEmoji });
     setTimeout(() => dispatch({ type: "REMOVE_EMOJI", payload: newEmoji.id }), 2000);
     try {
+      const recipientId = story.author_id || group.author_id;
       await supabase.from("direct_messages").insert({
         sender_id: currentUser.id,
-        receiver_id: group.author_id,
+        receiver_id: recipientId,
         content: `Reagiu ao seu Status: ${emojiChar}`,
         is_read: false,
       });
       await supabase.from("notifications").insert({
-        recipient_id: group.author_id,
+        recipient_id: recipientId,
         sender_id: currentUser.id,
+        profile_id: recipientId,
+        user_id: recipientId,
         type: "story_reaction",
         story_id: story.id,
         content: `reagiu ao seu status: ${emojiChar}`,
@@ -374,15 +379,18 @@ export default function StoryViewer({
     const text = state.comment;
     dispatch({ type: "SET_COMMENT", payload: "" });
     try {
+      const recipientId = story.author_id || group.author_id;
       await supabase.from("direct_messages").insert({
         sender_id: currentUser.id,
-        receiver_id: group.author_id,
+        receiver_id: recipientId,
         content: `Respondeu ao seu Status: ${text}`,
         is_read: false,
       });
       await supabase.from("notifications").insert({
-        recipient_id: group.author_id,
+        recipient_id: recipientId,
         sender_id: currentUser.id,
+        profile_id: recipientId,
+        user_id: recipientId,
         type: "message",
         story_id: story.id,
         content: text,

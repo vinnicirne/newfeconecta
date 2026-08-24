@@ -7,6 +7,8 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
+import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
+
 export default function PostPageClient({ postId }: { postId: string }) {
   const [post, setPost] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -18,15 +20,17 @@ export default function PostPageClient({ postId }: { postId: string }) {
       try {
         // 1. Get User (Protected with cache to avoid AbortError)
         try {
-          const cached = localStorage.getItem('fc_profile_cache');
+          const cached = getStoredProfile();
           if (cached) {
-            const profile = JSON.parse(cached);
-            setCurrentUser(profile);
+            setCurrentUser(cached);
           } else {
             const { data: { user: authUser } } = await supabase.auth.getUser();
             if (authUser) {
               const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
-              setCurrentUser(profile);
+              if (profile) {
+                setStoredProfile(profile);
+                setCurrentUser(profile);
+              }
             }
           }
         } catch (authErr) {

@@ -191,7 +191,13 @@ function BibleContent() {
     try {
       if (!authUser) return;
       const postContent = `📖 ${selectedBookName} ${selectedChapter}:${verse.number}\n"${verse.text}"`;
-      const { error } = await supabase.from("posts").insert({ author_id: authUser.id, user_id: authUser.id, content: postContent, post_type: 'text' });
+      const { error } = await supabase.from("posts").insert({ 
+        author_id: authUser.id, 
+        user_id: authUser.id, 
+        profile_id: authUser.id,
+        content: postContent, 
+        post_type: 'verse_share' 
+      });
       if (error) throw error;
       toast.success("Publicado no Feed! 🙌");
     } catch (error) { toast.error("Erro ao compartilhar"); }

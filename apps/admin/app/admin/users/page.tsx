@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { VerificationBadge } from "@/components/verification-badge";
 import { DigitalCredentialModal } from "@/components/admin/DigitalCredentialModal";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
+import { ForceNotificationModal } from "@/components/admin/ForceNotificationModal";
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -28,6 +29,8 @@ export default function UsersPage() {
   const [credentialUser, setCredentialUser] = useState<any | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<any | null>(null);
+  const [isForceNotifOpen, setIsForceNotifOpen] = useState(false);
+  const [forceNotifUser, setForceNotifUser] = useState<any | null>(null);
   const PAGE_SIZE = 15;
 
   useEffect(() => {
@@ -458,6 +461,16 @@ export default function UsersPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem 
+                              onClick={() => {
+                                setForceNotifUser(u);
+                                setIsForceNotifOpen(true);
+                              }}
+                              className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors"
+                            >
+                              <Bell className="w-4 h-4" />
+                              <span className="font-bold text-xs">Forçar Notificação</span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
                               onClick={() => handleToggleVerify(u)}
                               className={cn(
                                 "flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors",
@@ -596,19 +609,30 @@ export default function UsersPage() {
                     </div>
                   </div>
 
-                  {currentUser?.id !== selectedUser.id && (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    {currentUser?.id !== selectedUser.id && (
+                      <button 
+                        onClick={toggleFollow}
+                        className={cn(
+                          "flex-1 py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 uppercase tracking-widest",
+                          isFollowingSelected 
+                            ? "bg-gray-100 dark:bg-white/5 text-gray-500 border border-gray-200 dark:border-white/10"
+                            : "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20"
+                        )}
+                      >
+                        {isFollowingSelected ? "Seguindo" : "Seguir Perfil"}
+                      </button>
+                    )}
                     <button 
-                      onClick={toggleFollow}
-                      className={cn(
-                        "w-full py-3 rounded-2xl text-sm font-bold transition-all active:scale-95 uppercase tracking-widest",
-                        isFollowingSelected 
-                          ? "bg-gray-100 dark:bg-white/5 text-gray-500 border border-gray-200 dark:border-white/10"
-                          : "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20"
-                      )}
+                      onClick={() => {
+                        setForceNotifUser(selectedUser);
+                        setIsForceNotifOpen(true);
+                      }}
+                      className="flex-1 py-3 rounded-2xl text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20 transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2"
                     >
-                      {isFollowingSelected ? "Seguindo" : "Seguir Perfil"}
+                      <Bell className="w-4 h-4" /> Forçar Notificação
                     </button>
-                  )}
+                  </div>
 
                   <div className="space-y-3">
                     <h4 className="text-xs font-black uppercase tracking-widest text-gray-500">Informações do Perfil</h4>
@@ -668,6 +692,15 @@ export default function UsersPage() {
         onUpdate={() => {
            fetchUsers();
         }}
+      />
+
+      <ForceNotificationModal 
+        isOpen={isForceNotifOpen}
+        onClose={() => {
+          setIsForceNotifOpen(false);
+          setForceNotifUser(null);
+        }}
+        user={forceNotifUser}
       />
     </div>
   );

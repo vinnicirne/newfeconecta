@@ -259,8 +259,16 @@ export function ManualVerificationModal({ isOpen, onClose, onVerified, initialUs
                ) : (
                  <div className="space-y-6">
                     <div className="flex items-center justify-between bg-orange-500/5 p-4 rounded-3xl border border-orange-500/20 relative overflow-hidden">
-                       <div className="flex items-center gap-3 relative z-10">
-                          <img src={selectedUser.avatar_url || "https://github.com/shadcn.png"} className="w-12 h-12 rounded-2xl border-2 border-orange-500/20" alt="" />
+                        <div className="flex items-center gap-3 relative z-10">
+                           <div className="w-12 h-12 rounded-2xl border-2 border-orange-500/20 overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+                              {selectedUser.avatar_url ? (
+                                <img src={selectedUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <span className="text-white font-bold text-sm uppercase">
+                                  {(selectedUser.full_name || selectedUser.username || "U")[0]}
+                                </span>
+                              )}
+                           </div>
                           <div>
                              <p className="text-sm font-bold dark:text-white">{selectedUser.full_name}</p>
                              <p className="text-[10px] text-orange-500 font-black uppercase tracking-tighter">@{selectedUser.username}</p>

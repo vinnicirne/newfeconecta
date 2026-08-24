@@ -273,7 +273,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         toast.error("Erro ao enviar arquivo");
         return;
       }
-      const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(data.path);
+      const { data: { publicUrl } } = supabase.storage.from('chat_media').getPublicUrl(data.path);
       media_url = publicUrl;
     }
 
@@ -362,7 +362,15 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         <AnimatePresence>
           {pendingRequests.map(req => (
             <motion.div key={req.id} initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.5, opacity: 0 }} className="p-6 bg-[#1a1a1a]/95 backdrop-blur-3xl border border-[#3fff8b]/30 rounded-[2.5rem] flex flex-col items-center text-center gap-4 pointer-events-auto shadow-2xl">
-              <img src={req.profiles?.avatar_url || "https://github.com/shadcn.png"} className="w-16 h-16 rounded-full border-2 border-[#3fff8b] object-cover" alt="" />
+              <div className="w-16 h-16 rounded-full border-2 border-[#3fff8b] overflow-hidden bg-zinc-800 flex items-center justify-center">
+                {req.profiles?.avatar_url ? (
+                  <img src={req.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
+                ) : (
+                  <span className="text-white font-bold text-lg uppercase">
+                    {(req.profiles?.full_name || "I")[0]}
+                  </span>
+                )}
+              </div>
               <div>
                 <p className="text-xs font-black uppercase text-white truncate max-w-[200px]">{req.profiles?.full_name}</p>
                 <p className="text-[9px] font-bold text-[#3fff8b] uppercase tracking-widest mt-1">Quer interceder na sala</p>
@@ -539,11 +547,19 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
             const meta = JSON.parse(p.metadata || '{}');
             return (
               <div key={i} className="relative transition-all opacity-100 saturate-150">
-                <img
-                  src={meta.avatar || "https://github.com/shadcn.png"}
-                  className="w-12 h-12 rounded-full border-2 border-[#3fff8b] avatar-glow object-cover shadow-xl"
-                  alt=""
-                />
+                <div className="w-12 h-12 rounded-full border-2 border-[#3fff8b] avatar-glow overflow-hidden bg-zinc-800 flex items-center justify-center shadow-xl">
+                  {meta.avatar ? (
+                    <img
+                      src={meta.avatar}
+                      className="w-full h-full object-cover"
+                      alt=""
+                    />
+                  ) : (
+                    <span className="text-white font-bold text-xs uppercase">
+                      {(p.name || "P")[0]}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -578,7 +594,15 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         <div className="w-full flex-1 overflow-y-auto chat-mask space-y-4 pb-4 px-2 no-scrollbar">
           {messages.slice(-8).map((m) => (
             <div key={m.id} className="flex items-start gap-3">
-              <div className="w-7 h-7 rounded-full bg-cover bg-center flex-shrink-0 border border-white/10" style={{ backgroundImage: `url(${m.avatar_url || 'https://github.com/shadcn.png'})` }} />
+              <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 border border-white/10 bg-zinc-800 flex items-center justify-center">
+                {m.avatar_url ? (
+                  <img src={m.avatar_url} className="w-full h-full object-cover" alt="" />
+                ) : (
+                  <span className="text-white font-bold text-[10px] uppercase">
+                    {(m.user_name || "I")[0]}
+                  </span>
+                )}
+              </div>
               <div className="flex-1 group/msg relative">
                 <div className="flex items-center justify-between gap-2 mb-0.5">
                   <p className="text-[11px] font-bold text-[#3fff8b]/80">{m.user_name}</p>

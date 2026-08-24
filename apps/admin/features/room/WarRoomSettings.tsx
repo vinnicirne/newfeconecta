@@ -141,7 +141,15 @@ export function WarRoomSettings({
                   <div key={p.id} className="flex items-center justify-between group bg-white/5 p-4 rounded-3xl border border-white/5">
                     <div className="flex items-center gap-3">
                       <div className="relative">
-                        <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full object-cover border border-white/10" alt="" />
+                        <div className="size-10 rounded-full overflow-hidden bg-zinc-800 flex items-center justify-center border border-white/10 shrink-0">
+                          {profile?.avatar_url ? (
+                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <span className="text-white font-bold text-xs uppercase">
+                              {(profile?.full_name || "U")[0]}
+                            </span>
+                          )}
+                        </div>
                         {isOnline && <div className="absolute -bottom-0.5 -right-0.5 size-3 bg-[#3fff8b] rounded-full border-2 border-[#131313]" />}
                       </div>
                       <div>
@@ -200,7 +208,15 @@ export function WarRoomSettings({
                   return (
                     <div key={r.id} className="flex items-center justify-between bg-white/5 p-4 rounded-3xl border border-white/5">
                       <div className="flex items-center gap-3">
-                        <img src={profile?.avatar_url || "https://github.com/shadcn.png"} className="size-10 rounded-full border border-white/10" alt="" />
+                        <div className="size-10 rounded-full border border-white/10 overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+                          {profile?.avatar_url ? (
+                            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="" />
+                          ) : (
+                            <span className="text-white font-bold text-xs uppercase">
+                              {(profile?.full_name || "I")[0]}
+                            </span>
+                          )}
+                        </div>
                         <div>
                           <p className="text-[11px] font-bold text-white">{profile?.full_name}</p>
                           <p className="text-[9px] text-[#3fff8b]/60 font-black uppercase tracking-widest">Pedindo para falar</p>
@@ -240,7 +256,15 @@ export function WarRoomSettings({
                 {res.map(u => (
                   <div key={u.id} className="flex items-center justify-between p-4 bg-white/5 rounded-3xl border border-white/5 hover:border-[#3fff8b]/20 transition-all group">
                     <div className="flex items-center gap-3">
-                      <img src={u.avatar_url || "https://github.com/shadcn.png"} className="w-10 h-10 rounded-2xl object-cover transition-all" alt="" />
+                      <div className="w-10 h-10 rounded-2xl border border-white/10 overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+                        {u.avatar_url ? (
+                          <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                        ) : (
+                          <span className="text-white font-bold text-xs uppercase">
+                            {(u.username || "U")[0]}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] font-black uppercase tracking-widest">@{u.username}</p>
                     </div>
                     <button

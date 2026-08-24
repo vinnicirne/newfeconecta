@@ -274,6 +274,13 @@ Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `compo
    * Deduping interval de 60s/300s para evitar requisições redundantes.
    * Atualização otimista imediata no contador de seguidores e no estado de "Seguindo", com sincronização em background via Supabase Realtime (`follows`).
 
+4. **Trigger Anti-Escalação de Privilégios (`protect_profile_privileged_fields`):**
+   * **Vulnerabilidade Mitigada:** Impedida a adulteração de `role`, `is_verified` e `verification_label` via chamadas de `UPDATE` direto no cliente.
+   * **Mecanismo:** Gatilho atômico `BEFORE UPDATE ON profiles` que valida se o chamador possui credenciais de administrador antes de aceitar modificações em colunas críticas.
+
+5. **Isolamento de Documentos e PII (`verification_requests`):**
+   * Políticas RLS restritas para garantir que documentos de identidade (RG/CNH), CNPJ e comprovantes bancários sejam acessíveis **apenas** pelo próprio usuário e por administradores homologados.
+
 ---
 
 ## 10. 🛰️ Auditoria e Arquitetura Nuclear do Radar de Presença (Usuários Online)
@@ -289,6 +296,292 @@ Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `compo
 
 3. **Renderização nos Dashboards (`/admin` e `/admin/users`):**
    * Consulta de presença em janela deslizante de 10-15 minutos com contadores sincronizados e badge pulsante verde nos avatares.
+
+---
+
+## 11. 🛡️ Segurança Nuclear, RLS & Likes em Nuvem no FéMusic (`/music`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Sincronização em Nuvem de Músicas Curtidas (`music_likes`):**
+   * **Problema:** O hook `usePlayerStore.ts` operava com chamadas à tabela `music_likes`, inexistente no PostgreSQL da VPS.
+   * **Correção Nuclear:** Criação da tabela `public.music_likes` com UUID primário, integridade relacional (`ON DELETE CASCADE`), restrição `UNIQUE(user_id, track_id)` e 4 políticas RLS amarradas a `auth.uid() = user_id`.
+
+2. **Curtidas Atômicas em Comentários de Músicas (`toggle_music_track_comment_like`):**
+   * **Problema:** `music_track_comments` continha política `UPDATE USING (true) WITH CHECK (true)`, permitindo adulteração do texto de comentários.
+   * **Correção Nuclear:** Criação da RPC `toggle_music_track_comment_like(p_comment_id UUID)` com `SECURITY DEFINER` e `auth.uid()`, além de trigger atômico `tr_music_track_comment_likes_sync` para contagem automática de `likes_count`.
+   * **Políticas Restritivas:** O `UPDATE` direto em `music_track_comments` foi restrito a `auth.uid() = user_id`.
+
+3. **Blindagem RLS Total (12 Tabelas de Áudio):**
+   * RLS ativado e validado em: `music_likes`, `music_posts`, `music_track_comments`, `music_track_comment_likes`, `music_reactions`, `music_comments`, `music_saved`, `music_history`, `music_sessions`, `music_provider_accounts`, `music_tracks` e `femusic_cache`.
+
+---
+
+## 12. 🎬 Módulo de Tribos (`/tribo`) — Feed Vertical & Reels
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Blindagem Anti-IDOR em Curtidas e Seguidores:**
+   * **Problema:** As RPCs `toggle_like` e `toggle_follow` aceitavam `p_profile_id` fornecido pelo cliente sem validar o token de autenticação.
+   * **Correção Nuclear:** Resolução forçada de `v_caller_id := auth.uid()` com `SECURITY DEFINER` e `search_path = public, pg_temp`, além de trava contra auto-seguimento (`follower_id != following_id`).
+
+2. **Normalização do Payload no Supabase Realtime (`hooks/useTribo.ts`):**
+   * **Problema:** Novos vídeos injetavam objeto aninhado `author` em vez dos campos planos esperados pelo componente, quebrando a renderização com "@undefined".
+   * **Correção Nuclear:** Payload normalizado mapeando diretamente `author_name`, `author_username` e `author_avatar`.
+
+3. **Gerenciamento de Visibilidade & Lazy-Preload:**
+   * `IntersectionObserver` configurado com threshold de 60% para disparo de autoplay e carregamento de lote a cada aproximação do final (`idx >= reels.length - 3`).
+   * Preload condicional restrito ao vídeo ativo e vizinhos imediatos (`Math.abs(current - idx) <= 1`).
+
+---
+
+## 13. 🛡️ Segurança Nuclear do Feed & Interações Sociais (`/`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **RPCs Atômicas de Curtida em Comentários (`toggle_post_comment_like` e `toggle_verse_comment_like`):**
+   * **Vulnerabilidade Mitigada:** A tabela `comments` possuía política aberta `FOR ALL` que permitia que usuários alterassem ou deletassem comentários de terceiros.
+   * **Mecanismo:** Funções com `SECURITY DEFINER` que manipulam o array de curtidas (`likes`) com base estrita no `auth.uid()`, sem conceder permissão de `UPDATE` irrestrita aos clientes.
+
+2. **Blindagem RLS Total em Comentários e Denúncias:**
+   * `comments`: `UPDATE` restrito a `auth.uid() = profile_id`; `DELETE` restrito ao autor do comentário, autor do post ou moderador/admin.
+   * `daily_verse_comments`: Leitura pública, escrita e remoção restritas ao autor ou admin.
+   * `reports`: Denúncias isoladas por `reporter_id` e abertas para moderação homologada.
+
+---
+
+## 14. 📖 Segurança Nuclear do Card da Mensagem do Dia (`daily_verses`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **RPC Atômica para Curtidas de Versículos (`toggle_daily_verse_like`):**
+   * **Vulnerabilidade Mitigada:** Políticas de `UPDATE` e `INSERT` abertas para usuários comuns (`USING (true)`), permitindo adulteração ou vandalismo do texto sagrado dos versículos bíblicos.
+   * **Mecanismo:** A função com `SECURITY DEFINER` altera o array de likes e sincroniza o contador `likes_count` de forma concorrente e atômica.
+
+2. **Blindagem RLS Inviolável em `daily_verses`:**
+   * Acesso de leitura público e operações de escrita (`INSERT`, `UPDATE`, `DELETE`) estritamente restritas a administradores (`role = 'admin'`) ou `service_role`.
+
+---
+
+## 15. 🛡️ Segurança Nuclear de Salas de Oração & War Room (`/room` & `/waroom`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Blindagem de Propriedade e Controle de Salas (`rooms` & `prayer_rooms`):**
+   * **Vulnerabilidade Mitigada:** A política `Admins manage all prayer rooms` permitia que qualquer usuário autenticado (`FOR ALL TO authenticated USING (true)`) editasse ou deletasse salas de outros usuários.
+   * **Mecanismo:** Políticas reestruturadas vinculando `UPDATE` e `DELETE` ao `auth.uid() = creator_id / host_id` ou administradores cadastrados.
+
+2. **Isolamento de Participantes e Mensagens (`participants` & `prayer_room_messages`):**
+   * Participantes só podem gerenciar seu próprio registro (`auth.uid() = user_id / profile_id`) ou o host da sala.
+   * Mensagens no chat da sala amarradas estritamente a `auth.uid() = profile_id`, impedindo falsificação de autoria durante clamores.
+
+---
+
+## 16. 📖 Segurança Nuclear da Bíblia Sagrada & IA (`/bible` & `/api/ai/bible-study`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Desbloqueio de RLS Vazio em `bible_comments` e `bible_favorites`:**
+   * **Vulnerabilidade Mitigada:** Ambas as tabelas tinham RLS ativado sem políticas, bloqueando o acesso de leitura/escrita para todos os usuários comuns.
+   * **Mecanismo:** Políticas criadas permitindo que cada usuário gerencie seus próprios favoritos (`auth.uid() = profile_id`) e comente de forma identificada em capítulos e versículos.
+
+2. **Blindagem de Anotações Espirituais e Destaques (`bible_interactions`, `bible_highlights`, `user_notes`):**
+   * Operações de `INSERT`, `UPDATE` e `DELETE` rigorosamente amarradas ao `auth.uid()`, prevenindo modificações e visualizações indevidas de notas privadas.
+
+3. **Proteção da Cota de IA Exegética (`/api/ai/bible-study`):**
+   * Autenticação obrigatória com JWT via `requireAuth(req)` e controle de taxa de requisições persistido no PostgreSQL (`ai_rate_limits`, cooldown de 60s por usuário).
+
+---
+
+## 17. 🔔 Segurança Nuclear da Central de Notificações (`notifications`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **RPC Atômica de Consulta Enriquecida (`get_my_notifications`):**
+   * **Vulnerabilidade Mitigada:** Chamada de RPC inexistente gerava falhas de carregamento e N+1 queries.
+   * **Mecanismo:** Função com `SECURITY DEFINER` que valida identidade com `auth.uid()` nativo e retorna notificações enriquecidas com autor (`sender_name`, `sender_avatar`, `sender_username`).
+
+2. **RPC Atômica de Marcação em Lote (`mark_all_notifications_as_read`):**
+   * Atualização instantânea e atômica de todas as notificações não lidas de um usuário logado.
+
+3. **Blindagem RLS Total em `notifications`:**
+   * Políticas com `WITH CHECK (auth.uid() = recipient_id)` impedindo o redirecionamento ou falsificação de alertas para outros usuários.
+
+---
+
+## 18. 💬 Segurança Nuclear do Chat & Mensagens Diretas (`/messages` & `/chat`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Eliminação de IDOR em RPCs `SECURITY DEFINER` (`get_my_conversations` & `get_chat_history`):**
+   * **Vulnerabilidade Mitigada:** Parâmetros `p_user_id` passados pelo cliente sem checagem de `auth.uid()`, permitindo que um usuário autenticado extraísse o histórico e conversas privadas de qualquer outro membro.
+   * **Mecanismo:** Validação rigorosa em PL/pgSQL checando se `auth.uid() = p_user_id` (para conversas) ou `auth.uid() IN (p_user_id, p_other_id)` (para histórico), autorizando desvios apenas para administradores/superadministradores.
+
+2. **Blindagem RLS na Tabela `direct_messages`:**
+   * `SELECT`: Exclusivo para os participantes da mensagem (`auth.uid() = sender_id OR auth.uid() = receiver_id`).
+   * `INSERT`: Exclusivo para o remetente autenticado (`auth.uid() = sender_id`).
+   * `UPDATE`: Exclusivo para o destinatário (`auth.uid() = receiver_id`) com `WITH CHECK`.
+   * `DELETE`: Exclusivo para o autor da mensagem (`auth.uid() = sender_id`).
+
+3. **Higienização da Tabela Legada `messages`:**
+   * Expurgo de todas as políticas públicas `SELECT true` e restrição das operações de escrita e leitura estritamente aos respectivos autores (`user_id = auth.uid()`) ou administradores.
+
+4. **Restauração da Navegabilidade Móvel (`BottomNav`):**
+   * Remoção de `/messages` da lista de bloqueio de rotas em `BottomNav.tsx` com compensação de padding (`pb-24`) na lista de conversas, garantindo menu de navegação inferior acessível.
+
+---
+
+## 19. 📝 Segurança Nuclear de Notas & Devocional (`user_notes` & `/notes`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Blindagem RLS Total em `user_notes`:**
+   * **Vulnerabilidade Mitigada:** Políticas permissivas que permitiam inserção com `profile_id` de terceiros e leitura restrita apenas a `user_id`.
+   * **Mecanismo:** Políticas de `INSERT` e `UPDATE` com checagem estrita forçando que tanto `user_id` quanto `profile_id` pertençam exclusivamente ao `auth.uid()`, e leitura autorizada apenas para o proprietário ou notas marcadas explicitamente como `is_public = true`.
+
+2. **Resiliência de Consulta e Integridade no Hook `useNotes`:**
+   * Resolução de consultas relacionais usando `.or('user_id.eq.' + userId + ',profile_id.eq.' + userId)`, prevenindo omissão de notas em contas antigas.
+
+3. **Integridade de Publicação no Feed (`shareToFeed`):**
+   * Preenchimento completo de `author_id`, `user_id` e `profile_id` ao transformar notas/devocionais em testemunhos públicos no Feed.
+
+---
+
+## 20. 🔔 Arquitetura de Emissão Forçada de Notificações (`/forcar-notificacao` & `ForceNotificationModal`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Canal Direto de Notificação Forçada (`ForceNotificationModal`):**
+   * **Problema:** Ausência de ferramenta administrativa para disparar notificações pontuais e prioritárias a um usuário específico em tempo real.
+   * **Solução:** Modal administrativo com seleção de templates dinâmicos, verificação de conectividade do dispositivo (FCM Push vs In-App Realtime) e inserção com `priority: 'high'`.
+
+2. **Garantia de Entrega Multicanal:**
+   * Inserções em `public.notifications` geram sincronização imediata no canal Realtime do Supabase (para exibição de toast na tela ativa) e acionam o webhook `tr_invoke_send_push` para envio ao Firebase Cloud Messaging (FCM).
+
+3. **Rotas de Acesso Amigáveis:**
+   * Redirecionamento configurado em `/forcar-notificacao`, `/forcar-notificacoes` e `/forcarnotificacao` apontando para o console central de transmissão (`/admin/push`).
+
+---
+
+## 21. 📸 Segurança Nuclear do Subsistema de Stories (`stories`, `story_views`, `story_likes`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Prevenção de Spoofing de Visualizações (`story_views`):**
+   * **Vulnerabilidade Mitigada:** Inserções com `viewer_id` forjado em nome de terceiros.
+   * **Mecanismo:** Política `WITH CHECK (auth.uid() = viewer_id)` e leitura restrita exclusivamente ao autor do story, ao próprio espectador ou a administradores.
+
+2. **Expurgo Nuclear e Higienização em `story_likes`:**
+   * **Problema Mitigado:** 12 políticas legadas duplicadas e conflitantes.
+   * **Mecanismo:** Consolidação em 3 políticas atômicas (`SELECT` público, `INSERT` amarrado ao `auth.uid() = user_id`, e `DELETE` restrito ao autor da curtida ou admin).
+
+3. **Blindagem RLS Total em `stories`:**
+   * Políticas de escrita estritamente amarradas ao `auth.uid()`, com validação de expiração (`expires_at > now()`) ou destaques perpétuos (`is_highlight = true`).
+
+---
+
+## 22. ⚡ Experiência de Stories & Limpeza de Câmera (`/stories`, `/status` & `StoryCreator`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Página Dedicada de Stories em Tela Cheia (`/stories`):**
+   * Interface mobile-first para navegação, busca em tempo real por autores, atalho de criação e abertura instantânea do `StoryViewer`.
+
+2. **Roteamento Transparente:**
+   * Redirecionamento configurado em `/status` apontando para `/stories`.
+
+3. **Otimização da Câmera (`StoryCreator.tsx`):**
+   * Removidos disparos redundantes de logs informativos no banco de dados a cada inicialização da câmera.
+
+---
+
+## 23. 🕯️ Segurança Nuclear do Lugar Secreto & Santuário (`/lugarsecreto`, `/santuario`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Forjamento Restrito a Perfis Verificados (`sanctuary_journeys`):**
+   * **Vulnerabilidade Mitigada:** Injeção direta de jornadas por usuários não verificados via REST API.
+   * **Mecanismo:** Política `INSERT` com checagem estrita no PostgreSQL (`is_verified = true OR role = 'admin'`).
+
+2. **Isolamento do Altar Digital (`sanctuary_progress`):**
+   * Operações de leitura, selamento de capítulos e orações estritamente restritas a `auth.uid() = user_id`.
+
+3. **Rotas Transparentes e Resilientes:**
+   * Redirecionamentos configurados para `/lugarsecreto`, `/lugar-secreto`, `/quarto-secreto` e `/quartosecreto` apontando para `/santuario`.
+
+---
+
+## 24. 👤 Unificação do Cache de Perfil & Persistência de Identidade (`lib/profile-cache.ts`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Eliminação de Incompatibilidade de Schema no `localStorage`:**
+   * **Problema:** Módulos gravavam `{ data: profile, timestamp }` enquanto outros consumiam `{ id, full_name, ... }`, quebrando `currentUser` e exibindo avatares "U" e perfis vazios.
+   * **Mecanismo:** Unificação via [`lib/profile-cache.ts`](file:///c:/Users/THINKPAD/Desktop/feconecta/apps/admin/lib/profile-cache.ts) com as funções `getStoredProfile()` e `setStoredProfile()`, que normalizam e recuperam o perfil independentemente da estrutura de origem.
+
+2. **Garantia de Hidratação Reativa Multicomponente:**
+   * Emissão de evento customizado `profile-hydrated` com o payload unificado, alimentando imediatamente `AuthGuard`, `RootClient`, `BottomNav`, `StoryCreator` e `Sidebar`.
+
+3. **Fallback Atômico Direto no Supabase Auth:**
+   * Se o cache for limpo ou expirar, `RootClient` consulta `supabase.auth.getUser()` diretamente para hidratar o perfil sem falhas visuais.
+
+---
+
+## 25. 🕯️ Deep Clean Técnico do Lugar Secreto & Santuário (`/santuario`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Eliminação de Travamento no Carregamento:**
+   * **Causa:** Chamadas concorrentes a `supabase.auth.getUser()` bloqueavam a thread de autenticação por lock contention.
+   * **Correção:** Consumo do perfil via `getStoredProfile()` e carregamento paralelo via `Promise.all` de jornadas publicadas, rascunhos, capítulos e progresso.
+
+2. **Navegação SPA Otimizada:**
+   * Todos os redirecionamentos legados baseados em `window.location.href` foram convertidos para `router.push()` e componentes `<Link>`, eliminando reloads de página inteira.
+
+3. **Inclusão do Menu Mobile Inferior (`BottomNav`):**
+   * Integrado menu nativo no rodapé em todas as visualizações do Santuário (`/santuario`, `/santuario/[id]`).
+
+---
+
+## 26. ⛪ Segurança & Blindagem de Permissões de Igrejas & Células (`churches`, `church_members`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Eliminação de Políticas Permissivas (`UPDATE true` / `DELETE true`):**
+   * **Brechas Corrigidas:** Qualquer usuário autenticado podia modificar campos estruturais de qualquer igreja ou aprovar-se como pastor.
+   * **Mecanismo:** Políticas atômicas RLS no PostgreSQL vinculadas à liderança comprovada na tabela `church_members` (`role IN ('admin', 'pastor') AND approved = true`).
+
+2. **Isolamento de Pedidos de Entrada (`church_join_requests`):**
+   * Visualização restrita ao próprio requerente e à liderança da congregação alvo.
+
+3. **Guarda de Acesso ao Painel Administrativo Congregacional:**
+   * Bloqueio imediato na página `/igreja/[slug]/admin` para usuários sem cargo ministerial aprovado.
+
+---
+
+## 27. 🏛️ Catálogo de Igrejas & Resolução de Rotas (`/igrejas`, `/igreja`)
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Resolução de Rota 404 (`/igrejas`):**
+   * Criada a página [`app/igrejas/page.tsx`](file:///c:/Users/THINKPAD/Desktop/feconecta/apps/admin/app/igrejas/page.tsx) redirecionando suavemente para `/igreja`.
+
+2. **Carregamento Otimizado com Skeletons:**
+   * Adicionados cards pulsantes de carregamento na busca de comunidades e listagem ordenada por engajamento de membros.
+
+3. **Integração Completa do Menu Inferior Mobile:**
+   * Inclusão do componente `BottomNav` para navegação responsiva em dispositivos móveis.
+
+
+
+
+
+
+
+
+
+
+
 
 
 

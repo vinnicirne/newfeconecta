@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { compressImage } from "@/lib/image-compression";
 import { useMediaUpload } from "@/hooks/useMediaUpload";
+import { setStoredProfile } from "@/lib/profile-cache";
 
 interface EditProfileModalProps {
   user: any;
@@ -169,40 +170,27 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
       
       if (datingError) throw datingError;
 
-      // ✅ TELEMETRIA: Registro de Auditoria no Dashboard
-      await supabase.from('system_errors').insert({
-        module: 'profile_update',
-        error_message: `Perfil de @${formData.username} atualizado pelo usuário.`,
-        severity: 'info',
-        resolved: true,
-        metadata: { 
-          user_id: userId,
-          changed_fields: Object.keys(formData).filter(k => (formData as any)[k] !== (user as any)[k])
-        }
-      });
+      const finalProfile = { 
+        ...user, 
+        ...cleanedData,
+        avatar_url: currentAvatarUrl,
+        banner_url: currentBannerUrl
+      };
       
-      const finalProfile = { ...user, ...updatePayload };
-      
-      // Sincronização Nuclear com Cache e UI
-      localStorage.setItem('fc_profile_cache', JSON.stringify(finalProfile));
-      window.dispatchEvent(new CustomEvent('profile-hydrated', { detail: finalProfile }));
+      // Sincronização com Cache e UI
+      setStoredProfile(finalProfile);
       
       toast.success("Perfil atualizado com sucesso!");
       onUpdate(finalProfile);
       onClose();
     } catch (err: any) {
-      // ✅ LOG DE ERRO NO DASHBOARD
-      await supabase.from('system_errors').insert({
-        module: 'profile_update',
-        error_message: `Falha ao atualizar perfil: ${err.message}`,
-        severity: 'critical',
-        metadata: { user_id: user?.id }
-      });
+      console.error("Erro ao salvar perfil:", err);
       toast.error("Erro ao salvar perfil: " + err.message);
     } finally {
       setIsSaving(false);
     }
   };
+
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'banner') => {
     const file = e.target.files?.[0];

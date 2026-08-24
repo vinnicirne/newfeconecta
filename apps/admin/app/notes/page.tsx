@@ -172,10 +172,11 @@ export default function NotesPage() {
   }, [title, content, tags, isPublic, isDevotional, isEditorExpanded]);
 
   async function handleAutosave() {
-    if (!content.trim()) return;
+    if (!content.trim() || !currentUser?.id) return;
     try {
       const noteData = {
         user_id: currentUser.id,
+        profile_id: currentUser.id,
         title: title || (isDevotional ? `Devocional - ${format(new Date(), 'dd/MM')}` : ""),
         content,
         is_public: isPublic,
@@ -258,6 +259,7 @@ export default function NotesPage() {
         .insert({
           author_id: user.id,
           user_id: user.id,
+          profile_id: user.id,
           content: note.content.includes("📖") ? note.content : `📖 Devocional\n\n${note.content}`,
           post_type: 'text'
         });

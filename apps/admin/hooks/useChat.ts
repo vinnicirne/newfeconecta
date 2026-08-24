@@ -118,7 +118,24 @@ export function useChat(currentUserId: string | null, selectedId: string | null)
       }
     };
 
-    fetchHistory();
+    const markMessagesAsRead = async () => {
+      if (!currentUserId || !selectedId) return;
+      try {
+        await supabase
+          .from('direct_messages')
+          .update({ is_read: true })
+          .eq('sender_id', selectedId)
+          .eq('receiver_id', currentUserId)
+          .eq('is_read', false);
+        mutateConversations();
+      } catch (e) {
+        console.warn("Erro ao marcar mensagens como lidas:", e);
+      }
+    };
+
+    fetchHistory().then(() => {
+      markMessagesAsRead();
+    });
 
     // 3. Realtime Cirúrgico para Conversa Ativa
     const channel = supabase
@@ -135,6 +152,9 @@ export function useChat(currentUserId: string | null, selectedId: string | null)
                return [...prev, msg as any];
             });
             scrollToBottom();
+            if (msg.sender_id === selectedId) {
+              markMessagesAsRead();
+            }
           } else if (payload.eventType === 'DELETE') {
             setMessages(prev => prev.filter(p => p.id !== msg.id));
           } else if (payload.eventType === 'UPDATE') {

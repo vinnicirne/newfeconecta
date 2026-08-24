@@ -17,14 +17,15 @@ import { ProfileConnectionsModal } from "@/components/profile/ProfileConnections
 import useSWR from 'swr';
 import { formatExternalUrl } from '@/lib/url-utils';
 
+import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
+
 export default function PublicProfilePage() {
-  console.log("🚀 PublicProfilePage Rendering...", { timestamp: new Date().toISOString() });
   const params = useParams();
   const router = useRouter();
   const username = params.username as string;
 
   const [user, setUser] = useState<any>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<any>(() => getStoredProfile());
   const [isFollowing, setIsFollowing] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [view, setView] = useState<'grid' | 'lumes' | 'likes'>('grid');
@@ -36,21 +37,24 @@ export default function PublicProfilePage() {
   // 1. Inicialização do Usuário Logado (Apenas uma vez no mount)
   useEffect(() => {
     const initAuth = async () => {
+      const cached = getStoredProfile();
+      if (cached) {
+        setCurrentUser(cached);
+        if (cached.username === username) {
+          setUser(cached);
+        }
+      }
+
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (authUser) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
-        if (profile) setCurrentUser(profile);
-      }
-
-      // Cache Check
-      const cached = localStorage.getItem('fc_profile_cache');
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached);
-          if (parsed.username === username) {
-            setUser(parsed);
+        if (profile) {
+          setStoredProfile(profile);
+          setCurrentUser(profile);
+          if (profile.username === username) {
+            setUser(profile);
           }
-        } catch (e) {}
+        }
       }
     };
     initAuth();
@@ -236,12 +240,12 @@ export default function PublicProfilePage() {
 
   const toggleFollow = async () => {
     if (!currentUser || !user || !data) return;
+    if (currentUser.id === user.id) return;
     
     const oldFollowing = isFollowing;
     const newFollowing = !oldFollowing;
     
     // 🚀 ATUALIZAÇÃO NUCLEAR OTIMISTA (SWR Mutate)
-    // Isso evita o "ativa/desativa" (flicker) pois trava o estado no cache do SWR
     const optimisticData = {
       ...data,
       viewer_state: { ...data.viewer_state, is_following: newFollowing },
@@ -251,22 +255,19 @@ export default function PublicProfilePage() {
       }
     };
 
-    mutate(optimisticData, false); // Atualiza localmente sem revalidar ainda
+    mutate(optimisticData, false);
     setIsFollowing(newFollowing);
 
     try {
-      if (oldFollowing) {
-        const { error } = await supabase.from('follows').delete()
-          .eq('follower_id', currentUser.id)
-          .eq('following_id', user.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from('follows').insert({
-          follower_id: currentUser.id,
-          following_id: user.id
-        });
-        if (error) throw error;
+      const { data: newStatus, error } = await supabase.rpc('toggle_follow', {
+        p_follower_id: currentUser.id,
+        p_following_id: user.id
+      });
+      if (error) throw error;
 
+      setIsFollowing(newStatus);
+
+      if (newStatus) {
         await NotificationService.notify({
           recipientId: user.id,
           senderId: currentUser.id,
@@ -276,17 +277,15 @@ export default function PublicProfilePage() {
       }
 
       window.dispatchEvent(new CustomEvent('user-follow-changed', {
-        detail: { userId: user.id, isFollowing: newFollowing }
+        detail: { userId: user.id, isFollowing: newStatus }
       }));
-      
-      // ✅ No mutate() aqui. Confiamos na atualização otimista acima 
-      // para economizar recursos do Free Tier (Gabarito #8).
     } catch (err) {
-      mutate(data, false); // Reverte cache em caso de erro
+      mutate(data, false);
       setIsFollowing(oldFollowing);
       toast.error("Erro ao processar seguimento");
     }
   };
+
 
   return (
     <div className="min-h-screen pb-20 max-w-2xl mx-auto border-x bg-white dark:bg-black text-gray-900 dark:text-white transition-colors" suppressHydrationWarning>

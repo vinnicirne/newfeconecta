@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import moment from "moment";
 import { Mic, Users, ArrowRight, Clock } from "lucide-react";
 import Image from "next/image";
+import { getStoredProfile } from "@/lib/profile-cache";
 
 function RoomTimer({ createdAt, duration }: { createdAt: string, duration: number }) {
   const [timeLeft, setTimeLeft] = useState("");
@@ -48,13 +49,8 @@ export default function LiveRoomsBar() {
     const fetchRooms = async () => {
       try {
         // Tenta pegar usuário do cache primeiro para evitar Auth Lock
-        let userId = null;
-        if (typeof window !== 'undefined') {
-          const cached = localStorage.getItem('fc_profile_cache');
-          if (cached) {
-            userId = JSON.parse(cached).id;
-          }
-        }
+        const cached = getStoredProfile();
+        let userId = cached?.id;
 
         // Se não tiver cache, pega a sessão (mais leve que getUser para este caso)
         if (!userId) {
@@ -125,14 +121,22 @@ export default function LiveRoomsBar() {
           >
             <div className="flex items-center gap-3 mb-3">
               <div className="relative">
-                <Image 
-                  src={room.profiles.avatar_url || "https://github.com/shadcn.png"} 
-                  width={40} 
-                  height={40} 
-                  unoptimized
-                  className="w-10 h-10 rounded-xl object-cover" 
-                  alt="" 
-                />
+                <div className="w-10 h-10 rounded-xl overflow-hidden bg-zinc-800 flex items-center justify-center">
+                  {room.profiles?.avatar_url ? (
+                    <Image 
+                      src={room.profiles.avatar_url} 
+                      width={40} 
+                      height={40} 
+                      unoptimized
+                      className="w-10 h-10 rounded-xl object-cover" 
+                      alt="" 
+                    />
+                  ) : (
+                    <span className="text-white font-bold text-xs uppercase">
+                      {(room.profiles?.full_name || room.name || "R")[0]}
+                    </span>
+                  )}
+                </div>
                 <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-whatsapp-teal rounded-full border-2 border-white dark:border-[#0c0c0c] flex items-center justify-center">
                    <Mic size={8} className="text-white" />
                 </div>

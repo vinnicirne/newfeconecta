@@ -210,11 +210,8 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
     ));
 
     try {
-      const tableName = verseId ? 'daily_verse_comments' : 'comments';
-      const { error } = await supabase
-        .from(tableName)
-        .update({ likes: newLikes })
-        .eq('id', comment.id);
+      const rpcName = verseId ? 'toggle_verse_comment_like' : 'toggle_post_comment_like';
+      const { error } = await supabase.rpc(rpcName, { p_comment_id: comment.id });
       
       if (error) throw error;
 
@@ -233,6 +230,7 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
       toast.error("Não foi possível salvar sua curtida.");
     }
   };
+
 
   const toggleThread = (id: string) => {
     setExpandedThreads(prev => ({ ...prev, [id]: !prev[id] }));

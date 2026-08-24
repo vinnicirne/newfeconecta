@@ -18,15 +18,15 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess, initi
   const [preview, setPreview] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   // Sincroniza o estado quando o initialData muda (Crucial para Edição)
   useEffect(() => {
     if (isOpen) {
       setLabel(initialData?.highlight_title || "");
       setPreview(initialData?.highlight_cover_url || initialData?.media_url || null);
       setFile(null); // Limpa o arquivo anterior
-      if (typeof window !== "undefined") {
-        (window as any).editingHighlightId = initialData?.id || null;
-      }
+      setEditingId(initialData?.id || null);
     }
   }, [initialData, isOpen]);
 
@@ -41,7 +41,7 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess, initi
   };
 
   const handleSave = async () => {
-    if (!label || !file && !preview) {
+    if (!label || (!file && !preview)) {
       alert("Preencha o nome e selecione uma imagem");
       return;
     }
@@ -69,6 +69,8 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess, initi
       // 2. Salvar na tabela de STORIES (Unificada)
       const storyData = {
         author_id: userId,
+        user_id: userId,
+        profile_id: userId,
         highlight_title: label,
         highlight_cover_url: publicUrl,
         is_highlight: true,
@@ -79,12 +81,13 @@ export function CreateHighlightModal({ isOpen, onClose, userId, onSuccess, initi
       const { data: highlight, error: dbError } = await supabase
         .from('stories')
         .upsert({
-          ...(userId && { author_id: userId }), // Apenas para segurança
+          ...(userId && { author_id: userId, user_id: userId, profile_id: userId }),
           ...storyData,
-          id: (window as any).editingHighlightId // Se estiver editando
+          ...(editingId && { id: editingId })
         })
         .select()
         .single();
+
 
       if (dbError) throw dbError;
 

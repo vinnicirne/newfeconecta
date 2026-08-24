@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Play, Pause, SkipBack, SkipForward, X, Heart } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, X, Music } from 'lucide-react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 
 export default function MiniPlayer() {
@@ -17,18 +17,23 @@ export default function MiniPlayer() {
       className="fixed left-3 right-3 md:left-auto md:right-4 md:w-96 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl shadow-black flex items-center gap-3 z-[300] cursor-pointer"
       style={{ bottom: '140px', backgroundColor: 'rgba(24,24,27,0.95)' }}
     >
-      <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-black/50">
-        <img 
-          src={currentTrack.cover || 'https://via.placeholder.com/150'} 
-          alt={currentTrack.title} 
-          className="w-full h-full object-cover"
-        />
+      <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center">
+        {currentTrack.cover ? (
+          <img 
+            src={currentTrack.cover} 
+            alt={currentTrack.title} 
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <Music className="w-6 h-6 text-whatsapp-teal" />
+        )}
       </div>
       
       <div className="flex-1 min-w-0 pr-1">
         <h4 className="font-bold text-sm text-white truncate">{currentTrack.title}</h4>
         <p className="text-xs text-whatsapp-teal truncate">{currentTrack.artist}</p>
       </div>
+
 
       <div className="flex items-center gap-1.5 pr-2" onClick={(e) => e.stopPropagation()}>
         <button 

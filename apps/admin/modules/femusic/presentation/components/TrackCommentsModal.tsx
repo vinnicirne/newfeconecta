@@ -224,9 +224,9 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
     }
   };
 
-  // ─── Like (uses likes array in DB) ────────────────────────────────────────
+  // ─── Like (uses atomic RPC toggle_music_track_comment_like) ──────────────
   const handleLike = async (comment: Comment) => {
-    if (!currentUser) { toast.error('Faca login para curtir.'); return; }
+    if (!currentUser) { toast.error('Faça login para curtir.'); return; }
     const uid = currentUser.id;
     const isLiked = comment.likes.includes(uid);
     const newLikes = isLiked ? comment.likes.filter(id => id !== uid) : [...comment.likes, uid];
@@ -234,13 +234,15 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
     // Optimistic
     setComments(prev => prev.map(c => c.id === comment.id ? { ...c, likes: newLikes } : c));
     try {
-      const { error } = await supabase.from('music_track_comments').update({ likes: newLikes }).eq('id', comment.id);
+      const { error } = await supabase.rpc('toggle_music_track_comment_like', { p_comment_id: comment.id });
       if (error) throw error;
-    } catch {
+    } catch (err) {
+      console.error('Erro ao alternar curtida no comentário:', err);
       // Revert
       setComments(prev => prev.map(c => c.id === comment.id ? { ...c, likes: comment.likes } : c));
     }
   };
+
 
   // ─── Derived ──────────────────────────────────────────────────────────────
   const rootComments = comments.filter(c => !c.parent_id);

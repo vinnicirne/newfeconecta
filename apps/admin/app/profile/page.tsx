@@ -284,9 +284,8 @@ export default function ProfilePage() {
         <VerificationModal
           isOpen={modals.isVerificationModalOpen}
           onClose={() => modals.setIsVerificationModalOpen(false)}
-          onVerified={() => {
+          onRequested={() => {
             modals.setIsVerificationModalOpen(false);
-            setUser((prev: any) => ({ ...prev, is_verified: true }));
           }}
           user={user}
         />

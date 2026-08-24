@@ -6,6 +6,7 @@ import { supabase as supabaseClient } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { NotificationEnforcer } from "@/components/NotificationEnforcer";
+import { setStoredProfile } from "@/lib/profile-cache";
 
 // BUILD_TS: 2026-08-12T14:00:00
 const PUBLIC_ROUTES = ["/login", "/register"];
@@ -58,18 +59,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       // 1. PRIORIDADE ABSOLUTA: Busca de Dados para Hidratação
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
-        .select('id, avatar_url, username, full_name, role, city, phone, birthdate, accepted_terms')
+        .select('*')
         .eq('id', userId)
         .single();
 
       if (profile) {
-        localStorage.setItem('fc_profile_cache', JSON.stringify(profile));
+        setStoredProfile(profile);
         setUserRole(profile.role);
         
         const complete = Boolean(profile.city && profile.phone && profile.birthdate && profile.accepted_terms);
         setIsProfileComplete(complete);
-
-        window.dispatchEvent(new CustomEvent('profile-hydrated', { detail: profile }));
         
         if (!complete && pathname !== '/complete-profile') {
            router.replace('/complete-profile');

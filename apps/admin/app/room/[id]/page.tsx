@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const description = `Participe deste momento de clamor e intercessão com ${creatorName || 'nossa comunidade'}. 🙏`;
   
   const avatarUrl = (profile as any)?.avatar_url;
-  const imageUrl = avatarUrl || "https://images.unsplash.com/photo-1544427928-142ce021f90a?q=80&w=1000&auto=format&fit=crop";
+  const imageUrl = avatarUrl || "/icons/icon-512x512.png";
 
   return {
     title,
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title,
       description,
-      images: [{ url: imageUrl, width: 800, height: 800, alt: "Capa da Sala de Guerra" }],
+      images: [{ url: imageUrl, width: 512, height: 512, alt: "Capa da Sala de Guerra" }],
       url: `https://newfeconecta.vercel.app/room/${roomId}`,
     },
     twitter: {

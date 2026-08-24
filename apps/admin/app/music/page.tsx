@@ -11,6 +11,7 @@ import ContinueListening from '@/modules/femusic/presentation/components/Continu
 import { useWarmCache } from '@/modules/femusic/application/useWarmCache';
 import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
+import { getStoredProfile } from '@/lib/profile-cache';
 
 const defaultTrending = [
   ...READY_SESSIONS[0].curatedTracks.slice(0, 4),
@@ -33,13 +34,9 @@ export default function MusicFeedPage() {
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const { play } = usePlayerStore();
   
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<any>(() => getStoredProfile());
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('fc_profile_cache');
-      if (cached) setUser(JSON.parse(cached));
-    }
     const handleHydration = (e: any) => {
       setUser((prev: any) => ({ ...prev, ...e.detail }));
     };

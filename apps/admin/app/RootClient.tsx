@@ -57,6 +57,7 @@ const GlobalSearch = dynamic(() => import("@/components/feed/GlobalSearch"), { s
 import { supabase } from "@/lib/supabase";
 import { NotificationService } from "@/lib/notifications";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 import CommentsSection from "@/components/feed/CommentsSection";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -478,9 +479,9 @@ export default function RootPage() {
   useEffect(() => {
     setIsMounted(true);
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('fc_profile_cache');
+      const cached = getStoredProfile();
       if (cached) {
-        setCurrentUser(JSON.parse(cached));
+        setCurrentUser(cached);
       }
     }
   }, []);
@@ -491,15 +492,30 @@ export default function RootPage() {
     let mounted = true;
     
     const handleHydration = (e: any) => {
-      setCurrentUser((prev: any) => ({ ...prev, ...e.detail }));
+      if (e?.detail) {
+        setCurrentUser((prev: any) => ({ ...prev, ...e.detail }));
+      }
     };
     window.addEventListener('profile-hydrated', handleHydration);
 
     const init = async () => {
       try {
-        // Lê do cache — AuthGuard já validou a sessão e dispara 'profile-hydrated'
-        const cached = localStorage.getItem('fc_profile_cache');
-        const authUser = cached ? JSON.parse(cached) : null;
+        let authUser = getStoredProfile();
+
+        // Se o cache local ainda estiver vazio, consulta a sessão e perfil no Supabase imediatamente
+        if (!authUser) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', user.id)
+              .single();
+            if (profile) {
+              authUser = setStoredProfile(profile);
+            }
+          }
+        }
 
         if (!mounted) return;
 
@@ -928,9 +944,13 @@ export default function RootPage() {
                 </div>
               )}
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-bold dark:text-white">{currentUser?.full_name}</span>
-              <span className="text-[10px] text-gray-500 uppercase font-black tracking-tighter">Ver meu perfil</span>
+            <div className="flex flex-col min-w-0">
+              <span className="text-sm font-bold dark:text-white truncate max-w-[170px]">
+                {currentUser?.full_name || currentUser?.username || "Meu Perfil"}
+              </span>
+              <span className="text-[10px] text-gray-500 uppercase font-black tracking-tighter">
+                {currentUser?.username ? `@${currentUser.username}` : "Ver meu perfil"}
+              </span>
             </div>
           </Link>
 
@@ -1118,8 +1138,14 @@ export default function RootPage() {
                   className={cn("flex items-center gap-3 p-3 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all group", !isOnline && "opacity-50 grayscale")}
                 >
                   <div className="relative">
-                    <div className="w-9 h-9 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform">
-                      <img src={contact.avatar_url || "https://github.com/shadcn.png"} className="w-full h-full object-cover" alt="" />
+                    <div className="w-9 h-9 rounded-xl overflow-hidden border border-black/10 dark:border-white/10 group-hover:scale-105 transition-transform bg-zinc-800 flex items-center justify-center">
+                      {contact.avatar_url ? (
+                        <img src={contact.avatar_url} className="w-full h-full object-cover" alt="" />
+                      ) : (
+                        <span className="text-white font-bold text-xs uppercase">
+                          {(contact.full_name || contact.username || "C")[0]}
+                        </span>
+                      )}
                     </div>
                     {isOnline && <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-whatsapp-green rounded-full border-2 border-white dark:border-[#080808]" />}
                   </div>

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Sparkles, Calendar, Flame, MessageSquare, Repeat2, Send, MoreHorizontal, MessageCircle } from "lucide-react";
+import { Calendar, Flame, MessageSquare, Repeat2, Send, MessageCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -11,7 +11,6 @@ import CommentsSection from "@/components/feed/CommentsSection";
 export default function DailyVerseSection({ currentUser }: { currentUser: any }) {
   const router = useRouter();
   
-  const [isMounted, setIsMounted] = useState(false);
   const [dailyVerses, setDailyVerses] = useState<any[]>([]);
   const [dailyVerse, setDailyVerse] = useState<any>(null);
   const [showVerseCalendar, setShowVerseCalendar] = useState(false);
@@ -24,8 +23,6 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
 
   // Canais de Realtime
   useEffect(() => {
-    setIsMounted(true);
-    // Tentar carregar cache imediato para evitar flicker
     if (typeof window !== 'undefined') {
       const cached = localStorage.getItem('fc_daily_verse_cache');
       if (cached) {
@@ -48,7 +45,7 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
         event: '*', 
         schema: 'public', 
         table: 'daily_verse_comments',
-        filter: `verse_id=eq.${dailyVerse.id}`
+        filter: `verse_id=eq.${dailyVerse.id}` 
       }, () => {
         refreshCounts();
       })
@@ -61,12 +58,12 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
         event: 'UPDATE', 
         schema: 'public', 
         table: 'daily_verses',
-        filter: `id=eq.${dailyVerse.id}`
+        filter: `id=eq.${dailyVerse.id}` 
       }, (payload) => {
         const updatedVerse = payload.new;
         setLikesCount(updatedVerse.likes?.length || 0);
         if (currentUser?.id) {
-            setIsLikedDailyVerse(updatedVerse.likes?.includes(currentUser.id));
+          setIsLikedDailyVerse(updatedVerse.likes?.includes(currentUser.id));
         }
       })
       .subscribe();
@@ -97,7 +94,7 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
         // Inicializar contadores reais
         setLikesCount(verse.likes?.length || 0);
         if (currentUser?.id) {
-            setIsLikedDailyVerse(verse.likes?.includes(currentUser.id));
+          setIsLikedDailyVerse(verse.likes?.includes(currentUser.id));
         }
         
         // Buscar contagem de comentários inicial
@@ -112,7 +109,6 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
         setDailyVerse(null);
       }
     } catch (err) {
-      // Falha silenciosa se tivermos cache
       const hasCache = localStorage.getItem('fc_daily_verse_cache');
       if (!hasCache) {
         console.error("Erro ao carregar versículo do dia:", err);
@@ -145,15 +141,17 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
     setLikesCount(newLikes.length);
     
     try {
-      const { error } = await supabase
-        .from('daily_verses')
-        .update({ likes: newLikes })
-        .eq('id', dailyVerse.id);
+      const { data: newStatus, error } = await supabase.rpc('toggle_daily_verse_like', {
+        p_verse_id: dailyVerse.id
+      });
       
       if (error) throw error;
       
-      // Atualizar objeto local para manter sincronia
-      setDailyVerse({ ...dailyVerse, likes: newLikes });
+      setIsLikedDailyVerse(newStatus);
+      const syncedLikes = newStatus 
+        ? [...currentLikes.filter((id: string) => id !== userId), userId]
+        : currentLikes.filter((id: string) => id !== userId);
+      setDailyVerse({ ...dailyVerse, likes: syncedLikes });
     } catch (err) {
       toast.error("Erro ao salvar curtida");
       setIsLikedDailyVerse(isLiked);
@@ -166,17 +164,19 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
     
     setSending(true);
     try {
-      // Cria um post real no feed citando o versículo do dia
       const { error } = await supabase
         .from('posts')
         .insert({
           user_id: currentUser.id,
+          author_id: currentUser.id,
+          profile_id: currentUser.id,
           content: `📖 Recomendo a Palavra do Dia: "${dailyVerse.content}" — ${dailyVerse.reference}`,
           status: 'published',
           type: 'repost_verse',
+          post_type: 'repost_verse',
           metadata: { 
             verse_id: dailyVerse.id,
-            bible_ref: `${dailyVerse.book_abbrev}${dailyVerse.chapter}:${dailyVerse.verse}`
+            bible_ref: `${dailyVerse.book_abbrev || ''}${dailyVerse.chapter || ''}:${dailyVerse.verse || ''}`
           }
         });
 
@@ -218,18 +218,15 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
   return (
     <>
       <div className="mb-6 animate-in fade-in slide-in-from-top-4 duration-1000 px-4 lg:px-0" suppressHydrationWarning>
-         <div className="relative overflow-hidden rounded-[32px] bg-zinc-900 shadow-2xl shadow-whatsapp-teal/10 group flex flex-col">
+         <div className="relative overflow-hidden rounded-[32px] bg-zinc-950 border border-white/5 shadow-2xl shadow-whatsapp-teal/10 group flex flex-col">
             {/* Background com Overlay */}
             {dailyVerse.background_url ? (
               <img src={dailyVerse.background_url} className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-[2000ms]" alt="" />
             ) : (
-              <img 
-                src="https://images.unsplash.com/photo-1504052434569-70ad5836ab65?q=80&w=2070&auto=format&fit=crop" 
-                className="absolute inset-0 w-full h-full object-cover opacity-40"
-                alt=""
-              />
+              <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-whatsapp-dark via-[#0a101d] to-[#042f2e] opacity-90" />
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
             
             {/* Seletor de Dia da Semana (Ciclo de 7) */}
             <div className="absolute top-4 right-4 z-50 flex flex-col items-end gap-2">

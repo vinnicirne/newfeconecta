@@ -152,7 +152,7 @@ export default function AdminPushCenter() {
     setSending(true);
     try {
       // 1. Construir query baseada na audiência
-      let query = supabase.from('profiles').select('id').not('fcm_token', 'is', null);
+      let query = supabase.from('profiles').select('id, fcm_token');
 
       if (audienceType === 'roles') {
         query = query.in('role', selectedRoles);
@@ -172,7 +172,7 @@ export default function AdminPushCenter() {
       if (fetchError) throw fetchError;
 
       if (!profiles || profiles.length === 0) {
-        toast.error("Nenhum usuário com notificações ativadas encontrado neste grupo.");
+        toast.error("Nenhum usuário encontrado para este grupo.");
         return;
       }
 
@@ -183,16 +183,20 @@ export default function AdminPushCenter() {
       const broadcastPayload = profiles.map(p => ({
         recipient_id: p.id,
         sender_id: authUserId, // Pegando o ID dinâmico do Dashboard Admin logado
+        profile_id: p.id,
+        user_id: p.id,
         type: pushType,
-        title: title,
-        content: message,
+        title: title.trim(),
+        content: message.trim(),
         is_read: false,
         priority: 'high',
         metadata: {
           push_banner: true,
           sound: 'default',
           campaign_id: campaignId,
-          audience_type: audienceType
+          audience_type: audienceType,
+          bible_ref: verseRef || undefined,
+          link: verseRef ? `/bible?verse=${verseRef}` : '/feed'
         }
       }));
 

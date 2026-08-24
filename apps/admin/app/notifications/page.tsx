@@ -2,21 +2,15 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Bell, ArrowLeft, MessageSquare, Megaphone, Trash2, Users } from "lucide-react";
+import { 
+  Bell, ArrowLeft, MessageSquare, Megaphone, Trash2, Users, 
+  Heart, UserPlus, Repeat, AtSign, BookOpen, Mic, Radio, Sparkles 
+} from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { useNotifications } from "@/hooks/useNotifications";
-
-interface Notification {
-  id: string;
-  content: string;
-  type: string;
-  post_id?: string;
-  is_read: boolean;
-  created_at: string;
-}
 
 export default function NotificationsPage() {
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -33,6 +27,7 @@ export default function NotificationsPage() {
     notifications, 
     isLoading: loading, 
     markAsRead, 
+    markAllAsRead,
     deleteNotification 
   } = useNotifications(currentUser?.id || null);
 
@@ -40,6 +35,100 @@ export default function NotificationsPage() {
     e.preventDefault();
     e.stopPropagation();
     await deleteNotification(id);
+  };
+
+  const hasUnread = notifications.some((n: any) => !n.is_read);
+
+  const getNotificationDetails = (notification: any) => {
+    let Icon = MessageSquare;
+    let iconColor = "text-whatsapp-teal";
+    let bgColor = "bg-whatsapp-teal/10";
+    let title = "Notificação";
+    let linkHref = "/";
+
+    switch (notification.type) {
+      case 'like':
+      case 'story_reaction':
+        Icon = Heart;
+        iconColor = "text-rose-500";
+        bgColor = "bg-rose-500/10";
+        title = "Curtida";
+        if (notification.post_id) linkHref = `/?post=${notification.post_id}`;
+        break;
+      case 'comment':
+        Icon = MessageSquare;
+        iconColor = "text-whatsapp-teal";
+        bgColor = "bg-whatsapp-teal/10";
+        title = "Comentário";
+        if (notification.post_id) linkHref = `/?post=${notification.post_id}`;
+        break;
+      case 'follow':
+        Icon = UserPlus;
+        iconColor = "text-blue-500";
+        bgColor = "bg-blue-500/10";
+        title = "Novo Seguidor";
+        if (notification.sender_username) {
+          linkHref = `/profile/${notification.sender_username}`;
+        }
+        break;
+      case 'repost':
+      case 'verse_day':
+        Icon = Repeat;
+        iconColor = "text-emerald-500";
+        bgColor = "bg-emerald-500/10";
+        title = "Compartilhamento";
+        if (notification.post_id) linkHref = `/?post=${notification.post_id}`;
+        break;
+      case 'mention':
+        Icon = AtSign;
+        iconColor = "text-amber-500";
+        bgColor = "bg-amber-500/10";
+        title = "Menção";
+        if (notification.post_id) linkHref = `/?post=${notification.post_id}`;
+        break;
+      case 'room_invite':
+      case 'new_room':
+        Icon = Mic;
+        iconColor = "text-orange-500";
+        bgColor = "bg-orange-500/10";
+        title = "Sala de Oração";
+        if (notification.metadata?.room_id) {
+          linkHref = `/room/${notification.metadata.room_id}`;
+        } else {
+          linkHref = "/room";
+        }
+        break;
+      case 'new_post':
+        Icon = Sparkles;
+        iconColor = "text-purple-500";
+        bgColor = "bg-purple-500/10";
+        title = "Nova Publicação";
+        if (notification.post_id) linkHref = `/?post=${notification.post_id}`;
+        break;
+      case 'broadcast':
+        Icon = Megaphone;
+        iconColor = "text-amber-500";
+        bgColor = "bg-amber-500/10";
+        title = "Comunicado Oficial";
+        break;
+      case 'church_join_request':
+        Icon = Users;
+        iconColor = "text-indigo-500";
+        bgColor = "bg-indigo-500/10";
+        title = "Novo Membro";
+        if (notification.metadata?.church_slug) {
+          linkHref = `/igreja/${notification.metadata.church_slug}/admin/membros`;
+        }
+        break;
+      default:
+        Icon = MessageSquare;
+        iconColor = "text-whatsapp-teal";
+        bgColor = "bg-whatsapp-teal/10";
+        title = "Alerta";
+        if (notification.post_id) linkHref = `/?post=${notification.post_id}`;
+    }
+
+    return { Icon, iconColor, bgColor, title, linkHref };
   };
 
   return (
@@ -52,7 +141,17 @@ export default function NotificationsPage() {
           </Link>
           <h1 className="text-xl font-bold font-outfit tracking-tight">Notificações</h1>
         </div>
-        <Bell className="w-6 h-6 text-whatsapp-teal animate-pulse" />
+        <div className="flex items-center gap-3">
+          {hasUnread && (
+            <button 
+              onClick={markAllAsRead} 
+              className="text-[11px] font-black uppercase text-whatsapp-teal hover:underline tracking-wider"
+            >
+              Marcar lidas
+            </button>
+          )}
+          <Bell className="w-6 h-6 text-whatsapp-teal animate-pulse" />
+        </div>
       </div>
 
       <div className="max-w-2xl mx-auto pb-24">
@@ -80,20 +179,7 @@ export default function NotificationsPage() {
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-white/5">
             {notifications.map((notification: any) => {
-              let Icon = MessageSquare;
-              if (notification.type === 'broadcast') Icon = Megaphone;
-              if (notification.type === 'church_join_request') Icon = Users;
-
-              let linkHref = '#';
-              if (notification.type === 'church_join_request' && notification.metadata?.church_slug) {
-                linkHref = `/igreja/${notification.metadata.church_slug}/admin/membros`;
-              } else if (notification.post_id) {
-                linkHref = `/?post=${notification.post_id}`;
-              }
-
-              let title = 'Alerta';
-              if (notification.type === 'broadcast') title = 'Comunicado';
-              if (notification.type === 'church_join_request') title = 'Novo Membro';
+              const { Icon, iconColor, bgColor, title, linkHref } = getNotificationDetails(notification);
 
               return (
                 <Link 
@@ -105,11 +191,29 @@ export default function NotificationsPage() {
                     !notification.is_read ? "bg-whatsapp-teal/[0.03] dark:bg-whatsapp-teal/[0.05]" : "hover:bg-gray-100/50 dark:hover:bg-white/[0.02]"
                   )}
                 >
-                  <div className={cn(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm",
-                    !notification.is_read ? "bg-whatsapp-teal text-white" : "bg-gray-100 dark:bg-white/5 text-gray-400"
-                  )}>
-                    <Icon className="w-6 h-6" />
+                  <div className="relative shrink-0">
+                    {notification.sender_avatar ? (
+                      <div className="w-12 h-12 rounded-2xl overflow-hidden bg-zinc-800 border border-black/10 dark:border-white/10">
+                        <img src={notification.sender_avatar} className="w-full h-full object-cover" alt="" />
+                      </div>
+                    ) : (
+                      <div className={cn(
+                        "w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm",
+                        bgColor,
+                        iconColor
+                      )}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                    )}
+                    {notification.sender_avatar && (
+                      <div className={cn(
+                        "absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white dark:border-zinc-900 shadow-sm",
+                        bgColor,
+                        iconColor
+                      )}>
+                        <Icon className="w-2.5 h-2.5" />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex-1 min-w-0 pr-8">

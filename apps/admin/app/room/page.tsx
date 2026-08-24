@@ -236,13 +236,6 @@ export default function RoomsListPage() {
           metadata: { room_id: data.id }
         }));
         await supabase.from('notifications').insert(notifications);
-
-        // Notificação de Sistema (Dashboard de Controle)
-        await supabase.from('system_errors').insert({
-          module: 'ROOM_SECURITY',
-          error_message: `Sala Privada ${data.id} criada com ${invitedUsers.length} convidados por ${currentUser.id}`,
-          severity: 'info'
-        });
       }
       
       // Notificação global inteligente
@@ -307,7 +300,15 @@ export default function RoomsListPage() {
               className="bg-gray-50 dark:bg-white/5 p-4 rounded-3xl border border-gray-100 dark:border-white/5 flex items-center gap-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-all group"
             >
               <div className="relative">
-                <img src={room.profiles.avatar_url || "https://github.com/shadcn.png"} className="w-16 h-16 rounded-2xl object-cover" alt="" />
+                <div className="w-16 h-16 rounded-2xl overflow-hidden bg-zinc-800 flex items-center justify-center">
+                  {room.profiles?.avatar_url ? (
+                    <img src={room.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
+                  ) : (
+                    <span className="text-white font-bold text-lg uppercase">
+                      {(room.profiles?.full_name || room.name || "R")[0]}
+                    </span>
+                  )}
+                </div>
                 <div className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-[#0c0c0c] animate-pulse" />
               </div>
 
@@ -453,7 +454,15 @@ export default function RoomsListPage() {
                                 onClick={() => toggleInvite(user)}
                                 className="w-full flex items-center gap-3 p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all"
                               >
-                                <img src={user.avatar_url || "https://github.com/shadcn.png"} className="w-8 h-8 rounded-lg object-cover" alt="" />
+                                <div className="w-8 h-8 rounded-lg overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+                                  {user.avatar_url ? (
+                                    <img src={user.avatar_url} className="w-full h-full object-cover" alt="" />
+                                  ) : (
+                                    <span className="text-white font-bold text-xs uppercase">
+                                      {(user.full_name || user.username || "U")[0]}
+                                    </span>
+                                  )}
+                                </div>
                                 <div className="text-left">
                                   <p className="text-[10px] font-bold dark:text-white">{user.full_name}</p>
                                   <p className="text-[8px] text-gray-500">@{user.username}</p>

@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { compressImage } from "@/lib/image-compression";
 import { useRouter } from "next/navigation";
 import { ImageCropperModal } from "@/components/profile/ImageCropperModal";
+import { getStoredProfile } from "@/lib/profile-cache";
 
 export default function ChurchAdminPanel({ params }: { params: { slug: string } }) {
   const router = useRouter();
@@ -53,6 +54,37 @@ export default function ChurchAdminPanel({ params }: { params: { slug: string } 
 
     if (!churchData) {
       setLoading(false);
+      return;
+    }
+
+    // 🛡️ Validação Estrita de Liderança (Autorização de Acesso)
+    const cached = getStoredProfile();
+    let currentUserId = cached?.id;
+    if (!currentUserId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      currentUserId = user?.id;
+    }
+
+    if (!currentUserId) {
+      toast.error("Acesso restrito à liderança da igreja.");
+      router.push(`/igreja/${params.slug}`);
+      return;
+    }
+
+    const isPastor = churchData.pastor_id === currentUserId;
+    const { data: memberData } = await supabase
+      .from('church_members')
+      .select('role, approved')
+      .eq('church_id', churchData.id)
+      .eq('user_id', currentUserId)
+      .maybeSingle();
+
+    const isChurchAdmin = memberData?.approved && ['admin', 'pastor'].includes(memberData.role);
+    const isGlobalAdmin = cached?.role === 'admin';
+
+    if (!isPastor && !isChurchAdmin && !isGlobalAdmin) {
+      toast.error("Acesso negado: apenas administradores e pastores podem acessar este painel.");
+      router.push(`/igreja/${params.slug}`);
       return;
     }
 

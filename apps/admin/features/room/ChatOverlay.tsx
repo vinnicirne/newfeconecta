@@ -41,9 +41,17 @@ export function ChatOverlay({ show, onClose, messages, onSendMessage }: ChatOver
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6 no-scrollbar">
-        {messages.map((m) => (
+        {messages.map(m => (
           <div key={m.id} className="flex items-start gap-4">
-            <img src={m.avatar_url || 'https://github.com/shadcn.png'} className="size-9 rounded-full border border-white/10" alt="" />
+            <div className="size-9 rounded-full border border-white/10 overflow-hidden bg-zinc-800 flex items-center justify-center shrink-0">
+              {m.avatar_url ? (
+                <img src={m.avatar_url} className="w-full h-full object-cover" alt="" />
+              ) : (
+                <span className="text-white font-bold text-xs uppercase">
+                  {(m.user_name || "I")[0]}
+                </span>
+              )}
+            </div>
             <div className="flex-1">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-[11px] font-bold text-[#3fff8b]/80">{m.user_name}</p>

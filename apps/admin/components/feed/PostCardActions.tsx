@@ -157,12 +157,18 @@ export default function PostCardActions() {
         >
           <div className="absolute top-0 left-0 right-0 p-6 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent z-10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20">
-                <img
-                  src={post.author_avatar || "https://github.com/shadcn.png"}
-                  className="w-full h-full object-cover"
-                  alt=""
-                />
+              <div className="w-10 h-10 rounded-full overflow-hidden border border-white/20 bg-zinc-800 flex items-center justify-center">
+                {post.author_avatar ? (
+                  <img
+                    src={post.author_avatar}
+                    className="w-full h-full object-cover"
+                    alt=""
+                  />
+                ) : (
+                  <span className="text-white font-bold text-xs uppercase">
+                    {(post.author_name || post.author_username || "FC")[0]}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
@@ -362,8 +368,14 @@ export default function PostCardActions() {
                       onClick={() => setShowLikesModal(false)}
                       className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
                     >
-                      <div className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 overflow-hidden shrink-0">
-                        <img src={user.avatar_url || "https://github.com/shadcn.png"} alt="" className="w-full h-full object-cover" />
+                      <div className="w-10 h-10 rounded-full border border-gray-200 dark:border-white/10 overflow-hidden shrink-0 bg-zinc-800 flex items-center justify-center">
+                        {user.avatar_url ? (
+                          <img src={user.avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-white font-bold text-xs uppercase">
+                            {(user.full_name || user.username || "FC")[0]}
+                          </span>
+                        )}
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className="text-sm font-bold dark:text-white truncate">{user.full_name || user.username}</span>

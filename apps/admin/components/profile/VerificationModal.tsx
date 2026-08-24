@@ -159,34 +159,16 @@ export function VerificationModal({ isOpen, onClose, user, onRequested }: any) {
 
       toast.success("Documentos enviados com sucesso!");
 
-      // ✅ TELEMETRIA: Registro de Auditoria no Dashboard
-      await supabase.from('system_errors').insert({
-        module: 'verification_request',
-        error_message: `Nova solicitação de verificação: @${user.username} (${selectedRole})`,
-        severity: 'info',
-        resolved: false,
-        metadata: { 
-          user_id: user.id,
-          role: selectedRole,
-          revenue_potential: getRolePrice(selectedRole)
-        }
-      });
-
       onRequested?.();
       onClose();
     } catch (err: any) {
-      // ✅ LOG DE ERRO NO DASHBOARD
-      await supabase.from('system_errors').insert({
-        module: 'verification_request',
-        error_message: `Falha ao processar verificação: ${err.message}`,
-        severity: 'critical',
-        metadata: { user_id: user?.id }
-      });
+      console.error("Erro ao processar verificação:", err);
       toast.error("Erro ao enviar: " + err.message);
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <DialogPrimitive.Root open={isOpen} onOpenChange={onClose}>

@@ -1,957 +1,392 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import React, { useState } from "react";
 import { 
+  ShieldCheck, 
   Music, 
-  ShieldAlert, 
-  Cpu, 
+  MessageSquare, 
+  BookOpen, 
+  Swords, 
+  Flame, 
+  UserCircle2, 
+  Bell, 
+  Search, 
+  Layers, 
+  FileText, 
+  Database, 
+  ChevronRight, 
   CheckCircle2, 
-  FolderTree, 
-  Terminal, 
-  Sparkles,
-  Layers,
-  FileCode,
-  Smartphone,
-  ChevronRight,
-  ChevronDown,
-  AlertTriangle,
-  Search,
-  BookOpen,
-  ArrowLeft,
-  Copy,
-  Check,
+  Lock, 
   ExternalLink,
-  Github,
-  Globe,
-  Radio,
-  Sliders,
-  CheckCircle,
-  Menu,
-  X,
-  Lock,
-  LogOut,
-  User,
-  ShieldCheck,
-  Sun,
-  Moon,
-  MessageSquare
+  Sparkles,
+  ArrowLeft
 } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import { cn } from "@/lib/utils";
 
-export default function StandaloneMusicDocsPage() {
-  const router = useRouter();
-  
-  // Auth state
-  const [session, setSession] = useState<any>(null);
-  const [loadingAuth, setLoadingAuth] = useState(true);
-  const [userEmail, setUserEmail] = useState("");
-  
-  // Theme and filter states
-  const [themeMode, setThemeMode] = useState<"dark" | "nord">("dark");
-  const [activeTheme, setActiveTheme] = useState<string>("all"); // "all" | "core" | "api" | "postmortem" | "cli"
-  const [activeSection, setActiveSection] = useState<string>("overview");
-  const [searchQuery, setSearchQuery] = useState<string>("");
-  const [copiedCode, setCopiedCode] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
-  
-  // Estado de grupos expansíveis / retráteis (Accordion estilo Capgo)
-  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    "Visão Geral & Core": true,
-    "API & Integração": true,
-    "Engenharia & Soluções": true,
-    "CLI & Suporte": true,
-  });
+interface DocSection {
+  id: string;
+  title: string;
+  category: string;
+  icon: any;
+  summary: string;
+  routes: string[];
+  tables: string[];
+  securityHighlights: string[];
+  details: string;
+}
 
-  const toggleGroup = (groupName: string) => {
-    setExpandedGroups(prev => ({
-      ...prev,
-      [groupName]: !prev[groupName]
-    }));
-  };
-
-  // Authentication check
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          router.replace("/login?redirect=/docs");
-          return;
-        }
-        setSession(session);
-        setUserEmail(session.user?.email || "admin@feconecta.com");
-      } catch (err) {
-        router.replace("/login?redirect=/docs");
-      } finally {
-        setLoadingAuth(false);
-      }
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        router.replace("/login?redirect=/docs");
-      } else {
-        setSession(session);
-        setUserEmail(session.user?.email || "admin@feconecta.com");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [router]);
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.replace("/login");
-  };
-
-  const copyToClipboard = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedCode(id);
-    setTimeout(() => setCopiedCode(null), 2000);
-  };
-
-  // Grupos e Itens de Navegação Global FéConecta
-  const navItems = [
-    {
-      group: "Visão Geral & Ecossistema",
-      items: [
-        { id: "overview", label: "Overview do Ecossistema" },
-        { id: "architecture", label: "Arquitetura Unificada (Web & Mobile)" },
-        { id: "modules-map", label: "Mapa de Módulos (Feed, FéMusic, Igrejas)" },
-      ]
-    },
-    {
-      group: "FéMusic (Audio Engine)",
-      items: [
-        { id: "femusic-core", label: "Core Capabilities de Áudio" },
-        { id: "public-api", label: "REST API v1 (Terceiros & Busca)" },
-        { id: "mediasession", label: "Media Session Nativa (Android)" },
-        { id: "scraper-engine", label: "Search Engine (Scraper SSR)" },
-      ]
-    },
-    {
-      group: "Feed & Rede Social",
-      items: [
-        { id: "feed-architecture", label: "Feed Engine & Realtime" },
-        { id: "feed-security", label: "Segurança, XSS & Deduplicação" },
-      ]
-    },
-    {
-      group: "Chat & Mensagens Diretas",
-      items: [
-        { id: "chat-architecture", label: "Chat Engine & Realtime" },
-        { id: "chat-resilience", label: "Fallback Dual (RPC & Direto)" },
-      ]
-    },
-    {
-      group: "Perfil & Identidade",
-      items: [
-        { id: "profile-architecture", label: "Perfil Unificado & Cache SWR" },
-        { id: "profile-sync", label: "Uploads de Mídia & Realtime Follows" },
-      ]
-    },
-    {
-      group: "Radar de Presença (Online)",
-      items: [
-        { id: "radar-architecture", label: "Radar de Presença & Heartbeat" },
-        { id: "radar-realtime", label: "Supabase Presence Engine" },
-      ]
-    },
-    {
-      group: "Engenharia & Soluções",
-      items: [
-        { id: "postmortem", label: "Post-Mortem & Bug History" },
-        { id: "rules", label: "Regras de Ouro (Invioláveis)" },
-      ]
-    },
-    {
-      group: "CLI & Suporte",
-      items: [
-        { id: "troubleshooting", label: "Troubleshooting, ADB & Build AAB" },
-      ]
-    },
-  ];
-
-  const filteredNavItems = navItems;
-
-  if (loadingAuth) {
-    return (
-      <div className="min-h-screen w-full bg-[#0b1326] flex flex-col items-center justify-center text-white space-y-4">
-        <div className="w-12 h-12 rounded-2xl bg-[#00A884]/20 border border-[#00A884]/40 flex items-center justify-center text-[#00A884] animate-pulse">
-          <Lock className="w-6 h-6" />
-        </div>
-        <div className="text-sm font-mono text-[#94a3b8] flex items-center gap-2">
-          <span>Verificando credenciais de acesso seguro...</span>
-        </div>
-      </div>
-    );
+const DOCS_DATA: DocSection[] = [
+  {
+    id: "tribo",
+    title: "Tribos e FeSocial",
+    category: "Comunidade e Midia Curta",
+    icon: Flame,
+    summary: "Mapeamento de comunidades temáticas, feeds exclusivos de tribos e exibição de Reels com interação comunitária.",
+    routes: ["/tribo"],
+    tables: ["tribos", "tribo_members", "posts", "reels"],
+    securityHighlights: [
+      "Políticas RLS amarradas ao auth.uid() = creator_id / profile_id",
+      "Moderação descentralizada com permissão por liderança de tribo",
+      "Validação de integridade relacional em comentários e curtidas de vídeos curtos"
+    ],
+    details: "O subsistema de Tribos permite aos membros se agruparem em torno de interesses espirituais específicos. Os reels contam com sincronização em tempo real e proteção contra adulteração de contagens."
+  },
+  {
+    id: "music",
+    title: "FeMusic",
+    category: "Streaming e Louvor",
+    icon: Music,
+    summary: "Player universal de streaming de louvores com persistência global, controle MediaSession nativo e playlists comunitárias.",
+    routes: ["/music"],
+    tables: ["music_tracks", "music_playlists", "music_likes", "playlist_tracks"],
+    securityHighlights: [
+      "Blindagem RLS com isolamento por usuário autenticado em curtidas e playlists",
+      "Validação estrita de áudio e mitigação de links corrompidos",
+      "Sincronização em tempo real do estado de reprodução"
+    ],
+    details: "FéMusic conta com motor de busca de faixas e playlists personalizadas, além de integração com MediaSession API nativa em dispositivos móveis e desktop."
+  },
+  {
+    id: "profile",
+    title: "Perfil e Identidade",
+    category: "Usuarios e Verificacao",
+    icon: UserCircle2,
+    summary: "Gestão unificada de perfis de membros, dados ministeriais, fotos de avatar/banner e selos de verificação.",
+    routes: ["/profile", "/profile/edit"],
+    tables: ["profiles", "verification_requests", "followers"],
+    securityHighlights: [
+      "Atualização de perfil protegida por WITH CHECK (auth.uid() = id)",
+      "Compressão universal de avatar (400px) e banner (1200px) em WebP",
+      "Concessão de selos de verificação restrita a administradores auditáveis"
+    ],
+    details: "Mecanismo de identidade centralizado do FéConecta que alimenta todos os módulos do ecossistema, incluindo conexões com ministérios e igrejas locais."
+  },
+  {
+    id: "feed",
+    title: "Feed e Palavra do Dia",
+    category: "Publicacoes e Devocional",
+    icon: Sparkles,
+    summary: "Feed multimídia principal e card exclusivo da Palavra do Dia com versículos, reflexões e testemunhos.",
+    routes: ["/", "/feed", "/palavra-semana"],
+    tables: ["posts", "comments", "likes", "daily_verses"],
+    securityHighlights: [
+      "RPC atômica toggle_daily_verse_like para curtidas concorrentes sem conflito",
+      "Inserção e alteração da Palavra do Dia restritas exclusivamente a admins",
+      "Metadados completos (author_id, user_id, profile_id) em postagens e comentários"
+    ],
+    details: "Feed com suporte a postagens de texto, mídias comprimidas e compartilhamento direto de versículos pesquisados na Bíblia Sagrada."
+  },
+  {
+    id: "waroom",
+    title: "War Room e Salas de Oracao",
+    category: "Clamor e Intercessao",
+    icon: Swords,
+    summary: "Salas de oração em tempo real para intercessão, chat ao vivo, silenciamento de participantes e pedidos de oração.",
+    routes: ["/room", "/waroom"],
+    tables: ["prayer_rooms", "prayer_room_participants", "prayer_room_messages", "prayer_room_invites"],
+    securityHighlights: [
+      "Controle de salas amarrado a auth.uid() = host_id / creator_id",
+      "Mensagens e pedidos de oração com validação estrita de profile_id",
+      "Eliminação de risco de interrupção ou tomada de salas por usuários não autorizados"
+    ],
+    details: "Espaço espiritual de alta frequência onde intercessores clamam juntos com áudio e chat em tempo real protegidos por WebSocket e RLS."
+  },
+  {
+    id: "bible",
+    title: "Biblia Sagrada e IA",
+    category: "Escrituras e Exegese",
+    icon: BookOpen,
+    summary: "Leitor bíblico completo, marcações coloridas, anotações de estudo e assistente teológico alimentado por IA.",
+    routes: ["/bible", "/api/ai/bible-study"],
+    tables: ["bible_comments", "bible_favorites", "bible_highlights", "bible_interactions"],
+    securityHighlights: [
+      "RLS liberando favoritos e anotações isolados por auth.uid() = profile_id",
+      "Comentários de versículos comunitários auditados com proteção anti-spoofing",
+      "Rate limiting no PostgreSQL e autenticação JWT na rota /api/ai/bible-study"
+    ],
+    details: "Sistema exegético avançado que permite ao membro pesquisar passagens, destacar trechos e obter análises de contexto histórico e teológico."
+  },
+  {
+    id: "notifications",
+    title: "Central de Notificacoes",
+    category: "Alertas e Tempo Real",
+    icon: Bell,
+    summary: "Notificações em tempo real com mapeamento visual para 10+ tipos de eventos espirituais e sociais.",
+    routes: ["/notifications"],
+    tables: ["notifications"],
+    securityHighlights: [
+      "RPC get_my_notifications com JOIN em profiles e dados enriquecidos",
+      "RPC mark_all_notifications_as_read para limpeza em lote atômica",
+      "Políticas RLS com WITH CHECK (auth.uid() = recipient_id)"
+    ],
+    details: "Notificações reativas via canais Postgres Changes (INSERT/DELETE) com badges de alerta, avatares dos autores e redirecionamentos diretos."
+  },
+  {
+    id: "chat",
+    title: "Chat e Mensagens Diretas",
+    category: "Mensageria Privada",
+    icon: MessageSquare,
+    summary: "Sistema de bate-papo privado 1-a-1 com histórico em tempo real, status de leitura e envio de imagens comprimidas.",
+    routes: ["/messages", "/chat"],
+    tables: ["direct_messages", "messages"],
+    securityHighlights: [
+      "Eliminação de IDOR em get_my_conversations e get_chat_history",
+      "Políticas de SELECT restritas a auth.uid() = sender_id OR auth.uid() = receiver_id",
+      "Marcação atômica de mensagens lidas (markMessagesAsRead) no banco"
+    ],
+    details: "Comunicação interpessoal segura entre irmãos da fé com busca em tempo real, compressão de imagens em WebP e suporte ao menu inferior móvel."
+  },
+  {
+    id: "notes",
+    title: "Notas e Devocional",
+    category: "Devocionais e Anotacoes",
+    icon: FileText,
+    summary: "Diário pessoal de reflexões espirituais, notas bíblicas e devocionais diários com salvamento automático.",
+    routes: ["/notes", "/notas"],
+    tables: ["user_notes"],
+    securityHighlights: [
+      "RLS blindando privacidade estrita com checagem dupla (user_id e profile_id)",
+      "Leitura de notas privadas 100% isolada e liberação apenas de notas públicas",
+      "Compartilhamento seguro de notas e devocionais no feed comunitário"
+    ],
+    details: "Ambiente inspirador estilo Google Keep para registrar orações, revelações e devocionais diários com filtros por data, tags e favoritos."
+  },
+  {
+    id: "push_force",
+    title: "Forçar Notificação e Push Multicanal",
+    category: "Mensageria e Transmissao",
+    icon: Bell,
+    summary: "Console de transmissão para envio em massa e disparo forçado pontual para qualquer usuário ou ministério.",
+    routes: ["/admin/push", "/forcar-notificacao", "/admin/users"],
+    tables: ["notifications", "profiles", "system_errors"],
+    securityHighlights: [
+      "Disparo seguro via trigger PostgreSQL tr_invoke_send_push para Google Firebase Cloud Messaging",
+      "Prioridade 'high' e entrega simultânea no canal Supabase Realtime in-app",
+      "Templates rápidos auditáveis para Palavra do Dia, Comunicado Pastoral e Chamado de Oração"
+    ],
+    details: "Permite a administradores enviar notificações push e alertas in-app para qualquer membro ou grupo (roles, FéNamoro, individuais) sem dependência exclusiva de token FCM ativo."
+  },
+  {
+    id: "stories",
+    title: "Stories, Status e Destaques",
+    category: "Midia Efemera e Comunidade",
+    icon: Sparkles,
+    summary: "Ecossistema de publicação efêmera de 24 horas (fotos, vídeos, áudios e textos) com destaques perpétuos no perfil.",
+    routes: ["/stories", "/status"],
+    tables: ["stories", "story_views", "story_likes"],
+    securityHighlights: [
+      "Anti-spoofing em story_views com WITH CHECK (auth.uid() = viewer_id)",
+      "Privacidade absoluta da lista de visualizadores restrita exclusivamente ao autor do story",
+      "Expurgo nuclear de 12 políticas legadas duplicadas em story_likes"
+    ],
+    details: "Permite aos membros compartilhar momentos do dia, pedidos de oração em áudio e testemunhos com expiração automática em 24h e curadoria para destaques perpétuos no perfil."
+  },
+  {
+    id: "santuario",
+    title: "Lugar Secreto e Santuário",
+    category: "Devocional Profundo e Altar",
+    icon: Flame,
+    summary: "Espaço sagrado de trilhas guiadas de meditação, forjamento de jornadas por líderes verificados e Altar Digital.",
+    routes: ["/santuario", "/lugarsecreto", "/santuario/create"],
+    tables: ["sanctuary_journeys", "sanctuary_chapters", "sanctuary_progress"],
+    securityHighlights: [
+      "Criação de jornadas blindada no PostgreSQL restrita a perfis verificados (is_verified = true)",
+      "Isolamento do Altar Digital e progresso de leitura amarrados a auth.uid() = user_id",
+      "Expurgo de políticas RLS redundantes e suporte a rich text bíblico interativo"
+    ],
+    details: "Ambiente devocional imersivo onde líderes ministeriais forjam jornadas espirituais temáticas e os membros acendem chamas no seu Altar Digital pessoal a cada capítulo selado."
   }
+];
 
-  const isNord = themeMode === "nord";
-  const bgMain = isNord ? "bg-[#1e293b]" : "bg-[#0b1326]";
-  const bgSidebar = isNord ? "bg-[#0f172a]" : "bg-[#090f1e]";
-  const bgCard = isNord ? "bg-[#334155]/60" : "bg-[#131d33]/60";
-  const borderCol = isNord ? "border-[#475569]" : "border-[#1e293b]";
+export default function DocsPage() {
+  const [selectedSectionId, setSelectedSectionId] = useState<string>("tribo");
+  const [searchQuery, setSearchQuery] = useState<string>("");
+
+  const selectedSection = DOCS_DATA.find(d => d.id === selectedSectionId) || DOCS_DATA[0];
+
+  const filteredDocs = DOCS_DATA.filter(d => 
+    d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    d.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    d.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    d.tables.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
 
   return (
-    <div className={`min-h-screen w-full ${bgMain} text-[#dae2fd] font-sans antialiased flex flex-col selection:bg-[#00A884]/30 selection:text-white`}>
-      {/* Top Navbar Independente e Protegida */}
-      <header className={`h-16 w-full border-b ${borderCol} ${bgSidebar}/95 backdrop-blur-xl px-6 lg:px-10 flex items-center justify-between sticky top-0 z-50`}>
-        <div className="flex items-center gap-6">
-          <Link href="/admin" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00A884] to-[#007a5f] flex items-center justify-center text-black font-black text-lg shadow-[0_0_15px_rgba(0,168,132,0.4)] group-hover:scale-105 transition-transform">
-              F
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-white tracking-wide text-base">FéConecta</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#00A884]/15 text-[#00A884] border border-[#00A884]/30 font-semibold">Global Docs Portal</span>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#0b1326] text-[#dae2fd] font-sans antialiased flex flex-col">
+      {/* Top Header */}
+      <header className="border-b border-[#1e293b]/80 bg-[#090f1e]/90 backdrop-blur-md px-6 py-4 sticky top-0 z-30 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="p-2 hover:bg-white/5 rounded-xl transition-all text-gray-400 hover:text-white">
+            <ArrowLeft className="w-5 h-5" />
           </Link>
-
-          <span className="text-gray-600 hidden md:inline">/</span>
-
-          <div className="hidden md:flex items-center gap-2 text-xs font-medium text-[#94a3b8]">
-            <span className="flex items-center gap-1 text-[#00A884] font-mono">
-              <ShieldCheck className="w-3.5 h-3.5" /> Sessão Autenticada
-            </span>
-            <span>•</span>
-            <span className="text-[#38bdf8] font-mono">v1.8.4 (Build 35)</span>
+          <div>
+            <h1 className="text-lg font-black text-white flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+              FéConecta <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono border border-emerald-500/30">Docs de Engenharia</span>
+            </h1>
+            <p className="text-xs text-gray-400">Documentação de Arquitetura, Módulos e Segurança Nuclear</p>
           </div>
         </div>
 
-        {/* Right Actions & User Info */}
-        <div className="flex items-center gap-3">
-          {/* Theme Mode Toggle */}
-          <button
-            onClick={() => setThemeMode(themeMode === "dark" ? "nord" : "dark")}
-            className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-gray-300 transition-all text-xs flex items-center gap-1.5"
-            title="Alternar Tema Visual (Dark / Nord)"
-          >
-            {isNord ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-[#38bdf8]" />}
-          </button>
-
-          {/* User Badge */}
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-gray-300">
-            <User className="w-3.5 h-3.5 text-[#00A884]" />
-            <span className="max-w-[140px] truncate">{userEmail}</span>
+        <div className="flex items-center gap-4">
+          <div className="relative hidden sm:block w-72">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text"
+              placeholder="Buscar módulo, tabela ou rota..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-[#131d33] text-xs text-gray-200 pl-9 pr-3 py-2 rounded-xl border border-[#223150] focus:outline-none focus:border-emerald-400 placeholder-gray-500 transition-all"
+            />
           </div>
-
-          <Link
-            href="/admin"
-            className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 text-white transition-all"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" /> Admin
-          </Link>
-
-          <button
-            onClick={handleLogout}
-            className="p-2 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 text-red-400 transition-all text-xs flex items-center gap-1"
-            title="Sair da Conta"
-          >
-            <LogOut className="w-4 h-4" />
-          </button>
-
-          <button 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="lg:hidden p-2 rounded-lg bg-white/5 text-gray-300 hover:text-white"
-          >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
         </div>
       </header>
 
-      {/* Layout de 2 Colunas */}
+      {/* Main Content Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Sidebar Esquerda */}
-        <aside className={`w-72 shrink-0 border-r ${borderCol} ${bgSidebar} flex flex-col h-[calc(100vh-64px)] sticky top-16 z-30 transition-all ${
-          mobileMenuOpen ? "fixed inset-y-16 left-0 w-72" : "hidden lg:flex"
-        }`}>
-          {/* Busca na Documentação */}
-          <div className={`p-4 border-b ${borderCol}`}>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-[#64748b]" />
-              <input 
-                type="text"
-                placeholder="Filtrar APIs, erros, ADB..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-[#131d33] text-xs text-[#cbd5e1] pl-8 pr-3 py-2 rounded-lg border border-[#223150] focus:outline-none focus:border-[#00A884] placeholder-[#475569] transition-all"
-              />
-            </div>
+        {/* Sidebar Nav */}
+        <aside className="w-80 shrink-0 border-r border-[#1e293b]/70 bg-[#090f1e] overflow-y-auto p-4 space-y-1.5 hidden md:block">
+          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest text-gray-400">
+            Módulos do Sistema ({filteredDocs.length})
           </div>
 
-          {/* Menus Filtrados por Tema com Accordion Estilo Capgo */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-thin scrollbar-thumb-[#1e293b]">
-            {filteredNavItems.map((group, idx) => {
-              const isExpanded = expandedGroups[group.group] !== false;
-              return (
-                <div key={idx} className="rounded-xl overflow-hidden border border-white/5 bg-white/[0.02]">
-                  {/* Accordion Header */}
-                  <button
-                    onClick={() => toggleGroup(group.group)}
-                    className="w-full px-3 py-2.5 flex items-center justify-between text-left text-[12px] font-bold text-white hover:bg-white/5 transition-colors group"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#00A884]"></span>
-                      <span className="tracking-wide">{group.group}</span>
-                    </span>
-                    <span className="p-1 rounded-md text-[#64748b] group-hover:text-white transition-colors">
-                      {isExpanded ? (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      )}
-                    </span>
-                  </button>
-
-                  {/* Accordion Body (Sub-itens) */}
-                  {isExpanded && (
-                    <div className="p-1.5 pt-0 space-y-0.5 border-t border-white/[0.04]">
-                      {group.items.map((item) => {
-                        const isActive = activeSection === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              setActiveSection(item.id);
-                              setMobileMenuOpen(false);
-                            }}
-                            className={`w-full text-left pl-6 pr-3 py-1.5 rounded-lg text-xs font-medium transition-all flex items-center justify-between ${
-                              isActive
-                                ? "bg-[#00A884]/15 text-[#00A884] font-semibold border-l-2 border-[#00A884]"
-                                : "text-[#94a3b8] hover:text-white hover:bg-white/5"
-                            }`}
-                          >
-                            <span>{item.label}</span>
-                            {isActive && <span className="w-1.5 h-1.5 rounded-full bg-[#00A884]"></span>}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+          {filteredDocs.map((doc) => {
+            const Icon = doc.icon;
+            const isSelected = doc.id === selectedSection.id;
+            return (
+              <button
+                key={doc.id}
+                onClick={() => setSelectedSectionId(doc.id)}
+                className={cn(
+                  "w-full flex items-center justify-between p-3 rounded-2xl text-left transition-all text-xs font-semibold group",
+                  isSelected 
+                    ? "bg-gradient-to-r from-emerald-500/20 to-teal-500/10 border border-emerald-500/30 text-white shadow-lg shadow-emerald-950/30" 
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5 border border-transparent"
+                )}
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className={cn(
+                    "w-8 h-8 rounded-xl flex items-center justify-center transition-all shrink-0",
+                    isSelected ? "bg-emerald-500/30 text-emerald-300" : "bg-white/5 text-gray-400 group-hover:text-gray-200"
+                  )}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="truncate">
+                    <p className="font-bold truncate">{doc.title}</p>
+                    <p className="text-[10px] opacity-60 truncate">{doc.category}</p>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
+                <ChevronRight className={cn("w-4 h-4 transition-transform opacity-40 shrink-0", isSelected ? "text-emerald-400 translate-x-1 opacity-100" : "")} />
+              </button>
+            );
+          })}
 
-          {/* Status do App */}
-          <div className={`p-4 border-t ${borderCol} text-[11px] text-[#64748b] flex items-center justify-between bg-[#070c18]`}>
-            <span className="font-mono">Google Play Ready</span>
-            <span className="flex items-center gap-1 text-[#00A884]">
-              <span className="w-2 h-2 rounded-full bg-[#00A884] animate-pulse"></span> v1.8.4
-            </span>
+          <div className="pt-6 border-t border-[#1e293b]/60 mt-6 px-3">
+            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs">
+              <p className="font-bold text-emerald-300 flex items-center gap-1.5 mb-1">
+                <Database className="w-4 h-4" /> Banco na VPS
+              </p>
+              <p className="text-[11px] text-gray-300 leading-relaxed">
+                PostgreSQL gerenciado no host <strong>209.50.229.10</strong> com contêiner <code>ic-supabase-db</code> e RLS 100% blindado.
+              </p>
+            </div>
           </div>
         </aside>
 
-        {/* Conteúdo Central Scrollável */}
-        <main className={`flex-1 overflow-y-auto ${bgMain} p-6 lg:p-14 scroll-smooth`}>
-          <div className="max-w-4xl mx-auto space-y-14">
-            
-            {/* SECTION: OVERVIEW */}
-            {(activeSection === "overview" || searchQuery) && (
-              <section id="overview" className="space-y-6">
-                <div className={`border-b ${borderCol} pb-6`}>
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-2">
-                    <span>FÉCONECTA GLOBAL PLATFORM</span> / <span>ECOSSISTEMA CRISTÃO</span>
-                  </div>
-                  <h1 className="text-3xl lg:text-5xl font-bold text-white tracking-tight">
-                    Overview do Ecossistema FéConecta
-                  </h1>
-                  <p className="text-base text-[#94a3b8] mt-3 leading-relaxed">
-                    O <strong>FéConecta</strong> é uma plataforma SaaS e rede social cristã full-stack de alta disponibilidade. O ecossistema unifica <strong>Feed Social Realtime</strong>, o subsistema de streaming contínuo <strong>FéMusic</strong>, <strong>Gestão de Igrejas (Casas)</strong>, <strong>Salas de Guerra (Live Audio Rooms)</strong>, <strong>Bíblia Sagrada Digital</strong> e <strong>FéNamoro</strong>.
-                  </p>
+        {/* Main Doc Viewer */}
+        <main className="flex-1 overflow-y-auto p-6 sm:p-10 space-y-8 max-w-5xl mx-auto">
+          {/* Module Header Card */}
+          <div className="p-8 rounded-3xl bg-gradient-to-br from-[#131d33] to-[#0f172a] border border-[#223150] shadow-2xl relative overflow-hidden">
+            <div className="relative z-10 space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold">
+                <selectedSection.icon className="w-4 h-4" />
+                {selectedSection.category}
+              </div>
+              <h2 className="text-3xl font-black text-white">{selectedSection.title}</h2>
+              <p className="text-gray-300 text-sm leading-relaxed max-w-3xl">{selectedSection.summary}</p>
+            </div>
+            <selectedSection.icon className="absolute -right-6 -bottom-6 w-48 h-48 text-white/5 pointer-events-none" />
+          </div>
+
+          {/* Grid de Informações Técnicas */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Rotas */}
+            <div className="p-6 rounded-2xl bg-[#0f172a]/90 border border-[#1e293b] space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-emerald-400" /> Rotas no Front-End
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {selectedSection.routes.map(r => (
+                  <Link 
+                    key={r} 
+                    href={r.includes('[') ? '#' : r}
+                    className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-emerald-500/20 border border-white/10 hover:border-emerald-500/30 text-xs font-mono text-emerald-300 transition-all flex items-center gap-1.5"
+                  >
+                    {r} <ExternalLink className="w-3 h-3 opacity-60" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Tabelas no PostgreSQL */}
+            <div className="p-6 rounded-2xl bg-[#0f172a]/90 border border-[#1e293b] space-y-3">
+              <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 flex items-center gap-2">
+                <Database className="w-4 h-4 text-teal-400" /> Tabelas no PostgreSQL (VPS)
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {selectedSection.tables.map(t => (
+                  <span key={t} className="px-3 py-1.5 rounded-xl bg-[#1e293b]/70 border border-[#334155] text-xs font-mono text-gray-300">
+                    public.{t}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Blindagens de Segurança Nuclear */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#0d1527] border border-[#1e293b] space-y-4">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Lock className="w-5 h-5 text-emerald-400" /> Blindagem RLS & Segurança Nuclear
+            </h3>
+            <div className="space-y-3">
+              {selectedSection.securityHighlights.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3.5 rounded-2xl bg-white/5 border border-white/5 text-xs text-gray-200">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{item}</span>
                 </div>
+              ))}
+            </div>
+          </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">FEED & SOCIAL REALTIME</div>
-                    <div className="text-lg font-bold text-white mb-2">Supabase Engine</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Publicações multimídia, posteres de áudio com waveform orgânico, stories temporários de 24h e notificações instantâneas.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">STREAMING & ÁUDIO</div>
-                    <div className="text-lg font-bold text-white mb-2">FéMusic Engine</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Foreground Service nativo no Android, sincronização com Lockscreen/Bluetooth, catálogo resiliente SSR e API pública para terceiros.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">COMUNIDADE & EDIFICAÇÃO</div>
-                    <div className="text-lg font-bold text-white mb-2">Casas & Santuário</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Feeds exclusivos por igreja local, salas de oração simultânea com WebRTC, Bíblia com anotações e devocionais diários.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: ARCHITECTURE */}
-            {(activeSection === "architecture" || searchQuery) && (
-              <section id="architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Arquitetura Global Unificada
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Topologia do ecossistema integrando Next.js 14, Capacitor 6 no Android, Supabase Cloud e APIs REST públicas.
-                  </p>
-                </div>
-
-                <div className={`rounded-2xl bg-[#070c18] border ${borderCol} p-6 font-mono text-xs overflow-x-auto leading-relaxed text-[#dae2fd] shadow-2xl`}>
-                  <div className={`flex items-center justify-between pb-3 mb-4 border-b ${borderCol} text-xs text-[#64748b]`}>
-                    <span>TOPOLOGIA GERAL DO SISTEMA</span>
-                    <span className="text-[#00A884]">NEXT.JS 14 ➔ CAPACITOR ➔ SUPABASE CLOUD</span>
-                  </div>
-                  {`               ┌────────────────────────────────────────────────────────┐
-               │           FÉCONECTA CLIENT (Web & Android PWA)         │
-               └───────────┬────────────────────────────┬───────────────┘
-                           │                            │
-            ┌──────────────┴─────────────┐              │
-            ▼                            ▼              ▼
- ┌──────────────────────┐     ┌──────────────────────┐  ┌──────────────────────┐
- │  Feed Social Engine  │     │   FéMusic Engine     │  │  Igrejas & Comunidade│
- │ Posts, Áudio Posters │     │ Foreground Service   │  │ Feeds por Congregação│
- │ Stories, Realtime    │     │ Crossfade Dual Audio │  │ Salas de Guerra Live │
- └──────────┬───────────┘     └──────────┬───────────┘  └──────────┬───────────┘
-            │                            │                         │
-            └────────────────────────────┼─────────────────────────┘
-                                         │
-                                         ▼
-                     ┌───────────────────────────────────────┐
-                     │    Supabase Cloud + PostgreSQL + Auth │
-                     │  RLS Policies, Triggers & Realtime    │
-                     └───────────────────┬───────────────────┘
-                                         │
-                                         ▼
-                     ┌───────────────────────────────────────┐
-                     │   REST API v1 (/api/v1/femusic/*)     │
-                     │  CORS Aberto para Apps de Terceiros   │
-                     └───────────────────────────────────────┘`}
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: MODULES MAP */}
-            {(activeSection === "modules-map" || searchQuery) && (
-              <section id="modules-map" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Mapa de Módulos Globais
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Resumo dos principais módulos operacionais do ecossistema FéConecta.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
-                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#00A884]"></span> 1. Feed Principal & Mídias
-                    </h3>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Renderização de posts de texto curto com cartões coloridos, versículos do dia com referência bíblica inteligente, e posteres de áudio com equalizador orgânico.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
-                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-[#38bdf8]"></span> 2. FéMusic & API Aberta
-                    </h3>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Streaming de louvores com busca resiliente SSR, playlists e sessões de oração, controles na tela de bloqueio e API REST v1 para integrações externas.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
-                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-amber-500"></span> 3. Bíblia & Santuário
-                    </h3>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Texto sagrado offline com anotações de estudo, leitor de versículo diário e Lugar Secreto (Jornadas devocionais guiadas).
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
-                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-                      <span className="w-2 h-2 rounded-full bg-pink-500"></span> 4. Casas (Igrejas) & FéNamoro
-                    </h3>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Módulo de membros e liderança eclesiástica, além de SSO seguro e integrado para conexões cristãs com propósito.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: CORE CAPABILITIES */}
-            {(activeSection === "capabilities" || searchQuery) && (
-              <section id="capabilities" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Core Capabilities
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Principais primitivas operacionais fornecidas pelo ecossistema do FéMusic.
-                  </p>
-                </div>
-
-                <ul className="space-y-3 text-sm text-[#cbd5e1]">
-                  <li className={`flex items-start gap-3 p-4 rounded-xl ${bgCard} border ${borderCol}`}>
-                    <code className="text-[#38bdf8] font-mono text-xs px-2 py-1 rounded bg-[#38bdf8]/10 border border-[#38bdf8]/20 shrink-0 mt-0.5">setMetadata</code>
-                    <span>Envia título, artista, álbum e capa (JPEG HTTPS) para o sistema operacional desenhar a notificação nativa.</span>
-                  </li>
-                  <li className={`flex items-start gap-3 p-4 rounded-xl ${bgCard} border ${borderCol}`}>
-                    <code className="text-[#38bdf8] font-mono text-xs px-2 py-1 rounded bg-[#38bdf8]/10 border border-[#38bdf8]/20 shrink-0 mt-0.5">setPlaybackState</code>
-                    <span>Sincroniza os estados <code className="text-xs text-white">playing</code>, <code className="text-xs text-white">paused</code> e <code className="text-xs text-white">none</code> com a Lockscreen do dispositivo.</span>
-                  </li>
-                  <li className={`flex items-start gap-3 p-4 rounded-xl ${bgCard} border ${borderCol}`}>
-                    <code className="text-[#38bdf8] font-mono text-xs px-2 py-1 rounded bg-[#38bdf8]/10 border border-[#38bdf8]/20 shrink-0 mt-0.5">setActionHandler</code>
-                    <span>Conecta os botões físicos de fones de ouvido (Bluetooth/cabo) e botões da barra de status ao player.</span>
-                  </li>
-                  <li className={`flex items-start gap-3 p-4 rounded-xl ${bgCard} border ${borderCol}`}>
-                    <code className="text-[#38bdf8] font-mono text-xs px-2 py-1 rounded bg-[#38bdf8]/10 border border-[#38bdf8]/20 shrink-0 mt-0.5">setPositionState</code>
-                    <span>Despacha a duração e o timestamp corrente da barra de progresso com throttle inteligente de 1000ms.</span>
-                  </li>
-                </ul>
-              </section>
-            )}
-
-            {/* SECTION: PUBLIC API REFERENCE */}
-            {(activeSection === "public-api" || searchQuery) && (
-              <section id="public-api" className={`space-y-8 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
-                    <span>REST API V1</span> / <span>INTEGRAÇÃO COM TERCEIROS</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Public API Reference (Terceiros & Apps Externos)
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
-                    Endpoints REST públicos com suporte nativo a <strong>CORS (*), Embed HTML5 e metadados completos</strong> para você integrar o catálogo e reprodução do FéMusic em aplicativos parceiros, bots, sites ou sistemas externos.
-                  </p>
-                </div>
-
-                {/* Tabela de Endpoints REST */}
-                <div className={`overflow-x-auto rounded-2xl border ${borderCol} bg-[#090f1e] shadow-xl`}>
-                  <table className="w-full text-left text-xs">
-                    <thead className={`bg-[#131d33]/80 border-b ${borderCol} text-[#94a3b8] font-mono uppercase`}>
-                      <tr>
-                        <th className="py-3.5 px-4">Método & Rota</th>
-                        <th className="py-3.5 px-4">Parâmetros</th>
-                        <th className="py-3.5 px-4">Retorno</th>
-                        <th className="py-3.5 px-4">Uso / Descrição</th>
-                      </tr>
-                    </thead>
-                    <tbody className={`divide-y ${borderCol} text-[#cbd5e1]`}>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#38bdf8]">
-                          <span className="px-1.5 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] mr-2">GET</span>
-                          /api/v1/femusic/search
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">?q=termo&limit=20</td>
-                        <td className="py-3.5 px-4 font-mono text-[#00A884]">JSON &#123; results: [] &#125;</td>
-                        <td className="py-3.5 px-4">Busca universal de músicas e louvores em tempo real com stream e embed.</td>
-                      </tr>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#38bdf8]">
-                          <span className="px-1.5 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] mr-2">GET</span>
-                          /api/v1/femusic/sessions
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">?id=adoracao-30 (opcional)</td>
-                        <td className="py-3.5 px-4 font-mono text-[#00A884]">JSON &#123; sessions: [] &#125;</td>
-                        <td className="py-3.5 px-4">Retorna as playlists e sessões curadas de oração, louvor e devocionais.</td>
-                      </tr>
-                      <tr className="hover:bg-white/5 transition-colors">
-                        <td className="py-3.5 px-4 font-mono font-bold text-[#38bdf8]">
-                          <span className="px-1.5 py-0.5 rounded bg-[#38bdf8]/15 text-[#38bdf8] mr-2">GET</span>
-                          /api/v1/femusic/track
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-[#94a3b8]">?id=VIDEO_ID</td>
-                        <td className="py-3.5 px-4 font-mono text-[#00A884]">JSON &#123; id, artwork, urls &#125;</td>
-                        <td className="py-3.5 px-4">Resolve metadados, capas HD e URLs de player prontas para incorporação.</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Exemplo Prático de Consumo */}
-                <div className="rounded-2xl bg-[#070c18] border border-[#1e293b] overflow-hidden">
-                  <div className="px-4 py-3 bg-[#131d33]/60 border-b border-[#1e293b] flex items-center justify-between text-xs">
-                    <span className="font-semibold text-white flex items-center gap-2">
-                      <Terminal className="w-3.5 h-3.5 text-[#38bdf8]" />
-                      Exemplo de Chamada Externa (cURL / Fetch / Axios)
-                    </span>
-                    <button
-                      onClick={() => copyToClipboard('curl "https://newfeconecta.vercel.app/api/v1/femusic/search?q=Gabriela+Rocha&limit=5"', 'api-curl')}
-                      className="flex items-center gap-1 text-[11px] font-mono text-[#94a3b8] hover:text-white transition-colors"
-                    >
-                      {copiedCode === 'api-curl' ? <Check className="w-3.5 h-3.5 text-[#00A884]" /> : <Copy className="w-3.5 h-3.5" />}
-                      <span>Copiar cURL</span>
-                    </button>
-                  </div>
-                  <div className="p-4 font-mono text-xs text-[#38bdf8] overflow-x-auto select-all">
-                    curl &quot;https://newfeconecta.vercel.app/api/v1/femusic/search?q=Gabriela+Rocha&amp;limit=5&quot;
-                  </div>
-                  <div className="p-4 bg-[#090f1e] border-t border-[#1e293b]/40 font-mono text-[11px] text-[#94a3b8] space-y-1">
-                    <div className="text-white font-bold text-xs mb-1">Exemplo de Payload de Resposta (200 OK):</div>
-                    <pre className="text-[#a5b4fc] overflow-x-auto text-[11px] leading-relaxed">
-{`{
-  "status": "success",
-  "query": "Gabriela Rocha",
-  "total": 5,
-  "results": [
-    {
-      "id": "abc123xyz",
-      "providerTrackId": "abc123xyz",
-      "title": "Lugar Secreto - Gabriela Rocha (Ao Vivo)",
-      "artist": "Gabriela Rocha",
-      "duration": 284,
-      "durationFormatted": "4:44",
-      "coverUrl": "https://i.ytimg.com/vi/abc123xyz/hqdefault.jpg",
-      "embedUrl": "https://www.youtube-nocookie.com/embed/abc123xyz?autoplay=1",
-      "source": "youtube"
-    }
-  ]
-}`}
-                    </pre>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: CHAT & DIRECT MESSAGES */}
-            {(activeSection === "chat-architecture" || activeSection === "chat-resilience" || searchQuery) && (
-              <section id="chat-architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
-                    <span>MENSAGERIA & REALTIME</span> / <span>CHAT DIRETO</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <MessageSquare className="w-6 h-6 text-whatsapp-green" />
-                    Chat & Mensagens Diretas (`/messages`)
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
-                    Subsistema de comunicação privada ponto a ponto entre usuários do FéConecta. Suporta envio de texto, mídias de chat, status de leitura em tempo real e fallback resiliente.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">RESILIÊNCIA DUAL</div>
-                    <div className="text-lg font-bold text-white mb-2">RPC + Direct Fallback</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Se as RPCs personalizadas do PostgreSQL falharem, o hook <code className="text-[#38bdf8]">useChat.ts</code> executa consulta direta otimizada na tabela <code className="text-[#38bdf8]">direct_messages</code>.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">REALTIME INSTANTÂNEO</div>
-                    <div className="text-lg font-bold text-white mb-2">Postgres Changes</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Canais dinâmicos por conversa ativa transmitem inserções, exclusões e recibos de leitura com atualização imediata de estado.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">INTEGRAÇÃO GLOBAL</div>
-                    <div className="text-lg font-bold text-white mb-2">Pontos de Entrada</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Acessível diretamente pelo Top Navbar, menu do Feed, botão flutuante em perfis e menu contextual de qualquer publicação.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: PERFIL & IDENTIDADE */}
-            {(activeSection === "profile-architecture" || activeSection === "profile-sync" || searchQuery) && (
-              <section id="profile-architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
-                    <span>IDENTIDADE & CONEXÕES</span> / <span>MOTOR DE PERFIL</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <User className="w-6 h-6 text-[#38bdf8]" />
-                    Perfil Unificado & Gestão de Identidade (`/profile`)
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
-                    Motor de alta performance com agregação de posts, lumes (vídeos), curtidas, destaques de stories, conexões de seguidores/seguindo e edição de avatar/banner com cropper nativo.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">CACHE INTELIGENTE SWR</div>
-                    <div className="text-lg font-bold text-white mb-2">Zero Spam & Fast-Hydrate</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Cache local de 5 minutos com deduping automático e hidratação instantânea via <code className="text-[#38bdf8]">localStorage('fc_profile_cache')</code>.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">RESILIÊNCIA DE DADOS</div>
-                    <div className="text-lg font-bold text-white mb-2">RPC + Direct Fallback</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Fallback automático para consultas diretas nas tabelas <code className="text-[#38bdf8]">profiles</code>, <code className="text-[#38bdf8]">posts</code> e <code className="text-[#38bdf8]">follows</code> se a RPC falhar.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">ATUALIZAÇÃO OTIMISTA</div>
-                    <div className="text-lg font-bold text-white mb-2">Follows & Mídias</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Alternância instantânea do estado de "Seguindo" sem flicker visual, sincronizado globalmente com canais Realtime do Postgres.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: RADAR DE PRESENÇA */}
-            {(activeSection === "radar-architecture" || activeSection === "radar-realtime" || searchQuery) && (
-              <section id="radar-architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-1">
-                    <span>PRESENÇA EM TEMPO REAL</span> / <span>RADAR DE USUÁRIOS</span>
-                  </div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <Smartphone className="w-6 h-6 text-whatsapp-green" />
-                    Radar de Presença & Usuários Online
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2 leading-relaxed">
-                    Motor de monitoramento de usuários ativos com duplo canal de heartbeat: sincronização contínua via Supabase Presence Channel e registro periódico de timestamp (<code className="text-[#38bdf8]">updated_at</code>).
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">PRESENCE CHANNEL</div>
-                    <div className="text-lg font-bold text-white mb-2">WebSockets Instantâneos</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Conexão em tempo real (<code className="text-[#38bdf8]">presence_online_users</code>) que rastreia conexões ativas com evento <code className="text-[#38bdf8]">sync</code> sem sobrecarga no PostgreSQL.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">HEARTBEAT CONTÍNUO</div>
-                    <div className="text-lg font-bold text-white mb-2">3-Min Pulse Engine</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Intervalo automático de atualização em segundo plano que renova o <code className="text-[#38bdf8]">updated_at</code> no banco de dados para alimentar os painéis analíticos do Dashboard.
-                    </p>
-                  </div>
-
-                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">RADAR VISUAL</div>
-                    <div className="text-lg font-bold text-white mb-2">Admin & Feed Widgets</div>
-                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Exibição com anéis de pulso verde nos avatares no Painel Admin (<code className="text-[#38bdf8]">/admin</code> e <code className="text-[#38bdf8]">/admin/users</code>) e nos contatos diretos do Feed.
-                    </p>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: POST-MORTEM & BUG HISTORY */}
-            {(activeSection === "postmortem" || searchQuery) && (
-              <section id="postmortem" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <ShieldAlert className="w-6 h-6 text-amber-500" />
-                    Post-Mortem & Bug History
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Registro histórico de falhas críticas resolvidas e suas causas raízes no ambiente Android/Capacitor.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {[
-                    {
-                      code: "ERR_FOREGROUND_BOOT_RACE",
-                      title: "1. Notificação nunca aparecia no Boot (Race Condition de Threads)",
-                      cause: "No plugin Java, o MediaSessionService era instanciado apenas após o primeiro setPlaybackState('playing'). O método bindService() é assíncrono, descartando a notificação.",
-                      resolution: "Configuração obrigatória de foregroundService: 'always' no capacitor.config.ts + declaração do serviço no AndroidManifest.xml.",
-                      level: "CRITICAL"
-                    },
-                    {
-                      code: "ERR_CALLBACK_ID_DANGLING",
-                      title: "2. Botões sumiam na Lockscreen ao navegar entre telas",
-                      cause: "Navegações no Next.js faziam o Capacitor cancelar promises antigas. Travas com useRef impediam o re-registro dos botões no Java nativo.",
-                      resolution: "Remoção de referências estáticas. Handlers são re-registrados a cada montagem do hook useMediaSession.",
-                      level: "CRITICAL"
-                    },
-                    {
-                      code: "ERR_IO_ARTWORK_BITMAP",
-                      title: "3. Abort silencioso no setMetadata por formato de capa",
-                      cause: "O plugin Java tentava fazer download síncrono da imagem. URLs WebP ou DataURIs quebravam o decoder com IOException não tratada.",
-                      resolution: "Garantia de URL única em formato JPEG via HTTPS e isolamento do bloco de setMetadata.",
-                      level: "HIGH"
-                    },
-                    {
-                      code: "ERR_YOUTUBE_429_QUOTA",
-                      title: "4. Buscas retornando vazias por estouro da cota diária",
-                      cause: "A cota gratuita da API YouTube v3 (100 buscas/dia) atingia limite de cota 429.",
-                      resolution: "Criação do endpoint SSR /api/music/search com extração serverless em tempo real.",
-                      level: "CRITICAL"
-                    },
-                    {
-                      code: "ERR_LIKES_ID_MISMATCH",
-                      title: "5. Inconsistência ao favoritar músicas e botão de Like",
-                      cause: "IDs de faixas alternavam entre track.id e track.providerTrackId nos retornos da API.",
-                      resolution: "Normalização do identificador para (t.providerTrackId || t.id) === currentId no store e Supabase.",
-                      level: "MEDIUM"
-                    },
-                  ].map((item, idx) => (
-                    <div key={idx} className={`p-5 rounded-2xl bg-[#090f1e] border ${borderCol} space-y-3 shadow-md`}>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs text-[#00A884] font-bold">{item.code}</span>
-                          <span className="text-white font-semibold text-sm">{item.title}</span>
-                        </div>
-                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
-                          item.level === "CRITICAL" ? "bg-red-500/20 text-red-400 border border-red-500/30" :
-                          item.level === "HIGH" ? "bg-amber-500/20 text-amber-400 border border-amber-500/30" :
-                          "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                        }`}>
-                          {item.level}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#94a3b8] leading-relaxed">
-                        <strong className="text-white">Causa Raiz:</strong> {item.cause}
-                      </p>
-                      <div className="p-3 rounded-xl bg-[#00A884]/10 border border-[#00A884]/20 text-xs text-[#5eead4]">
-                        <strong>Correção de Engenharia:</strong> {item.resolution}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: REGRAS DE OURO */}
-            {(activeSection === "rules" || searchQuery) && (
-              <section id="rules" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <Sparkles className="w-6 h-6 text-[#00A884]" />
-                    Regras de Ouro (Invioláveis)
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Diretrizes arquiteturais que impedem quebras de compatibilidade em produção.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {[
-                    {
-                      rule: "1. Nunca remova disableRemotePlayback das tags <audio>",
-                      desc: "Evita que a WebView do Android instancie uma MediaSession web paralela que conflita com o serviço Java nativo."
-                    },
-                    {
-                      rule: "2. Sempre normalize identificadores com (providerTrackId || id)",
-                      desc: "Garante integridade entre buscas, playlists estáticas, histórico e tabela de curtidas do Supabase."
-                    },
-                    {
-                      rule: "3. Nunca use history.pushState ao expandir o FullscreenPlayer",
-                      desc: "Alterar o histórico de rotas da WebView no Android reseta o foco de áudio e destrói a notificação."
-                    },
-                    {
-                      rule: "4. Mantenha o fallback /api/music/search sempre ativo",
-                      desc: "Protege o catálogo contra esgotamento de chaves ou bloqueios de rede externos."
-                    },
-                  ].map((item, idx) => (
-                    <div key={idx} className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-md`}>
-                      <h4 className="text-xs font-bold text-white mb-2">{item.rule}</h4>
-                      <p className="text-xs text-[#8e9ab8] leading-relaxed">{item.desc}</p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* SECTION: TROUBLESHOOTING & CLI */}
-            {(activeSection === "troubleshooting" || searchQuery) && (
-              <section id="troubleshooting" className={`space-y-6 pt-6 border-t ${borderCol}`}>
-                <div>
-                  <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                    <Terminal className="w-6 h-6 text-[#38bdf8]" />
-                    Troubleshooting & CLI (Procedimentos ADB)
-                  </h2>
-                  <p className="text-sm text-[#94a3b8] mt-2">
-                    Comandos de terminal para depuração em tempo real no dispositivo Android conectado.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  {[
-                    {
-                      id: "cmd1",
-                      label: "1. Testar Scraper SSR Serverless Localmente",
-                      cmd: 'curl "http://localhost:3000/api/music/search?q=gospel&limit=5"',
-                      help: "Deve retornar JSON com status 200 contendo a lista de faixas extraídas com sucesso."
-                    },
-                    {
-                      id: "cmd2",
-                      label: "2. Filtrar Logs de MediaSession via ADB Logcat",
-                      cmd: 'adb logcat -d | findstr /i "MediaSession [MS] AudioTrack"',
-                      help: "Procure por '[MS] Handlers OK' e '[MS] PlaybackState OK'. Se houver IOException, a capa da faixa está com erro."
-                    },
-                    {
-                      id: "cmd3",
-                      label: "3. Inspecionar se o Serviço Java está Ativo no Android",
-                      cmd: 'adb shell dumpsys activity services | findstr "MediaSessionService"',
-                      help: "Confirma se o Foreground Service nativo está vinculado e com prioridade de execução."
-                    },
-                    {
-                      id: "cmd4",
-                      label: "4. Compilar Pacote AAB de Produção (Play Store)",
-                      cmd: 'cd apps/admin; npx cap sync android; cd android; .\\gradlew bundleRelease',
-                      help: "Gera o arquivo assinado em: android/app/build/outputs/bundle/release/app-release.aab"
-                    },
-                  ].map((item) => (
-                    <div key={item.id} className={`rounded-2xl bg-[#070c18] border ${borderCol} overflow-hidden shadow-lg`}>
-                      <div className={`flex items-center justify-between px-4 py-3 bg-[#131d33]/60 border-b ${borderCol} text-xs`}>
-                        <span className="font-semibold text-white">{item.label}</span>
-                        <button
-                          onClick={() => copyToClipboard(item.cmd, item.id)}
-                          className="flex items-center gap-1.5 text-[11px] font-mono text-[#94a3b8] hover:text-white px-2.5 py-1 rounded bg-white/5 border border-white/10 transition-colors"
-                        >
-                          {copiedCode === item.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-[#00A884]" />
-                              <span className="text-[#00A884] font-bold">Copiado!</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copiar</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <div className="p-4 font-mono text-xs text-[#38bdf8] overflow-x-auto select-all">
-                        {item.cmd}
-                      </div>
-                      <div className={`px-4 py-2.5 bg-[#0b1326] border-t ${borderCol} text-[11px] text-[#64748b]`}>
-                        {item.help}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
+          {/* Detalhes de Engenharia */}
+          <div className="p-6 sm:p-8 rounded-3xl bg-[#0f172a]/90 border border-[#1e293b] space-y-3">
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-teal-400" /> Detalhamento de Engenharia
+            </h3>
+            <p className="text-sm text-gray-300 leading-relaxed">
+              {selectedSection.details}
+            </p>
           </div>
         </main>
       </div>

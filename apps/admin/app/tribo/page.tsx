@@ -281,9 +281,27 @@ function TriboContent() {
     }
   };
 
-  if (reels.length === 0) return (
+  if (isLoading && reels.length === 0) return (
     <div className="fixed inset-0 flex items-center justify-center bg-black">
       <div className="w-12 h-12 border-4 border-whatsapp-green/20 border-t-whatsapp-green rounded-full animate-spin" />
+    </div>
+  );
+
+  if (!isLoading && reels.length === 0) return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center bg-black text-white px-6 text-center space-y-4">
+      <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+        <Flame className="w-8 h-8 text-whatsapp-green" />
+      </div>
+      <h2 className="text-xl font-bold">Nenhum vídeo na Tribo ainda</h2>
+      <p className="text-sm text-gray-400 max-w-xs">
+        Seja o primeiro a publicar um vídeo curto ou volte para o feed principal para ver mais publicações.
+      </p>
+      <Link
+        href="/"
+        className="px-6 py-2.5 rounded-full bg-whatsapp-green text-black font-bold text-sm hover:bg-whatsapp-greenLight transition-all active:scale-95 shadow-lg"
+      >
+        Voltar ao Feed
+      </Link>
     </div>
   );
 
@@ -294,6 +312,7 @@ function TriboContent() {
         className="h-full overflow-y-scroll snap-y snap-mandatory no-scrollbar relative w-full sm:max-w-[450px] bg-black sm:border-x sm:border-white/5"
         style={{ scrollbarWidth: 'none' }}
       >
+
         {reels.map((reel, idx) => {
           return (
             <div

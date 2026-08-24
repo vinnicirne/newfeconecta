@@ -37,9 +37,9 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
           let isLiked = false, isSaved = false, isReposted = false;
           if (userId) {
             const [likeRes, saveRes, repostRes] = await Promise.all([
-              supabase.from('post_likes').select('user_id').eq('post_id', specificData.id).eq('user_id', userId).maybeSingle(),
-              supabase.from('saved_posts').select('user_id').eq('post_id', specificData.id).eq('user_id', userId).maybeSingle(),
-              supabase.from('reposts').select('user_id').eq('post_id', specificData.id).eq('user_id', userId).maybeSingle()
+              supabase.from('post_likes').select('id').eq('post_id', specificData.id).or(`profile_id.eq.${userId},user_id.eq.${userId}`).maybeSingle(),
+              supabase.from('saved_posts').select('id').eq('post_id', specificData.id).or(`profile_id.eq.${userId},user_id.eq.${userId}`).maybeSingle(),
+              supabase.from('reposts').select('id').eq('post_id', specificData.id).or(`profile_id.eq.${userId},user_id.eq.${userId}`).maybeSingle()
             ]);
             isLiked = !!likeRes.data;
             isSaved = !!saveRes.data;
@@ -48,6 +48,7 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
 
           const formattedSpecific = {
             ...specificData,
+            author_id: authorProfile?.id || specificData.author_id,
             author_name: authorProfile?.full_name || authorProfile?.username || 'Usuário',
             author_username: authorProfile?.username || 'user',
             author_avatar: authorProfile?.avatar_url || null,
@@ -82,7 +83,7 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
   useEffect(() => {
     if (!currentUserId) return;
 
-    // Realtime: Ouve novos vídeos (Lumes)
+    // Realtime: Ouve novos vídeos (Lumes / Tribo)
     const channel = supabase
       .channel('tribo_realtime')
       .on('postgres_changes', { 
@@ -100,7 +101,10 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
 
         const enrichedNew = { 
           ...payload.new, 
-          author,
+          author_id: author?.id || payload.new.author_id,
+          author_name: author?.full_name || author?.username || 'Usuário',
+          author_username: author?.username || 'user',
+          author_avatar: author?.avatar_url || null,
           is_liked: false,
           is_reposted: false,
           is_saved: false
@@ -116,6 +120,7 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
 
     return () => { supabase.removeChannel(channel); };
   }, [currentUserId, mutate]);
+
 
   return {
     reels,

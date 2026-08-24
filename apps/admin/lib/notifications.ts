@@ -54,6 +54,8 @@ export const NotificationService = {
       const { data, error } = await supabase.from('notifications').insert({
         recipient_id: recipientId,
         sender_id: senderId,
+        profile_id: recipientId,
+        user_id: senderId,
         type,
         post_id: postId,
         story_id: storyId,

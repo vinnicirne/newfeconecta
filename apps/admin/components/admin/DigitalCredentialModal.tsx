@@ -49,11 +49,17 @@ export function DigitalCredentialModal({ isOpen, onClose, user }: DigitalCredent
             <div className="flex-1 flex flex-col items-center px-8">
               <div className="relative mb-6">
                 <div className="w-32 h-32 rounded-[32px] border-4 border-[#222] overflow-hidden bg-[#222] shadow-2xl relative z-10">
-                  <img 
-                    src={user.avatar_url || "https://github.com/shadcn.png"} 
-                    className="w-full h-full object-cover" 
-                    alt={user.full_name} 
-                  />
+                  {user.avatar_url ? (
+                    <img 
+                      src={user.avatar_url} 
+                      className="w-full h-full object-cover" 
+                      alt={user.full_name} 
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-white font-black text-4xl uppercase">
+                      {(user.full_name || user.username || "U")[0]}
+                    </div>
+                  )}
                 </div>
                 {/* Decorative frames */}
                 <div className="absolute -inset-2 border border-whatsapp-teal/30 rounded-[40px] opacity-50" />

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import useSWR from 'swr';
+import { getStoredProfile, setStoredProfile } from '@/lib/profile-cache';
 
 export function useUserProfile(userId: string | null) {
   const { data, mutate, error, isValidating } = useSWR(
@@ -13,10 +14,7 @@ export function useUserProfile(userId: string | null) {
         });
 
         if (!rpcError && rpcData?.profile) {
-          localStorage.setItem('fc_profile_cache', JSON.stringify({
-            data: rpcData.profile,
-            timestamp: Date.now()
-          }));
+          setStoredProfile(rpcData.profile);
           return rpcData;
         }
       } catch (rpcErr) {
@@ -35,8 +33,8 @@ export function useUserProfile(userId: string | null) {
 
         const [postsRes, likedRes, savedRes] = await Promise.all([
           supabase.from('posts').select('*').or(`author_id.eq.${userId},user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50),
-          supabase.from('likes').select('post:posts(*)').eq('user_id', userId).limit(50),
-          supabase.from('saved_posts').select('post:posts(*)').eq('user_id', userId).limit(50)
+          supabase.from('post_likes').select('post:posts(*)').or(`user_id.eq.${userId},profile_id.eq.${userId}`).limit(50),
+          supabase.from('saved_posts').select('post:posts(*)').or(`user_id.eq.${userId},profile_id.eq.${userId}`).limit(50)
         ]);
 
         const fallbackPayload = {
@@ -48,10 +46,7 @@ export function useUserProfile(userId: string | null) {
           highlights: []
         };
 
-        localStorage.setItem('fc_profile_cache', JSON.stringify({
-          data: profile,
-          timestamp: Date.now()
-        }));
+        setStoredProfile(profile);
 
         return fallbackPayload;
       } catch (fallbackErr) {
@@ -63,19 +58,9 @@ export function useUserProfile(userId: string | null) {
       revalidateOnFocus: false,
       dedupingInterval: 60000,
       fallbackData: (() => {
-        // Hydration segura: Só usa o cache se o ID bater
-        if (typeof window === 'undefined') return undefined;
-        const cachedStr = localStorage.getItem('fc_profile_cache');
-        if (cachedStr) {
-          try {
-            const cached = JSON.parse(cachedStr);
-            // TTL de 24 horas (86400000 ms)
-            if (cached.timestamp && (Date.now() - cached.timestamp < 86400000)) {
-              return { profile: cached.data };
-            } else {
-              localStorage.removeItem('fc_profile_cache');
-            }
-          } catch (e) { return undefined; }
+        const cached = getStoredProfile();
+        if (cached && (!userId || cached.id === userId)) {
+          return { profile: cached };
         }
         return undefined;
       })()

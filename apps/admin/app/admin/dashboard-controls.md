@@ -605,3 +605,335 @@
   - **Ecossistema:** Criado um banner interativo (estilo card luminoso) para o FéNamoro no corpo do menu, puxando tráfego.
   - **Footer Institucional:** Links burocráticos foram compactados numa tabela minimalista (2 colunas) no rodapé do menu.
 - **Impacto:** Menu responsivo que cabe em qualquer tela sem cortes, além de apresentar um design altamente modular e gamificado semelhante ao padrão Facebook/Meta.
+
+## 75. Deep Clean Nuclear — Blindagem de Segurança & RLS (Módulo Tribos e Ações Sociais)
+- **Arquivos:** `supabase/migrations/20260824_tribo_security_hardening.sql`, `app/tribo/page.tsx`, `hooks/useTribo.ts`, `lib/notifications.ts`
+- **Problema:** 
+  - **Vulnerabilidade de IDOR nas RPCs:** As funções atômicas `toggle_like` e `toggle_follow` aceitavam os parâmetros de autoria (`p_profile_id` e `p_follower_id`) diretamente do cliente sem conferir o token JWT (`auth.uid()`), abrindo brecha para que qualquer usuário autenticado manipulasse curtidas e seguisse perfis forjando a identidade de terceiros.
+  - **Brecha de RLS Permissiva:** Tabelas `reposts`, `saved_posts`, `post_likes` e `follows` continham políticas de inserção com `WITH CHECK (auth.role() = 'authenticated')` sem validar se o `user_id` / `profile_id` pertencia de fato ao usuário da sessão, além de cláusulas `DELETE` antigas com UUIDs hardcoded.
+  - **Spoofing em Notificações:** Ausência de trava estrita `auth.uid() = sender_id` permitia que notificações fossem enviadas em nome de outros membros.
+- **Ações:** 
+  - ✅ **Blindagem Atômica das RPCs:** Atualizadas `toggle_like` e `toggle_follow` com resolução forçada de `v_caller_id := auth.uid()` sob `SECURITY DEFINER` e `search_path = public, pg_temp`, além de trava contra auto-seguimento (`follower_id != following_id`).
+  - ✅ **Expurgo e Recriação das Políticas RLS:** Aplicadas políticas restritivas com verificação de identidade em `reposts`, `saved_posts`, `post_likes`, `follows` e `notifications`, eliminando privilégios indevidos e regras legadas.
+  - ✅ **Otimização do RPC get_tribo_reels:** Implementada resolução segura do viewer autenticado e suporte unificado a vídeos nativos e `external_media` com query indexada.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso no contêiner `ic-supabase-db` do Supabase na VPS de produção (`209.50.229.10`).
+- **Impacto:** Segurança e integridade de dados 100% blindadas contra IDOR, falsificação de identidade e vazamentos no módulo de Tribos e interações sociais.
+
+## 76. Deep Clean Nuclear — Blindagem de Segurança, RLS & Limpeza Estrutural (Módulo FéMusic / `/music`)
+- **Arquivos:** `supabase/migrations/20260824_femusic_security_hardening.sql`, `modules/femusic/*`, `app/music/*`
+- **Problemas Encontrados:** 
+  - **Tabela Inexistente de Favoritos (`music_likes`):** O hook `usePlayerStore.ts` tentava sincronizar as músicas curtidas com `supabase.from('music_likes')`, mas a tabela nunca havia sido criada no PostgreSQL da VPS, causando erros 404 silenciosos a cada tentativa de favoritar faixas.
+  - **Brecha Crítica de Modificação de Comentários:** A tabela `music_track_comments` continha a política `music_comments_update_likes` configurada com `UPDATE USING (true) WITH CHECK (true)`, permitindo que qualquer pessoa (mesmo anônima) pudesse adulterar ou reescrever o texto de qualquer comentário de louvor.
+  - **Vulnerabilidade de IDOR em Posts e Comentários:** As tabelas `music_posts` e `music_track_comments` continham políticas duplicadas `WITH CHECK (auth.role() = 'authenticated')`, permitindo que um usuário autenticado publicasse ou comentasse forjando o `user_id` de outro membro.
+  - **Ausência de RLS no Cache de Mídia:** A tabela `femusic_cache` estava com `rowsecurity` desabilitada (`false`) com permissões abertas para `anon`.
+  - **Mocks e Lixo Digital em `/music/discover`:** Tela continha contadores falsos estáticos (`12k`, `348`, `1k`), avatar com dependência de CDN externa `picsum.photos` e ausência de ação real de reprodução de áudio.
+  - **Dependência de Placeholder Externo no MiniPlayer:** Uso de `via.placeholder.com/150` no `MiniPlayer.tsx` criava dependência de requisições de terceiros.
+- **Ações Executadas:** 
+  - ✅ **Criação e Blindagem da Tabela `music_likes`:** Criada a tabela de favoritos em nuvem com chave primária UUID, `UNIQUE(user_id, track_id)` e RLS restrito a `auth.uid() = user_id`.
+  - ✅ **RPC Atômica para Curtidas em Comentários:** Criada a função `toggle_music_track_comment_like(p_comment_id UUID)` com `SECURITY DEFINER` e `auth.uid()` nativo. O componente `TrackCommentsModal.tsx` agora consome a RPC atômica, eliminando brechas de `UPDATE`.
+  - ✅ **Expurgo e Blindagem RLS (12 Tabelas):** Recriadas todas as políticas de segurança com amarração obrigatória de identidade (`auth.uid() = user_id`) em `music_likes`, `music_posts`, `music_track_comments`, `music_track_comment_likes`, `music_reactions`, `music_comments`, `music_saved`, `music_history`, `music_sessions`, `music_provider_accounts`, `music_tracks` e `femusic_cache`.
+  - ✅ **Deep Clean do Discover (`app/music/discover/page.tsx`):** Removidos números mockados, integrado player de áudio direto (`play(track)`), implementado sistema real de curtidas/compartilhamento e fallbacks limpos de avatar.
+  - ✅ **Eliminação de Placeholders Externos (`MiniPlayer.tsx`):** Removida chamada externa a `via.placeholder.com` substituindo por gradiente nativo e ícone de música.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no contêiner `ic-supabase-db` da VPS (`209.50.229.10`), validando que todas as 12 tabelas estão com `rowsecurity = t` e integridade total.
+- **Impacto:** Fim definitivo de erros silenciosos de sincronização, eliminação de mocks e lixos digitais, proteção de dados de reprodução e paridade de segurança absoluta em todo o módulo FéMusic.
+
+## 77. Deep Clean Nuclear — Código & Resiliência Operacional (Feed Tribo / `/tribo`)
+- **Arquivos:** `app/tribo/page.tsx`, `hooks/useTribo.ts`
+- **Problemas Encontrados:** 
+  - **Bug de Mapeamento no Realtime (`useTribo.ts`):** Ao receber novos posts via canal Realtime `tribo_realtime`, o hook injetava um objeto aninhado `author` em vez dos campos planos esperados pelo layout (`author_name`, `author_username`, `author_avatar`), causando quebra de layout e exibição de "@undefined" nos novos vídeos inseridos em tempo real.
+  - **Inconsistência de Chaves de Interação:** As consultas pontuais de verificação de curtidas, reposts e salvamentos usavam apenas `user_id` estático sem fallback para esquemas variantes (`profile_id` vs `user_id`).
+  - **Loop de Loading Infinito no Empty State (`app/tribo/page.tsx`):** Se a base não retornasse vídeos para o feed, a página ficava presa eternamente em um spinner giratório (`if (reels.length === 0)`), sem permitir que o usuário entendesse o estado ou voltasse à Home.
+- **Ações Executadas:** 
+  - ✅ **Correção de Estrutura no Realtime:** O payload do Realtime agora é normalizado com os campos planos canônicos `author_id`, `author_name`, `author_username` e `author_avatar`, garantindo renderização instantânea e perfeita de novos vídeos.
+  - ✅ **Normalização Resiliente de Interações:** As consultas de curtida, repost e favorito foram protegidas contra variações de colunas com filtros combinados.
+  - ✅ **Separação de Loading e Empty State:** Implementada tela informativa dedicada para ausência de vídeos com CTA ativo de retorno ao feed, limitando o spinner exclusivamente ao período de carregamento ativo (`isLoading && reels.length === 0`).
+- **Impacto:** Experiência 100% fluida, sem travamentos de tela vazia, e renderização estável em tempo real de publicações de vídeo.
+
+## 78. Deep Clean Nuclear & Blindagem de Segurança — Módulo de Perfil & Identidade (`/profile`)
+- **Arquivos:** `supabase/migrations/20260824_profile_security_hardening.sql`, `hooks/useUserProfile.ts`, `app/profile/page.tsx`, `app/profile/[username]/page.tsx`, `components/profile/*`
+- **Problemas & Vulnerabilidades Críticas Encontradas:** 
+  - **Consulta a Tabela Inexistente (`likes` em `useUserProfile.ts`):** O fallback do hook tentava consultar `supabase.from('likes')`, mas a tabela real do banco é `post_likes`, gerando falha silenciosa no carregamento de posts curtidos.
+  - **Escalação de Privilégios em `profiles` (Adulteração de Role & Selo):** A política RLS de `UPDATE` em `profiles` verificava apenas `(uid() = id)` sem qualquer restrição de colunas ou gatilho de proteção. Isso permitia que qualquer usuário comum autenticado forjasse seu próprio perfil enviando `{ role: 'admin', is_verified: true, verification_label: 'Apóstolo' }`, obtendo acesso administrativo irrestrito a todo o sistema.
+  - **Vazamento de PII e Documentos Sensíveis (`verification_requests`):** A política `Admins can manage all verification requests` estava configurada com `FOR ALL TO authenticated USING (true) WITH CHECK (true)`, permitindo que qualquer usuário autenticado visualizasse, copiasse ou deletasse documentos de identidade (RG, CNH, CNPJ e comprovantes bancários) de todos os outros usuários cadastrados.
+  - **Brecha de Identidade em Stories:** A política `Usuários podem postar stories` permitia inserção com `WITH CHECK (role() = 'authenticated')`, permitindo que um usuário criasse stories atribuindo a autoria a outros membros.
+  - **Poluição da Tabela `system_errors`:** Operações de sucesso de edição de perfil e solicitação de verificação estavam gravando logs de erro no banco (`system_errors`), inflando dados e poluindo a telemetria do painel.
+  - **Lixos Digitais e Variáveis Globais (`window.editingHighlightId` & Debug Logs):** Remoção de logs repetitivos a cada render e eliminação de variáveis soltas acopladas ao `window` em modais.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Trigger Anti-Escalação de Privilégios (`protect_profile_privileged_fields`):** Criado trigger no PostgreSQL (`BEFORE UPDATE ON profiles`) que valida permissões com `SECURITY DEFINER` e impede terminantemente que usuários sem cargo administrativo alterem `role`, `is_verified`, `verification_label` ou adulterem contadores sociais.
+  - ✅ **Correção da Consulta de Curtidas (`useUserProfile.ts`):** Normalizada a consulta para utilizar `post_likes` com suporte bidirecional `user_id / profile_id`.
+  - ✅ **Migração para RPC Atômica (`toggle_follow`):** Atualizada a página de perfil público para consumir a função atômica `toggle_follow` com proteção contra auto-seguimento e trava de caller ID.
+  - ✅ **Blindagem RLS Total em `profiles`, `verification_requests` e `stories`:** Recriadas políticas restritivas vinculando dados aos respectivos autores e isolando documentos de verificação exclusivamente para os donos e administradores.
+  - ✅ **Limpeza de Lixos Digitais:** Removidas inserções indevidas em `system_errors`, logs síncronos e substituído o hack de `window.editingHighlightId` por estado React encapsulado.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no banco do contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Eliminação definitiva do risco de auto-promoção de privilégios para admin, blindagem total de documentos pessoais, fim de erros 404 em posts curtidos e estabilidade total do motor de perfil.
+
+## 79. Análise de Segurança & Blindagem Nuclear — Módulo Feed & Interações Sociais (`/`)
+- **Arquivos:** `supabase/migrations/20260824_feed_security_hardening.sql`, `components/feed/CommentsSection.tsx`, `app/RootClient.tsx`
+- **Vulnerabilidades Críticas Encontradas:** 
+  - **Vulnerabilidade Crítica de Modificação & Exclusão de Comentários (`comments`):** A tabela `comments` possuía uma política `Acesso_Autenticado_Comments` para `ALL` com `role() = 'authenticated'`, permitindo que qualquer usuário autenticado editasse, adulterasse ou deletasse comentários de outros membros, além de permitir a criação de comentários forjando o `profile_id` de terceiros.
+  - **Brecha de Adulteração em Comentários de Versículos (`daily_verse_comments`):** Política `UPDATE` aberta com `USING (true)` sob o pretexto de curtidas, permitindo a sobrescrita do texto de comentários bíblicos.
+  - **Ausência de Isolamento em Reports:** Moderação e usuários compartilhavam permissões sem filtragem restrita por perfil.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação das RPCs Atômicas de Curtida em Comentários:** Criadas as funções `toggle_post_comment_like(p_comment_id UUID)` e `toggle_verse_comment_like(p_comment_id UUID)` com `SECURITY DEFINER` e validação nativa de `auth.uid()`, eliminando a necessidade de permissão de escrita direta no banco.
+  - ✅ **Expurgo e Recriação das Políticas RLS em `comments`:** Exclusão de comentários restrita ao autor do comentário, ao autor da postagem ou a administradores/moderadores; atualização restrita exclusivamente ao autor (`auth.uid() = profile_id`).
+  - ✅ **Blindagem RLS em `daily_verse_comments`:** Atualização e exclusão vinculadas ao `profile_id` autenticado e administradores.
+  - ✅ **Blindagem RLS em `reports`:** Criação e consulta protegidas para o denunciante e administradores.
+  - ✅ **Atualização do Front-end (`CommentsSection.tsx`):** Componente de comentários atualizado para invocar as novas RPCs atômicas com tratamento otimista.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no banco do contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Fim definitivo de brechas de adulteração ou deleção de comentários por terceiros, integridade de autoria garantida e blindagem atômica de interações sociais no Feed principal.
+
+## 80. Deep Clean Nuclear & Blindagem de Segurança — Mensagem / Versículo do Dia (`DailyVerseSection` & `daily_verses`)
+- **Arquivos:** `supabase/migrations/20260824_daily_verse_security_hardening.sql`, `components/feed/DailyVerseSection.tsx`, `components/feed/PostCardActions.tsx`
+- **Problemas & Vulnerabilidades Críticas Encontradas:** 
+  - **Vulnerabilidade de Vandalismo e Adulteração de Versículos Bíblicos:** A tabela `daily_verses` possuía políticas `Liberar update para autenticados` e `Usuários podem curtir o versículo` ambas configuradas com `UPDATE USING (true) WITH CHECK (true)`. Qualquer usuário autenticado no app podia enviar requisições de `UPDATE` alterando o texto sagrado, referências e dados de publicação de todos os versículos do dia.
+  - **Inserção Aberta de Versículos:** A política `Liberar inserção para autenticados` permitia que qualquer usuário inserisse novos versículos do dia sem curadoria ou permissão de administrador.
+  - **Race Condition em Curtidas:** A função de like manipulava o array `likes` via UPDATE direto no cliente, causando sobreposição e perda de curtidas concorrentes.
+  - **Inconsistência de Chaves em Repost:** A função de repost inseria registros em `posts` sem popular `author_id` e `profile_id`, arriscando rejeição por RLS de inserção.
+  - **Dependência de Imagens Externas (Unsplash & GitHub):** Fallbacks de imagem no card da palavra do dia e no lightbox dependiam de CDNs externas (`unsplash.com` e `github.com/shadcn.png`).
+  - **Lixos Digitais e Imports Inúteis:** Estados não utilizados (`isMounted`) e imports obsoletos em `DailyVerseSection.tsx`.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação da RPC Atômica `toggle_daily_verse_like`:** Criada a função no PostgreSQL com `SECURITY DEFINER` e `auth.uid()` nativo, manipulando concorrentemente o array de likes e o contador `likes_count` com sincronia absoluta.
+  - ✅ **Expurgo de Políticas Permissivas & Blindagem RLS em `daily_verses`:** Leitura pública garantida para todos os membros, e operações de escrita (`INSERT`, `UPDATE`, `DELETE`) estritamente restritas a administradores (`role = 'admin'`) ou `service_role`.
+  - ✅ **Correção Nuclear do Repost:** População completa de chaves relacionais `user_id`, `author_id` e `profile_id` com metadados bíblicos canônicos.
+  - ✅ **Eliminação de Dependências Externas:** Substituídas imagens do Unsplash e do GitHub por gradientes e avatares nativos de inicial, eliminando requisições a servidores de terceiros.
+  - ✅ **Limpeza Total de Código:** Removidos imports e variáveis sem uso em `DailyVerseSection.tsx`.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no banco do contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Proteção inviolável da Palavra de Deus contra vandalismo e adulteração de texto, eliminação de concorrência em curtidas, independência de CDNs externas e total conformidade arquitetural.
+
+## 81. Deep Clean Nuclear & Blindagem de Segurança — Módulo de Salas de Oração & War Room (`/room` & `/waroom`)
+- **Arquivos:** `supabase/migrations/20260824_room_security_hardening.sql`, `features/room/*`, `hooks/war-room/*`, `app/room/*`
+- **Vulnerabilidades & Lixos Digitais Encontrados:** 
+  - **Permissão `ALL` Irrestrita em `prayer_rooms`:** A política `Admins manage all prayer rooms` estava configurada com `FOR ALL TO authenticated USING (true)`, permitindo que qualquer usuário autenticado editasse, cancelasse ou deletasse salas criadas por outros anfitriões.
+  - **Criação de Salas com Forja de Host (`host_id`):** A política `Authenticated users can create prayer rooms` continha `WITH CHECK (true)` sem checar se `host_id = auth.uid()`.
+  - **Falsificação de Autoria em Mensagens de Sala (`prayer_room_messages`):** Política `Anyone in room can insert messages` com `WITH CHECK (true)` permitindo a um usuário enviar mensagens no chat da sala forjando o `profile_id` de outros participantes.
+  - **Convites Manipuláveis (`prayer_room_invites`):** Políticas de inserção e atualização abertas sem amarração de `host_id` ou destinatário (`guest_username`).
+  - **Bloqueio de Saída de Sala (`prayer_room_participants`):** Ausência de políticas de `UPDATE` e `DELETE`, impedindo que participantes atualizassem seu próprio microfone ou saíssem da sala sem privilégios de service role.
+  - **Lixos Digitais em Produção:** Arquivos obsoletos de backup `WarRoom_original.tsx` (78KB) e `WarRoom_utf8.tsx` (39KB) abandonados na pasta `features/room`.
+  - **Bug de Bucket de Storage em Chat:** Upload de imagens do chat do War Room era enviado para o bucket `chat_media`, mas a URL pública era solicitada no bucket `avatars`, corrompendo as imagens enviadas.
+  - **Dependência de CDNs Externas (GitHub & Unsplash):** Múltiplos pontos de fallback utilizando URLs externas (`github.com/shadcn.png` e `images.unsplash.com`).
+  - **Poluição em `system_errors`:** Criação de logs de erro falso para criação de salas privadas de sucesso.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Expurgo de 117KB de Lixo Digital:** Deleção completa e definitiva de `WarRoom_original.tsx` e `WarRoom_utf8.tsx`.
+  - ✅ **Correção Nuclear do Bucket de Chat:** Correção do getPublicUrl para o bucket `chat_media` em `WarRoom.tsx`.
+  - ✅ **Eliminação Total de CDNs Externas:** Substituição de 100% dos fallbacks do GitHub e Unsplash por avatares e gradientes nativos em CSS e SVG.
+  - ✅ **Blindagem RLS em `rooms` & `prayer_rooms`:** Criação e edição amarradas estritamente a `auth.uid() = creator_id / host_id` e administradores; visualização de salas privadas restrita a anfitriões e participantes convidados.
+  - ✅ **Blindagem RLS em `participants` & `prayer_room_participants`:** Operações de inserção, alteração de status (`is_muted`) e saída (`DELETE`) vinculadas a `auth.uid() = user_id / profile_id` ou ao criador da sala.
+  - ✅ **Blindagem RLS em `prayer_room_messages` & `prayer_room_invites`:** Autoria de mensagens e emissão de convites 100% amarradas ao usuário logado e administradores.
+  - ✅ **Limpeza de Logs Falsos:** Expurgo de inserções desnecessárias na tabela `system_errors`.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no banco do contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Eliminação total do risco de interrupção ou tomada de salas por usuários não autorizados, reparo definitivo do envio de fotos no chat de oração, expurgo de 117KB de lixo digital e total conformidade arquitetural.
+
+## 82. Deep Clean Nuclear & Blindagem de Segurança — Bíblia Sagrada & Estudo com IA (`/bible` & `/api/ai/bible-study`)
+- **Arquivos:** `supabase/migrations/20260824_bible_security_hardening.sql`, `app/bible/*`, `hooks/useBible*`, `app/api/ai/bible-study/route.ts`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Tabelas Bloqueadas por RLS Vazio (`bible_comments` & `bible_favorites`):** Ambas as tabelas estavam com `rowsecurity = true`, porém sem nenhuma política RLS criada no PostgreSQL. Como consequência, qualquer requisição de usuários autenticados para favoritar versículos ou comentar em capítulos era silenciosamente negada pelo banco.
+  - **Políticas RLS Fragmentadas em `bible_interactions` & `bible_highlights`:** Políticas fragmentadas e sem amarração estrita em operações de `INSERT` com `WITH CHECK`, permitindo potencial inserção de marcações de versículos em perfis alheios.
+  - **Caderno de Anotações Espirituais (`user_notes`):** Políticas de atualização e deleção abertas sem proteção explícita de `profile_id`/`user_id`.
+  - **Inconsistência em Compartilhamento de Versículo (`search/page.tsx`):** A busca bíblica tentava inserir versículos pesquisados em `daily_verses` como Palavra do Dia mesmo para membros comuns, falhando por bloqueio de RLS.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Blindagem RLS Total em `bible_comments`:** Leitura pública para a comunidade de fé, e escrita/edição/deleção amarradas ao `auth.uid() = profile_id` ou administradores.
+  - ✅ **Blindagem RLS em `bible_favorites` & `bible_highlights`:** Acesso e manipulação 100% isolados por `auth.uid() = profile_id`.
+  - ✅ **Unificação e Blindagem em `bible_interactions` & `user_notes`:** Operações de escrita validadas contra `auth.uid() = user_id OR auth.uid() = profile_id`. Notas públicas permitidas apenas para visualização.
+  - ✅ **Refatoração Nuclear do Compartilhamento de Versículos:** Implementada lógica dual onde administradores definem a Palavra do Dia e membros comuns publicam diretamente no Feed da comunidade com metadados relacionais íntegros (`author_id`, `user_id`, `profile_id`).
+  - ✅ **Auditoria da Rota de IA (`/api/ai/bible-study`):** Validação de autenticação obrigatória via `requireAuth(req)`, rate limiting por usuário no PostgreSQL (cooldown de 60s) e limites de segurança exegética no Gemini 2.5 Flash.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no banco do contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Desbloqueio e funcionamento 100% seguro de comentários e favoritos na Bíblia Sagrada, isolamento estrito de dados espirituais privados, conformidade total de publicação no feed e proteção contra abuso de cota da IA.
+
+## 83. Deep Clean Nuclear & Blindagem de Segurança — Central de Notificações (`/notifications` & `notifications`)
+- **Arquivos:** `supabase/migrations/20260824_notifications_security_hardening.sql`, `hooks/useNotifications.ts`, `app/notifications/page.tsx`, `lib/notifications.ts`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Função RPC Inexistente (`get_my_notifications`):** O hook `useNotifications.ts` chamava a RPC `get_my_notifications` que não existia no banco de dados, resultando em falhas silenciosas na listagem de alertas.
+  - **Ausência de `WITH CHECK` em `notifications_update_policy`:** A política de `UPDATE` continha apenas `USING (uid() = recipient_id)` sem `WITH CHECK`, permitindo que um usuário pudesse potencialmente reescrever o `recipient_id` para transferir ou forjar notificações para terceiros.
+  - **Ausência de Operação em Lote para Marcar Lidas:** O cliente dependia de mutações manuais uma a uma, sem uma operação atômica de limpeza de pendências.
+  - **Interface Monótona e Redirecionamentos Quebrados:** A página de notificações só renderizava ícones genéricos para quase todos os tipos e não tinha rotas diretas para salas de oração, perfis e postagens.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação da RPC Atômica `get_my_notifications`:** Função PostgreSQL com `SECURITY DEFINER` e `auth.uid()` nativo retornando notificações enriquecidas com os dados do remetente (`sender_name`, `sender_avatar`, `sender_username`), eliminando N+1 queries.
+  - ✅ **Criação da RPC Atômica `mark_all_notifications_as_read`:** Atualização em lote segura de todas as notificações pendentes do usuário logado.
+  - ✅ **Blindagem RLS Total em `notifications`:** Reestruturação das políticas de `SELECT`, `INSERT`, `UPDATE` (com `WITH CHECK (auth.uid() = recipient_id)`) e `DELETE`.
+  - ✅ **Refatoração Nuclear da Página (`app/notifications/page.tsx`):** Renderização contextual de 10+ tipos de notificações (`like`, `comment`, `follow`, `repost`, `mention`, `room_invite`, `new_post`, `new_room`, `broadcast`, `church_join_request`), com avatares de remetente e deep links inteligentes.
+  - ✅ **Aprimoramento do Hook `useNotifications`:** Integração da RPC atômica com fallback automático para consulta direta e adição de `markAllAsRead`.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso via `supabase_admin` no banco do contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Listagem instantânea de notificações sem falhas, segurança absoluta contra interceptação ou re-direcionamento de alertas, suporte a leitura em lote e interface com avatares e rotas diretas.
+
+## 84. Deep Clean Nuclear & Blindagem de Segurança — Chat & Mensagens Diretas (`/messages` & `/chat`)
+- **Arquivos:** `supabase/migrations/20260824_chat_security_hardening.sql`, `components/feed/BottomNav.tsx`, `app/messages/page.tsx`, `app/chat/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **IDOR Crítico em RPCs `SECURITY DEFINER` (`get_my_conversations` & `get_chat_history`):** As funções RPC executavam com privilégios elevados (`SECURITY DEFINER`), porém aceitavam `p_user_id` sem validar se o chamador era o proprietário da conta (`auth.uid() = p_user_id`), permitindo que qualquer usuário autenticado espionasse as conversas privadas de outros membros da plataforma.
+  - **Políticas Abertas na Tabela Legada `messages`:** Políticas `SELECT true` e `INSERT` permissivas sem checagem de usuário.
+  - **Omissão da Barra de Navegação Inferior (`BottomNav`):** A rota `/messages` estava configurada na lista de rotas ocultas (`hiddenRoutes`), impossibilitando a navegação de rodapé no mobile para retornar a Home, Sala, Postar, Tribo ou Perfil.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Eliminação de IDOR em `get_my_conversations`:** Implementada validação estrita que rejeita acessos se `auth.uid() != p_user_id` (a menos que seja admin/superadmin), com cálculo nativo de mensagens não lidas (`unread`).
+  - ✅ **Eliminação de IDOR em `get_chat_history`:** Implementada validação forçando que o chamador autenticado seja necessariamente uma das duas partes da conversa (`auth.uid() IN (p_user_id, p_other_id)`).
+  - ✅ **Blindagem RLS em `direct_messages`:** Políticas atômicas de `SELECT` (`sender_id OR receiver_id`), `INSERT` (`sender_id`), `UPDATE` (`receiver_id` com `WITH CHECK`) e `DELETE` (`sender_id`).
+  - ✅ **Blindagem e Limpeza em `messages`:** Expurgo das políticas públicas `SELECT true` e criação de políticas autenticadas amarradas a `user_id`.
+  - ✅ **Deep Clean Nuclear da Interface & Hooks:**
+    - **Busca Reativa e Filtro em Tempo Real:** Conexão do input de pesquisa de conversas por nome e última mensagem com empty state amigável.
+    - **Compressão Universal de Imagens:** Integração do motor `compressImage` gerando uploads em WebP de alta qualidade (1200px / 0.8) antes do envio ao Supabase Storage.
+    - **Marcação Automática de Lidas:** Implementada rotina `markMessagesAsRead` no hook `useChat.ts` sincronizada em tempo real via Postgres Changes para zerar contadores de mensagens não lidas.
+    - **Expurgo de Lixos Digitais & Imports Mortos:** Remoção de ícones não utilizados (`Phone`, `Video`, `Info`, `MoreVertical`) e reparo de renderização no chat.
+- **Impacto:** Privacidade absoluta nas mensagens diretas, eliminação de risco de espionagem/vazamento de conversas via RPC, busca funcional, storage otimizado e restauração completa da navegabilidade móvel no rodapé.
+
+## 85. Deep Clean Nuclear & Blindagem de Segurança — Notas & Devocional (`/notes` & `/notas`)
+- **Arquivos:** `supabase/migrations/20260824_notes_security_hardening.sql`, `hooks/useNotes.ts`, `app/notes/page.tsx`, `app/notas/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Fragilidade em Políticas RLS de `user_notes`:** Políticas anteriores permitiam inserções ou atualizações onde um campo (`user_id` ou `profile_id`) pertencia a outro usuário, abrindo brecha para injeção de IDs cruzados ou atribuição indevida de notas.
+  - **Filtro Unilateral no Hook `useNotes`:** O hook filtrava apenas por `user_id`, omitindo notas cadastradas apenas com `profile_id`.
+  - **Omissão de Metadados ao Compartilhar no Feed (`shareToFeed`):** A função de compartilhar testemunhos bíblicos no feed inseria posts sem o campo `profile_id`.
+  - **Ausência de Rota `/notas`:** Usuários que tentavam acessar via `/notas` (em português) recebiam erro 404.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Blindagem RLS Total em `user_notes`:**
+    - `SELECT`: Acesso permitido se o usuário for o autor (`auth.uid() = user_id OR auth.uid() = profile_id`) ou se a nota for pública (`is_public = true`).
+    - `INSERT`: Validação estrita forçando que ambos os campos pertençam ao usuário autenticado (`(auth.uid() = user_id OR user_id IS NULL) AND (auth.uid() = profile_id OR profile_id IS NULL)`).
+    - `UPDATE`: Atualização restrita ao proprietário com cláusula `WITH CHECK` inviolável.
+    - `DELETE`: Exclusão permitida apenas ao autor da nota ou administradores.
+  - ✅ **Resiliência Dual no Hook `useNotes`:** Consulta atualizada para `.or('user_id.eq.' + userId + ',profile_id.eq.' + userId)` e preenchimento consistente de `user_id` e `profile_id` nas criações.
+  - ✅ **Higienização do Feed (`shareToFeed`):** Envio completo dos identificadores `author_id`, `user_id` e `profile_id`.
+  - ✅ **Criação da Rota `/notas`:** Redirecionamento automático e transparente para `/notes`.
+- **Impacto:** Sigilo e segurança absoluta nos diários espirituais e devocionais dos membros, prevenção contra injeção de IDs cruzados e publicação de testemunhos no feed com 100% de integridade relacional.
+
+## 86. Deep Clean Nuclear & Reativação de Forçar Notificação (`/forçar-notificação`, `/admin/push` & Gestão de Usuários)
+- **Arquivos:** `components/admin/ForceNotificationModal.tsx`, `app/admin/users/page.tsx`, `app/admin/push/page.tsx`, `app/forcar-notificacao/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Bloqueio Indevido por Falta de Token:** No painel de push, a query filtrava exclusivamente `not('fcm_token', 'is', null)`. Usuários sem token FCM web não recebiam nem o alerta in-app, e disparos individuais falhavam com a mensagem "Nenhum usuário com notificações ativadas encontrado".
+  - **Ausência de Ferramenta de Forçar Notificação Direta por Usuário:** Na tela de gestão de usuários (`/admin/users`), os administradores não dispunham de um botão rápido para emitir sinal ou notificação forçada para um membro específico.
+  - **Rotas Travadas ou Inexistentes:** Acesso direto a `/forçar-notificação` ou `/forcarnotificacao` resultava em 404.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação do `ForceNotificationModal.tsx`:** Modal dedicado de alta performance para emissão de sinal forçado com 4 templates rápidos ("🕊️ Palavra do Dia", "📢 Comunicado Pastoral", "🔥 Chamado de Oração", "⭐ Selo & Conta"), status em tempo real do aparelho do usuário (FCM vs In-App) e disparo atômico via `notifications` com prioridade `high`.
+  - ✅ **Integração na Gestão de Usuários (`/admin/users`):** Adicionado botão de ação "Forçar Notificação" tanto no menu de contexto (Dropdown) quanto dentro do modal de detalhes do perfil.
+  - ✅ **Correção de Cobertura de Audiência no Push (`AdminPushCenter`):** Inclusão de todos os perfis alvo nos disparos com garantia de entrega in-app para 100% do público e push nativo para aparelhos registrados.
+- **Impacto:** Restauração total e imediata da capacidade dos administradores de emitir notificações forçadas e personalizadas para qualquer membro ou grupo da plataforma.
+
+## 87. Deep Clean Nuclear & Blindagem de Segurança — Stories (`stories`, `story_views`, `story_likes`)
+- **Arquivos:** `supabase/migrations/20260824_stories_security_hardening.sql`, `components/feed/StoryCreator.tsx`, `components/profile/CreateHighlightModal.tsx`, `components/feed/StoryViewer.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Spoofing de Visualizações em `story_views`:** A política de inserção permitia que qualquer usuário registrasse visualizações em nome de terceiros (`viewer_id != auth.uid()`), pois só verificava se a role era autenticada.
+  - **Vazamento da Lista de Audiência:** Leitura em `story_views` era pública (`SELECT true`), expondo quem assistiu a cada story para qualquer visitante ou crawler.
+  - **Lixo de 12 Políticas Duplicadas em `story_likes`:** A tabela `story_likes` acumulava 12 políticas legadas com problemas de encoding e regras redundantes.
+  - **Omissão Relacional em Stories e Destaques:** Omissão de `user_id` e `profile_id` no payload de inserção de stories e highlights.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Blindagem e Prevenção de Spoofing em `story_views`:**
+    - `INSERT`: `WITH CHECK (auth.uid() = viewer_id)`.
+    - `SELECT`: Acesso restrito ao autor do story (`auth.uid() = author_id`), ao próprio visualizador (`auth.uid() = viewer_id`) ou administradores.
+    - `DELETE`: Restrito ao próprio visualizador ou administradores.
+  - ✅ **Expurgo Nuclear e Blindagem em `story_likes`:**
+    - `DROP POLICY` em todas as 12 políticas legadas.
+    - Criação de 3 políticas atômicas: `SELECT` (público), `INSERT` (`auth.uid() = user_id`) e `DELETE` (`auth.uid() = user_id OR is_admin()`).
+  - ✅ **Blindagem RLS Total em `stories`:**
+    - `SELECT`: Stories ativos (`expires_at > now()`), destaques (`is_highlight = true`), próprias postagens ou administradores.
+    - `INSERT`: `WITH CHECK` amarrando estritamente `author_id`, `user_id` e `profile_id` ao `auth.uid()`.
+    - `UPDATE` e `DELETE`: Restrito ao autor ou administradores.
+  - ✅ **Sincronização no Front-End:** Inclusão de `user_id` e `profile_id` em `StoryCreator.tsx`, `CreateHighlightModal.tsx` e `StoryViewer.tsx`.
+- **Impacto:** Privacidade absoluta nas visualizações de stories, eliminação de risco de visualizações forjadas, remoção de lixo de banco e integridade 100% relacional nas reações e destaques.
+
+## 88. Deep Clean Nuclear — Rota Dedicada de Stories & Limpeza de Câmera (`/stories`, `/status` & `StoryCreator`)
+- **Arquivos:** `app/stories/page.tsx`, `app/status/page.tsx`, `components/feed/StoryCreator.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Ausência de Rota Dedicada `/stories`:** Usuários ou links externos que tentavam acessar `/stories` ou `/status` recebiam erro 404 (rota não existia).
+  - **Gravação Excessiva em `system_errors`:** O componente `StoryCreator` disparava uma inserção com nível `info` no banco de dados a cada abertura da câmera, poluindo a tabela de erros.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação da Página Completa de Stories ([`app/stories/page.tsx`](file:///c:/Users/THINKPAD/Desktop/feconecta/apps/admin/app/stories/page.tsx)):** Interface imersiva em tema escuro com listagem de todos os status ativos, busca em tempo real por autor, card de status próprio com atalho de criação rápida, launcher integrado do `StoryViewer` e `StoryCreator`.
+  - ✅ **Criação da Rota de Redirecionamento ([`app/status/page.tsx`](file:///c:/Users/THINKPAD/Desktop/feconecta/apps/admin/app/status/page.tsx)):** Redirecionamento instantâneo de `/status` para `/stories`.
+- **Impacto:** Acesso direto, fluido e sem erros 404 ao ecossistema de Stories em tela cheia, eliminando poluição de logs e entregando uma experiência mobile-first de alta performance.
+
+## 89. Expansão e Atualização da Central de Documentação Técnica (`/doc` & `/docs`)
+- **Arquivos:** `app/docs/page.tsx`, `app/doc/page.tsx`
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Catalogação de 11 Módulos Centrais:** Atualizada a base de dados técnica `DOCS_DATA` com a inclusão dos 2 novos subsistemas:
+    - **Módulo 10: Forçar Notificação & Push Multicanal (`/forcar-notificacao` e `/admin/push`)**: Disparo seguro via trigger PostgreSQL `tr_invoke_send_push`, integração multicanal Realtime e Firebase Cloud Messaging, e templates de alta prioridade.
+    - **Módulo 11: Stories, Status & Destaques (`/stories` e `/status`)**: Blindagem RLS com anti-spoofing em `story_views`, privacidade restrita da lista de visualizadores e expurgo de 12 políticas legadas em `story_likes`.
+  - ✅ **Sincronização de Rotas e Tabelas:** Relação completa de endpoints e tabelas no banco de dados da VPS (`209.50.229.10`).
+- **Impacto:** Central de engenharia 100% atualizada, interativa e pesquisável em tempo real para auditoria técnica e governança da plataforma.
+
+## 90. Deep Clean Nuclear & Blindagem de Segurança — Lugar Secreto (`/lugarsecreto`, `/santuario`, `sanctuary_journeys`)
+- **Arquivos:** `supabase/migrations/20260824_sanctuary_security_hardening.sql`, `app/lugarsecreto/page.tsx`, `app/santuario/page.tsx`, `app/docs/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Falta de Validação Ministerial no PostgreSQL:** O front-end exigia selo de verificação para criar jornadas, mas a política `Journeys_Insert` no banco aceitava qualquer usuário autenticado.
+  - **Políticas RLS Fragmentadas:** `sanctuary_journeys` acumulava 4 regras de `SELECT` e `DELETE` redundantes.
+  - **Ausência de Rotas Amigáveis (404 em `/lugarsecreto`):** Navegação direta para `/lugarsecreto` ou `/quarto-secreto` resultava em 404.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Blindagem RLS em `sanctuary_journeys`:** Inserção estritamente bloqueada para perfis não verificados (`WITH CHECK (auth.uid() = author_id AND is_verified = true)`).
+  - ✅ **Expurgo de Regras Duplicadas:** Consolidação em 4 políticas limpas para `SELECT`, `INSERT`, `UPDATE` e `DELETE`.
+  - ✅ **Isolamento do Altar Digital (`sanctuary_progress`):** Políticas de progresso e selamento de leitura 100% isoladas para `auth.uid() = user_id`.
+  - ✅ **Criação das Rotas de Redirecionamento:** Criadas rotas `/lugarsecreto`, `/lugar-secreto`, `/quarto-secreto` e `/quartosecreto` apontando diretamente para `/santuario`.
+  - ✅ **Aplicação e Validação na VPS:** Migração executada com sucesso no contêiner `ic-supabase-db` da VPS (`209.50.229.10`).
+- **Impacto:** Integridade e autoridade pastoral garantidas no forjamento de jornadas devocionais, privacidade absoluta no Altar Digital pessoal dos membros e zero erros 404 de rota.
+
+## 91. Deep Clean Nuclear — Unificação de Cache e Recuperação de Identidade do Perfil
+- **Arquivos:** `lib/profile-cache.ts`, `hooks/useUserProfile.ts`, `components/auth-guard.tsx`, `app/RootClient.tsx`, `components/profile/EditProfileModal.tsx`, `components/feed/BottomNav.tsx`, `components/room/LiveRoomsBar.tsx`, `app/post/[id]/PostPageClient.tsx`, `app/profile/[username]/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Incompatibilidade Estrutural de Cache:** O hook `useUserProfile.ts` gravava no `localStorage` sob a chave `fc_profile_cache` a estrutura `{ data: profile, timestamp: Date.now() }`, enquanto o `AuthGuard`, o `RootClient` e os demais componentes esperavam o objeto plano `{ id, full_name, username, ... }`.
+  - **Efeito Visual "Perfil Vazio" e Avatar "U":** Quando o usuário acessava o perfil ou navegava, o cache era sobrescrito com o formato aninhado. Ao retornar ao Feed, o `RootClient` lia `authUser.full_name` e `authUser.id` como `undefined`, zerando o estado do `currentUser` e exibindo as iniciais genéricas "U" e "F" em vez da foto/nome do membro.
+  - **Ausência de Fallback Atômico na Inicialização:** Se o cache estivesse vazio ou corrompido, o `RootClient` não consultava o Supabase Auth diretamente, ficando indefinidamente em estado `null`.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação do Módulo Unificado ([`lib/profile-cache.ts`](file:///c:/Users/THINKPAD/Desktop/feconecta/apps/admin/lib/profile-cache.ts)):** Funções `getStoredProfile()`, `setStoredProfile()` e `clearStoredProfile()` com normalização defensiva e suporte automático a qualquer formato legado.
+  - ✅ **Sincronização em Tempo Real (`profile-hydrated`):** O salvamento em `setStoredProfile()` emite eventos customizados mantendo toda a árvore de componentes (Sidebar, Header, StoriesBar, PostCreator, BottomNav) sincronizada sem necessidade de reload.
+  - ✅ **Fallback Imediato no `RootClient.tsx`:** Caso o cache esteja frio, o `RootClient` busca instantaneamente `supabase.auth.getUser()` e popula o perfil do banco em 100% dos cenários.
+- **Impacto:** Eliminação definitiva do bug de perfil sumindo, avatar "U" ou tela vazia, garantindo persistência inabalável da identidade do usuário em toda a navegação.
+
+## 92. Deep Clean Nuclear Técnico — Santuário & Lugar Secreto (`/santuario`, `/santuario/create`, `/santuario/[id]`)
+- **Arquivos:** `app/santuario/page.tsx`, `app/santuario/create/page.tsx`, `app/santuario/[id]/page.tsx`, `components/santuario/UnsplashGalleryModal.tsx`, `components/santuario/BibleVersePicker.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Travamento por Disparos Duplicados no Auth:** `santuario/page.tsx` realizava chamadas simultâneas de `supabase.auth.getUser()`, causando lock contention no GoTrue e congelamento de carregamento com tela de spinner infinito.
+  - **Reloads Destrutivos (`window.location.href`):** A navegação entre cards, botões de ação e modais utilizava `window.location.href`, destruindo o cache de estado em memória do Next.js e causando lentidão severa.
+  - **Requisições a Endpoints Inexistentes:** `santuario/create/page.tsx` utilizava `useSWR("/api/profile")` para validar verificação pastoral, o que gerava falhas silenciosas de autorização.
+  - **Falta de Menu Mobile de Rodapé:** A tela de leitura e o catálogo ficavam sem o menu inferior nativo (`BottomNav`).
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Integração com `lib/profile-cache.ts`:** Hidratação instantânea síncrona do perfil com `getStoredProfile()`, eliminando qualquer espera ou concorrência de sessão.
+  - ✅ **Migração Integral para Navegação SPA:** Substituição de todos os `window.location.href` por `router.push()` do Next.js App Router.
+  - ✅ **Carregamento Concorrente com `Promise.all`:** Busca atômica e paralela de jornadas, capítulos e progresso do Altar Digital em uma única rodada.
+  - ✅ **Inclusão do `BottomNav`:** Navegação móvel perfeitamente adaptada com suporte a safe areas e temas claro/escuro.
+- **Impacto:** Fim do travamento no `/santuario`, carregamento 100% instantâneo de trilhas espirituais e experiência fluida e moderna no Altar Digital e no leitor devocional.
+
+## 93. Blindagem de Segurança Nuclear — Subsistema de Igrejas & Células (`/igreja`, `churches`, `church_members`)
+- **Arquivos:** `supabase/migrations/20260824_church_security_hardening.sql`, `app/igreja/[slug]/admin/page.tsx`, `app/igreja/criar/page.tsx`, `app/igreja/[slug]/layout.tsx`
+- **Vulnerabilidades Críticas Encontradas:** 
+  - **Políticas RLS Permissivas em `churches`:** A regra `Enable update for admins and pastors` possuía qualificador `UPDATE true`, permitindo que qualquer usuário autenticado alterasse nome, banner, pastor_id e slug de qualquer igreja cadastrada.
+  - **Auto-Elevação de Privilégios em `church_members`:** A política `UPDATE true` e `DELETE true` permitia que qualquer usuário se promovesse a 'pastor' ou 'admin', se auto-aprovasse (`approved = true`) ou deletasse qualquer membro de qualquer igreja.
+  - **Painel Administrativo da Igreja Sem Guard de Autorização:** A página `/igreja/[slug]/admin` não validava no front se o usuário logado era pastor/admin, expondo lista de membros pendentes e formulário de edição da congregação.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Migração PostgreSQL Nuclear:** Executada `supabase/migrations/20260824_church_security_hardening.sql` na VPS `209.50.229.10`.
+  - ✅ **Blindagem RLS de `churches`:** `UPDATE` e `DELETE` restritos estritamente ao pastor fundador ou membros com role 'admin'/'pastor' aprovados na igreja.
+  - ✅ **Blindagem RLS de `church_members`:** Inserção amarrada ao próprio `auth.uid()`, `UPDATE` de papéis e aprovação restrito à liderança da igreja, e `DELETE` restrito ao próprio membro saindo ou a líderes.
+  - ✅ **Guard de Autorização no Painel Admin (`[slug]/admin/page.tsx`):** Checagem imediata de vínculo ministerial com bloqueio e redirecionamento de invasores.
+- **Impacto:** Proteção institucional absoluta para todas as igrejas e células cadastradas, impossibilitando adulteração de dados congregacionais, invasão de painel de liderança e falsificação de cargos pastorais.
+
+## 94. Deep Clean Nuclear Técnico — Catálogo de Igrejas & Rota Plural (`/igrejas`, `/igreja`)
+- **Arquivos:** `app/igrejas/page.tsx`, `app/igreja/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Inexistência da Rota Plural (`/igrejas`):** Usuários digitando ou clicando em links `/igrejas` recebiam erro 404 / tela travada sem carregamento.
+  - **Flash de "Nenhuma Igreja" e Ausência de Skeletons:** Ao abrir `/igreja`, a falta de skeleton exibia o aviso de lista vazia antes do término da requisição.
+  - **Lock Contention no Auth:** `loadUserRoles` chamava `supabase.auth.getUser()` concorrentemente, gerando lentidão e bloqueio.
+  - **Ausência de Barra Inferior de Navegação:** O catálogo de congregações não possuía a barra móvel `BottomNav`.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Criação da Rota Amigável ([`app/igrejas/page.tsx`](file:///c:/Users/THINKPAD/Desktop/feconecta/apps/admin/app/igrejas/page.tsx)):** Redirecionamento instantâneo via `router.replace('/igreja')`.
+  - ✅ **Carregamento Paralelo Atômico com Skeletons:** Implementado estado `loading` com cards pulsantes e busca concorrente via `Promise.all`.
+  - ✅ **Integração com `lib/profile-cache.ts`:** Identificação imediata das igrejas conectadas ao membro logado.
+  - ✅ **Inclusão do `BottomNav`:** Navegação móvel completa integrada.
+- **Impacto:** Fim definitivo de erros 404 em `/igrejas`, carregamento instantâneo do diretório congregacional e busca rápida com listagem limpa de comunidades de fé.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

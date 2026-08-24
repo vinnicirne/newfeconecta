@@ -39,18 +39,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       if (mode !== 'text' && !preview) {
         startCamera();
       }
-      
-      supabase.from('system_errors').insert({
-        module: 'camera',
-        error_message: 'Câmera de Stories inicializada.',
-        severity: 'info',
-        user_id: user?.id
-      });
     }
     return () => { 
       stopCamera(); 
     };
-  }, [open, mode, preview, user?.id, startCamera, stopCamera]); 
+  }, [open, mode, preview, startCamera, stopCamera]); 
 
   const handleCapturePhoto = async () => {
     if (isProcessingPhoto) return;
@@ -185,6 +178,8 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       // because storing multiple rows pointing to same blob is bad practice.
       inserts.push({
          author_id: user.id,
+         user_id: user.id,
+         profile_id: user.id,
          media_url: mediaUrl,
          media_type: mediaType,
          content: textContent,

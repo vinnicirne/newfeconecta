@@ -46,21 +46,45 @@ export default function BibleSearchPage() {
       }
       
       const referenceText = `${postModalVerse.book} ${postModalVerse.chapter}:${postModalVerse.verse}`;
+      const contentText = postText.trim() || postModalVerse.text;
+
+      // Verifica privilégio de admin para definir Palavra do Dia ou compartilhar no Feed
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
       
-      const { error } = await supabase.from("daily_verses").insert({
-        content: postText.trim() || postModalVerse.text,
-        reference: referenceText,
-        book_abbrev: postModalVerse.bookAbbrev || postModalVerse.book,
-        chapter: parseInt(postModalVerse.chapter),
-        verse: parseInt(postModalVerse.verse),
-        is_active: true
-      });
+      const isAdmin = profile?.role === 'admin' || profile?.role === 'superadmin';
+
+      if (isAdmin) {
+        const { error } = await supabase.from("daily_verses").insert({
+          content: contentText,
+          reference: referenceText,
+          book_abbrev: postModalVerse.bookAbbrev || postModalVerse.book,
+          chapter: parseInt(postModalVerse.chapter),
+          verse: parseInt(postModalVerse.verse),
+          is_active: true
+        });
+        
+        if (error) throw error;
+        toast.success("Palavra do Dia atualizada com sucesso! 🙌");
+      } else {
+        const postContent = `📖 ${referenceText}\n"${contentText}"`;
+        const { error } = await supabase.from("posts").insert({
+          author_id: user.id,
+          user_id: user.id,
+          profile_id: user.id,
+          content: postContent,
+          post_type: 'verse_share'
+        });
+        
+        if (error) throw error;
+        toast.success("Versículo compartilhado no Feed da comunidade! 🙌");
+      }
       
-      if (error) throw error;
-      toast.success("Palavra do Dia atualizada com sucesso! 🙌");
       setPostModalVerse(null);
       setPostText("");
-      
       router.push('/');
       
     } catch (error: any) {

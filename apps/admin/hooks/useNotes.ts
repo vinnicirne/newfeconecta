@@ -9,7 +9,7 @@ export function useNotes(userId: string | null) {
         .from("user_notes")
         .select("*")
         .order("created_at", { ascending: false })
-        .eq('user_id', userId);
+        .or(`user_id.eq.${userId},profile_id.eq.${userId}`);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -20,8 +20,13 @@ export function useNotes(userId: string | null) {
 
   const saveNote = async (noteData: any, editingId: string | null) => {
     // UI Otimista: Adiciona ou atualiza na hora no cache
+    const payload = {
+      ...noteData,
+      profile_id: noteData.profile_id || noteData.user_id || userId,
+      user_id: noteData.user_id || userId
+    };
     const tempId = editingId || `temp-${Date.now()}`;
-    const optimisticNote = { id: tempId, ...noteData, created_at: new Date().toISOString() };
+    const optimisticNote = { id: tempId, ...payload, created_at: new Date().toISOString() };
 
     mutate((currentNotes: any) => {
       if (editingId) {
@@ -32,11 +37,11 @@ export function useNotes(userId: string | null) {
 
     try {
       if (editingId) {
-        const { data } = await supabase.from("user_notes").update(noteData).eq("id", editingId).select().single();
+        const { data } = await supabase.from("user_notes").update(payload).eq("id", editingId).select().single();
         mutate(); // Revalida para garantir ID real
         return data;
       } else {
-        const { data } = await supabase.from("user_notes").insert(noteData).select().single();
+        const { data } = await supabase.from("user_notes").insert(payload).select().single();
         mutate(); // Revalida para garantir ID real
         return data;
       }

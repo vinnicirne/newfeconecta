@@ -17,20 +17,15 @@ import {
 import { cn } from "@/lib/utils";
 import MobilePostSheet from "./MobilePostSheet";
 import { supabase } from "@/lib/supabase";
+import { getStoredProfile } from "@/lib/profile-cache";
 
 export default function BottomNav() {
   const pathname = usePathname();
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
-  const [user, setUser] = React.useState<any>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('fc_profile_cache');
-      return cached ? JSON.parse(cached) : null;
-    }
-    return null;
-  });
+  const [user, setUser] = React.useState<any>(() => getStoredProfile());
 
   // Esconde a nav em páginas de autenticação e legais
-  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy", "/messages"];
+  const hiddenRoutes = ["/login", "/register", "/terms", "/privacy"];
   const isHidden = hiddenRoutes.includes(pathname) || pathname.includes('/celula/');
 
   React.useEffect(() => {
