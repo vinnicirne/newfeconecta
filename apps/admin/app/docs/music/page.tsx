@@ -113,23 +113,30 @@ export default function StandaloneMusicDocsPage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  // Grupos e Itens de Navegação
+  // Grupos e Itens de Navegação Global FéConecta
   const navItems = [
     {
-      group: "Visão Geral & Core",
+      group: "Visão Geral & Ecossistema",
       items: [
-        { id: "overview", label: "Overview do Sistema" },
-        { id: "architecture", label: "Arquitetura Unificada" },
-        { id: "capabilities", label: "Core Capabilities" },
+        { id: "overview", label: "Overview do Ecossistema" },
+        { id: "architecture", label: "Arquitetura Unificada (Web & Mobile)" },
+        { id: "modules-map", label: "Mapa de Módulos (Feed, FéMusic, Igrejas)" },
       ]
     },
     {
-      group: "API & Integração",
+      group: "FéMusic (Audio Engine)",
       items: [
-        { id: "public-api", label: "Public API Reference" },
-        { id: "mediasession", label: "Media Session Nativa" },
+        { id: "femusic-core", label: "Core Capabilities de Áudio" },
+        { id: "public-api", label: "REST API v1 (Terceiros & Busca)" },
+        { id: "mediasession", label: "Media Session Nativa (Android)" },
         { id: "scraper-engine", label: "Search Engine (Scraper SSR)" },
-        { id: "store-sync", label: "State & Supabase Sync" },
+      ]
+    },
+    {
+      group: "Feed & Rede Social",
+      items: [
+        { id: "feed-architecture", label: "Feed Engine & Realtime" },
+        { id: "feed-security", label: "Segurança, XSS & Deduplicação" },
       ]
     },
     {
@@ -142,7 +149,7 @@ export default function StandaloneMusicDocsPage() {
     {
       group: "CLI & Suporte",
       items: [
-        { id: "troubleshooting", label: "Troubleshooting & ADB" },
+        { id: "troubleshooting", label: "Troubleshooting, ADB & Build AAB" },
       ]
     },
   ];
@@ -174,13 +181,13 @@ export default function StandaloneMusicDocsPage() {
       <header className={`h-16 w-full border-b ${borderCol} ${bgSidebar}/95 backdrop-blur-xl px-6 lg:px-10 flex items-center justify-between sticky top-0 z-50`}>
         <div className="flex items-center gap-6">
           <Link href="/admin" className="flex items-center gap-3 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00A884] to-[#007a5f] flex items-center justify-center text-black shadow-[0_0_15px_rgba(0,168,132,0.4)] group-hover:scale-105 transition-transform">
-              <Music className="w-5 h-5 fill-black" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#00A884] to-[#007a5f] flex items-center justify-center text-black font-black text-lg shadow-[0_0_15px_rgba(0,168,132,0.4)] group-hover:scale-105 transition-transform">
+              F
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-white tracking-wide text-base">FéMusic</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#00A884]/15 text-[#00A884] border border-[#00A884]/30 font-semibold">Docs Portal</span>
+                <span className="font-bold text-white tracking-wide text-base">FéConecta</span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#00A884]/15 text-[#00A884] border border-[#00A884]/30 font-semibold">Global Docs Portal</span>
               </div>
             </div>
           </Link>
@@ -329,38 +336,38 @@ export default function StandaloneMusicDocsPage() {
               <section id="overview" className="space-y-6">
                 <div className={`border-b ${borderCol} pb-6`}>
                   <div className="flex items-center gap-2 text-xs font-mono text-[#00A884] mb-2">
-                    <span>FÉCONECTA CORE ARCHITECTURE</span> / <span>AUDIO ENGINE</span>
+                    <span>FÉCONECTA GLOBAL PLATFORM</span> / <span>ECOSSISTEMA CRISTÃO</span>
                   </div>
                   <h1 className="text-3xl lg:text-5xl font-bold text-white tracking-tight">
-                    Overview do Sistema
+                    Overview do Ecossistema FéConecta
                   </h1>
                   <p className="text-base text-[#94a3b8] mt-3 leading-relaxed">
-                    O <strong>FéMusic</strong> é o subsistema de streaming e reprodução multimídia de alta resiliência do FéConecta. Ele integra execução de áudio contínua em segundo plano, controles nativos de sistema operacional (Android Media Session) e um motor de catálogo sem limites de cota.
+                    O <strong>FéConecta</strong> é uma plataforma SaaS e rede social cristã full-stack de alta disponibilidade. O ecossistema unifica <strong>Feed Social Realtime</strong>, o subsistema de streaming contínuo <strong>FéMusic</strong>, <strong>Gestão de Igrejas (Casas)</strong>, <strong>Salas de Guerra (Live Audio Rooms)</strong>, <strong>Bíblia Sagrada Digital</strong> e <strong>FéNamoro</strong>.
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">EXECUÇÃO CONTÍNUA</div>
-                    <div className="text-lg font-bold text-white mb-2">Foreground Service</div>
+                    <div className="text-xs font-mono text-[#00A884] font-semibold mb-1">FEED & SOCIAL REALTIME</div>
+                    <div className="text-lg font-bold text-white mb-2">Supabase Engine</div>
                     <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Mantém o player ativo na Lockscreen e barra de status do Android sem ser suspenso pela gestão de energia.
+                      Publicações multimídia, posteres de áudio com waveform orgânico, stories temporários de 24h e notificações instantâneas.
                     </p>
                   </div>
 
                   <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">ALTA DISPONIBILIDADE</div>
-                    <div className="text-lg font-bold text-white mb-2">Scraper SSR Fallback</div>
+                    <div className="text-xs font-mono text-[#38bdf8] font-semibold mb-1">STREAMING & ÁUDIO</div>
+                    <div className="text-lg font-bold text-white mb-2">FéMusic Engine</div>
                     <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Resolução de buscas por extração serverless do YouTube sem consumo de cota diária ou erros 429.
+                      Foreground Service nativo no Android, sincronização com Lockscreen/Bluetooth, catálogo resiliente SSR e API pública para terceiros.
                     </p>
                   </div>
 
                   <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol} shadow-lg`}>
-                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">TRANSIÇÃO SUAVE</div>
-                    <div className="text-lg font-bold text-white mb-2">Dual HTML5 Audio</div>
+                    <div className="text-xs font-mono text-[#a855f7] font-semibold mb-1">COMUNIDADE & EDIFICAÇÃO</div>
+                    <div className="text-lg font-bold text-white mb-2">Casas & Santuário</div>
                     <p className="text-xs text-[#8e9ab8] leading-relaxed">
-                      Dois players desacoplados que executam crossfade orgânico entre faixas sem estalos de buffer.
+                      Feeds exclusivos por igreja local, salas de oração simultânea com WebRTC, Bíblia com anotações e devocionais diários.
                     </p>
                   </div>
                 </div>
@@ -372,40 +379,95 @@ export default function StandaloneMusicDocsPage() {
               <section id="architecture" className={`space-y-6 pt-6 border-t ${borderCol}`}>
                 <div>
                   <h2 className="text-2xl font-bold text-white tracking-tight">
-                    Arquitetura & Fluxo Unificado
+                    Arquitetura Global Unificada
                   </h2>
                   <p className="text-sm text-[#94a3b8] mt-2">
-                    Diagrama topológico da sincronização entre o estado Zustand, os elementos de áudio e a ponte nativa.
+                    Topologia do ecossistema integrando Next.js 14, Capacitor 6 no Android, Supabase Cloud e APIs REST públicas.
                   </p>
                 </div>
 
                 <div className={`rounded-2xl bg-[#070c18] border ${borderCol} p-6 font-mono text-xs overflow-x-auto leading-relaxed text-[#dae2fd] shadow-2xl`}>
                   <div className={`flex items-center justify-between pb-3 mb-4 border-b ${borderCol} text-xs text-[#64748b]`}>
-                    <span>DIAGRAMA DE SINCRONIZAÇÃO EM TEMPO REAL</span>
-                    <span className="text-[#00A884]">ZUSTAND ➔ CAPACITOR ➔ ANDROID OS</span>
+                    <span>TOPOLOGIA GERAL DO SISTEMA</span>
+                    <span className="text-[#00A884]">NEXT.JS 14 ➔ CAPACITOR ➔ SUPABASE CLOUD</span>
                   </div>
-                  {`[ Usuário clica Play no Feed / Biblioteca / Busca ]
-                           │
-                           ▼
-          ┌───────────────────────────────────┐
-          │     usePlayerStore (Zustand)      │ ──▶ [ LocalStorage & Supabase music_likes ]
-          │  Estado Central (Fila, Faixa, FX) │
-          └─────────────────┬─────────────────┘
-                            │
-            ┌───────────────┴───────────────┐
-            ▼                               ▼
-  ┌───────────────────┐           ┌───────────────────┐
-  │HiddenAudioElements│           │  useMediaSession  │
-  │ Player A & B HTML5│           │  Ponte com o SO   │
-  │(Crossfade Suave)  │           │(Capacitor Bridge) │
-  └─────────┬─────────┘           └─────────┬─────────┘
-            │                               │
-            ▼                               ▼
-   [ Saída de Áudio Física ]      [ MediaSessionService.java ]
-   [ (Sem Remote Playback) ]                │
-                                            ▼
-                                  [ Notification Drawer & Lockscreen ]
-                                  [ (Play, Pause, Next, Prev, Artwork) ]`}
+                  {`               ┌────────────────────────────────────────────────────────┐
+               │           FÉCONECTA CLIENT (Web & Android PWA)         │
+               └───────────┬────────────────────────────┬───────────────┘
+                           │                            │
+            ┌──────────────┴─────────────┐              │
+            ▼                            ▼              ▼
+ ┌──────────────────────┐     ┌──────────────────────┐  ┌──────────────────────┐
+ │  Feed Social Engine  │     │   FéMusic Engine     │  │  Igrejas & Comunidade│
+ │ Posts, Áudio Posters │     │ Foreground Service   │  │ Feeds por Congregação│
+ │ Stories, Realtime    │     │ Crossfade Dual Audio │  │ Salas de Guerra Live │
+ └──────────┬───────────┘     └──────────┬───────────┘  └──────────┬───────────┘
+            │                            │                         │
+            └────────────────────────────┼─────────────────────────┘
+                                         │
+                                         ▼
+                     ┌───────────────────────────────────────┐
+                     │    Supabase Cloud + PostgreSQL + Auth │
+                     │  RLS Policies, Triggers & Realtime    │
+                     └───────────────────┬───────────────────┘
+                                         │
+                                         ▼
+                     ┌───────────────────────────────────────┐
+                     │   REST API v1 (/api/v1/femusic/*)     │
+                     │  CORS Aberto para Apps de Terceiros   │
+                     └───────────────────────────────────────┘`}
+                </div>
+              </section>
+            )}
+
+            {/* SECTION: MODULES MAP */}
+            {(activeSection === "modules-map" || searchQuery) && (
+              <section id="modules-map" className={`space-y-6 pt-6 border-t ${borderCol}`}>
+                <div>
+                  <h2 className="text-2xl font-bold text-white tracking-tight">
+                    Mapa de Módulos Globais
+                  </h2>
+                  <p className="text-sm text-[#94a3b8] mt-2">
+                    Resumo dos principais módulos operacionais do ecossistema FéConecta.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
+                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#00A884]"></span> 1. Feed Principal & Mídias
+                    </h3>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Renderização de posts de texto curto com cartões coloridos, versículos do dia com referência bíblica inteligente, e posteres de áudio com equalizador orgânico.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
+                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#38bdf8]"></span> 2. FéMusic & API Aberta
+                    </h3>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Streaming de louvores com busca resiliente SSR, playlists e sessões de oração, controles na tela de bloqueio e API REST v1 para integrações externas.
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
+                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-amber-500"></span> 3. Bíblia & Santuário
+                    </h3>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Texto sagrado offline com anotações de estudo, leitor de versículo diário e Lugar Secreto (Jornadas devocionais guiadas).
+                    </p>
+                  </div>
+
+                  <div className={`p-5 rounded-2xl ${bgCard} border ${borderCol}`}>
+                    <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-pink-500"></span> 4. Casas (Igrejas) & FéNamoro
+                    </h3>
+                    <p className="text-xs text-[#8e9ab8] leading-relaxed">
+                      Módulo de membros e liderança eclesiástica, além de SSO seguro e integrado para conexões cristãs com propósito.
+                    </p>
+                  </div>
                 </div>
               </section>
             )}
