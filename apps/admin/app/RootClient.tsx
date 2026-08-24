@@ -756,9 +756,9 @@ export default function RootPage() {
                       <MessageSquare className="w-6 h-6 mb-1 text-whatsapp-teal dark:text-whatsapp-green" />
                       <span className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green">Mensagens</span>
                     </Link>
-                    <Link href="/saved" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-                      <Bookmark className="w-6 h-6 mb-1 text-blue-500" />
-                      <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Salvos</span>
+                    <Link href="/jogos" className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 hover:bg-indigo-500/20 dark:hover:bg-indigo-500/30 transition-colors border border-indigo-500/20">
+                      <Gamepad2 className="w-6 h-6 mb-1 text-indigo-500 dark:text-indigo-400" />
+                      <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">Jogos & Quiz</span>
                     </Link>
                     <Link href="/bible" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
                       <ScrollText className="w-6 h-6 mb-1 text-emerald-500" />
@@ -775,10 +775,6 @@ export default function RootPage() {
                     <Link href="/santuario" className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors border border-amber-500/20">
                       <Flame className="w-6 h-6 mb-1 text-amber-600 dark:text-amber-500 fill-amber-500/20" />
                       <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Lugar Secreto</span>
-                    </Link>
-                    <Link href="/jogos" className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 hover:bg-indigo-500/20 dark:hover:bg-indigo-500/30 transition-colors border border-indigo-500/20">
-                      <Gamepad2 className="w-6 h-6 mb-1 text-indigo-500 dark:text-indigo-400" />
-                      <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">Jogos & Quiz</span>
                     </Link>
                   </div>
 
@@ -812,8 +808,14 @@ export default function RootPage() {
                   </Link>
                   <div className="my-2 border-t border-gray-100 dark:border-white/5" />
 
+                  <Link href="/saved">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-gray-900 dark:text-white hover:bg-white/10 transition-colors">
+                      <Bookmark className="w-4 h-4 mr-3 text-blue-500" /> Salvos
+                    </DropdownMenuItem>
+                  </Link>
+
                   <Link href="/semei">
-                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-gray-900 dark:text-white hover:bg-white/5 transition-colors">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-gray-900 dark:text-white hover:bg-white/10 transition-colors mt-1">
                       <Sprout className="w-4 h-4 mr-3 text-rose-500" /> Semear 🌱
                     </DropdownMenuItem>
                   </Link>
