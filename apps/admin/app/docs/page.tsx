@@ -19,7 +19,9 @@ import {
   Lock, 
   ExternalLink,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  Church,
+  Building2
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -216,6 +218,21 @@ const DOCS_DATA: DocSection[] = [
       "Expurgo de políticas RLS redundantes e suporte a rich text bíblico interativo"
     ],
     details: "Ambiente devocional imersivo onde líderes ministeriais forjam jornadas espirituais temáticas e os membros acendem chamas no seu Altar Digital pessoal a cada capítulo selado."
+  },
+  {
+    id: "igreja",
+    title: "Igrejas, Células e Ministérios",
+    category: "Congregações e Liderança",
+    icon: Church,
+    summary: "Catálogo congregacional, gestão de membros/células, painel administrativo e controle de transmissões ao vivo.",
+    routes: ["/igreja", "/igrejas", "/igreja/criar", "/igreja/[slug]/admin"],
+    tables: ["churches", "church_members", "church_join_requests", "church_groups", "church_posts"],
+    securityHighlights: [
+      "Blindagem RLS nuclear em churches com UPDATE/DELETE restritos a pastores e admins da congregação",
+      "Auto-elevação de cargos bloqueada em church_members com validação estrita de papel ministerial",
+      "Painel administrativo protegido com verificação atômica de vínculo de liderança e redirecionamento de invasores"
+    ],
+    details: "Espaço congregacional completo onde cada congregação possui seu hub de membros, cultos ao vivo, feed pastoral, grupos/células e painel de aprovação de novos fiéis."
   }
 ];
 

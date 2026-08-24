@@ -572,6 +572,21 @@ Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `compo
 3. **Integração Completa do Menu Inferior Mobile:**
    * Inclusão do componente `BottomNav` para navegação responsiva em dispositivos móveis.
 
+---
+
+## 28. 📝 Tipografia Lumina no Bloco de Notas & Conformidade TypeScript no Santuário
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Aplicação da Escala Tipográfica Lumina no Bloco de Notas (`/notes`):**
+   * **Título:** `24px - 32px` (`headline-lg` / `headline-lg-mobile`), `lineHeight: 30px - 40px`, semibold, tracking negativo suave.
+   * **Corpo:** `18px` (`body-lg`), `lineHeight: 28px` (`leading-relaxed`), altura mínima de `300px` para foco em devocionais.
+   * **Seletor de Visibilidade:** Botões em pílulas (`label-md` 14px) para alternar entre "Público" e "Privado".
+
+2. **Conformidade Estrita no TypeScript (`santuario/[id]`):**
+   * Ajustada a tipagem de `userId: string | null` em todas as rotinas de leitura de progresso do Altar Digital e acendimento de chamas, garantindo compatibilidade estrita no build de produção da Vercel.
+
+
 
 
 

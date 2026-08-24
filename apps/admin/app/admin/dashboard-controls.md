@@ -911,6 +911,21 @@
   - ✅ **Inclusão do `BottomNav`:** Navegação móvel completa integrada.
 - **Impacto:** Fim definitivo de erros 404 em `/igrejas`, carregamento instantâneo do diretório congregacional e busca rápida com listagem limpa de comunidades de fé.
 
+## 95. Padronização Tipográfica Lumina no Bloco de Notas & Correção Estrita no Santuário (`/notes`, `/notas`, `santuario/[id]`)
+- **Arquivos:** `app/notes/page.tsx`, `app/santuario/[id]/page.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Distorção de Proporção no Editor de Notas:** O título e o corpo do texto utilizavam classes genéricas pequenas (`text-base`, `text-sm`), limitando a profundidade visual e legibilidade em devocionais longos.
+  - **Incompatibilidade Estrita de Tipagem no Build Vercel:** Em `santuario/[id]/page.tsx`, a atribuição de `user?.id || null` para uma variável tipada como `string | undefined` causava falha na compilação do Next.js na pipeline de produção.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Implementação da Escala Tipográfica Lumina:** 
+    - Título (`headline-lg` / `headline-lg-mobile`): `24px - 32px`, `lineHeight: 30px - 40px`, `fontWeight: 600`, `letterSpacing: -0.02em`.
+    - Corpo (`body-lg`): `18px`, `lineHeight: 28px`, `fontWeight: 400`, `min-h-[300px]` para escrita confortável.
+    - Seletor de Visibilidade (`label-md`): Botões "Público" e "Privado" em `14px`, `lineHeight: 16px`, `fontWeight: 600`.
+  - ✅ **Correção Estrita de Tipos (`userId: string | null`):** Alinhamento total com o GoTrue Auth e resolução do build no Vercel.
+  - ✅ **Inclusão do `BottomNav` no Bloco de Notas:** Menu móvel inferior integrado.
+- **Impacto:** Experiência de escrita e leitura de notas rica e profissional, com build de produção 100% aprovado e sem advertências críticas.
+
+
 
 
 
