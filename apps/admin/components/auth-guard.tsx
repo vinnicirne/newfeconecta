@@ -6,7 +6,7 @@ import { supabase as supabaseClient } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { NotificationEnforcer } from "@/components/NotificationEnforcer";
-import { setStoredProfile } from "@/lib/profile-cache";
+import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 
 // BUILD_TS: 2026-08-12T14:00:00
 const PUBLIC_ROUTES = ["/login", "/register"];
