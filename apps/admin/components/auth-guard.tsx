@@ -190,8 +190,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
     
     if (authorized) {
+      // Se o usuário já está na tela de completar perfil, nunca disparar redirecionamentos concorrentes
+      if (pathname === "/complete-profile") {
+        return;
+      }
+
       if (!isSyncingProfile) {
-        if (!isProfileComplete && pathname !== "/complete-profile" && !isPublic) {
+        if (!isProfileComplete && !isPublic) {
           router.replace("/complete-profile");
           return;
         }

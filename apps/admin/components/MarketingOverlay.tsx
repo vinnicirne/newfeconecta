@@ -13,6 +13,10 @@ export function MarketingOverlay() {
   const pathname = usePathname();
 
   useEffect(() => {
+    if (pathname === '/complete-profile' || pathname === '/login' || pathname === '/register') {
+      return;
+    }
+
     // Load closed popups from local storage
     const stored = localStorage.getItem('closed_marketing_popups');
     if (stored) {
@@ -31,7 +35,7 @@ export function MarketingOverlay() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [pathname]);
 
   const fetchCampaigns = async () => {
     const { data, error } = await supabase
@@ -65,6 +69,10 @@ export function MarketingOverlay() {
   };
 
   const activePopup = popups.length > 0 ? popups[0] : null;
+
+  if (pathname === '/complete-profile' || pathname === '/login' || pathname === '/register') {
+    return null;
+  }
 
   return (
     <>
