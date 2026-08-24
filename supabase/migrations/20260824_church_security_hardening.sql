@@ -100,6 +100,23 @@ BEGIN
     END LOOP;
 END $$;
 
+-- 1.1 Helper Function SECURITY DEFINER (Previne recursão infinita 42P17)
+CREATE OR REPLACE FUNCTION public.is_church_admin_or_pastor(lookup_church_id uuid, lookup_user_id uuid)
+RETURNS boolean
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM church_members
+    WHERE church_id = lookup_church_id
+      AND user_id = lookup_user_id
+      AND approved = true
+      AND role IN ('admin', 'pastor')
+  );
+$$;
+
 -- Novas Políticas Atômicas em `church_members`
 CREATE POLICY "church_members_select_policy"
 ON church_members
@@ -108,17 +125,11 @@ TO public
 USING (
     approved = true 
     OR user_id = auth.uid()
+    OR is_church_admin_or_pastor(church_id, auth.uid())
     OR EXISTS (
         SELECT 1 FROM churches
         WHERE churches.id = church_members.church_id
           AND churches.pastor_id = auth.uid()
-    )
-    OR EXISTS (
-        SELECT 1 FROM church_members cm
-        WHERE cm.church_id = church_members.church_id
-          AND cm.user_id = auth.uid()
-          AND cm.approved = true
-          AND cm.role IN ('admin', 'pastor')
     )
 );
 
