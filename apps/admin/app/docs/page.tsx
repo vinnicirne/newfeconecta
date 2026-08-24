@@ -21,7 +21,8 @@ import {
   Sparkles,
   ArrowLeft,
   Church,
-  Building2
+  Building2,
+  Gamepad2
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
@@ -233,6 +234,21 @@ const DOCS_DATA: DocSection[] = [
       "Painel administrativo protegido com verificação atômica de vínculo de liderança e redirecionamento de invasores"
     ],
     details: "Espaço congregacional completo onde cada congregação possui seu hub de membros, cultos ao vivo, feed pastoral, grupos/células e painel de aprovação de novos fiéis."
+  },
+  {
+    id: "jogos",
+    title: "Arena Fé & Sabedoria",
+    category: "Gamificação e Conhecimento",
+    icon: Gamepad2,
+    summary: "Jogos bíblicos interativos (Quiz Dinâmico inspirado no aBook, Jogo da Memória Sagrado) com XP e ranking.",
+    routes: ["/jogos", "/jogos/quiz", "/jogos/memoria"],
+    tables: ["posts", "profiles"],
+    securityHighlights: [
+      "Carregamento isolado por rota (Code Splitting) com zero impacto no bundle do Feed principal",
+      "Gravação assíncrona de estatísticas e XP em background sem bloqueio de UI",
+      "Integração social com publicação auditada de vitórias e compartilhamento multicanal"
+    ],
+    details: "Módulo interativo de retenção diária onde membros de todas as idades testam seus conhecimentos bíblicos, acumulam XP da Fé e compartilham suas conquistas no feed social."
   }
 ];
 

@@ -936,6 +936,18 @@
   - ✅ **Eliminação de Conflitos de Redirecionamento:** Removidos redirecionamentos concorrentes e normalizado o fluxo via `setStoredProfile` e `router.replace('/')`.
 - **Impacto:** Fim definitivo de loops infinitos, travamentos de tela e disparos duplicados após o preenchimento de cadastro ou login.
 
+## 97. Arena Fé & Sabedoria — Jogos Bíblicos Isolados & Motor aBook (`/jogos`, `/jogos/quiz`, `/jogos/memoria`)
+- **Arquivos:** `app/jogos/page.tsx`, `app/jogos/quiz/page.tsx`, `app/jogos/memoria/page.tsx`, `app/jogos/lib/games-engine.ts`, `app/RootClient.tsx`
+- **Vulnerabilidades & Inconsistências Encontradas:** 
+  - **Falta de Recursos Gamificados e Risco de Contaminação:** A inclusão de jogos no aplicativo poderia sobrecarregar o feed principal ou gerar lentidão e travamentos se não houvesse isolamento estrito de código.
+- **Ações Cirúrgicas Executadas:** 
+  - ✅ **Isolamento de Performance (Code Splitting):** O código dos jogos só é baixado sob demanda quando a rota `/jogos` é acessada. Zero impacto no carregamento do feed.
+  - ✅ **Motor Dinâmico de Perguntas (Inspirado no aBook):** Acervo curado de perguntas bíblicas categorizadas em 3 níveis (Iniciante, Discípulo, Mestre Teólogo) com cronômetro circular e bônus de agilidade.
+  - ✅ **Jogo da Memória Sagrado:** Tabuleiro interativo com símbolos bíblicos (Leão de Judá, Sarça, Pomba, Peixe, Cruz, Âncora, Pão e Coroa).
+  - ✅ **Integração Social Nativa:** Publicação direta de conquistas no feed social e compartilhamento no WhatsApp e Stories.
+- **Impacto:** Aumento exponencial do engajamento e retenção diária de usuários com zero impacto de performance no restante do ecossistema FéConecta.
+
+
 
 
 

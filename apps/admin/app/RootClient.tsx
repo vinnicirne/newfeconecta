@@ -32,7 +32,8 @@ import {
   Church,
   Heart,
   Music,
-  HelpCircle
+  HelpCircle,
+  Gamepad2
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -774,6 +775,10 @@ export default function RootPage() {
                     <Link href="/santuario" className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors border border-amber-500/20">
                       <Flame className="w-6 h-6 mb-1 text-amber-600 dark:text-amber-500 fill-amber-500/20" />
                       <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Lugar Secreto</span>
+                    </Link>
+                    <Link href="/jogos" className="flex flex-col items-center justify-center p-3 rounded-xl bg-indigo-500/10 dark:bg-indigo-500/20 hover:bg-indigo-500/20 dark:hover:bg-indigo-500/30 transition-colors border border-indigo-500/20">
+                      <Gamepad2 className="w-6 h-6 mb-1 text-indigo-500 dark:text-indigo-400" />
+                      <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">Jogos & Quiz</span>
                     </Link>
                   </div>
 

@@ -598,6 +598,22 @@ Realizada varredura código a código em `apps/admin/app/RootClient.tsx`, `compo
 2. **Critério Resiliente de Perfil Ativo:**
    * Evita bloqueios cíclicos em contas que já possuem cadastro ativo ou identificador válido (`username`/`full_name`).
 
+---
+
+## 30. 🎮 Arena Fé & Sabedoria — Jogos Bíblicos & Gamificação
+
+### 🔍 Diagnóstico e Resoluções Implementadas:
+
+1. **Isolamento de Performance e Bundling Sob Demanda (`/jogos`):**
+   * O ecossistema de jogos é carregado de forma assíncrona por rota. Zero impacto de peso ou latência na experiência do Feed principal ou Player de Música.
+
+2. **Quiz Bíblico Cronometrado & Motor Dinâmico aBook:**
+   * Acervo curado de perguntas em português divididas em 3 graus de dificuldade com bônus de agilidade e feedback teológico explicativo.
+
+3. **Jogo da Memória Sagrado & Conquistas Sociais:**
+   * Tabuleiro interativo de símbolos bíblicos com premiação em XP e geração de postagem automática no Feed e nos Stories do FéConecta.
+
+
 
 
 
