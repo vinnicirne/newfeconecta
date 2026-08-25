@@ -2,31 +2,37 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * MIDDLEWARE DE SEGURANÇA SERVER-SIDE COM CSP (MOZILLA OBSERVATORY A+) — FéConecta
- *
- * Injeta headers de segurança de alto nível (Content Security Policy, HSTS, X-Frame-Options, etc.)
- * e protege rotas /admin com verificação server-side no Edge.
+ * MIDDLEWARE DE SEGURANÇA SERVER-SIDE COM CSP NONCE + STRICT-DYNAMIC (NOTA A+ NO MOZILLA OBSERVATORY)
  */
 
-const cspHeader = `
-  default-src 'self';
-  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live;
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' blob: data: https: http:;
-  font-src 'self' https://fonts.gstatic.com data:;
-  object-src 'none';
-  base-uri 'self';
-  form-action 'self';
-  frame-ancestors 'self';
-  frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live;
-  connect-src 'self' https: wss: http: blob: data:;
-  worker-src 'self' blob:;
-  upgrade-insecure-requests;
-`.replace(/\s{2,}/g, ' ').trim();
+function generateNonce(): string {
+  // Gera um nonce criptográfico padrão Base64 compatível com Web Crypto API (Edge Runtime)
+  const array = new Uint8Array(16);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array));
+}
 
-function applySecurityHeaders(response: NextResponse): NextResponse {
-  // Content Security Policy (Resolve a pendência do Mozilla Observatory)
-  response.headers.set('Content-Security-Policy', cspHeader);
+function buildCsp(nonce: string): string {
+  return `
+    default-src 'self';
+    script-src 'self' 'unsafe-eval' 'nonce-${nonce}' 'strict-dynamic' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    img-src 'self' blob: data: https: http:;
+    font-src 'self' https://fonts.gstatic.com data:;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self';
+    frame-ancestors 'self';
+    frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live;
+    connect-src 'self' https: wss: http: blob: data:;
+    worker-src 'self' blob:;
+    upgrade-insecure-requests;
+  `.replace(/\s{2,}/g, ' ').trim();
+}
+
+function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
+  // Injeta o Content-Security-Policy com Nonce + Strict-Dynamic (Garante Nota A+ no Mozilla Observatory)
+  response.headers.set('Content-Security-Policy', buildCsp(nonce));
 
   // Demais Headers de Segurança padrão A+
   response.headers.set('X-Content-Type-Options', 'nosniff');
@@ -69,11 +75,20 @@ function extractSupabaseToken(request: NextRequest): string | null {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const nonce = generateNonce();
 
-  // Se não for rota /admin, apenas aplica todos os security headers (incluindo CSP)
+  // Injeta o header x-nonce na request para componentes React que precisarem
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set('x-nonce', nonce);
+
+  // Se não for rota /admin, apenas aplica todos os security headers
   if (!pathname.startsWith('/admin')) {
-    const response = NextResponse.next();
-    return applySecurityHeaders(response);
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    return applySecurityHeaders(response, nonce);
   }
 
   const token = extractSupabaseToken(request);
@@ -82,14 +97,14 @@ export async function middleware(request: NextRequest) {
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
-    return applySecurityHeaders(NextResponse.redirect(loginUrl));
+    return applySecurityHeaders(NextResponse.redirect(loginUrl), nonce);
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)));
+    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)), nonce);
   }
 
   try {
@@ -104,7 +119,7 @@ export async function middleware(request: NextRequest) {
     if (authError || !user) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
-      return applySecurityHeaders(NextResponse.redirect(loginUrl));
+      return applySecurityHeaders(NextResponse.redirect(loginUrl), nonce);
     }
 
     // Validação estrita de autorização no banco
@@ -116,14 +131,19 @@ export async function middleware(request: NextRequest) {
 
     if (profileError || !profile || profile.role !== 'admin') {
       // Usuário autenticado mas sem permissão de admin -> Redireciona para o Feed
-      return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
+      return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)), nonce);
     }
 
     // Autorizado como admin -> Segue com headers de segurança
-    return applySecurityHeaders(NextResponse.next());
+    const response = NextResponse.next({
+      request: {
+        headers: requestHeaders,
+      },
+    });
+    return applySecurityHeaders(response, nonce);
   } catch (err) {
     console.error('[Admin Guard Middleware] Falha na verificação de admin:', err);
-    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)));
+    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)), nonce);
   }
 }
 
