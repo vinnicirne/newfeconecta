@@ -1,7 +1,15 @@
 import { RoomServiceClient } from 'livekit-server-sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth-server';
 
 export async function POST(req: NextRequest) {
+  // SECURITY: Apenas usuários autenticados podem encerrar salas.
+  try {
+    await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const { roomId } = await req.json();
 

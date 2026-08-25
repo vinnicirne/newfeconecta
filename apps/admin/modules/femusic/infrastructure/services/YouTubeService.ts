@@ -39,14 +39,19 @@ export class YouTubeService {
 
   // Chaves de standby para caso a cota da chave principal (.env) estoure
   private static get STANDBY_KEYS(): string[] {
-    const standbyEnv = process.env.NEXT_PUBLIC_YOUTUBE_STANDBY_KEYS || process.env.YOUTUBE_STANDBY_KEYS;
+    // SECURITY: Nunca usar NEXT_PUBLIC_ para chaves de API — elas ficam no bundle JS.
+    // Usar apenas variáveis sem o prefixo NEXT_PUBLIC_ (server-side only).
+    const standbyEnv = process.env.YOUTUBE_STANDBY_KEYS;
     return standbyEnv ? standbyEnv.split(',').map(k => k.trim()).filter(Boolean) : [];
   }
 
   private static currentKeyIndex = 0;
 
   private static getActiveApiKey(): string | null {
-    const envKey = process.env.NEXT_PUBLIC_YOUTUBE_API_KEY || process.env.YOUTUBE_API_KEY;
+    // SECURITY: Lê apenas YOUTUBE_API_KEY (sem prefixo NEXT_PUBLIC_).
+    // No contexto de componentes cliente, esta variável retornará undefined
+    // e o serviço usará automaticamente o fallback via scraper interno.
+    const envKey = process.env.YOUTUBE_API_KEY;
     const allKeys = envKey ? [envKey, ...this.STANDBY_KEYS] : this.STANDBY_KEYS;
     
     if (allKeys.length === 0) return null;

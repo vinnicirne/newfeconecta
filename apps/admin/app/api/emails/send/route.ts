@@ -1,8 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import { requireAuth } from '@/lib/auth-server';
 
 export async function POST(request: Request) {
+  // SECURITY: Apenas usuários autenticados podem disparar e-mails transacionais.
+  // Sem essa verificação, qualquer pessoa poderia usar o sistema de e-mail do FéConecta para spam.
+  try {
+    await requireAuth(request);
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

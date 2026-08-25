@@ -1,7 +1,16 @@
 import { AccessToken } from 'livekit-server-sdk';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth-server';
 
 export async function GET(req: NextRequest) {
+  // SECURITY: Apenas usuários autenticados podem gerar tokens de sala LiveKit.
+  // Sem esta verificação, qualquer pessoa poderia entrar em salas privadas.
+  try {
+    await requireAuth(req);
+  } catch {
+    return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+  }
+
   const room = req.nextUrl.searchParams.get('room');
   const identity = req.nextUrl.searchParams.get('identity');
   const name = req.nextUrl.searchParams.get('name');

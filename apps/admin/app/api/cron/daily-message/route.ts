@@ -9,8 +9,14 @@ export async function GET(request: Request) {
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
 
-    // Se houver CRON_SECRET configurado, exigir autenticação
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    // SECURITY: CRON_SECRET é OBRIGATÓRIO. Se não estiver configurado no ambiente,
+    // o endpoint é bloqueado para evitar disparo público em massa de e-mails.
+    if (!cronSecret) {
+      console.error('[CRON SECURITY] CRON_SECRET não configurado. Acesso bloqueado para proteger o sistema.');
+      return new NextResponse('Service Unavailable: CRON_SECRET not configured', { status: 503 });
+    }
+
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return new NextResponse('Unauthorized', { status: 401 });
     }
 

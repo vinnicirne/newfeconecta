@@ -1,11 +1,39 @@
 import { NextResponse } from 'next/server';
 
+// Rate limiting simples em memória (por IP)
+const ipRateMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 5;          // máximo de 5 tickets por IP
+const RATE_WINDOW_MS = 300_000; // janela de 5 minutos
+
 export async function POST(request: Request) {
+  // Rate limiting por IP para evitar flood de tickets de suporte
+  const forwarded = (request as any).headers?.get?.('x-forwarded-for');
+  const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+  const now = Date.now();
+  const record = ipRateMap.get(ip);
+
+  if (record && now < record.resetAt) {
+    if (record.count >= RATE_LIMIT) {
+      return NextResponse.json(
+        { error: 'Muitas solicitações. Aguarde alguns minutos antes de enviar outro relato.' },
+        { status: 429 }
+      );
+    }
+    record.count++;
+  } else {
+    ipRateMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+  }
+
   try {
     const { subject, message, userEmail, userName } = await request.json();
 
     if (!message || !subject) {
       return NextResponse.json({ error: 'Assunto e mensagem são obrigatórios' }, { status: 400 });
+    }
+
+    // Validação básica de tamanho para evitar payloads gigantes
+    if (message.length > 5000 || subject.length > 200) {
+      return NextResponse.json({ error: 'Conteúdo muito longo' }, { status: 400 });
     }
 
     const resendApiKey = process.env.RESEND_API_KEY;
@@ -73,7 +101,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: data.message || 'Erro ao enviar email' }, { status: response.status });
     }
 
-    console.log(`[Support API] Relato enviado com sucesso de ${userEmail} — assunto: ${subject}`);
+    console.log(`[Support API] Relato enviado com sucesso — assunto: ${subject}`);
     return NextResponse.json({ success: true, data }, { status: 200 });
 
   } catch (error: any) {

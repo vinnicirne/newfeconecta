@@ -8,17 +8,36 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'URL is required' }, { status: 400 });
   }
 
-  // SSRF Protection: Bloqueia IPs locais, rede privada, AWS Metadata e loopback
+  // SSRF Protection: Bloqueia IPs locais, rede privada, AWS Metadata, loopback e vetores de bypass
   const isPrivateOrLocalIP = (hostname: string) => {
-    return /^localhost$/i.test(hostname) ||
-           /^127\.\d+\.\d+\.\d+$/.test(hostname) ||
-           /^10\.\d+\.\d+\.\d+$/.test(hostname) ||
-           /^172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+$/.test(hostname) ||
-           /^192\.168\.\d+\.\d+$/.test(hostname) ||
-           /^169\.254\.\d+\.\d+$/.test(hostname) ||
-           /^::1$/.test(hostname) ||
-           hostname.endsWith('.local') ||
-           hostname.endsWith('.internal');
+    const h = hostname.toLowerCase();
+    return (
+      // Loopback e localhost
+      /^localhost$/i.test(h) ||
+      /^127\.\d+\.\d+\.\d+$/.test(h) ||
+      // Redes privadas RFC 1918
+      /^10\.\d+\.\d+\.\d+$/.test(h) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\.\d+\.\d+$/.test(h) ||
+      /^192\.168\.\d+\.\d+$/.test(h) ||
+      // AWS/GCP/Azure Metadata
+      /^169\.254\.\d+\.\d+$/.test(h) ||
+      // IPv6 loopback e link-local
+      /^::1$/.test(h) ||
+      /^fe80:/i.test(h) ||
+      // IPv6 encapsulado em IPv4 (bypass clássico)
+      /^::ffff:127\./i.test(h) ||
+      /^::ffff:10\./i.test(h) ||
+      /^::ffff:192\.168\./i.test(h) ||
+      // Endereço zero (routable para loopback em alguns SOs)
+      /^0\.0\.0\.0$/.test(h) ||
+      /^0$/.test(h) ||
+      // Domínios .local e .internal (mDNS)
+      h.endsWith('.local') ||
+      h.endsWith('.internal') ||
+      // Notation octal/hex para bypass (ex: 0x7f000001, 017700000001)
+      /^0x[0-9a-f]+$/i.test(h) ||
+      /^0[0-7]+$/.test(h)
+    );
   };
 
   try {
