@@ -26,36 +26,41 @@ export function useAudioPlayers(): AudioPlayerRefs {
 
   const { currentTrack } = usePlayerStore();
 
-  // Expõe o player ativo globalmente
+  // Expõe o player ativo e a limpeza do inativo globalmente
   useEffect(() => {
     const active = getActiveAudio();
     if (active) {
       (window as any).audioPlayer = active;
     }
-  }, [activeIndex, getActiveAudio]);
+    
+    (window as any).stopInactiveAudio = () => {
+      const inactive = getInactiveAudio();
+      if (inactive) {
+        inactive.pause();
+        inactive.currentTime = 0;
+        inactive.removeAttribute('src');
+        inactive.load();
+      }
+    };
+  }, [activeIndex, getActiveAudio, getInactiveAudio]);
 
-  // Quando a música muda
+  // Quando a música muda: limpa o áudio anterior para NUNCA tocar 2 músicas juntas
   useEffect(() => {
     const active = getActiveAudio();
+    const inactive = getInactiveAudio();
     if (!active || !currentTrack) return;
 
     hasTriggeredCrossfade.current = false;
     isCrossfading.current = false;
 
-    const newSrc =
-      (currentTrack as any).audioUrl ||
-      localStorage.getItem(`fc_audio_cache_${currentTrack.providerTrackId}`);
-
-    if (newSrc && active.src !== newSrc && !active.src.endsWith(newSrc)) {
-      active.src = newSrc;
-      active.load();
-      active.volume = 1;
-
-      if (usePlayerStore.getState().isPlaying) {
-        active.play().catch(() => {});
-      }
+    // Pausa e descarrega IMEDIATAMENTE o áudio inativo
+    if (inactive) {
+      inactive.pause();
+      inactive.currentTime = 0;
+      inactive.removeAttribute('src');
+      inactive.load();
     }
-  }, [currentTrack?.id, getActiveAudio]);
+  }, [currentTrack?.id, getActiveAudio, getInactiveAudio]);
 
   return {
     audioARef,

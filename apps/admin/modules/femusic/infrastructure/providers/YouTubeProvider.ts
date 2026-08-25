@@ -42,12 +42,24 @@ export class YouTubeProvider implements IMusicProvider {
     this.currentTrack = track;
     this.isPlaying = true;
 
+    // Garante que qualquer áudio anterior/inativo seja pausado e silenciado imediatamente
+    if (typeof window !== 'undefined') {
+      try {
+        (window as any).stopInactiveAudio?.();
+      } catch (_) {}
+    }
+
+    if (this.player) {
+      this.player.pause();
+    }
+
     // 1. Local cache (instant)
     if (typeof window !== 'undefined') {
       const localCachedUrl = localStorage.getItem(`fc_audio_cache_${track.providerTrackId}`);
       if (localCachedUrl && this.player) {
         console.log(`[YouTubeProvider] Cache hit: ${track.title}`);
         this.player.src = localCachedUrl;
+        this.player.currentTime = 0;
         this.player.play().catch((e) => console.error('Play failed:', e));
         return;
       }
@@ -92,6 +104,7 @@ export class YouTubeProvider implements IMusicProvider {
         }
 
         this.player.src = data.url;
+        this.player.currentTime = 0;
         await this.player.play().catch((e) => console.error('Play failed:', e));
 
         try {

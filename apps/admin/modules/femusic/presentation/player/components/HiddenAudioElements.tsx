@@ -19,18 +19,11 @@ export function HiddenAudioElements({
   onError,
 }: Props) {
 
-  // Sync store ← audio para o caso do Android controlar o <audio> diretamente
-  // (bypass do nosso handler JS — acontece com play/pause nativos do Android).
-  // Guard: isLoading evita o feedback loop durante troca de música
-  // (o src muda → audio pausa momentaneamente → onPause seria chamado incorretamente).
   const onPlay = () => {
-    console.log('[Audio] onPlay disparado');
     usePlayerStore.setState({ isPlaying: true });
   };
 
   const onPlaying = () => {
-    console.log('[Audio] onPlaying disparado - Áudio fisicamente tocando');
-    
     usePlayerStore.setState({ isPlaying: true });
 
     if (typeof window !== 'undefined') {
@@ -48,10 +41,8 @@ export function HiddenAudioElements({
   const onPause = () => {
     const { isLoading } = usePlayerStore.getState();
     if (isCrossfading.current || isLoading) {
-      console.log('[Audio] onPause ignorado (crossfade ou loading em curso)');
       return;
     }
-    console.log('[Audio] onPause disparado → isPlaying: false');
     usePlayerStore.setState({ isPlaying: false });
   };
 
@@ -61,6 +52,9 @@ export function HiddenAudioElements({
         ref={audioARef}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onDurationChange={handleLoadedMetadata}
+        onLoadedData={handleLoadedMetadata}
+        onCanPlay={handleLoadedMetadata}
         onEnded={handleEnded}
         onError={onError}
         onPlay={onPlay}
@@ -75,6 +69,9 @@ export function HiddenAudioElements({
         ref={audioBRef}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
+        onDurationChange={handleLoadedMetadata}
+        onLoadedData={handleLoadedMetadata}
+        onCanPlay={handleLoadedMetadata}
         onEnded={handleEnded}
         onError={onError}
         onPlay={onPlay}

@@ -84,12 +84,13 @@ export default function FullscreenPlayer() {
   const isLiked = likedTracks.some(t => (t.providerTrackId || t.id) === currentId);
 
   const fmt = (ms: number) => {
-    if (!ms || isNaN(ms)) return '0:00';
+    if (!ms || isNaN(ms) || ms < 0) return '0:00';
     const s = Math.floor(ms / 1000);
     return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
   };
 
-  const pct = durationMs > 0 ? (progressMs / durationMs) * 100 : 0;
+  const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
+  const pct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (progressMs / effectiveDuration) * 100)) : 0;
   const ytId = currentTrack.providerTrackId || currentTrack.id;
 
   return (
@@ -256,25 +257,30 @@ export default function FullscreenPlayer() {
               </AnimatePresence>
 
               {/* Progress Bar */}
-              <div className="relative mb-1 py-3 cursor-pointer"
+              <div 
+                className="relative mb-1 py-3 cursor-pointer select-none touch-none"
                 onClick={(e) => {
-                  if (durationMs > 0) {
+                  if (effectiveDuration > 0) {
                     const r = e.currentTarget.getBoundingClientRect();
-                    seek(((e.clientX - r.left) / r.width) * durationMs);
+                    const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+                    seek(ratio * effectiveDuration);
                   }
                 }}
               >
-                <div className="w-full h-1 bg-white/20 rounded-full relative">
-                  <div className="absolute top-0 left-0 h-1 bg-white rounded-full transition-all" style={{ width: `${pct}%` }} />
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 bg-white rounded-full shadow-lg transition-all"
-                    style={{ left: `${pct}%` }}
+                <div className="w-full h-1.5 bg-white/20 rounded-full relative overflow-hidden">
+                  <div 
+                    className="h-full bg-whatsapp-teal rounded-full transition-[width] duration-150 ease-linear" 
+                    style={{ width: `${pct}%` }} 
                   />
                 </div>
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg pointer-events-none transition-[left] duration-150 ease-linear ring-2 ring-whatsapp-teal/40"
+                  style={{ left: `${pct}%` }}
+                />
               </div>
-              <div className="flex justify-between text-[10px] text-gray-500 font-mono mb-4">
+              <div className="flex justify-between text-[11px] text-gray-400 font-mono mb-4">
                 <span>{fmt(progressMs)}</span>
-                <span>{fmt(durationMs)}</span>
+                <span>{fmt(effectiveDuration)}</span>
               </div>
 
               {/* Controls */}

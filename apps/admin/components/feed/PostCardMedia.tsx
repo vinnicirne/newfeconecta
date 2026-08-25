@@ -55,8 +55,12 @@ export default function PostCardMedia() {
               const { platform } = parseExternalMedia(url);
 
               if (platform !== "unknown") {
+                const isShorts = platform === "youtube_shorts" || platform === "tiktok";
                 return (
-                  <div className="w-full aspect-[9/16] max-h-[70vh] rounded-2xl overflow-hidden shadow-2xl relative">
+                  <div className={cn(
+                    "w-full rounded-2xl overflow-hidden shadow-2xl relative bg-zinc-950",
+                    isShorts ? "aspect-[9/16] max-h-[70vh]" : "aspect-video max-h-[60vh]"
+                  )}>
                     <ExternalMediaNative url={url} />
                   </div>
                 );
