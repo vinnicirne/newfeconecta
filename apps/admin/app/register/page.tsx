@@ -357,6 +357,24 @@ export default function RegisterPage() {
 
       if (profileError) throw profileError;
 
+      // Se for adolescente, disparar o e-mail de consentimento parental (LGPD Art. 14)
+      if (ageCompliance.requiresConsent) {
+        fetch('/api/guardian/send-consent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: authData.user.id,
+            minor_name: formData.first_name.trim(),
+            guardian_email: guardianEmail.toLowerCase().trim(),
+          })
+        }).catch(err => console.error("Erro ao enviar consentimento parental:", err));
+
+        // Redirecionar para tela de aguardando aprovação
+        toast.success("Conta criada! Enviamos um e-mail de autorização para o responsável.");
+        router.push(`/guardian/pending?email=${encodeURIComponent(guardianEmail)}`);
+        return;
+      }
+
       // Disparar o e-mail de boas-vindas assíncronamente (sem bloquear o fluxo)
       fetch('/api/emails/send', {
         method: 'POST',
@@ -376,6 +394,7 @@ export default function RegisterPage() {
 
       toast.success("Conta criada! Verifique seu e-mail.");
       router.push("/login?registered=true");
+
     } catch (err: any) {
       console.error("❌ Erro de Validação/Cadastro:", err);
       if (err.name === 'ZodError') {
