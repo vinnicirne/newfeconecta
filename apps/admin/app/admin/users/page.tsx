@@ -102,7 +102,7 @@ export default function UsersPage() {
     const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
     const { data } = await supabase
       .from(table)
-      .select('id, full_name, avatar_url, updated_at, username, role, current_page, page_title, page_entered_at')
+      .select('id, full_name, avatar_url, updated_at, last_seen, username, role, current_page, page_title, page_entered_at')
       .gt('updated_at', activeCutoff)
       .order('updated_at', { ascending: false });
     if (data) setOnlineUsers(data);
@@ -524,8 +524,11 @@ export default function UsersPage() {
                         ) : (
                           <div className="flex flex-col">
                             <span className="text-xs text-gray-400 font-medium">Offline</span>
-                            <span className="text-[10px] text-gray-500 font-mono">
-                              {u.updated_at ? `Visto ${moment(u.updated_at).fromNow()}` : '—'}
+                            <span className="text-[10px] text-gray-500">
+                              {(() => {
+                                const t = u.last_seen || u.updated_at || u.created_at;
+                                return t ? `Visto ${moment(t).fromNow()}` : '—';
+                              })()}
                             </span>
                           </div>
                         )}

@@ -75,6 +75,7 @@ export function PresenceTracker() {
         .from("profiles")
         .update({ 
           updated_at: new Date().toISOString(),
+          last_seen: new Date().toISOString(),
           current_page: currentFriendly.route,
           page_title: currentFriendly.title,
           page_entered_at: pageEnteredAtRef.current
