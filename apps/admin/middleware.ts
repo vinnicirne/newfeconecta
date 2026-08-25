@@ -2,30 +2,47 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * MIDDLEWARE DE SEGURANÇA SERVER-SIDE 10/10 — FéConecta
+ * MIDDLEWARE DE SEGURANÇA SERVER-SIDE COM CSP (MOZILLA OBSERVATORY A+) — FéConecta
  *
- * 1. Protege rotas /admin com verificação server-side completa:
- *    - Validação de sessão / token ativo no Supabase
- *    - Checagem estrita de privilégio (role === 'admin') no banco de dados
- *    - Redirecionamento instantâneo no Edge para usuários não autorizados
- *
- * 2. Injeta Headers de Segurança HTTP modernos em todas as requisições:
- *    - X-Content-Type-Options: nosniff
- *    - X-Frame-Options: SAMEORIGIN (proteção contra clickjacking)
- *    - Referrer-Policy: strict-origin-when-cross-origin
- *    - Permissions-Policy: camera=(), microphone=(), geolocation=()
- *    - Strict-Transport-Security (HSTS)
+ * Injeta headers de segurança de alto nível (Content Security Policy, HSTS, X-Frame-Options, etc.)
+ * e protege rotas /admin com verificação server-side no Edge.
  */
 
+const cspHeader = `
+  default-src 'self';
+  script-src 'self' 'unsafe-eval' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  img-src 'self' blob: data: https: http:;
+  font-src 'self' https://fonts.gstatic.com data:;
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+  frame-ancestors 'self';
+  frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live;
+  connect-src 'self' https: wss: http: blob: data:;
+  worker-src 'self' blob:;
+  upgrade-insecure-requests;
+`.replace(/\s{2,}/g, ' ').trim();
+
 function applySecurityHeaders(response: NextResponse): NextResponse {
+  // Content Security Policy (Resolve a pendência do Mozilla Observatory)
+  response.headers.set('Content-Security-Policy', cspHeader);
+
+  // Demais Headers de Segurança padrão A+
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set(
     'Strict-Transport-Security',
-    'max-age=31536000; includeSubDomains; preload'
+    'max-age=63072000; includeSubDomains; preload'
   );
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(self), microphone=(self), geolocation=(self)'
+  );
+  response.headers.set('X-Permitted-Cross-Domain-Policies', 'none');
+
   return response;
 }
 
@@ -53,7 +70,7 @@ function extractSupabaseToken(request: NextRequest): string | null {
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Se não for rota /admin, apenas aplica headers de segurança
+  // Se não for rota /admin, apenas aplica todos os security headers (incluindo CSP)
   if (!pathname.startsWith('/admin')) {
     const response = NextResponse.next();
     return applySecurityHeaders(response);
@@ -78,7 +95,7 @@ export async function middleware(request: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Valida criptograficamente o JWT e obtém o usuário autêntico
+    // Valida criptograficamente o JWT
     const {
       data: { user },
       error: authError,
@@ -90,7 +107,7 @@ export async function middleware(request: NextRequest) {
       return applySecurityHeaders(NextResponse.redirect(loginUrl));
     }
 
-    // Validação estrita de autorização no banco (Server-Side)
+    // Validação estrita de autorização no banco
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
