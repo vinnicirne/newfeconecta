@@ -15,14 +15,17 @@ export async function POST(request: Request) {
     const isInstagram = url.includes('instagram.com');
 
     if (isInstagram) {
-      // PROJETO PAUSADO: O Instagram bloqueia acessos de IPs de Datacenter (AWS/Vercel).
-      // Sem um proxy residencial pago, a extração de vídeos nativos e privados falhará.
-      // Retornar 404 imediatamente força o frontend a usar o "Plano B" (iFrame Nativo) sem lentidão.
+      // O Instagram bloqueia acessos diretos de Datacenter sem proxy residencial.
+      // Retornar 404 força o frontend a usar o iframe nativo.
       return NextResponse.json({ error: 'Media not found (Instagram direct extraction archived)' }, { status: 404 });
     }
 
-    // Fallback para YouTube/TikTok via VPS
-    const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://209.50.229.10:8086/extract';
+    // Fallback para YouTube/TikTok via microserviço configurado via variável de ambiente
+    const EXTRACTOR_URL = process.env.EXTRACTOR_URL;
+
+    if (!EXTRACTOR_URL) {
+      return NextResponse.json({ error: 'Serviço de extração de mídia não configurado' }, { status: 503 });
+    }
 
     const response = await fetch(EXTRACTOR_URL, {
       method: 'POST',

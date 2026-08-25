@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
+// Rate limiting simples em memória por IP (30 buscas por minuto por IP)
+const searchRateMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT = 30;
+const RATE_WINDOW_MS = 60_000;
+
 function decodeHtml(html: string): string {
   return html
     .replace(/&amp;/g, '&')
@@ -28,6 +33,24 @@ function parseDurationText(text: string): number {
 }
 
 export async function GET(request: Request) {
+  // Rate limiting por IP
+  const forwarded = (request as any).headers?.get?.('x-forwarded-for');
+  const ip = forwarded?.split(',')[0]?.trim() || 'unknown';
+  const now = Date.now();
+  const record = searchRateMap.get(ip);
+
+  if (record && now < record.resetAt) {
+    if (record.count >= RATE_LIMIT) {
+      return NextResponse.json(
+        { results: [], error: 'Muitas buscas consecutivas. Aguarde alguns segundos.' },
+        { status: 429 }
+      );
+    }
+    record.count++;
+  } else {
+    searchRateMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+  }
+
   const { searchParams } = new URL(request.url);
   const q = searchParams.get('q');
   const limit = parseInt(searchParams.get('limit') || '15', 10);
@@ -110,7 +133,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ results });
   } catch (error: any) {
-    console.error('[YouTube Scraper Search Error]:', error);
-    return NextResponse.json({ results: [], error: error.message }, { status: 500 });
+    console.error('[MusicSearch] Falha na busca:', error.message);
+    return NextResponse.json({ results: [], error: 'Falha na busca de músicas' }, { status: 500 });
   }
 }

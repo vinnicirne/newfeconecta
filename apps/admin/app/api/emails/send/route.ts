@@ -111,7 +111,7 @@ export async function POST(request: Request) {
 
         responseOk = true;
         providerData = info;
-        console.log(`[Welcome Email] Enviado com sucesso via SMTP para ${email}`);
+        console.log(`[Welcome Email] Enviado com sucesso via SMTP (template: ${tKey})`);
       } catch (err: any) {
         logStatus = 'error';
         logErrorMessage = err.message;
@@ -144,7 +144,7 @@ export async function POST(request: Request) {
         } else {
           responseOk = true;
           providerData = data;
-          console.log(`[Welcome Email] Enviado com sucesso via Resend para ${email}`);
+          console.log(`[Welcome Email] Enviado com sucesso via Resend (template: ${tKey})`);
         }
       } catch (err: any) {
         logStatus = 'error';

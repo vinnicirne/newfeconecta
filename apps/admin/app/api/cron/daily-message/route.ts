@@ -179,7 +179,7 @@ export async function GET(request: Request) {
           else errorCount++;
 
         } catch (err) {
-          console.error(`[CRON] Erro no envio para ${email}:`, err);
+          console.error(`[CRON] Erro no envio de e-mail para usuário ID ${userId}:`, err);
           errorCount++;
         }
       });
