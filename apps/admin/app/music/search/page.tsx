@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search as SearchIcon, Mic, Filter, PlayCircle, Loader2 } from 'lucide-react';
+import { Search as SearchIcon, Mic, Filter, PlayCircle, Loader2, ListPlus, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { YouTubeProvider } from '@/modules/femusic/infrastructure/providers/YouTubeProvider';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { MusicTrack } from '@/modules/femusic/domain/entities/MusicTrack';
+import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToPlaylistModal';
 
 export default function SearchPage() {
   const [query, setQuery] = useState('');
@@ -13,7 +14,8 @@ export default function SearchPage() {
   const [results, setResults] = useState<MusicTrack[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [needsAuth, setNeedsAuth] = useState(false);
-  const { play } = usePlayerStore();
+  const [selectedTrackForPlaylist, setSelectedTrackForPlaylist] = useState<MusicTrack | null>(null);
+  const { play, likedTracks, toggleLike } = usePlayerStore();
   
   // Debounce
   useEffect(() => {
@@ -83,24 +85,47 @@ export default function SearchPage() {
             </div>
           ) : results.length > 0 ? (
             <div className="flex flex-col gap-3">
-              {results.map((track) => (
-                <div 
-                  key={track.id} 
-                  onClick={() => play(track, results)}
-                  className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer group"
-                >
-                  <div className="w-14 h-14 rounded-lg bg-gray-200 dark:bg-white/10 overflow-hidden shrink-0 relative">
-                    <img src={track.cover || ''} className="w-full h-full object-cover" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <PlayCircle className="w-6 h-6 text-white" />
+              {results.map((track) => {
+                const trackId = track.providerTrackId || track.id;
+                const isLiked = likedTracks.some(t => (t.providerTrackId || t.id) === trackId);
+                return (
+                  <div 
+                    key={track.id} 
+                    onClick={() => play(track, results)}
+                    className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-14 h-14 rounded-lg bg-gray-200 dark:bg-white/10 overflow-hidden shrink-0 relative">
+                        <img src={track.cover || ''} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <PlayCircle className="w-6 h-6 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title}</h4>
+                        <p className="text-xs text-gray-500 truncate">{track.artist}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => toggleLike(track)}
+                        className="p-2 transition-transform active:scale-90 text-gray-400 hover:text-red-500"
+                        title="Curtir"
+                      >
+                        <Heart className={`w-4 h-4 ${isLiked ? 'text-red-500 fill-red-500' : ''}`} />
+                      </button>
+                      <button
+                        onClick={() => setSelectedTrackForPlaylist(track)}
+                        className="p-2 transition-transform active:scale-90 text-gray-400 hover:text-whatsapp-teal"
+                        title="Adicionar à Playlist"
+                      >
+                        <ListPlus className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-sm truncate">{track.title}</h4>
-                    <p className="text-xs text-gray-500 truncate">{track.artist}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
              <div className="text-center py-10 text-gray-500 text-sm">
@@ -119,6 +144,7 @@ export default function SearchPage() {
             {categories.map((cat, i) => (
               <button 
                 key={i} 
+                onClick={() => setQuery(cat.name + ' gospel')}
                 className={cn(
                   "relative overflow-hidden h-24 rounded-2xl p-4 flex items-end shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-transform text-left",
                   cat.color
@@ -136,6 +162,13 @@ export default function SearchPage() {
           </div>
         </div>
       )}
+
+      {/* Modal de Adicionar à Playlist */}
+      <AddToPlaylistModal
+        isOpen={!!selectedTrackForPlaylist}
+        onClose={() => setSelectedTrackForPlaylist(null)}
+        track={selectedTrackForPlaylist}
+      />
     </div>
   );
 }

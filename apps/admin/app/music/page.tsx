@@ -1,8 +1,8 @@
-"use client";
-
 import React, { useEffect, useState } from 'react';
-import { PlayCircle, Plus, Music, Sparkles, Radio } from 'lucide-react';
+import { PlayCircle, Plus, Music, Sparkles, Radio, ListPlus } from 'lucide-react';
 import MusicComposerModal from '@/components/feed/MusicComposerModal';
+import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToPlaylistModal';
+import { MusicTrack } from '@/modules/femusic/domain/entities/MusicTrack';
 import { supabase } from '@/lib/supabase';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { YouTubeService } from '@/modules/femusic/infrastructure/services/YouTubeService';
@@ -32,6 +32,7 @@ export default function MusicFeedPage() {
   const [worship, setWorship] = useState<any[]>(defaultWorship);
   const [loading, setLoading] = useState(true);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [selectedTrackForPlaylist, setSelectedTrackForPlaylist] = useState<MusicTrack | null>(null);
   const { play } = usePlayerStore();
   
   const [user, setUser] = useState<any>(() => getStoredProfile());
@@ -185,9 +186,19 @@ export default function MusicFeedPage() {
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <PlayCircle className="w-8 h-8 text-white" />
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTrackForPlaylist(track);
+                  }}
+                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
+                  title="Adicionar à Playlist"
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div>
-                <h3 className="font-bold text-sm truncate">{track.title || 'Faixa Desconhecida'}</h3>
+                <h3 className="font-bold text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
                 <p className="text-xs text-gray-500 truncate">{track.artist || 'Sem artista'}</p>
               </div>
             </div>
@@ -215,9 +226,19 @@ export default function MusicFeedPage() {
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <PlayCircle className="w-8 h-8 text-white" />
                 </div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTrackForPlaylist(track);
+                  }}
+                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
+                  title="Adicionar à Playlist"
+                >
+                  <ListPlus className="w-3.5 h-3.5" />
+                </button>
               </div>
               <div>
-                <h3 className="font-bold text-sm truncate">{track.title || 'Faixa Desconhecida'}</h3>
+                <h3 className="font-bold text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
                 <p className="text-xs text-gray-500 truncate">{track.artist || 'Sem artista'}</p>
               </div>
             </div>
@@ -233,6 +254,12 @@ export default function MusicFeedPage() {
         onSuccess={() => {
           setIsComposerOpen(false);
         }}
+      />
+
+      <AddToPlaylistModal
+        isOpen={!!selectedTrackForPlaylist}
+        onClose={() => setSelectedTrackForPlaylist(null)}
+        track={selectedTrackForPlaylist}
       />
     </div>
   );
