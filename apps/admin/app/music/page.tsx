@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useState } from 'react';
 import { PlayCircle, Plus, Music, Sparkles, Radio, ListPlus } from 'lucide-react';
 import MusicComposerModal from '@/components/feed/MusicComposerModal';
