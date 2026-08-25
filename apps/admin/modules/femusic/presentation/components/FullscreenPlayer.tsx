@@ -13,6 +13,7 @@ import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayer
 import { cn } from '@/lib/utils';
 import MusicComposerModal from '@/components/feed/MusicComposerModal';
 import TrackCommentsModal from './TrackCommentsModal';
+import AddToPlaylistModal from './AddToPlaylistModal';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
 
@@ -31,6 +32,7 @@ export default function FullscreenPlayer() {
   const [isComposerOpen, setIsComposerOpen] = React.useState(false);
   const [isCommentsOpen, setIsCommentsOpen] = React.useState(false);
   const [isShareOpen, setIsShareOpen] = React.useState(false);
+  const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = React.useState(false);
   const [lyricsOpen, setLyricsOpen] = React.useState(false);
   const [disliked, setDisliked] = React.useState(false);
 
@@ -219,13 +221,10 @@ export default function FullscreenPlayer() {
                   <MessageCircle className="w-3.5 h-3.5" />Comentar
                 </button>
                 <button
-                  onClick={() => {
-                    toggleLike(currentTrack);
-                    import('sonner').then(({ toast }) => toast.success(isLiked ? 'Removido' : 'Salvo na Playlist 🙏'));
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 text-gray-300 border border-white/10 shrink-0"
+                  onClick={() => setIsAddToPlaylistOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 text-gray-300 border border-white/10 shrink-0 hover:bg-white/20 transition-colors"
                 >
-                  <ListMusic className="w-3.5 h-3.5" />Salvar
+                  <ListMusic className="w-3.5 h-3.5 text-whatsapp-teal" />Playlist
                 </button>
                 <button
                   onClick={() => setIsShareOpen(true)}
@@ -365,6 +364,11 @@ export default function FullscreenPlayer() {
             trackArtist={currentTrack.artist || ''}
             trackCover={currentTrack.cover ?? undefined}
             youtubeId={ytId}
+          />
+          <AddToPlaylistModal
+            isOpen={isAddToPlaylistOpen}
+            onClose={() => setIsAddToPlaylistOpen(false)}
+            track={currentTrack}
           />
         </motion.div>
       )}
