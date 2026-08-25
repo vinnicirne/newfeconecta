@@ -6,12 +6,42 @@ import { supabase } from "@/lib/supabase";
 import { getStoredProfile } from "@/lib/profile-cache";
 
 const HEARTBEAT_INTERVAL_MS = 60 * 1000; // 60 segundos
-const THROTTLE_ROUTE_MS = 15 * 1000; // Mínimo de 15s entre trocas de rota
+const THROTTLE_ROUTE_MS = 10 * 1000; // Mínimo de 10s entre trocas de rota
+
+// Mapeamento amigável de páginas para o Radar de Navegação
+export function getFriendlyPageName(pathname: string): { title: string; icon: string; badgeColor: string } {
+  if (pathname === "/") return { title: "Feed Principal", icon: "🔥", badgeColor: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" };
+  if (pathname.startsWith("/jogos/blocos")) return { title: "Block Blast", icon: "🧱", badgeColor: "bg-purple-500/10 text-purple-500 border-purple-500/20" };
+  if (pathname.startsWith("/jogos/snake")) return { title: "Google Snake", icon: "🐍", badgeColor: "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" };
+  if (pathname.startsWith("/jogos/quiz")) return { title: "Quiz da Bíblia", icon: "📖", badgeColor: "bg-amber-500/10 text-amber-500 border-amber-500/20" };
+  if (pathname.startsWith("/jogos/memoria")) return { title: "Jogo da Memória", icon: "🕊️", badgeColor: "bg-sky-500/10 text-sky-500 border-sky-500/20" };
+  if (pathname.startsWith("/jogos")) return { title: "Arena de Jogos", icon: "🎮", badgeColor: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" };
+  if (pathname.startsWith("/bible")) return { title: "Bíblia Sagrada", icon: "📜", badgeColor: "bg-amber-500/10 text-amber-500 border-amber-500/20" };
+  if (pathname.startsWith("/messages")) return { title: "Chat / Mensagens", icon: "💬", badgeColor: "bg-teal-500/10 text-teal-500 border-teal-500/20" };
+  if (pathname.startsWith("/music")) return { title: "Música / Player", icon: "🎵", badgeColor: "bg-pink-500/10 text-pink-500 border-pink-500/20" };
+  if (pathname.startsWith("/notes")) return { title: "Bloco de Notas", icon: "📝", badgeColor: "bg-yellow-500/10 text-yellow-500 border-yellow-500/20" };
+  if (pathname.startsWith("/santuario")) return { title: "Lugar Secreto", icon: "🕯️", badgeColor: "bg-amber-600/10 text-amber-600 border-amber-600/20" };
+  if (pathname.startsWith("/room")) return { title: "Sala de Guerra", icon: "⚔️", badgeColor: "bg-red-500/10 text-red-500 border-red-500/20" };
+  if (pathname.startsWith("/tribo")) return { title: "Tribo / Vídeos", icon: "⚡", badgeColor: "bg-orange-500/10 text-orange-500 border-orange-500/20" };
+  if (pathname.startsWith("/saved")) return { title: "Itens Salvos", icon: "🔖", badgeColor: "bg-blue-500/10 text-blue-500 border-blue-500/20" };
+  if (pathname.startsWith("/semei")) return { title: "Semear / Ofertar", icon: "🌱", badgeColor: "bg-rose-500/10 text-rose-500 border-rose-500/20" };
+  if (pathname.startsWith("/igreja")) return { title: "Igreja / Ministérios", icon: "⛪", badgeColor: "bg-indigo-500/10 text-indigo-500 border-indigo-500/20" };
+  if (pathname.startsWith("/profile")) return { title: "Meu Perfil", icon: "👤", badgeColor: "bg-slate-500/10 text-slate-400 border-slate-500/20" };
+  if (pathname.startsWith("/admin")) return { title: "Painel Admin", icon: "🛡️", badgeColor: "bg-red-500/10 text-red-500 border-red-500/20" };
+  
+  return { title: pathname, icon: "🌐", badgeColor: "bg-slate-500/10 text-slate-400 border-slate-500/20" };
+}
 
 export function PresenceTracker() {
   const pathname = usePathname();
   const lastBeatRef = useRef<number>(0);
+  const pageEnteredAtRef = useRef<string>(new Date().toISOString());
   const activeChannelRef = useRef<any>(null);
+
+  // Reset do tempo ao mudar de rota
+  useEffect(() => {
+    pageEnteredAtRef.current = new Date().toISOString();
+  }, [pathname]);
 
   // Enviar pulso de presença atômico no banco de dados
   const sendHeartbeat = async (userId: string) => {
@@ -55,13 +85,20 @@ export function PresenceTracker() {
 
         activeChannelRef.current = channel;
 
+        const friendly = getFriendlyPageName(pathname);
+
         channel
           .on("presence", { event: "sync" }, () => {
             try {
               const state = channel.presenceState();
               const onlineIds = Object.keys(state);
               if (typeof window !== "undefined") {
-                window.dispatchEvent(new CustomEvent("presence-sync", { detail: onlineIds }));
+                window.dispatchEvent(new CustomEvent("presence-sync", { 
+                  detail: {
+                    onlineIds,
+                    state
+                  } 
+                }));
               }
             } catch (err) {}
           })
@@ -70,7 +107,12 @@ export function PresenceTracker() {
               await channel.track({
                 user_id: userId,
                 online_at: new Date().toISOString(),
-                route: pathname
+                route: pathname,
+                page_title: friendly.title,
+                page_icon: friendly.icon,
+                entered_at: pageEnteredAtRef.current,
+                user_name: cached?.full_name || cached?.username || "Usuário",
+                avatar_url: cached?.avatar_url || null
               });
             }
           });
@@ -119,7 +161,7 @@ export function PresenceTracker() {
     };
   }, []);
 
-  // Atualizar presença em transições de rotas (com throttle de 15s)
+  // Atualizar presença em transições de rotas
   useEffect(() => {
     const cached = getStoredProfile();
     const userId = cached?.id;
@@ -129,10 +171,16 @@ export function PresenceTracker() {
         sendHeartbeat(userId);
       }
       if (activeChannelRef.current) {
+        const friendly = getFriendlyPageName(pathname);
         activeChannelRef.current.track({
           user_id: userId,
           online_at: new Date().toISOString(),
-          route: pathname
+          route: pathname,
+          page_title: friendly.title,
+          page_icon: friendly.icon,
+          entered_at: pageEnteredAtRef.current,
+          user_name: cached?.full_name || cached?.username || "Usuário",
+          avatar_url: cached?.avatar_url || null
         }).catch(() => {});
       }
     }
