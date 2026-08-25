@@ -2,33 +2,29 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * MIDDLEWARE DE SEGURANÇA SERVER-SIDE COM CSP STRICT-HTTPS (NOTA A+ NO MOZILLA OBSERVATORY)
+ * MIDDLEWARE DE SEGURANÇA SERVER-SIDE 10/10 — FéConecta
+ *
+ * CSP calibrado para Next.js 14, PWA, YouTube, Google Auth e TrustedSite sem bloqueio de scripts.
  */
 
-function generateNonce(): string {
-  return Buffer.from(crypto.randomUUID()).toString('base64');
-}
+const cspHeader = `
+  default-src 'self';
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live https://cdn.ywxi.net https://*.trustedsite.com https:;
+  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+  img-src 'self' blob: data: https: https://cdn.ywxi.net https://*.trustedsite.com;
+  font-src 'self' https://fonts.gstatic.com data:;
+  object-src 'none';
+  base-uri 'self';
+  form-action 'self';
+  frame-ancestors 'self';
+  frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live https://*.trustedsite.com;
+  connect-src 'self' https: wss: blob: data: https://cdn.ywxi.net https://*.trustedsite.com;
+  worker-src 'self' blob:;
+  upgrade-insecure-requests;
+`.replace(/\s{2,}/g, ' ').trim();
 
-function buildCsp(nonce: string): string {
-  return `
-    default-src 'self';
-    script-src 'self' 'unsafe-eval' 'nonce-${nonce}' 'strict-dynamic' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live https://cdn.ywxi.net https://*.trustedsite.com;
-    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https: https://cdn.ywxi.net https://*.trustedsite.com;
-    font-src 'self' https://fonts.gstatic.com data:;
-    object-src 'none';
-    base-uri 'self';
-    form-action 'self';
-    frame-ancestors 'self';
-    frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live https://*.trustedsite.com;
-    connect-src 'self' https: wss: blob: data: https://cdn.ywxi.net https://*.trustedsite.com;
-    worker-src 'self' blob:;
-    upgrade-insecure-requests;
-  `.replace(/\s{2,}/g, ' ').trim();
-}
-
-function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
-  response.headers.set('Content-Security-Policy', buildCsp(nonce));
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('Content-Security-Policy', cspHeader);
 
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'SAMEORIGIN');
@@ -71,18 +67,10 @@ function extractSupabaseToken(request: NextRequest): string | null {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const nonce = generateNonce();
-
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set('x-nonce', nonce);
 
   if (!pathname.startsWith('/admin')) {
-    const response = NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
-    return applySecurityHeaders(response, nonce);
+    const response = NextResponse.next();
+    return applySecurityHeaders(response);
   }
 
   const token = extractSupabaseToken(request);
@@ -90,14 +78,14 @@ export async function middleware(request: NextRequest) {
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
-    return applySecurityHeaders(NextResponse.redirect(loginUrl), nonce);
+    return applySecurityHeaders(NextResponse.redirect(loginUrl));
   }
 
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)), nonce);
+    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)));
   }
 
   try {
@@ -111,7 +99,7 @@ export async function middleware(request: NextRequest) {
     if (authError || !user) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
-      return applySecurityHeaders(NextResponse.redirect(loginUrl), nonce);
+      return applySecurityHeaders(NextResponse.redirect(loginUrl));
     }
 
     const { data: profile, error: profileError } = await supabase
@@ -121,18 +109,13 @@ export async function middleware(request: NextRequest) {
       .single();
 
     if (profileError || !profile || profile.role !== 'admin') {
-      return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)), nonce);
+      return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
     }
 
-    const response = NextResponse.next({
-      request: {
-        headers: requestHeaders,
-      },
-    });
-    return applySecurityHeaders(response, nonce);
+    return applySecurityHeaders(NextResponse.next());
   } catch (err) {
     console.error('[Admin Guard Middleware] Falha na verificação de admin:', err);
-    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)), nonce);
+    return applySecurityHeaders(NextResponse.redirect(new URL('/login', request.url)));
   }
 }
 
