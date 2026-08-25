@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { TrustedSiteBadge } from "@/components/TrustedSiteBadge";
 
 const menuItems: any[] = [
   // ── CONTEÚD0 ────────────────────────────────
@@ -180,6 +181,9 @@ export function Sidebar() {
              </div>
            )}
          </div>
+
+         {/* Selo TrustedSite */}
+         <TrustedSiteBadge isCollapsed={isCollapsed} />
 
          <button 
            onClick={handleLogout}

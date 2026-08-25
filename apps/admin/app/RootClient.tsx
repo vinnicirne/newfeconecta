@@ -58,6 +58,7 @@ const GlobalSearch = dynamic(() => import("@/components/feed/GlobalSearch"), { s
 import { supabase } from "@/lib/supabase";
 import { NotificationService } from "@/lib/notifications";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { TrustedSiteBadge } from "@/components/TrustedSiteBadge";
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 import CommentsSection from "@/components/feed/CommentsSection";
 import { toast } from "sonner";
@@ -845,6 +846,10 @@ export default function RootPage() {
                     <Link href="/advertising" className="text-[10px] text-gray-900 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Publicidade</Link>
                     <Link href="/delete-account" className="text-[10px] text-red-500/70 hover:text-red-500 transition-colors">Deletar Conta</Link>
                   </div>
+
+                  <div className="px-3 pb-2 pt-1 border-t border-gray-100 dark:border-white/5">
+                    <TrustedSiteBadge />
+                  </div>
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
@@ -1016,6 +1021,11 @@ export default function RootPage() {
             <Link href="/cookies" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Cookies</Link>
             <Link href="/advertising" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Publicidade</Link>
             <Link href="/delete-account" className="text-[10px] text-red-500/70 hover:text-red-500 transition-colors">Deletar Conta</Link>
+          </div>
+
+          {/* Selo TrustedSite Certified Secure */}
+          <div className="px-2 pt-1 pb-3">
+            <TrustedSiteBadge />
           </div>
         </div>
 
