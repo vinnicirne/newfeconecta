@@ -153,6 +153,7 @@ export default function RootLayout({
             </ThemeProvider>
           </SWRProvider>
         </GoogleProvider>
+        <script type="text/javascript" src="https://cdn.ywxi.net/js/1.js" async></script>
       </body>
     </html>
   );

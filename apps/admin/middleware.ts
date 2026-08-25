@@ -6,35 +6,30 @@ import { createClient } from '@supabase/supabase-js';
  */
 
 function generateNonce(): string {
-  // Gera um nonce criptográfico padrão Base64 compatível com Web Crypto API (Edge Runtime)
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return btoa(String.fromCharCode(...array));
+  return Buffer.from(crypto.randomUUID()).toString('base64');
 }
 
 function buildCsp(nonce: string): string {
   return `
     default-src 'self';
-    script-src 'self' 'unsafe-eval' 'nonce-${nonce}' 'strict-dynamic' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live;
+    script-src 'self' 'unsafe-eval' 'nonce-${nonce}' 'strict-dynamic' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live https://cdn.ywxi.net https://*.trustedsite.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https: http:;
+    img-src 'self' blob: data: https: http: https://cdn.ywxi.net https://*.trustedsite.com;
     font-src 'self' https://fonts.gstatic.com data:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'self';
-    frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live;
-    connect-src 'self' https: wss: http: blob: data:;
+    frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live https://*.trustedsite.com;
+    connect-src 'self' https: wss: http: blob: data: https://cdn.ywxi.net https://*.trustedsite.com;
     worker-src 'self' blob:;
     upgrade-insecure-requests;
   `.replace(/\s{2,}/g, ' ').trim();
 }
 
 function applySecurityHeaders(response: NextResponse, nonce: string): NextResponse {
-  // Injeta o Content-Security-Policy com Nonce + Strict-Dynamic (Garante Nota A+ no Mozilla Observatory)
   response.headers.set('Content-Security-Policy', buildCsp(nonce));
 
-  // Demais Headers de Segurança padrão A+
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'SAMEORIGIN');
   response.headers.set('X-XSS-Protection', '1; mode=block');
@@ -77,11 +72,9 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const nonce = generateNonce();
 
-  // Injeta o header x-nonce na request para componentes React que precisarem
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-nonce', nonce);
 
-  // Se não for rota /admin, apenas aplica todos os security headers
   if (!pathname.startsWith('/admin')) {
     const response = NextResponse.next({
       request: {
@@ -93,7 +86,6 @@ export async function middleware(request: NextRequest) {
 
   const token = extractSupabaseToken(request);
 
-  // Sem token -> Redireciona para login
   if (!token) {
     const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
@@ -110,7 +102,6 @@ export async function middleware(request: NextRequest) {
   try {
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-    // Valida criptograficamente o JWT
     const {
       data: { user },
       error: authError,
@@ -122,7 +113,6 @@ export async function middleware(request: NextRequest) {
       return applySecurityHeaders(NextResponse.redirect(loginUrl), nonce);
     }
 
-    // Validação estrita de autorização no banco
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('role')
@@ -130,11 +120,9 @@ export async function middleware(request: NextRequest) {
       .single();
 
     if (profileError || !profile || profile.role !== 'admin') {
-      // Usuário autenticado mas sem permissão de admin -> Redireciona para o Feed
       return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)), nonce);
     }
 
-    // Autorizado como admin -> Segue com headers de segurança
     const response = NextResponse.next({
       request: {
         headers: requestHeaders,
@@ -149,7 +137,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Executa em todas as rotas de aplicação, exceto estáticos e imagens
     '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json).*)',
   ],
 };
