@@ -8,7 +8,6 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { NotificationEnforcer } from "@/components/NotificationEnforcer";
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 
-// BUILD_TS: 2026-08-12T14:00:00
 const PUBLIC_ROUTES = ["/login", "/register"];
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -25,8 +24,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { requestPermission, listenToForegroundMessages, listenToInternalNotifications } = usePushNotifications();
-  
-  // Reatividade em tempo real: ouve alterações do perfil emitidas em qualquer tela
+
+  // 1. Reatividade: ouve alterações de perfil sem conflitos
   useEffect(() => {
     const handleHydrated = (e: any) => {
       const p = e.detail;
@@ -40,7 +39,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('profile-hydrated', handleHydrated);
   }, []);
 
-  // Use refs to hold latest versions of these functions without causing re-renders
   const requestPermissionRef = useRef(requestPermission);
   const listenForegroundRef = useRef(listenToForegroundMessages);
   const listenInternalRef = useRef(listenToInternalNotifications);
@@ -48,33 +46,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => { listenForegroundRef.current = listenToForegroundMessages; }, [listenToForegroundMessages]);
   useEffect(() => { listenInternalRef.current = listenToInternalNotifications; }, [listenToInternalNotifications]);
 
-  // Logger de Auditoria (Dashboard de Controle) - Totalmente Assíncrono e Não Bloqueante
-  const logSystemStatus = useCallback(async (module: string, message: string, severity: 'info' | 'medium' | 'high' = 'info') => {
-    // Dispara em background sem await para não travar a UI
-    supabaseClient.from('system_errors').insert({
-      module,
-      error_message: message,
-      severity
-    }).then(({ error }) => {
-      if (error?.message?.includes('severity')) {
-        // Fallback para quando o schema cache do Supabase está desatualizado
-        supabaseClient.from('system_errors').insert({
-          module,
-          error_message: message
-        });
-      }
-    });
-  }, []);
-
-  // Função Nuclear para Ativar Serviços (Prioridade Total ao Perfil)
-  // CRITICAL: Uses refs to avoid re-creating this callback on every render (infinite loop fix)
+  // 2. Ativação de Serviços e Busca do Perfil
   const activateServices = useCallback(async (userId: string) => {
     if (initialized.current) return;
-    // Mark as initialized FIRST to prevent any re-entry race condition
     initialized.current = true;
     
     try {
-      // 1. PRIORIDADE ABSOLUTA: Busca de Dados para Hidratação
       const { data: profile, error: profileError } = await supabaseClient
         .from('profiles')
         .select('*')
@@ -84,53 +61,39 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       if (profile) {
         setStoredProfile(profile);
         setUserRole(profile.role);
-        
-        // Perfil considerado válido se tiver identificador básico
-        const complete = Boolean(profile.username || profile.full_name || profile.city || profile.phone);
-        setIsProfileComplete(complete);
+        setIsProfileComplete(Boolean(profile.username || profile.full_name || profile.id));
       } else if (profileError) {
-        if (!profileError.message?.includes('lock') && !profileError.message?.includes('steal')) {
-          console.error("Erro ao buscar perfil:", profileError);
-        }
+        console.warn("[AuthGuard] Erro ao carregar perfil:", profileError.message);
       }
 
-      // 2. SERVIÇOS DE BACKGROUND - via refs to avoid dep loop
+      // Serviços em background
       await requestPermissionRef.current(userId).catch(() => {});
       listenForegroundRef.current();
       listenInternalRef.current(userId);
       
     } catch (e: any) {
-      console.error("Falha na ativação de serviços:", e.message || e);
+      console.warn("[AuthGuard] Falha na ativação de serviços:", e.message || e);
     } finally {
       setIsSyncingProfile(false);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-
-  // 1. Motor de Sessão Protegido
+  // 3. Motor de Sessão
   useEffect(() => {
     const initSession = async () => {
       try {
-        const { data: { session }, error } = await supabaseClient.auth.getSession();
-
-        if (error) {
-           if (!error.message?.includes('lock') && !error.message?.includes('steal')) {
-              console.error("Auth Error:", error);
-           }
-        }
+        const { data: { session } } = await supabaseClient.auth.getSession();
 
         if (session?.user) {
           setAuthorized(true);
           setUserId(session.user.id);
-          activateServices(session.user.id).catch((e) => {
-            console.warn("Falha ao ativar serviços (não crítico):", e);
+          activateServices(session.user.id).catch(() => {
             setIsSyncingProfile(false);
           });
         } else {
           const isPublicRoute = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith("/post/");
           if (!isPublicRoute) {
-            router.push('/login');
+            router.replace('/login');
           }
         }
       } catch (err: any) {
@@ -140,14 +103,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     };
 
-    initSession().catch((err: any) => {
-      if (err?.name !== 'AbortError' && !err?.message?.includes('steal')) {
-        console.error('[AuthGuard] initSession unhandled:', err);
-      }
-      setLoading(false);
-    });
+    initSession();
 
-    // Listener persistente: Gerencia login/logout dinâmico com proteção contra lock contention
     let subscription: any = null;
     try {
       const { data } = supabaseClient.auth.onAuthStateChange((event, session) => {
@@ -155,8 +112,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         
         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
           setUserId(session.user.id);
-          activateServices(session.user.id).catch((err: any) => {
-            console.error('[AuthGuard] activateServices unhandled:', err);
+          activateServices(session.user.id).catch(() => {
             setIsSyncingProfile(false);
           });
         }
@@ -176,9 +132,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     return () => {
       subscription?.unsubscribe();
     };
-  }, [router, activateServices]);
+  }, [router, activateServices, pathname]);
 
-  // 2. Sentinela de Rota (Silenciosa e Instantânea)
+  // 4. Sentinela de Rota
   useEffect(() => {
     if (loading) return;
 
@@ -189,38 +145,12 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       return;
     }
     
-    if (authorized) {
-      // Se o usuário já está na tela de completar perfil, nunca disparar redirecionamentos concorrentes
-      if (pathname === "/complete-profile") {
-        return;
-      }
-
-      if (!isSyncingProfile) {
-        if (!isProfileComplete && !isPublic) {
-          router.replace("/complete-profile");
-          return;
-        }
-      }
-      
-      if (PUBLIC_ROUTES.includes(pathname)) {
-        router.replace("/");
-        return;
-      }
+    if (authorized && PUBLIC_ROUTES.includes(pathname)) {
+      router.replace("/");
     }
+  }, [pathname, authorized, loading, router]);
 
-    // Trava de Segurança Admin
-    if (pathname.startsWith("/admin")) {
-        // Se ainda está sincronizando o perfil real do banco, não redirecionamos por segurança
-        if (isSyncingProfile) return;
-
-        if (userRole !== 'admin') {
-          console.warn(`🛡️ [Segurança] Acesso negado para usuário ${userRole || 'comum'} em: ${pathname}`);
-          router.replace("/");
-        }
-      }
-  }, [pathname, authorized, loading, router, userRole, isSyncingProfile]);
-
-  // 3. Batimento Cardíaco (Presença Real)
+  // 5. Batimento Cardíaco (Presença Real)
   useEffect(() => {
     if (!authorized || !userId) return;
 
@@ -231,19 +161,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           .from('profiles')
           .update({ last_seen: new Date().toISOString() })
           .eq('id', userId);
-      } catch (err) {
-        // Silencia erros de rede/timeout para não poluir o console
-      }
+      } catch (_) {}
     };
 
-    // Atualiza agora e depois a cada 4 minutos
     updatePresence();
     const interval = setInterval(updatePresence, 1000 * 60 * 4);
     
     return () => clearInterval(interval);
   }, [authorized, userId]);
 
-  // 4. Capacitor Hardware Back Button Interceptor
+  // 6. Capacitor Hardware Back Button Interceptor
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
@@ -253,12 +180,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       try {
         const { App } = await import('@capacitor/app');
         listener = await App.addListener('backButton', () => {
-          // Usa apenas a navegação do Next.js para voltar, sem fechar o app bruscamente
           router.back();
         });
-      } catch (e) {
-        // Ignora erro silenciosamente (ex: ambiente web/SSR sem plugin)
-      }
+      } catch (_) {}
     };
     
     initBackButton();
@@ -270,32 +194,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, [router]);
 
-  // 5. Sincronização de Estado Inter-Componentes (Evita Loop Infinito)
-  useEffect(() => {
-    const handleProfileUpdate = (e: any) => {
-      const profile = e.detail;
-      if (profile) {
-        setUserRole(profile.role);
-        const complete = Boolean(profile.city && profile.phone && profile.birthdate && profile.accepted_terms);
-        setIsProfileComplete(complete);
-      }
-    };
-
-    window.addEventListener('profile-hydrated', handleProfileUpdate);
-    return () => window.removeEventListener('profile-hydrated', handleProfileUpdate);
-  }, []);
-
   const isPostRoute = pathname.startsWith("/post/");
   const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
   const isPublicRoute = isEntryRoute || isPostRoute;
 
-  // Determine if children should be visible
   let shouldRenderChildren = true;
   if (loading) shouldRenderChildren = false;
   else if (authorized && isEntryRoute) shouldRenderChildren = false;
   else if (!authorized && !isPublicRoute) shouldRenderChildren = false;
-  else if (authorized && !isSyncingProfile && !isProfileComplete && pathname !== "/complete-profile") shouldRenderChildren = false;
-  else if (pathname.startsWith("/admin") && userRole !== 'admin') shouldRenderChildren = false;
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300" suppressHydrationWarning>
@@ -308,7 +214,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         </div>
       )}
       <NotificationEnforcer userId={userId} />
-      {/* Use null instead of hidden to avoid hydration mismatch (React Error #418) */}
       {shouldRenderChildren ? children : null}
     </div>
   );

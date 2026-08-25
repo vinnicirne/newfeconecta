@@ -55,8 +55,8 @@ export default function CompleteProfilePage() {
         if (data) {
           setCurrentUser(data);
           
-          // Se já tem cadastro com identificador ou dados completos, sincroniza e redireciona
-          if ((data.city && data.phone && data.birthdate && data.accepted_terms) || (data.username && data.accepted_terms)) {
+          // Se já tem cadastro com username ou dados válidos, sincroniza e redireciona
+          if (data.username || (data.full_name && data.accepted_terms)) {
              setStoredProfile(data);
              if (typeof window !== 'undefined') {
                window.dispatchEvent(new CustomEvent('profile-hydrated', { detail: data }));
