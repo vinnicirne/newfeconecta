@@ -4,7 +4,11 @@ import { requireAuth } from '@/lib/auth-server';
 export async function POST(request: Request) {
   try {
     // SECURITY: Apenas usuários logados podem requisitar extração de mídia. (Impede proxy pirata)
-    await requireAuth(request);
+    try {
+      await requireAuth(request);
+    } catch (authErr: any) {
+      return NextResponse.json({ error: 'Não autorizado', details: authErr?.message || 'Token ausente' }, { status: 401 });
+    }
 
     const { url } = await request.json();
 

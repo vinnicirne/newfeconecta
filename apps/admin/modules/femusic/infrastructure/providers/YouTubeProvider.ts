@@ -1,12 +1,28 @@
 import { IMusicProvider } from '../../domain/providers/IMusicProvider';
 import { MusicTrack } from '../../domain/entities/MusicTrack';
 import { YouTubeService } from '../services/YouTubeService';
+import { supabase } from '@/lib/supabase';
 
 export class YouTubeProvider implements IMusicProvider {
   private isConnected = true;
   private isPlaying = false;
   private currentTrack: MusicTrack | null = null;
   private preloading = new Set<string>();
+
+  private async getAuthHeaders(): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+    } catch (err) {
+      console.warn('[YouTubeProvider] Erro ao obter token de autenticação:', err);
+    }
+    return headers;
+  }
 
   private get player(): HTMLAudioElement | null {
     return (window as any).audioPlayer || null;
@@ -52,9 +68,11 @@ export class YouTubeProvider implements IMusicProvider {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 45000);
 
+      const headers = await this.getAuthHeaders();
+
       const response = await fetch('/api/extract-audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           url: `https://www.youtube.com/watch?v=${track.providerTrackId}`,
           track: track
@@ -138,9 +156,11 @@ export class YouTubeProvider implements IMusicProvider {
     this.preloading.add(track.providerTrackId);
 
     try {
+      const headers = await this.getAuthHeaders();
+
       const response = await fetch('/api/extract-audio', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           url: `https://www.youtube.com/watch?v=${track.providerTrackId}`,
           track: track

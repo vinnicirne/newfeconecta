@@ -56,10 +56,16 @@ export default function AdminRoomsPage() {
 
     try {
       if (type === 'end') {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
         // Derruba a sala fisicamente no LiveKit para cortar custos imediatamente
         await fetch('/api/livekit/end-room', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers,
           body: JSON.stringify({ roomId: room.id })
         });
 

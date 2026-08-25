@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 interface Verse {
   number: number;
@@ -44,9 +45,15 @@ export function useBibleAI(selectedBookName: string, selectedChapter: number, se
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const res = await fetch('/api/ai/bible-study', {
         method: 'POST', 
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ 
           verse: verse.text, 
           book: selectedBookName, 

@@ -119,11 +119,19 @@ export function DisparoTab() {
     let successCount = 0;
     let errorCount = 0;
 
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     const sendOne = async (payload: Record<string, any>) => {
       try {
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
         const res = await fetch("/api/emails/send", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify(payload)
         });
         const data = await res.json().catch(() => ({}));

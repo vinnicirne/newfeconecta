@@ -79,9 +79,15 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
           setUploadProgress(30);
           
           try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
             const response = await fetch('/api/extract-media', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({ url: match[0] })
             });
             

@@ -110,9 +110,17 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       }
 
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const headers: Record<string, string> = {};
+        if (session?.access_token) {
+          headers['Authorization'] = `Bearer ${session.access_token}`;
+        }
+
         const userName = user.full_name || user.username || "Intercessor";
         const userAvatar = user.avatar_url || "";
-        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${encodeURIComponent(userName)}&avatar=${encodeURIComponent(userAvatar)}`);
+        const res = await fetch(`/api/livekit/token?room=${roomId}&identity=${user.id}&name=${encodeURIComponent(userName)}&avatar=${encodeURIComponent(userAvatar)}`, {
+          headers
+        });
 
         if (!res.ok) throw new Error("Falha ao obter token");
 
@@ -313,10 +321,16 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
         room.disconnect();
       }
       
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       // Força o encerramento da sala no servidor LiveKit para não gerar custos se alguém ficar travado
       await fetch('/api/livekit/end-room', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ roomId: roomData?.id })
       });
     } catch (e) {

@@ -4,7 +4,11 @@ import { requireAuth } from '@/lib/auth-server';
 export async function POST(request: Request) {
   try {
     // SECURITY: Apenas usuários autenticados podem requisitar extração de áudio.
-    await requireAuth(request);
+    try {
+      await requireAuth(request);
+    } catch (authErr: any) {
+      return NextResponse.json({ error: 'Não autorizado', details: authErr?.message || 'Token ausente' }, { status: 401 });
+    }
 
     const body = await request.json();
     const { url } = body;

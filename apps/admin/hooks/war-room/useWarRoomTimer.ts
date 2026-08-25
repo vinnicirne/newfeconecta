@@ -20,9 +20,15 @@ export function useWarRoomTimer(roomData: any, userId: string, onExit: () => voi
         // Atualiza a sala como finalizada se ainda não foi (qualquer um pode engatilhar se a sala expirou)
         if (roomData.status !== 'ended') {
           try {
+            const { data: { session } } = await supabase.auth.getSession();
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            if (session?.access_token) {
+              headers['Authorization'] = `Bearer ${session.access_token}`;
+            }
+
             fetch('/api/livekit/end-room', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers,
               body: JSON.stringify({ roomId: roomData.id })
             });
           } catch (e) {}

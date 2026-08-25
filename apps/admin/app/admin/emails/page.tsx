@@ -82,8 +82,15 @@ export default function EmailsAdminPage() {
     const toastId = toast.loading("O Espírito Santo está inspirando a mensagem... 🕊️", { duration: 10000 });
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
       const response = await fetch('/api/emails/generate', {
         method: 'POST',
+        headers,
       });
 
       const data = await response.json();
