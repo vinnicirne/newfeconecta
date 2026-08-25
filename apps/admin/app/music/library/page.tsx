@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Heart, Clock, ListMusic, Users, PlayCircle, Loader2, Sparkles, Plus, Play, ChevronRight, ListPlus } from 'lucide-react';
+import { Heart, Clock, ListMusic, Users, PlayCircle, Loader2, Sparkles, Plus, Play, ChevronRight, ListPlus, Share2 } from 'lucide-react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { usePlaylistStore } from '@/modules/femusic/infrastructure/state/usePlaylistStore';
 import { MusicPlaylist } from '@/modules/femusic/domain/entities/MusicPlaylist';
@@ -10,6 +10,7 @@ import ReadySessions from '@/modules/femusic/presentation/components/ReadySessio
 import CreatePlaylistModal from '@/modules/femusic/presentation/components/CreatePlaylistModal';
 import PlaylistViewModal from '@/modules/femusic/presentation/components/PlaylistViewModal';
 import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToPlaylistModal';
+import SharePlaylistModal from '@/modules/femusic/presentation/components/SharePlaylistModal';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 import { Button } from '@/components/ui/button';
 
@@ -23,6 +24,7 @@ export default function LibraryPage() {
   // Modais
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [selectedPlaylist, setSelectedPlaylist] = useState<MusicPlaylist | null>(null);
+  const [sharingPlaylist, setSharingPlaylist] = useState<MusicPlaylist | null>(null);
   const [selectedTrackForPlaylist, setSelectedTrackForPlaylist] = useState<MusicTrack | null>(null);
 
   const { play, likedTracks, toggleLike, loadLikes } = usePlayerStore();
@@ -149,7 +151,7 @@ export default function LibraryPage() {
                     <div
                       key={pl.id}
                       onClick={() => setSelectedPlaylist(pl)}
-                      className="bg-white dark:bg-[#1a1b1e] border border-gray-100 dark:border-white/5 rounded-2xl p-3.5 flex flex-col gap-2.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm group"
+                      className="bg-white dark:bg-[#1a1b1e] border border-gray-100 dark:border-white/5 rounded-2xl p-3.5 flex flex-col gap-2.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98] transition-all shadow-sm group relative"
                     >
                       <div className="w-full aspect-square rounded-xl bg-whatsapp-teal/10 overflow-hidden flex items-center justify-center relative shadow-inner">
                         {pl.coverUrl ? (
@@ -160,6 +162,16 @@ export default function LibraryPage() {
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                           <PlayCircle className="w-8 h-8 text-white" />
                         </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSharingPlaylist(pl);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
+                          title="Compartilhar Playlist no Feed"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
                       </div>
                       <div className="min-w-0">
                         <h4 className="font-bold text-sm truncate group-hover:text-whatsapp-teal transition-colors">
@@ -280,6 +292,13 @@ export default function LibraryPage() {
         isOpen={!!selectedTrackForPlaylist}
         onClose={() => setSelectedTrackForPlaylist(null)}
         track={selectedTrackForPlaylist}
+      />
+
+      <SharePlaylistModal
+        isOpen={!!sharingPlaylist}
+        onClose={() => setSharingPlaylist(null)}
+        playlist={sharingPlaylist}
+        tracks={sharingPlaylist?.tracks || []}
       />
     </div>
   );

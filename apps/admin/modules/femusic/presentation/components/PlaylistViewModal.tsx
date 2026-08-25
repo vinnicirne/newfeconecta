@@ -7,7 +7,8 @@ import { MusicPlaylist } from '../../domain/entities/MusicPlaylist';
 import { MusicTrack } from '../../domain/entities/MusicTrack';
 import { usePlaylistStore } from '../../infrastructure/state/usePlaylistStore';
 import { usePlayerStore } from '../../infrastructure/state/usePlayerStore';
-import { Play, Shuffle, Trash2, ListMusic, Loader2, Music, X, Heart } from 'lucide-react';
+import { Play, Shuffle, Trash2, ListMusic, Loader2, Music, X, Heart, Share2 } from 'lucide-react';
+import SharePlaylistModal from './SharePlaylistModal';
 import { toast } from 'sonner';
 
 interface PlaylistViewModalProps {
@@ -20,6 +21,7 @@ export default function PlaylistViewModal({ isOpen, onClose, playlist }: Playlis
   const { loadPlaylistTracks, activePlaylistTracks, loadingTracks, removeTrackFromPlaylist, deletePlaylist } = usePlaylistStore();
   const { play, likedTracks, toggleLike } = usePlayerStore();
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && playlist) {
@@ -102,6 +104,15 @@ export default function PlaylistViewModal({ isOpen, onClose, playlist }: Playlis
             >
               <Shuffle className="w-3.5 h-3.5" />
               Aleatório
+            </Button>
+            <Button
+              onClick={() => setIsShareOpen(true)}
+              variant="outline"
+              className="rounded-xl border-gray-200 dark:border-white/10 text-xs font-bold flex items-center gap-1.5 hover:bg-gray-100 dark:hover:bg-white/5 text-whatsapp-teal hover:text-whatsapp-teal"
+              title="Compartilhar Playlist no Feed"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              Compartilhar
             </Button>
           </div>
 
@@ -188,6 +199,14 @@ export default function PlaylistViewModal({ isOpen, onClose, playlist }: Playlis
           )}
         </div>
       </DialogContent>
+
+      {/* Modal de Compartilhamento no Feed */}
+      <SharePlaylistModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        playlist={playlist}
+        tracks={activePlaylistTracks}
+      />
     </Dialog>
   );
 }

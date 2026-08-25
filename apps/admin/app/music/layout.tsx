@@ -2,6 +2,7 @@
 
 import React from 'react';
 import MusicTopNav from '@/modules/femusic/presentation/components/MusicTopNav';
+import SwipeTabContainer from '@/modules/femusic/presentation/components/SwipeTabContainer';
 
 export default function MusicLayout({
   children,
@@ -11,9 +12,9 @@ export default function MusicLayout({
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-black/95">
       <MusicTopNav />
-      <div className="flex-1">
+      <SwipeTabContainer>
         {children}
-      </div>
+      </SwipeTabContainer>
     </div>
   );
 }

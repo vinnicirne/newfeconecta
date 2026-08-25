@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Music, Search, Library, ArrowLeft } from 'lucide-react';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export default function MusicTopNav() {
@@ -28,7 +29,7 @@ export default function MusicTopNav() {
       </div>
 
       {/* Nav row com botão de voltar */}
-      <div className="flex items-center px-3 pt-2 pb-2 max-w-lg mx-auto gap-2">
+      <div className="flex items-center px-3 pt-2 pb-1.5 max-w-lg mx-auto gap-2">
 
         {/* Botão voltar ao Feed */}
         <Link
@@ -40,8 +41,8 @@ export default function MusicTopNav() {
           <span className="text-[10px] font-bold uppercase tracking-tight hidden sm:block">Feed</span>
         </Link>
 
-        {/* Nav items */}
-        <div className="flex flex-1 items-center justify-around overflow-x-auto no-scrollbar">
+        {/* Nav items com indicador animado */}
+        <div className="flex flex-1 items-center justify-around relative">
           {navItems.map((item) => {
             const isActive = item.exact ? pathname === item.href : pathname.startsWith(item.href);
             const Icon = item.icon;
@@ -51,20 +52,29 @@ export default function MusicTopNav() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex-1 flex flex-col items-center justify-center min-w-[60px] transition-all active:scale-90 outline-none",
+                  "relative flex-1 flex flex-col items-center justify-center py-1 min-w-[60px] transition-all active:scale-90 outline-none",
                   isActive
-                    ? "text-whatsapp-teal dark:text-whatsapp-green"
-                    : "text-gray-400"
+                    ? "text-whatsapp-teal dark:text-whatsapp-green font-black"
+                    : "text-gray-400 font-medium"
                 )}
                 style={{ WebkitTapHighlightColor: 'transparent' }}
               >
-                <Icon className={cn("w-6 h-6", isActive && item.id === "home" && "fill-current")} />
+                <Icon className={cn("w-5 h-5", isActive && item.id === "home" && "fill-current")} />
                 <span className={cn(
-                  "text-[9px] font-bold mt-1 uppercase tracking-tighter",
-                  !isActive && "opacity-80"
+                  "text-[10px] mt-0.5 uppercase tracking-tight",
+                  !isActive && "opacity-75"
                 )}>
                   {item.label}
                 </span>
+
+                {/* Underline animado */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeMusicTab"
+                    className="absolute -bottom-1.5 inset-x-3 h-0.5 bg-whatsapp-teal rounded-full"
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
+                )}
               </Link>
             );
           })}
