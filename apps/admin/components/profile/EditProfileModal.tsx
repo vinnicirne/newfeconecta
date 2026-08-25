@@ -58,6 +58,13 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
   const [isSaving, setIsSaving] = useState(false);
   const { uploadMedia, isUploading } = useMediaUpload();
 
+  const isAdmin = Boolean(
+    user?.role === 'admin' ||
+    user?.role === 'superadmin' ||
+    user?.email === 'viniciuscirne@gmail.com' ||
+    user?.email === 'agenciaiconedigital@gmail.com'
+  );
+
   // Sincroniza os dados sempre que o modal abre ou o usuário muda
   React.useEffect(() => {
     if (isOpen && user) {
@@ -508,23 +515,27 @@ export function EditProfileModal({ user, isOpen, onClose, onUpdate }: EditProfil
                <Heart className="w-4 h-4" /> Configurações FéNamoro
             </h3>
             
-            <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-whatsapp-teal/20">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-bold flex items-center gap-2">
-                   Status Premium 💎
-                </span>
-                <p className="text-xs text-gray-500">Liberar recursos pagos sem cobrar Kiwify</p>
+            {/* Status Premium — Exclusivo para Administradores */}
+            {isAdmin && (
+              <div className="flex items-center justify-between bg-white/5 p-4 rounded-2xl border border-whatsapp-teal/20">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-bold flex items-center gap-2">
+                     Status Premium 💎 <span className="text-[10px] bg-whatsapp-teal/20 text-whatsapp-teal px-2 py-0.5 rounded-md font-semibold">Admin</span>
+                  </span>
+                  <p className="text-xs text-gray-500">Liberar recursos pagos sem cobrar Kiwify</p>
+                </div>
+                <button 
+                  type="button"
+                  onClick={() => setFormData({...formData, is_premium: !formData.is_premium})}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all",
+                    formData.is_premium ? "bg-whatsapp-green text-whatsapp-dark" : "bg-gray-100 dark:bg-white/10 text-gray-400"
+                  )}
+                >
+                  {formData.is_premium ? "Ativo" : "Inativo"}
+                </button>
               </div>
-              <button 
-                onClick={() => setFormData({...formData, is_premium: !formData.is_premium})}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all",
-                  formData.is_premium ? "bg-whatsapp-green text-whatsapp-dark" : "bg-gray-100 dark:bg-white/10 text-gray-400"
-                )}
-              >
-                {formData.is_premium ? "Ativo" : "Inativo"}
-              </button>
-            </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-gray-400 ml-1">Vídeo Testemunho (URL)</label>
