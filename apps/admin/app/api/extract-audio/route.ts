@@ -39,8 +39,12 @@ export async function POST(request: Request) {
       }
     }
 
-    const audioExtractorUrl = process.env.AUDIO_EXTRACTOR_URL || process.env.EXTRACTOR_URL || 'http://209.50.229.10:8086';
+    const audioExtractorUrl = process.env.AUDIO_EXTRACTOR_URL || process.env.EXTRACTOR_URL;
     
+    if (!audioExtractorUrl) {
+      return NextResponse.json({ error: 'Serviço de extração de áudio não configurado' }, { status: 503 });
+    }
+
     const endpoint = audioExtractorUrl.endsWith('/extract-audio') 
       ? audioExtractorUrl 
       : `${audioExtractorUrl.replace(/\/+$/, '')}/extract-audio`;
