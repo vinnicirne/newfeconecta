@@ -47,6 +47,9 @@ export default function UsersPage() {
   const [forceNotifUser, setForceNotifUser] = useState<any | null>(null);
   const PAGE_SIZE = 15;
   const [realtimePresenceMap, setRealtimePresenceMap] = useState<Record<string, any>>({});
+  const [onlineFilterPage, setOnlineFilterPage] = useState<string>("all");
+  const [onlineSearch, setOnlineSearch] = useState<string>("");
+  const [isRadarCollapsed, setIsRadarCollapsed] = useState<boolean>(false);
   const [tick, setTick] = useState(0);
 
   // Tique-taque a cada 5 segundos para atualizar os cronômetros de tempo de página
@@ -94,7 +97,7 @@ export default function UsersPage() {
     const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
     const { data } = await supabase
       .from(table)
-      .select('id, full_name, avatar_url, updated_at, username, role')
+      .select('id, full_name, avatar_url, updated_at, username, role, current_page, page_title, page_entered_at')
       .gt('updated_at', activeCutoff)
       .order('updated_at', { ascending: false });
     if (data) setOnlineUsers(data);
@@ -344,91 +347,175 @@ export default function UsersPage() {
         </div>
       </div>
 
-            {/* Radar de Navegação & Presença Ao Vivo */}
+                  {/* Radar de Navegação & Presença Ao Vivo (Escalável para Milhares de Usuários) */}
       {onlineUsers.length > 0 && (
         <div className="mb-8 bg-white dark:bg-whatsapp-darkLighter p-6 rounded-2xl border border-whatsapp-green/20 dark:border-whatsapp-green/10 whatsapp-shadow overflow-hidden">
-          <div className="flex items-center justify-between mb-5">
+          
+          {/* Header do Radar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5 border-b border-gray-100 dark:border-white/5 pb-4">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-whatsapp-green/10 flex items-center justify-center text-whatsapp-green">
-                <Compass className="w-4 h-4 animate-spin" style={{ animationDuration: '8s' }} />
+              <div className="w-9 h-9 rounded-xl bg-whatsapp-green/10 flex items-center justify-center text-whatsapp-green">
+                <Compass className="w-5 h-5 animate-spin" style={{ animationDuration: '10s' }} />
               </div>
               <div>
                 <h3 className="font-black text-sm dark:text-white flex items-center gap-2">
                   Radar de Navegação ao Vivo
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                    🟢 {onlineUsers.length} Conectados
+                  <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    🟢 {onlineUsers.length} Usuários Conectados
                   </span>
                 </h3>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                  Rastreamento em tempo real de onde os usuários estão navegando e tempo de permanência
+                  Rastreamento em tempo real da rota onde cada usuário está e tempo exato de permanência
                 </p>
               </div>
             </div>
 
-            <button 
-              onClick={fetchOnlineUsers}
-              className="text-xs text-gray-400 hover:text-whatsapp-green flex items-center gap-1 transition-colors"
-            >
-              <RefreshCw className="w-3 h-3" /> Atualizar
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={fetchOnlineUsers}
+                className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-whatsapp-green flex items-center gap-1.5 transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> <span>Atualizar</span>
+              </button>
+              <button 
+                onClick={() => setIsRadarCollapsed(!isRadarCollapsed)}
+                className="px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-white/5 text-xs font-bold text-gray-600 dark:text-gray-300 hover:text-whatsapp-green transition-colors"
+              >
+                {isRadarCollapsed ? "Expandir" : "Recolher"}
+              </button>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-            {onlineUsers.map(u => {
-              const liveData = realtimePresenceMap[u.id];
-              const pageTitle = liveData?.page_title || "Navegando no App";
-              const pageIcon = liveData?.page_icon || "📱";
-              const route = liveData?.route || "/";
-              const timeSpent = formatTimeSpent(liveData?.entered_at || u.updated_at);
+          {!isRadarCollapsed && (
+            <div className="space-y-4">
+              {/* Agrupamento Ao Vivo por Página (Live Aggregation Badges) */}
+              {(() => {
+                const pageCounts: Record<string, number> = {};
+                onlineUsers.forEach(u => {
+                  const live = realtimePresenceMap[u.id];
+                  const pTitle = live?.page_title || u.page_title || "Feed Principal";
+                  pageCounts[pTitle] = (pageCounts[pTitle] || 0) + 1;
+                });
 
-              return (
-                <div 
-                  key={u.id} 
-                  className="bg-gray-50 dark:bg-whatsapp-dark border border-gray-200/80 dark:border-white/5 rounded-2xl p-3.5 flex flex-col justify-between space-y-3 hover:border-whatsapp-green/40 transition-all shadow-sm"
-                >
-                  {/* Top: Avatar & User info */}
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <div className="w-11 h-11 rounded-xl bg-gray-200 dark:bg-whatsapp-darkLighter overflow-hidden border border-gray-100 dark:border-white/10">
-                        {u.avatar_url && !u.avatar_url.includes('vercel.sh') ? (
-                          <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
-                        ) : (
-                          <div className="w-full h-full bg-whatsapp-teal flex items-center justify-center text-white font-black text-xs uppercase">
-                            {u.full_name ? u.full_name[0] : 'U'}
-                          </div>
+                return (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                    <button
+                      onClick={() => setOnlineFilterPage("all")}
+                      className={cn(
+                        "px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all",
+                        onlineFilterPage === "all" 
+                          ? "bg-whatsapp-green text-slate-950 shadow-sm" 
+                          : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
+                      )}
+                    >
+                      Todos ({onlineUsers.length})
+                    </button>
+                    {Object.entries(pageCounts).map(([title, count]) => (
+                      <button
+                        key={title}
+                        onClick={() => setOnlineFilterPage(onlineFilterPage === title ? "all" : title)}
+                        className={cn(
+                          "px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5",
+                          onlineFilterPage === title 
+                            ? "bg-whatsapp-green text-slate-950 shadow-sm" 
+                            : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
                         )}
+                      >
+                        <span>{title}</span>
+                        <span className="px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 text-[10px]">
+                          {count}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Grid Responsivo de Usuários Online (com Filtro e Busca) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {onlineUsers
+                  .filter(u => {
+                    const live = realtimePresenceMap[u.id];
+                    const pTitle = live?.page_title || u.page_title || "Feed Principal";
+                    const matchesCategory = onlineFilterPage === "all" || pTitle === onlineFilterPage;
+                    const matchesSearch = !onlineSearch || 
+                      (u.full_name || '').toLowerCase().includes(onlineSearch.toLowerCase()) || 
+                      (u.username || '').toLowerCase().includes(onlineSearch.toLowerCase());
+                    return matchesCategory && matchesSearch;
+                  })
+                  .slice(0, 16)
+                  .map(u => {
+                    const liveData = realtimePresenceMap[u.id];
+                    const pageTitle = liveData?.page_title || u.page_title || "Feed Principal";
+                    const pageIcon = liveData?.page_icon || "📱";
+                    const route = liveData?.route || u.current_page || "/";
+                    const enteredAt = liveData?.entered_at || u.page_entered_at || u.updated_at;
+                    const timeSpent = formatTimeSpent(enteredAt);
+
+                    return (
+                      <div 
+                        key={u.id} 
+                        className="bg-gray-50 dark:bg-whatsapp-dark border border-gray-200/80 dark:border-white/5 rounded-2xl p-3.5 flex flex-col justify-between space-y-3 hover:border-whatsapp-green/40 transition-all shadow-sm"
+                      >
+                        {/* Top: Avatar & User info */}
+                        <div className="flex items-center gap-3">
+                          <div className="relative shrink-0">
+                            <div className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-whatsapp-darkLighter overflow-hidden border border-gray-100 dark:border-white/10">
+                              {u.avatar_url && !u.avatar_url.includes('vercel.sh') ? (
+                                <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                              ) : (
+                                <div className="w-full h-full bg-whatsapp-teal flex items-center justify-center text-white font-black text-xs uppercase">
+                                  {u.full_name ? u.full_name[0] : 'U'}
+                                </div>
+                              )}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-[#111b21] rounded-full animate-pulse shadow-sm" />
+                          </div>
+
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                              {u.full_name || u.username}
+                            </p>
+                            <p className="text-[10px] text-gray-400 truncate">
+                              @{u.username}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Bottom: Rota & Tempo de Permanência */}
+                        <div className="pt-2.5 border-t border-gray-200/60 dark:border-white/5 flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <span className="text-sm shrink-0">{pageIcon}</span>
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[11px] font-bold text-gray-900 dark:text-gray-100 truncate block">
+                                {pageTitle}
+                              </span>
+                              <span className="text-[9px] text-gray-400 truncate block font-mono">
+                                {route}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-lg shrink-0">
+                            <Clock className="w-2.5 h-2.5" />
+                            <span>{timeSpent}</span>
+                          </div>
+                        </div>
                       </div>
-                      <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-[#111b21] rounded-full animate-pulse shadow-sm" />
-                    </div>
+                    );
+                  })}
+              </div>
 
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
-                        {u.full_name || u.username}
-                      </p>
-                      <p className="text-[10px] text-gray-400 truncate">
-                        @{u.username}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Bottom: Rota & Tempo de Permanência */}
-                  <div className="pt-2 border-t border-gray-200/60 dark:border-white/5 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm">{pageIcon}</span>
-                      <span className="text-[11px] font-bold text-gray-700 dark:text-gray-200 truncate">
-                        {pageTitle}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      <Clock className="w-2.5 h-2.5" />
-                      <span>{timeSpent}</span>
-                    </div>
-                  </div>
+              {onlineUsers.length > 16 && (
+                <div className="text-center pt-2">
+                  <span className="text-xs text-gray-400 font-medium">
+                    Exibindo 16 de {onlineUsers.length} usuários conectados. Use os filtros de página acima para navegar.
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              )}
+            </div>
+          )}
+
         </div>
       )}
 

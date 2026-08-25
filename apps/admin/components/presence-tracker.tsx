@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { getStoredProfile } from "@/lib/profile-cache";
 
-const HEARTBEAT_INTERVAL_MS = 60 * 1000; // 60 segundos
-const THROTTLE_ROUTE_MS = 10 * 1000; // Mínimo de 10s entre trocas de rota
+const HEARTBEAT_INTERVAL_MS = 45 * 1000; // 45 segundos
+const THROTTLE_ROUTE_MS = 5 * 1000; // 5 segundos
 
 // Mapeamento amigável de páginas para o Radar de Navegação
 export function getFriendlyPageName(pathname: string): { title: string; icon: string; badgeColor: string } {
@@ -43,15 +43,21 @@ export function PresenceTracker() {
     pageEnteredAtRef.current = new Date().toISOString();
   }, [pathname]);
 
-  // Enviar pulso de presença atômico no banco de dados
-  const sendHeartbeat = async (userId: string) => {
+  // Enviar pulso de presença atômico no banco de dados com a página atual
+  const sendHeartbeat = async (userId: string, targetPath: string = pathname) => {
     const now = Date.now();
     lastBeatRef.current = now;
+    const friendly = getFriendlyPageName(targetPath);
 
     try {
       await supabase
         .from("profiles")
-        .update({ updated_at: new Date().toISOString() })
+        .update({ 
+          updated_at: new Date().toISOString(),
+          current_page: targetPath,
+          page_title: friendly.title,
+          page_entered_at: pageEnteredAtRef.current
+        })
         .eq("id", userId);
     } catch (err) {
       // Falha silenciosa não-bloqueante
@@ -74,8 +80,8 @@ export function PresenceTracker() {
 
         if (!userId) return;
 
-        // 1. Pulso inicial de presença
-        sendHeartbeat(userId);
+        // 1. Pulso inicial de presença no banco
+        sendHeartbeat(userId, pathname);
 
         // 2. Conectar ao canal Realtime Presence
         const channelName = "presence_online_users";
@@ -84,7 +90,6 @@ export function PresenceTracker() {
         });
 
         activeChannelRef.current = channel;
-
         const friendly = getFriendlyPageName(pathname);
 
         channel
@@ -117,10 +122,10 @@ export function PresenceTracker() {
             }
           });
 
-        // 3. Heartbeat periódico a cada 60s
+        // 3. Heartbeat periódico a cada 45s
         intervalId = setInterval(() => {
           if (userId && document.visibilityState === "visible") {
-            sendHeartbeat(userId);
+            sendHeartbeat(userId, pathname);
           }
         }, HEARTBEAT_INTERVAL_MS);
 
@@ -135,8 +140,8 @@ export function PresenceTracker() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && userId) {
         const timeSinceLast = Date.now() - lastBeatRef.current;
-        if (timeSinceLast > 30000) {
-          sendHeartbeat(userId);
+        if (timeSinceLast > 20000) {
+          sendHeartbeat(userId, pathname);
         }
       }
     };
@@ -168,7 +173,7 @@ export function PresenceTracker() {
     if (userId) {
       const now = Date.now();
       if (now - lastBeatRef.current > THROTTLE_ROUTE_MS) {
-        sendHeartbeat(userId);
+        sendHeartbeat(userId, pathname);
       }
       if (activeChannelRef.current) {
         const friendly = getFriendlyPageName(pathname);
