@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  AtSign
+  AtSign,
+  Mail
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -22,12 +23,17 @@ import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { setStoredProfile } from "@/lib/profile-cache";
+import { checkAgeCompliance, getMaxBirthdate } from "@/lib/age-compliance";
 
 export default function CompleteProfilePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // LGPD Art. 14 — consentimento parental para adolescentes (13–17)
+  const [guardianEmail, setGuardianEmail] = useState("");
+  const [guardianEmailError, setGuardianEmailError] = useState("");
 
   const [formData, setFormData] = useState({
     username: "",
@@ -40,8 +46,10 @@ export default function CompleteProfilePage() {
     accepted_terms: false,
   });
 
+  const ageCompliance = checkAgeCompliance(formData.birthdate);
   const [usernameStatus, setUsernameStatus] = useState<'idle' | 'checking' | 'available' | 'taken'>('idle');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -137,7 +145,24 @@ export default function CompleteProfilePage() {
     if (!formData.username.trim()) errs.username = "Nome de usuário é obrigatório";
     else if (usernameStatus === 'taken') errs.username = "Este nome de usuário já está em uso";
     else if (usernameStatus === 'checking') errs.username = "Verificando disponibilidade...";
-    if (!formData.birthdate) errs.birthdate = "Data de nascimento é obrigatória";
+    if (!formData.birthdate) {
+      errs.birthdate = "Data de nascimento é obrigatória";
+    } else {
+      // LGPD Art. 14 — proteção de crianças e adolescentes
+      if (ageCompliance.isBlocked) {
+        errs.birthdate = "O FéConecta não permite o cadastro de crianças menores de 13 anos (LGPD Art. 14).";
+      } else if (ageCompliance.requiresConsent) {
+        if (!guardianEmail.trim()) {
+          setGuardianEmailError("O e-mail do responsável legal é obrigatório para menores de 18 anos.");
+          errs.birthdate = " ";
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail)) {
+          setGuardianEmailError("E-mail do responsável inválido.");
+          errs.birthdate = " ";
+        } else {
+          setGuardianEmailError("");
+        }
+      }
+    }
     if (!formData.gender) errs.gender = "Selecione o gênero";
     if (!formData.country.trim()) errs.country = "País é obrigatório";
     if (!formData.state.trim()) errs.state = "Estado é obrigatório";
@@ -178,7 +203,11 @@ export default function CompleteProfilePage() {
         accepted_terms: true,
         accepted_terms_at: currentUser?.accepted_terms_at || new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        // LGPD Art. 14 — Conformidade com proteção de menores
+        is_minor: ageCompliance.requiresConsent,
+        guardian_email: ageCompliance.requiresConsent ? guardianEmail.toLowerCase().trim() : null,
       };
+
 
       ProfileSchema.parse({
          username: updateData.username,
@@ -290,7 +319,7 @@ export default function CompleteProfilePage() {
               {errors.username && <p className="text-red-500 text-[11px] ml-1">{errors.username}</p>}
             </div>
 
-            {/* Data de Nascimento */}
+            {/* Data de Nascimento — Conformidade LGPD Art. 14 */}
             <div className="space-y-2">
               <label className="text-xs font-semibold text-foreground ml-1">Data de Nascimento</label>
               <div className="relative">
@@ -298,12 +327,61 @@ export default function CompleteProfilePage() {
                   <Input
                     type="date"
                     value={formData.birthdate}
+                    max={getMaxBirthdate()}
                     onChange={(e) => updateField("birthdate", e.target.value)}
                     className={cn("pl-10", errors.birthdate && "border-red-500 focus-visible:ring-red-500")}
                   />
               </div>
-              {errors.birthdate && <p className="text-red-500 text-[11px] ml-1">{errors.birthdate}</p>}
+              {/* Alerta: criança bloqueada (< 13 anos) */}
+              {ageCompliance.isBlocked && (
+                <div className="mt-1 p-3 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2">
+                  <span className="text-base leading-none">🚫</span>
+                  <div>
+                    <p className="text-red-600 text-xs font-bold">Cadastro não permitido</p>
+                    <p className="text-red-500 text-[11px] mt-0.5 leading-relaxed">
+                      O FéConecta não permite o cadastro de crianças menores de 13 anos,
+                      conforme o Art. 14 da LGPD e as normas da ANPD.
+                    </p>
+                  </div>
+                </div>
+              )}
+              {errors.birthdate && errors.birthdate.trim() && !ageCompliance.isBlocked && (
+                <p className="text-red-500 text-[11px] ml-1">{errors.birthdate}</p>
+              )}
             </div>
+
+            {/* Consentimento Parental — Adolescentes 13–17 anos (LGPD Art. 14) */}
+            {ageCompliance.requiresConsent && !ageCompliance.isBlocked && (
+              <div className="space-y-2 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-500" />
+                  <span className="text-amber-700 text-xs font-black uppercase tracking-wider">
+                    Autorização do Responsável Legal
+                  </span>
+                </div>
+                <p className="text-amber-700/80 text-[11px] leading-relaxed">
+                  Por ter entre 13 e 17 anos, a LGPD (Art. 14) exige o consentimento expresso
+                  de um responsável legal. Informe o e-mail de um dos seus pais ou responsável —
+                  enviaremos uma solicitação de autorização.
+                </p>
+                <div className="relative mt-1">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500 z-10" />
+                  <Input
+                    type="email"
+                    value={guardianEmail}
+                    onChange={(e) => {
+                      setGuardianEmail(e.target.value);
+                      setGuardianEmailError("");
+                    }}
+                    className="pl-10 border-amber-300 focus-visible:ring-amber-400"
+                    placeholder="email.do.responsavel@exemplo.com"
+                  />
+                </div>
+                {guardianEmailError && (
+                  <p className="text-red-500 text-[11px] ml-1">{guardianEmailError}</p>
+                )}
+              </div>
+            )}
 
             {/* Telefone */}
             <div className="space-y-2">
