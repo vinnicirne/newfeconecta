@@ -90,7 +90,17 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      },
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      }
+    });
 
     const {
       data: { user },
@@ -109,7 +119,8 @@ export async function middleware(request: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (profileError || !profile || profile.role !== 'admin') {
+    if (profileError || !profile || (profile.role !== 'admin' && profile.role !== 'superadmin')) {
+      console.warn('[Admin Guard] Acesso negado para o usuário:', user.email, 'Role:', profile?.role, 'Erro:', profileError);
       return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
     }
 
