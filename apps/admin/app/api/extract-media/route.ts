@@ -24,12 +24,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Media not found (Instagram direct extraction archived)' }, { status: 404 });
     }
 
-    // Fallback para YouTube/TikTok via microserviço configurado via variável de ambiente
-    const EXTRACTOR_URL = process.env.EXTRACTOR_URL;
-
-    if (!EXTRACTOR_URL) {
-      return NextResponse.json({ error: 'Serviço de extração de mídia não configurado' }, { status: 503 });
-    }
+    // Fallback para YouTube/TikTok via microserviço
+    const EXTRACTOR_URL = process.env.EXTRACTOR_URL || 'http://209.50.229.10:8086/extract';
 
     const response = await fetch(EXTRACTOR_URL, {
       method: 'POST',
