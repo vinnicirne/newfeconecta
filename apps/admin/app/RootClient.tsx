@@ -1022,11 +1022,6 @@ export default function RootPage() {
             <Link href="/advertising" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Publicidade</Link>
             <Link href="/delete-account" className="text-[10px] text-red-500/70 hover:text-red-500 transition-colors">Deletar Conta</Link>
           </div>
-
-          {/* Selo TrustedSite Certified Secure */}
-          <div className="px-2 pt-1 pb-3">
-            <TrustedSiteBadge />
-          </div>
         </div>
 
         {/* Centro - Feed Principal */}

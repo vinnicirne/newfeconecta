@@ -184,3 +184,15 @@ video::-webkit-media-controls-start-playback-button {
     0 0 20px rgba(63, 255, 139, 0.8),
     0 0 40px rgba(63, 255, 139, 0.4);
 }
+
+/* Oculta o widget flutuante automático no canto inferior da tela do TrustedSite */
+#trustedsite-tm-badge,
+.trustedsite-tm-badge,
+div[id*="trustedsite"],
+div[class*="trustedsite-floating"],
+iframe[id*="trustedsite"],
+iframe[src*="ywxi.net"] {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
