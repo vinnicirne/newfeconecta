@@ -1,15 +1,111 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
-import { Search, Bell, User, Rss, UserSquare2, BookOpen, ScrollText, Sparkles, FileText, HelpCircle } from "lucide-react";
+import { Search, Bell, User, Rss, UserSquare2, BookOpen, ScrollText, Sparkles, FileText, HelpCircle, Loader2, ShieldCheck } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
+
+const ROOT_ADMIN_EMAILS = [
+  "viniciuscirne@gmail.com",
+  "agenciaiconedigital@gmail.com",
+];
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function checkAdminAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          if (isMounted) {
+            router.replace('/login?redirect=/admin');
+          }
+          return;
+        }
+
+        const userEmail = (session.user.email || '').toLowerCase();
+        setCurrentUser(session.user);
+
+        // 1. Acesso prioritário direto para e-mails de administradores raiz
+        if (ROOT_ADMIN_EMAILS.includes(userEmail)) {
+          if (isMounted) {
+            setIsAuthorized(true);
+            setIsLoading(false);
+          }
+          return;
+        }
+
+        // 2. Consulta a role no perfil
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single();
+
+        if (profile && (profile.role === 'admin' || profile.role === 'superadmin')) {
+          if (isMounted) {
+            setIsAuthorized(true);
+            setIsLoading(false);
+          }
+        } else {
+          console.warn('[Admin Guard] Acesso negado para:', userEmail, profile?.role);
+          if (isMounted) {
+            toast.error('Acesso restrito', {
+              description: 'Sua conta não possui permissão de administrador.',
+            });
+            router.replace('/');
+          }
+        }
+      } catch (err) {
+        console.error('[Admin Guard] Erro na verificação:', err);
+        if (isMounted) {
+          router.replace('/login?redirect=/admin');
+        }
+      }
+    }
+
+    checkAdminAuth();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0e1117] text-white">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-whatsapp-teal/20 border border-whatsapp-teal/30 flex items-center justify-center text-whatsapp-teal animate-pulse">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          <div>
+            <h3 className="font-bold text-base text-gray-200">Painel Administrativo</h3>
+            <p className="text-xs text-gray-400 mt-1">Verificando credenciais de acesso...</p>
+          </div>
+          <Loader2 className="w-5 h-5 text-whatsapp-teal animate-spin mt-2" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return null;
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-whatsapp-light dark:bg-whatsapp-dark">
       <Sidebar />
@@ -65,7 +161,9 @@ export default function DashboardLayout({
             <div className="h-8 w-px bg-gray-200 dark:bg-white/10 mx-2" />
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-semibold dark:text-white">Admin FéConecta</p>
+                <p className="text-sm font-semibold dark:text-white truncate max-w-[150px]">
+                  {currentUser?.email || 'Admin FéConecta'}
+                </p>
                 <p className="text-[11px] text-gray-500">Superusuário</p>
               </div>
               <div className="w-9 h-9 rounded-full bg-whatsapp-teal flex items-center justify-center border-2 border-whatsapp-green/20">
