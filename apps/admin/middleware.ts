@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * MIDDLEWARE DE SEGURANÇA SERVER-SIDE COM CSP NONCE + STRICT-DYNAMIC (NOTA A+ NO MOZILLA OBSERVATORY)
+ * MIDDLEWARE DE SEGURANÇA SERVER-SIDE COM CSP STRICT-HTTPS (NOTA A+ NO MOZILLA OBSERVATORY)
  */
 
 function generateNonce(): string {
@@ -14,14 +14,14 @@ function buildCsp(nonce: string): string {
     default-src 'self';
     script-src 'self' 'unsafe-eval' 'nonce-${nonce}' 'strict-dynamic' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live https://cdn.ywxi.net https://*.trustedsite.com;
     style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-    img-src 'self' blob: data: https: http: https://cdn.ywxi.net https://*.trustedsite.com;
+    img-src 'self' blob: data: https: https://cdn.ywxi.net https://*.trustedsite.com;
     font-src 'self' https://fonts.gstatic.com data:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
     frame-ancestors 'self';
     frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live https://*.trustedsite.com;
-    connect-src 'self' https: wss: http: blob: data: https://cdn.ywxi.net https://*.trustedsite.com;
+    connect-src 'self' https: wss: blob: data: https://cdn.ywxi.net https://*.trustedsite.com;
     worker-src 'self' blob:;
     upgrade-insecure-requests;
   `.replace(/\s{2,}/g, ' ').trim();
@@ -42,6 +42,7 @@ function applySecurityHeaders(response: NextResponse, nonce: string): NextRespon
     'Permissions-Policy',
     'camera=(self), microphone=(self), geolocation=(self)'
   );
+  response.headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
   response.headers.set('X-Permitted-Cross-Domain-Policies', 'none');
 
   return response;
