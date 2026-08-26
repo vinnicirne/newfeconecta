@@ -56,15 +56,30 @@ export function NotificationEnforcer({ userId }: { userId: string | null }) {
 
   const handleRequest = async () => {
     setIsChecking(true);
-    if (userId) {
-      await requestPermission(userId, true);
+    try {
+      if (userId) {
+        await requestPermission(userId, true);
+      } else {
+        // Sem userId ainda: pedir permissão nativa direto pelo browser
+        if ("Notification" in window && Notification.permission === "default") {
+          await Notification.requestPermission();
+        }
+      }
+      await checkStatus();
+    } catch (e) {
+      console.warn("[NotificationEnforcer] Erro ao pedir permissão:", e);
+    } finally {
+      setIsChecking(false);
     }
-    await checkStatus();
-    setIsChecking(false);
   };
 
   const handleSkip = () => {
-    sessionStorage.setItem(SKIP_KEY, "1");
+    try {
+      sessionStorage.setItem(SKIP_KEY, "1");
+    } catch (_) {
+      // sessionStorage pode estar bloqueado em navegadores com privacidade estrita
+      // nesse caso apenas atualiza o estado local
+    }
     setSkipped(true);
   };
 

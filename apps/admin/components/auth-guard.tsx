@@ -195,8 +195,9 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const isPostRoute = pathname.startsWith("/post/");
+  const isGuardianRoute = pathname.startsWith("/guardian/");
   const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
-  const isPublicRoute = isEntryRoute || isPostRoute;
+  const isPublicRoute = isEntryRoute || isPostRoute || isGuardianRoute;
 
   let shouldRenderChildren = true;
   if (loading) shouldRenderChildren = false;
@@ -213,7 +214,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.5em] animate-pulse">Sincronizando Fé...</span>
         </div>
       )}
-      <NotificationEnforcer userId={userId} />
+      {/* Não exibir enforcer de notificações em rotas públicas (guardian, login, register, posts) */}
+      {!isPublicRoute && <NotificationEnforcer userId={userId} />}
       {shouldRenderChildren ? children : null}
     </div>
   );
