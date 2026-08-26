@@ -44,10 +44,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Erro ao gerar token de autorização' }, { status: 500 });
     }
 
-    // Construir o link de aprovação
-    const host = request.headers.get('host') || 'newfeconecta.vercel.app';
-    const protocol = host.includes('localhost') ? 'http' : 'https';
-    const approvalLink = `${protocol}://${host}/api/guardian/approve?token=${token}`;
+    // Construir o link de aprovação com o domínio público oficial de produção
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://newfeconecta.vercel.app';
+    const approvalLink = `${baseUrl.replace(/\/$/, '')}/api/guardian/approve?token=${token}`;
+
 
     // Montar o HTML do e-mail de consentimento
     const html = `
