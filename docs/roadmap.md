@@ -16,7 +16,7 @@
 
 ---
 
-## 🟢 Fase 2: Conformidade e Segurança ANPD/LGPD (Concluída Hoje)
+## 🟢 Fase 2: Conformidade e Segurança ANPD/LGPD + Estabilidade FéMusic (Concluída)
 - [x] **Motor de Classificação Etária:** Utilitário `lib/age-compliance.ts` com cálculo de idade preciso.
 - [x] **Proteção Infantil (Bloqueio < 13 anos):** Interrupção automática do cadastro no frontend e backend.
 - [x] **Consentimento Parental (13 a 17 anos):**
@@ -26,6 +26,10 @@
   - Atualização automática em tempo real na tela de espera do menor (`/guardian/pending`).
   - Botão de reenvio de e-mail funcional.
   - Tela de confirmação pública para o responsável (`/guardian/result`).
+- [x] **FéMusic Engine Fixes:**
+  - Resolução de player de áudio dinâmico eliminando travamento após 1ª música.
+  - Timeline com suporte a arrastar/deslizar (Pointer Scrubbing) com seek instantâneo.
+  - Desacoplamento do Push Notification contra travamento em abas anônimas.
 
 ---
 
@@ -34,3 +38,4 @@
 - [ ] Expansão do catálogo de gravadoras e ministérios no FéMusic.
 - [ ] Otimização de entrega de mídia nativa (yt-dlp e microserviço).
 - [ ] Lançamento do ecossistema expandido: FéNamoro e FéChat.
+
