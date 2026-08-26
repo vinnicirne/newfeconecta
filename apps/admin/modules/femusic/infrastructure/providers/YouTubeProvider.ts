@@ -229,10 +229,12 @@ export class YouTubeProvider implements IMusicProvider {
   }
 
   async seek(positionMs: number): Promise<void> {
-    if (this.player) {
-      this.player.currentTime = positionMs / 1000;
+    const activePlayer = (window as any).audioPlayer || this.player;
+    if (activePlayer && !isNaN(positionMs) && positionMs >= 0) {
+      activePlayer.currentTime = positionMs / 1000;
     }
   }
+
 
   async search(query: string): Promise<MusicTrack[]> {
     return YouTubeService.search(query);

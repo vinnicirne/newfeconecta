@@ -36,19 +36,56 @@ export default function FullscreenPlayer() {
   const [lyricsOpen, setLyricsOpen] = React.useState(false);
   const [disliked, setDisliked] = React.useState(false);
 
+  // Estados e Refs para arrasto / scrubbing contínuo da barra de progresso
+  const timelineRef = React.useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [dragProgressMs, setDragProgressMs] = React.useState<number | null>(null);
+
   React.useEffect(() => { loadLikes(); }, [loadLikes]);
 
+  const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
 
+  const calculateProgressFromPointer = (clientX: number): number => {
+    if (!timelineRef.current || effectiveDuration <= 0) return 0;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return ratio * effectiveDuration;
+  };
 
-  // Intercepta o botǜo "Voltar" do celular Android/iOS para fechar o player
-  // sem redirecionar para a pǭgina anterior (Feed)
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (effectiveDuration <= 0) return;
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    setIsDragging(true);
+    const newMs = calculateProgressFromPointer(e.clientX);
+    setDragProgressMs(newMs);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging || effectiveDuration <= 0) return;
+    const newMs = calculateProgressFromPointer(e.clientX);
+    setDragProgressMs(newMs);
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch (_) {}
+    setIsDragging(false);
+    const finalMs = calculateProgressFromPointer(e.clientX);
+    setDragProgressMs(null);
+    seek(finalMs);
+  };
+
+  // Intercepta o botão "Voltar" do celular Android/iOS para fechar o player
+  // sem redirecionar para a página anterior (Feed)
   React.useEffect(() => {
     if (isFullScreen) {
       const isNative = typeof window !== 'undefined' && Capacitor.getPlatform() !== 'web';
 
       if (isNative) {
         // No Android nativo, pushState "reseta" a Webview e faz o Media Session sumir/quebrar.
-        // Entǜo usamos o evento nativo do Capacitor:
+        // Então usamos o evento nativo do Capacitor:
         let backListener: any;
         CapApp.addListener('backButton', (info) => {
           setFullScreen(false);
@@ -89,9 +126,10 @@ export default function FullscreenPlayer() {
     return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
   };
 
-  const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
-  const pct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (progressMs / effectiveDuration) * 100)) : 0;
+  const displayedProgress = isDragging && dragProgressMs !== null ? dragProgressMs : progressMs;
+  const currentPct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (displayedProgress / effectiveDuration) * 100)) : 0;
   const ytId = currentTrack.providerTrackId || currentTrack.id;
+
 
   return (
     <AnimatePresence>
@@ -256,32 +294,34 @@ export default function FullscreenPlayer() {
                 )}
               </AnimatePresence>
 
-              {/* Progress Bar */}
+              {/* Progress Bar com suporte a toque e arrasto (Scrubbing / Drag) */}
               <div 
-                className="relative mb-1 py-3 cursor-pointer select-none touch-none"
-                onClick={(e) => {
-                  if (effectiveDuration > 0) {
-                    const r = e.currentTarget.getBoundingClientRect();
-                    const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-                    seek(ratio * effectiveDuration);
-                  }
-                }}
+                ref={timelineRef}
+                className="relative mb-1 py-4 cursor-pointer select-none touch-none group"
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
               >
-                <div className="w-full h-1.5 bg-white/20 rounded-full relative overflow-hidden">
+                <div className="w-full h-1.5 group-hover:h-2.5 bg-white/20 rounded-full relative overflow-hidden transition-all duration-150">
                   <div 
-                    className="h-full bg-whatsapp-teal rounded-full transition-[width] duration-150 ease-linear" 
-                    style={{ width: `${pct}%` }} 
+                    className="h-full bg-whatsapp-teal rounded-full" 
+                    style={{ width: `${currentPct}%` }} 
                   />
                 </div>
                 <div
-                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg pointer-events-none transition-[left] duration-150 ease-linear ring-2 ring-whatsapp-teal/40"
-                  style={{ left: `${pct}%` }}
+                  className={cn(
+                    "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full shadow-lg pointer-events-none ring-2 ring-whatsapp-teal/40 transition-transform duration-100",
+                    isDragging ? "w-5 h-5 bg-whatsapp-teal scale-110" : "w-3.5 h-3.5 bg-white group-hover:scale-125"
+                  )}
+                  style={{ left: `${currentPct}%` }}
                 />
               </div>
               <div className="flex justify-between text-[11px] text-gray-400 font-mono mb-4">
-                <span>{fmt(progressMs)}</span>
+                <span>{fmt(isDragging && dragProgressMs !== null ? dragProgressMs : progressMs)}</span>
                 <span>{fmt(effectiveDuration)}</span>
               </div>
+
 
               {/* Controls */}
               <div className="flex items-center justify-between px-2">
