@@ -58,70 +58,91 @@ export const usePushNotifications = () => {
       return;
     }
 
-    // --- LÓGICA WEB (FIREBASE) ---
-    if (!messaging || typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-      console.warn("FéConecta: Notificações Push Web não suportadas neste navegador.");
+    // --- LÓGICA WEB (BROWSER NATIVO + FIREBASE OPCIONAL) ---
+
+    // 1. Verificar suporte básico de notificações
+    if (!('Notification' in window)) {
+      console.warn("FéConecta: API de Notificações não suportada neste navegador.");
       return;
     }
 
     try {
-      // Verifica IndexedDB (necessário para Firebase)
-      if (!window.indexedDB) {
-        console.warn("FéConecta: IndexedDB não disponível. Push desativado.");
+      // 2. Pedir permissão nativa do browser SEMPRE (independente do Firebase)
+      const permission = await Notification.requestPermission();
+      
+      if (permission !== 'granted') {
+        console.warn("FéConecta: Permissão de notificações negada pelo usuário.");
         return;
       }
 
-      const permission = await Notification.requestPermission();
-      
-      if (permission === 'granted') {
-        const vapidKey = (process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "").trim();
-
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-          scope: '/firebase-cloud-messaging-push-scope'
-        }).catch(err => {
-          if (err.name === 'SecurityError') {
-             console.warn("FéConecta: Service Worker bloqueado por restrições de segurança.");
-             return null;
-          }
-          throw err;
-        });
-
-        if (!registration) return;
-        
-        await navigator.serviceWorker.ready;
-
-        let token = null;
+      // 3. Tentar registrar no Firebase (opcional — falha silenciosa se indisponível)
+      if (messaging && 'serviceWorker' in navigator && window.indexedDB) {
         try {
-          token = await getToken(messaging, { 
-            vapidKey,
-            serviceWorkerRegistration: registration
+          const vapidKey = (process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY || "").trim();
+
+          const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+            scope: '/firebase-cloud-messaging-push-scope'
+          }).catch(err => {
+            if (err.name === 'SecurityError') {
+              console.warn("FéConecta: Service Worker bloqueado por restrições de segurança.");
+              return null;
+            }
+            throw err;
           });
-        } catch (e: any) {
-          // Silencia erros de lock ou permissão em abas inativas
-          if (e?.name === 'AbortError' || e?.message?.includes('lock') || e?.message?.includes('permission')) return;
-          console.warn("FéConecta: Falha ao obter token FCM:", e.message);
-          return;
-        }
 
-        if (token) {
-          const { error } = await supabase
-            .from('profiles')
-            .update({ 
-              fcm_token: token,
-              push_notifications_enabled: true 
-            })
-            .eq('id', userId);
+          if (registration) {
+            await navigator.serviceWorker.ready;
 
-          if (!error && showToast) {
-            toast.success("Notificações Push configuradas! 🔔");
+            let token = null;
+            try {
+              token = await getToken(messaging, { 
+                vapidKey,
+                serviceWorkerRegistration: registration
+              });
+            } catch (e: any) {
+              if (e?.name !== 'AbortError' && !e?.message?.includes('lock')) {
+                console.warn("FéConecta: Falha ao obter token FCM:", e.message);
+              }
+            }
+
+            if (token) {
+              const { error } = await supabase
+                .from('profiles')
+                .update({ 
+                  fcm_token: token,
+                  push_notifications_enabled: true 
+                })
+                .eq('id', userId);
+
+              if (!error && showToast) {
+                toast.success("Notificações Push configuradas! 🔔");
+              }
+              return token;
+            }
           }
-          return token;
+        } catch (firebaseErr: any) {
+          console.warn("FéConecta: Firebase Push não disponível (não crítico):", firebaseErr.message);
         }
       }
+
+      // 4. Mesmo sem Firebase, salvar que o usuário concedeu permissão
+      if (userId) {
+        supabase
+          .from('profiles')
+          .update({ push_notifications_enabled: true })
+          .eq('id', userId)
+          .then(() => {}); // silencioso — sem bloquear
+
+        if (showToast) {
+          toast.success("Notificações ativadas! 🔔");
+        }
+      }
+
     } catch (err: any) {
-      console.error("Erro no Push Web:", err);
+      console.error("Erro ao solicitar permissão de notificação:", err);
     }
   }, []);
+
 
   const listenToForegroundMessages = useCallback(() => {
     // Escuta Nativa

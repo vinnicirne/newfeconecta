@@ -62,6 +62,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         setStoredProfile(profile);
         setUserRole(profile.role);
         setIsProfileComplete(Boolean(profile.username || profile.full_name || profile.id));
+
+        // 🔒 LGPD Art. 14 — Bloqueio de menores sem aprovação parental
+        // guardian_approved = false significa que o responsável ainda não autorizou
+        if (profile.is_minor === true && profile.guardian_approved === false) {
+          const guardianEmail = profile.guardian_email
+            ? encodeURIComponent(profile.guardian_email)
+            : '';
+          router.replace(`/guardian/pending?email=${guardianEmail}`);
+          return;
+        }
       } else if (profileError) {
         console.warn("[AuthGuard] Erro ao carregar perfil:", profileError.message);
       }
@@ -76,7 +86,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncingProfile(false);
     }
-  }, []);
+  }, [router]);
 
   // 3. Motor de Sessão
   useEffect(() => {
