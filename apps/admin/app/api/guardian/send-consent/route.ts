@@ -13,16 +13,35 @@ import crypto from 'crypto';
  */
 export async function POST(request: Request) {
   try {
-    const { user_id, minor_name, guardian_email } = await request.json();
+    let { user_id, minor_name, guardian_email } = await request.json();
 
-    if (!user_id || !minor_name || !guardian_email) {
-      return NextResponse.json({ error: 'Dados incompletos' }, { status: 400 });
+    if (!guardian_email) {
+      return NextResponse.json({ error: 'E-mail do responsável é obrigatório' }, { status: 400 });
     }
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+
+    // Se user_id ou minor_name não foram passados (ex: botão de reenvio), busca pelo guardian_email
+    if (!user_id || !minor_name) {
+      const { data: profile, error: pErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, first_name')
+        .eq('guardian_email', guardian_email.toLowerCase().trim())
+        .eq('is_minor', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (pErr || !profile) {
+        return NextResponse.json({ error: 'Cadastro do menor não encontrado para este e-mail' }, { status: 404 });
+      }
+
+      user_id = profile.id;
+      minor_name = profile.first_name || profile.full_name || 'Seu filho(a)';
+    }
 
     // Gerar token único e seguro (válido por 7 dias)
     const token = crypto.randomBytes(32).toString('hex');
@@ -43,6 +62,7 @@ export async function POST(request: Request) {
       console.error('[GuardianConsent] Erro ao salvar token:', updateError);
       return NextResponse.json({ error: 'Erro ao gerar token de autorização' }, { status: 500 });
     }
+
 
     // Construir o link de aprovação com o domínio público oficial de produção
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || 'https://newfeconecta.vercel.app';

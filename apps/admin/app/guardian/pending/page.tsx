@@ -10,17 +10,38 @@ function PendingContent() {
   const params = useSearchParams();
   const guardianEmail = params.get("email") ? decodeURIComponent(params.get("email")!) : "";
   const [resending, setResending] = useState(false);
+  const [sentSuccess, setSentSuccess] = useState(false);
 
   const handleResend = async () => {
+    if (!guardianEmail) {
+      toast.error("E-mail do responsável não informado na página.");
+      return;
+    }
+
     setResending(true);
     try {
-      // Aqui o adolescente pode pedir reenvio — precisaria estar logado para pegar o user_id
-      // Por ora apenas mostra orientação
-      toast.info("Peça ao responsável para verificar a caixa de spam, ou faça um novo cadastro após 24h.");
+      const res = await fetch('/api/guardian/send-consent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          guardian_email: guardianEmail,
+        })
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Erro ao reenviar e-mail");
+      }
+
+      setSentSuccess(true);
+      toast.success("E-mail de autorização reenviado com sucesso! 📨");
+    } catch (err: any) {
+      toast.error(err.message || "Não foi possível reenviar o e-mail.");
     } finally {
       setResending(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
@@ -83,15 +104,16 @@ function PendingContent() {
         <button
           onClick={handleResend}
           disabled={resending}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 px-6 py-3 rounded-xl border border-teal-500/30 text-teal-600 bg-teal-50 hover:bg-teal-100 text-sm font-bold transition-all disabled:opacity-50 active:scale-95"
         >
           <RefreshCw className={`w-4 h-4 ${resending ? "animate-spin" : ""}`} />
-          Não recebi o e-mail
+          {resending ? "Reenviando e-mail..." : sentSuccess ? "Reenviar e-mail novamente" : "Reenviar e-mail de autorização"}
         </button>
 
         <p className="text-gray-300 text-[11px]">
           LGPD (Lei 13.709/2018), Art. 14 · FéConecta
         </p>
+
       </div>
     </div>
   );
