@@ -1,16 +1,58 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
-import { Clock, Mail, RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { Clock, Mail, RefreshCw, CheckCircle2, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 function PendingContent() {
   const params = useSearchParams();
+  const router = useRouter();
   const guardianEmail = params.get("email") ? decodeURIComponent(params.get("email")!) : "";
   const [resending, setResending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+  const [isApproved, setIsApproved] = useState(false);
+
+  // Monitorar se a conta foi aprovada em tempo real (polling a cada 3 segundos)
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkApproval = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        let query = supabase.from('profiles').select('guardian_approved').eq('is_minor', true);
+        
+        if (session?.user?.id) {
+          query = query.eq('id', session.user.id);
+        } else if (guardianEmail) {
+          query = query.eq('guardian_email', guardianEmail.toLowerCase().trim()).order('created_at', { ascending: false }).limit(1);
+        } else {
+          return;
+        }
+
+        const { data, error } = await query.single();
+        if (!error && data && data.guardian_approved === true) {
+          if (isMounted) {
+            setIsApproved(true);
+            toast.success("Sua conta foi autorizada! Entrando na rede...");
+            setTimeout(() => {
+              router.push("/");
+            }, 1500);
+          }
+        }
+      } catch (_) {}
+    };
+
+    checkApproval();
+    const interval = setInterval(checkApproval, 3000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [guardianEmail, router]);
 
   const handleResend = async () => {
     if (!guardianEmail) {
@@ -41,6 +83,7 @@ function PendingContent() {
       setResending(false);
     }
   };
+
 
 
   return (
@@ -101,18 +144,35 @@ function PendingContent() {
           </p>
         </div>
 
-        <button
-          onClick={handleResend}
-          disabled={resending}
-          className="flex items-center gap-2 px-6 py-3 rounded-xl border border-teal-500/30 text-teal-600 bg-teal-50 hover:bg-teal-100 text-sm font-bold transition-all disabled:opacity-50 active:scale-95"
-        >
-          <RefreshCw className={`w-4 h-4 ${resending ? "animate-spin" : ""}`} />
-          {resending ? "Reenviando e-mail..." : sentSuccess ? "Reenviar e-mail novamente" : "Reenviar e-mail de autorização"}
-        </button>
+        {isApproved ? (
+          <div className="w-full bg-green-50 border-2 border-green-400 rounded-2xl p-6 flex flex-col items-center gap-3 animate-in zoom-in duration-300">
+            <CheckCircle2 className="w-12 h-12 text-green-600" />
+            <h3 className="text-lg font-black text-green-900">Autorização Aprovada! 🎉</h3>
+            <p className="text-xs text-green-700 leading-relaxed">
+              Seu responsável acabou de autorizar o seu acesso. Seja muito bem-vindo(a) ao FéConecta!
+            </p>
+            <Link
+              href="/"
+              className="w-full py-3.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-600/20 transition-all mt-2"
+            >
+              Entrar no FéConecta agora <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        ) : (
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            className="flex items-center gap-2 px-6 py-3 rounded-xl border border-teal-500/30 text-teal-600 bg-teal-50 hover:bg-teal-100 text-sm font-bold transition-all disabled:opacity-50 active:scale-95"
+          >
+            <RefreshCw className={`w-4 h-4 ${resending ? "animate-spin" : ""}`} />
+            {resending ? "Reenviando e-mail..." : sentSuccess ? "Reenviar e-mail novamente" : "Reenviar e-mail de autorização"}
+          </button>
+        )}
 
         <p className="text-gray-300 text-[11px]">
           LGPD (Lei 13.709/2018), Art. 14 · FéConecta
         </p>
+
 
       </div>
     </div>
