@@ -153,17 +153,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
 
-    const isPublic = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith("/post/");
+    const isPostRoute = pathname.startsWith("/post/");
+    const isGuardianRoute = pathname.startsWith("/guardian/");
+    const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
+    const isPublic = isEntryRoute || isPostRoute || isGuardianRoute;
 
     if (!authorized && !isPublic) {
       router.replace("/login");
       return;
     }
     
-    if (authorized && PUBLIC_ROUTES.includes(pathname)) {
+    if (authorized && isEntryRoute) {
       router.replace("/");
     }
   }, [pathname, authorized, loading, router]);
+
 
   // 5. Batimento Cardíaco (Presença Real)
   useEffect(() => {
