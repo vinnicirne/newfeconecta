@@ -101,11 +101,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             setIsSyncingProfile(false);
           });
         } else {
-          const isPublicRoute = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith("/post/");
-          if (!isPublicRoute) {
+          const isPostRoute = pathname.startsWith("/post/");
+          const isGuardianRoute = pathname.startsWith("/guardian/");
+          const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
+          const isPublic = isEntryRoute || isPostRoute || isGuardianRoute;
+
+          if (!isPublic) {
             router.replace('/login');
           }
         }
+
       } catch (err: any) {
         console.error("Auth Guard Failure:", err);
       } finally {
