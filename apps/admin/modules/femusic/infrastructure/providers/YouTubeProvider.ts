@@ -42,28 +42,31 @@ export class YouTubeProvider implements IMusicProvider {
     this.currentTrack = track;
     this.isPlaying = true;
 
-    // Garante que qualquer áudio anterior/inativo seja pausado e silenciado imediatamente
+    // Garante que qualquer áudio inativo seja pausado e limpo
     if (typeof window !== 'undefined') {
       try {
         (window as any).stopInactiveAudio?.();
       } catch (_) {}
     }
 
-    if (this.player) {
-      this.player.pause();
+    const currentPlayer = (window as any).audioPlayer || this.player;
+
+    if (currentPlayer) {
+      currentPlayer.pause();
     }
 
     // 1. Local cache (instant)
     if (typeof window !== 'undefined') {
       const localCachedUrl = localStorage.getItem(`fc_audio_cache_${track.providerTrackId}`);
-      if (localCachedUrl && this.player) {
+      if (localCachedUrl && currentPlayer) {
         console.log(`[YouTubeProvider] Cache hit: ${track.title}`);
-        this.player.src = localCachedUrl;
-        this.player.currentTime = 0;
-        this.player.play().catch((e) => console.error('Play failed:', e));
+        currentPlayer.src = localCachedUrl;
+        currentPlayer.currentTime = 0;
+        currentPlayer.play().catch((e: any) => console.error('Play failed:', e));
         return;
       }
     }
+
 
     let loadingToastId: string | number | undefined;
     let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -97,15 +100,16 @@ export class YouTubeProvider implements IMusicProvider {
       if (loadingToastId) toast.dismiss(loadingToastId);
 
       const data = await response.json();
+      const activeAudio = (window as any).audioPlayer || this.player;
 
-      if (data.url && this.player) {
+      if (data.url && activeAudio) {
         if (typeof window !== 'undefined') {
           localStorage.setItem(`fc_audio_cache_${track.providerTrackId}`, data.url);
         }
 
-        this.player.src = data.url;
-        this.player.currentTime = 0;
-        await this.player.play().catch((e) => console.error('Play failed:', e));
+        activeAudio.src = data.url;
+        activeAudio.currentTime = 0;
+        await activeAudio.play().catch((e: any) => console.error('Play failed:', e));
 
         try {
           const { usePlayerStore } = await import(
@@ -116,6 +120,7 @@ export class YouTubeProvider implements IMusicProvider {
       } else {
         await this.handleUnavailableTrack(track, toast, loadingToastId);
       }
+
     } catch (err: any) {
       if (toastTimer) clearTimeout(toastTimer);
 

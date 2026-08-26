@@ -38,13 +38,19 @@ export function HiddenAudioElements({
     }
   };
 
-  const onPause = () => {
-    const { isLoading } = usePlayerStore.getState();
-    if (isCrossfading.current || isLoading) {
+  const onPause = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const { isLoading, currentTrack } = usePlayerStore.getState();
+    const active = (window as any).audioPlayer;
+    // Se o elemento pausado for o inativo ou estiver trocando de música, ignora
+    if (isCrossfading.current || isLoading || !currentTrack) {
+      return;
+    }
+    if (active && e.currentTarget !== active) {
       return;
     }
     usePlayerStore.setState({ isPlaying: false });
   };
+
 
   return (
     <>

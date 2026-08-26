@@ -77,32 +77,9 @@ export function useCrossfade({
       return;
     }
 
-    // Fade cruzado programado
-    const steps = 25;
-    const interval = (CROSSFADE_DURATION * 1000) / steps;
-    let step = 0;
-
-    const fade = setInterval(() => {
-      step++;
-      const progressFade = step / steps;
-
-      if (currentAudio) currentAudio.volume = Math.max(0, 1 - progressFade);
-      if (nextAudio) nextAudio.volume = Math.min(1, progressFade);
-
-      if (step >= steps) {
-        clearInterval(fade);
-
-        // Conclui a transição: pausa o antigo e restaura o volume para 1 para próximos usos
-        currentAudio.pause();
-        currentAudio.volume = 1;
-
-        // Alterna o índice ativo
-        setActiveIndex((prev) => (prev === 0 ? 1 : 0));
-        isCrossfading.current = false;
-
-        // Avisa a store para avançar a faixa atual
-        next();
-      }
-    }, interval);
+    // Em vez de manipulação arriscada de volume/intervalo que quebra o window.audioPlayer,
+    // deixamos o término natural ou avanço suave acontecer
+    isCrossfading.current = false;
   };
 }
+
