@@ -4,9 +4,8 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { 
   BookOpen, Sparkles, Search, RefreshCw, Check, 
-  Share2, Eye, Flame, Bookmark, ArrowUpRight, Plus, 
-  Sliders, MessageSquare, Layers, CheckCircle2, ShieldCheck,
-  FileText, Globe
+  Share2, Heart, Highlighter, FileText, ArrowUpRight,
+  MessageSquare, ExternalLink, SlidersHorizontal, Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -33,6 +32,13 @@ interface BibleConfig {
   reading_plan_active: boolean;
 }
 
+interface RealStats {
+  favoritesCount: number;
+  highlightsCount: number;
+  notesCount: number;
+  sharesCount: number;
+}
+
 export default function AdminBiblePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,24 +61,23 @@ export default function AdminBiblePage() {
     reading_plan_active: true,
   });
 
-  const [stats, setStats] = useState({
-    totalChaptersRead: 14820,
-    versesShared: 3412,
-    mostReadBook: "Salmos (28%)",
-    aiExegesisRequests: 894,
+  // Métricas 100% REAIS diretamente do Supabase (Zero Mocks)
+  const [stats, setStats] = useState<RealStats>({
+    favoritesCount: 0,
+    highlightsCount: 0,
+    notesCount: 0,
+    sharesCount: 0,
   });
 
   useEffect(() => {
-    fetchConfigs();
+    loadAllData();
 
-    // ⚡ Realtime WebSockets para Configurações da Bíblia
-    const channel = supabase.channel("bible-admin-monitor")
+    // Sincronização em tempo real via WebSocket
+    const channel = supabase.channel("admin_bible_realtime")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "system_configs" },
-        () => {
-          fetchConfigs();
-        }
+        () => loadConfigsOnly()
       )
       .subscribe();
 
@@ -83,26 +88,57 @@ export default function AdminBiblePage() {
     };
   }, []);
 
-  const fetchConfigs = async () => {
+  const loadConfigsOnly = async () => {
+    try {
+      const { data } = await supabase
+        .from("system_configs")
+        .select("value")
+        .eq("key", "bible_system_config_v2")
+        .maybeSingle();
+
+      if (data?.value) {
+        setConfig(data.value);
+      }
+    } catch (err) {
+      console.warn("[Bible] Erro ao sincronizar configs:", err);
+    }
+  };
+
+  const loadAllData = async () => {
     setLoading(true);
     try {
-      const [configRes, sharedRes] = await Promise.allSettled([
+      const [
+        configRes,
+        favRes,
+        highRes,
+        noteRes,
+        shareRes
+      ] = await Promise.allSettled([
+        // 1. Configurações da Bíblia
         supabase.from("system_configs").select("value").eq("key", "bible_system_config_v2").maybeSingle(),
-        supabase.from("posts").select("id", { count: "exact", head: true }).eq("post_type", "verse_share"),
+        // 2. Total real de versículos favoritados pelos membros
+        supabase.from("bible_interactions").select("*", { count: "exact", head: true }).eq("is_favorite", true),
+        // 3. Total real de versículos grifados com marca-texto
+        supabase.from("bible_interactions").select("*", { count: "exact", head: true }).not("highlight_color", "is", null),
+        // 4. Total real de anotações e devocionais pessoais
+        supabase.from("bible_interactions").select("*", { count: "exact", head: true }).not("comment", "is", null),
+        // 5. Total real de versículos compartilhados na timeline/feed
+        supabase.from("posts").select("*", { count: "exact", head: true }).eq("post_type", "verse_share"),
       ]);
 
       if (configRes.status === "fulfilled" && configRes.value.data?.value) {
         setConfig(configRes.value.data.value);
       }
 
-      if (sharedRes.status === "fulfilled" && sharedRes.value.count) {
-        setStats((prev) => ({
-          ...prev,
-          versesShared: Math.max(sharedRes.value.count || 0, 3412),
-        }));
-      }
-    } catch {
-      console.warn("[Bible] Usando configurações padrão.");
+      setStats({
+        favoritesCount: favRes.status === "fulfilled" ? (favRes.value.count || 0) : 0,
+        highlightsCount: highRes.status === "fulfilled" ? (highRes.value.count || 0) : 0,
+        notesCount: noteRes.status === "fulfilled" ? (noteRes.value.count || 0) : 0,
+        sharesCount: shareRes.status === "fulfilled" ? (shareRes.value.count || 0) : 0,
+      });
+
+    } catch (err) {
+      console.error("[Bible] Erro ao carregar métricas reais:", err);
     } finally {
       setLoading(false);
     }
@@ -110,16 +146,18 @@ export default function AdminBiblePage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const toastId = toast.loading("Salvando parâmetros e Palavra do Dia...");
+    const toastId = toast.loading("Salvando parâmetros e atualizando a Palavra do Dia...");
     try {
       const referenceText = `${config.featured_verse.book} ${config.featured_verse.chapter}:${config.featured_verse.verse}`;
 
       await Promise.allSettled([
+        // Grava no system_configs
         supabase.from("system_configs").upsert({
           key: "bible_system_config_v2",
           value: config,
           updated_at: new Date().toISOString(),
         }),
+        // Grava na tabela de Palavra do Dia da comunidade
         supabase.from("daily_verses").upsert({
           content: config.featured_verse.text,
           reference: referenceText,
@@ -129,16 +167,11 @@ export default function AdminBiblePage() {
           is_active: true,
           updated_at: new Date().toISOString()
         }, { onConflict: "reference" }),
-        supabase.from("system_errors").insert({
-          module: "bible_admin",
-          error_message: `[BÍBLIA] Configurações e versículo em destaque atualizados (${referenceText})`,
-          metadata: config,
-        }),
       ]);
 
-      toast.success("Configurações da Bíblia salvas e Palavra do Dia aplicada! 📖✨", { id: toastId });
+      toast.success("Configurações salvas e Palavra do Dia aplicada! 📖✨", { id: toastId });
     } catch (err: any) {
-      toast.error("Erro ao salvar configurações: " + err.message, { id: toastId });
+      toast.error("Erro ao salvar: " + err.message, { id: toastId });
     } finally {
       setSaving(false);
     }
@@ -151,142 +184,156 @@ export default function AdminBiblePage() {
   });
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
-      {/* ─── HEADER PRINCIPAL ─── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-12">
+      {/* ─── HEADER PRINCIPAL COM UI/UX REFINADA ─── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-border pb-5">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Controle da Bíblia Sagrada & Estudos
             </h1>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-              <BookOpen className="h-3 w-3" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+              <BookOpen className="h-3.5 w-3.5" />
               Palavra & Exegese
             </span>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            Gerencie versões bíblicas, versículo em destaque, plano de leitura e recursos de IA no app.
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Gerencie traduções bíblicas, versículo em destaque no feed e ferramentas de IA teológica.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Botões de Ação do Header */}
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
           <Link
             href="/bible"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors shadow-sm"
           >
-            <BookOpen className="h-3.5 w-3.5" />
+            <BookOpen className="h-3.5 w-3.5 text-muted-foreground" />
             <span>Abrir Leitor da Bíblia</span>
           </Link>
+
           <button
-            onClick={fetchConfigs}
+            onClick={loadAllData}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50 shadow-sm"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin text-whatsapp-green")} />
             <span>Atualizar</span>
           </button>
+
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-whatsapp-teal text-white text-xs font-semibold hover:bg-whatsapp-tealLight transition-colors shadow-sm active:scale-95 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-whatsapp-teal text-white text-xs font-semibold hover:bg-whatsapp-tealLight transition-colors shadow-sm active:scale-95 disabled:opacity-50"
           >
-            <Check className="h-3.5 w-3.5" />
+            <Check className="h-4 w-4" />
             <span>{saving ? "Salvando..." : "Salvar Configuração"}</span>
           </button>
         </div>
       </div>
 
-      {/* ─── 4 CARDS DE MÉTRICAS (STATS GRID) ─── */}
+      {/* ─── 4 CARDS DE MÉTRICAS REAIS DO SUPABASE (ZERO MOCKS) ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Capítulos Lidos */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        {/* Card 1: Favoritados */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-amber-500/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Capítulos Lidos (Mês)</span>
+            <span className="text-xs font-medium text-muted-foreground">Versículos Favoritados</span>
             <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <BookOpen className="h-4 w-4" />
+              <Heart className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">
-              {stats.totalChaptersRead.toLocaleString("pt-BR")}
+              {loading ? "..." : stats.favoritesCount.toLocaleString("pt-BR")}
             </span>
-            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-              +12% mês
-            </span>
+            <span className="text-[11px] text-muted-foreground">por membros</span>
+          </div>
+          <div className="mt-3 text-[11px] text-muted-foreground border-t border-border/50 pt-2 flex items-center justify-between">
+            <span>Interações salvas</span>
+            <span className="text-amber-500 font-medium">Bíblia Pessoal</span>
           </div>
         </div>
 
-        {/* Versículos Compartilhados */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+        {/* Card 2: Marcações com Marca-Texto */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-emerald-500/40 transition-all">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Compartilhamentos no Feed</span>
+            <span className="text-xs font-medium text-muted-foreground">Versículos Grifados</span>
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Highlighter className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : stats.highlightsCount.toLocaleString("pt-BR")}
+            </span>
+            <span className="text-[11px] text-muted-foreground">destaques</span>
+          </div>
+          <div className="mt-3 text-[11px] text-muted-foreground border-t border-border/50 pt-2 flex items-center justify-between">
+            <span>Marcações coloridas</span>
+            <span className="text-emerald-500 font-medium">6 Cores</span>
+          </div>
+        </div>
+
+        {/* Card 3: Anotações & Devocionais */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-blue-500/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Anotações Bíblicas</span>
             <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <FileText className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : stats.notesCount.toLocaleString("pt-BR")}
+            </span>
+            <span className="text-[11px] text-muted-foreground">reflexões</span>
+          </div>
+          <div className="mt-3 text-[11px] text-muted-foreground border-t border-border/50 pt-2 flex items-center justify-between">
+            <span>Devocionais pessoais</span>
+            <span className="text-blue-500 font-medium">Estudos</span>
+          </div>
+        </div>
+
+        {/* Card 4: Compartilhamentos no Feed */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-purple-500/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Reposts no Feed</span>
+            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
               <Share2 className="h-4 w-4" />
             </div>
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-bold text-foreground">
-              {stats.versesShared.toLocaleString("pt-BR")}
+              {loading ? "..." : stats.sharesCount.toLocaleString("pt-BR")}
             </span>
-            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
-              Reposts bíblicos
-            </span>
+            <span className="text-[11px] text-muted-foreground">compartilhados</span>
           </div>
-        </div>
-
-        {/* Livro Mais Lido */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Livro Mais Lido</span>
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Flame className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {stats.mostReadBook}
-            </span>
-          </div>
-        </div>
-
-        {/* Consultas IA Exegese */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Consultas de Exegese IA</span>
-            <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
-              <Sparkles className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {stats.aiExegesisRequests.toLocaleString("pt-BR")}
-            </span>
-            <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded">
-              Gemini AI Pro
-            </span>
+          <div className="mt-3 text-[11px] text-muted-foreground border-t border-border/50 pt-2 flex items-center justify-between">
+            <span>Versículos na timeline</span>
+            <span className="text-purple-500 font-medium">Feed da Fé</span>
           </div>
         </div>
       </div>
 
-      {/* ─── GRID DE CONFIGURAÇÃO E VERSÍCULO EM DESTAQUE ─── */}
+      {/* ─── GRID CENTRAL: CONFIGURAÇÕES & CATÁLOGO BÍBLICO ─── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* COLUNA 1 & 2: VERSÍCULO EM DESTAQUE & PARÂMETROS */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Card: Versículo em Destaque no Topo da Bíblia */}
+          {/* Card: Versículo em Destaque do Dia */}
           <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
             <div className="border-b border-border pb-3 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-foreground">Versículo em Destaque do Dia</h3>
-                <p className="text-xs text-muted-foreground">Exibido no cabeçalho da Bíblia e no feed dos membros</p>
+                <p className="text-xs text-muted-foreground">Exibido no cabeçalho da Bíblia e como Palavra do Dia no feed</p>
               </div>
               <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
                 Palavra do Dia
               </span>
             </div>
 
-            <div className="grid gap-3.5 sm:grid-cols-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Livro</label>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">Livro</label>
                 <input
                   type="text"
                   value={config.featured_verse.book}
@@ -294,12 +341,12 @@ export default function AdminBiblePage() {
                     ...config,
                     featured_verse: { ...config.featured_verse, book: e.target.value }
                   })}
-                  className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+                  className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Capítulo</label>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">Capítulo</label>
                 <input
                   type="number"
                   value={config.featured_verse.chapter}
@@ -307,12 +354,12 @@ export default function AdminBiblePage() {
                     ...config,
                     featured_verse: { ...config.featured_verse, chapter: Number(e.target.value) }
                   })}
-                  className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+                  className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Versículo</label>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">Versículo</label>
                 <input
                   type="number"
                   value={config.featured_verse.verse}
@@ -320,13 +367,13 @@ export default function AdminBiblePage() {
                     ...config,
                     featured_verse: { ...config.featured_verse, verse: Number(e.target.value) }
                   })}
-                  className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+                  className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">Texto Sagrado</label>
+              <label className="block text-xs font-semibold text-foreground mb-1.5">Texto Sagrado</label>
               <textarea
                 rows={3}
                 value={config.featured_verse.text}
@@ -334,13 +381,13 @@ export default function AdminBiblePage() {
                   ...config,
                   featured_verse: { ...config.featured_verse, text: e.target.value }
                 })}
-                className="w-full rounded-lg border border-border bg-muted/40 p-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-serif leading-relaxed"
+                className="w-full rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-serif leading-relaxed"
               />
             </div>
 
-            <div className="grid gap-3.5 sm:grid-cols-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Tema / Mensagem</label>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">Tema / Mensagem</label>
                 <input
                   type="text"
                   value={config.featured_verse.theme}
@@ -349,19 +396,19 @@ export default function AdminBiblePage() {
                     featured_verse: { ...config.featured_verse, theme: e.target.value }
                   })}
                   placeholder="Ex: Confiança e Provisão"
-                  className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+                  className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Versão Tradução</label>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">Versão Tradução</label>
                 <select
                   value={config.featured_verse.version}
                   onChange={(e) => setConfig({
                     ...config,
                     featured_verse: { ...config.featured_verse, version: e.target.value }
                   })}
-                  className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+                  className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 >
                   <option value="NVI">NVI — Nova Versão Internacional</option>
                   <option value="ACF">ACF — Almeida Corrigida Fiel</option>
@@ -476,10 +523,10 @@ export default function AdminBiblePage() {
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Buscar livro ou abrev..."
+                  placeholder="Buscar livro ou sigla (ex: sl, mt)..."
                   value={searchBook}
                   onChange={(e) => setSearchBook(e.target.value)}
-                  className="h-8 w-full rounded-lg border border-border bg-muted/40 pl-8 pr-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+                  className="h-8 w-full rounded-lg border border-border bg-muted/30 pl-8 pr-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
                 />
               </div>
 
@@ -491,7 +538,7 @@ export default function AdminBiblePage() {
                     selectedTestament === "ALL" ? "bg-whatsapp-teal text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
-                  Todos
+                  Todos (66)
                 </button>
                 <button
                   onClick={() => setSelectedTestament("VT")}
@@ -500,7 +547,7 @@ export default function AdminBiblePage() {
                     selectedTestament === "VT" ? "bg-whatsapp-teal text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
-                  Velho Testamento
+                  VT (39)
                 </button>
                 <button
                   onClick={() => setSelectedTestament("NT")}
@@ -509,17 +556,17 @@ export default function AdminBiblePage() {
                     selectedTestament === "NT" ? "bg-whatsapp-teal text-white" : "bg-muted text-muted-foreground hover:bg-muted/80"
                   )}
                 >
-                  Novo Testamento
+                  NT (27)
                 </button>
               </div>
             </div>
 
             {/* Lista dos Livros */}
-            <div className="max-h-[380px] overflow-y-auto space-y-1.5 pr-1 divide-y divide-border/40">
+            <div className="max-h-[420px] overflow-y-auto space-y-1 pr-1 divide-y divide-border/30">
               {filteredBooks.map((b) => (
                 <div
                   key={b.id}
-                  className="pt-1.5 first:pt-0 flex items-center justify-between text-xs py-1 hover:bg-muted/30 px-2 rounded-lg transition-colors group"
+                  className="pt-1.5 first:pt-0 flex items-center justify-between text-xs py-1.5 hover:bg-muted/30 px-2 rounded-lg transition-colors group"
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[10px] font-bold text-muted-foreground w-5">
@@ -536,7 +583,7 @@ export default function AdminBiblePage() {
                     </span>
                     <Link
                       href={`/bible?verse=${b.abbrev}1:1`}
-                      title={`Ler ${b.name}`}
+                      title={`Abrir leitor em ${b.name}`}
                       className="p-1 rounded-md bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green hover:bg-whatsapp-teal hover:text-white transition-colors opacity-80 group-hover:opacity-100"
                     >
                       <ArrowUpRight className="h-3 w-3" />
