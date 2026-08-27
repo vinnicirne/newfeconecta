@@ -25,7 +25,8 @@ import {
   DollarSign, 
   Church, 
   Mail,
-  ChevronRight
+  ChevronRight,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -61,6 +62,7 @@ const navigationGroups: NavGroup[] = [
       { name: "Denúncias", href: "/admin/reports", icon: ShieldAlert, badgeKey: "pendingReports" },
       { name: "Salas de Oração", href: "/admin/rooms", icon: Mic },
       { name: "Mensagem do Dia", href: "/admin/mensagem-do-dia", icon: Sparkles },
+      { name: "Bíblia Sagrada", href: "/admin/bible", icon: BookOpen },
       { name: "Páginas Institucionais", href: "/admin/pages", icon: FileText },
     ],
   },
