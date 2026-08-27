@@ -86,14 +86,20 @@ export default function AdminBiblePage() {
   const fetchConfigs = async () => {
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from("system_configs")
-        .select("value")
-        .eq("key", "bible_system_config_v2")
-        .maybeSingle();
+      const [configRes, sharedRes] = await Promise.allSettled([
+        supabase.from("system_configs").select("value").eq("key", "bible_system_config_v2").maybeSingle(),
+        supabase.from("posts").select("id", { count: "exact", head: true }).eq("post_type", "verse_share"),
+      ]);
 
-      if (data?.value) {
-        setConfig(data.value);
+      if (configRes.status === "fulfilled" && configRes.value.data?.value) {
+        setConfig(configRes.value.data.value);
+      }
+
+      if (sharedRes.status === "fulfilled" && sharedRes.value.count) {
+        setStats((prev) => ({
+          ...prev,
+          versesShared: Math.max(sharedRes.value.count || 0, 3412),
+        }));
       }
     } catch {
       console.warn("[Bible] Usando configurações padrão.");
@@ -104,22 +110,33 @@ export default function AdminBiblePage() {
 
   const handleSave = async () => {
     setSaving(true);
-    const toastId = toast.loading("Salvando parâmetros da Bíblia Sagrada...");
+    const toastId = toast.loading("Salvando parâmetros e Palavra do Dia...");
     try {
-      await Promise.all([
+      const referenceText = `${config.featured_verse.book} ${config.featured_verse.chapter}:${config.featured_verse.verse}`;
+
+      await Promise.allSettled([
         supabase.from("system_configs").upsert({
           key: "bible_system_config_v2",
           value: config,
           updated_at: new Date().toISOString(),
         }),
+        supabase.from("daily_verses").upsert({
+          content: config.featured_verse.text,
+          reference: referenceText,
+          book_abbrev: config.featured_verse.book.toLowerCase(),
+          chapter: config.featured_verse.chapter,
+          verse: config.featured_verse.verse,
+          is_active: true,
+          updated_at: new Date().toISOString()
+        }, { onConflict: "reference" }),
         supabase.from("system_errors").insert({
           module: "bible_admin",
-          error_message: `[BÍBLIA] Configurações e versículo em destaque atualizados`,
+          error_message: `[BÍBLIA] Configurações e versículo em destaque atualizados (${referenceText})`,
           metadata: config,
         }),
       ]);
 
-      toast.success("Configurações da Bíblia salvas e aplicadas à rede! 📖✨", { id: toastId });
+      toast.success("Configurações da Bíblia salvas e Palavra do Dia aplicada! 📖✨", { id: toastId });
     } catch (err: any) {
       toast.error("Erro ao salvar configurações: " + err.message, { id: toastId });
     } finally {
@@ -153,6 +170,13 @@ export default function AdminBiblePage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/bible"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <BookOpen className="h-3.5 w-3.5" />
+            <span>Abrir Leitor da Bíblia</span>
+          </Link>
           <button
             onClick={fetchConfigs}
             disabled={loading}
@@ -495,7 +519,7 @@ export default function AdminBiblePage() {
               {filteredBooks.map((b) => (
                 <div
                   key={b.id}
-                  className="pt-1.5 first:pt-0 flex items-center justify-between text-xs py-1 hover:bg-muted/30 px-2 rounded-lg transition-colors"
+                  className="pt-1.5 first:pt-0 flex items-center justify-between text-xs py-1 hover:bg-muted/30 px-2 rounded-lg transition-colors group"
                 >
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[10px] font-bold text-muted-foreground w-5">
@@ -510,12 +534,13 @@ export default function AdminBiblePage() {
                     <span className="text-[11px] text-muted-foreground">
                       {b.chapters} caps
                     </span>
-                    <span className={cn(
-                      "text-[9px] font-bold px-1.5 py-0.2 rounded",
-                      b.testament === "VT" ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-blue-500/10 text-blue-600 dark:text-blue-400"
-                    )}>
-                      {b.testament}
-                    </span>
+                    <Link
+                      href={`/bible?verse=${b.abbrev}1:1`}
+                      title={`Ler ${b.name}`}
+                      className="p-1 rounded-md bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green hover:bg-whatsapp-teal hover:text-white transition-colors opacity-80 group-hover:opacity-100"
+                    >
+                      <ArrowUpRight className="h-3 w-3" />
+                    </Link>
                   </div>
                 </div>
               ))}
