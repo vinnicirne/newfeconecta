@@ -98,15 +98,15 @@ export default function RootPage() {
         if (cached) {
           const parsed = JSON.parse(cached);
           return {
-            show_daily_verse: parsed.show_daily_verse ?? true,
-            show_fenamoro_banner: parsed.show_fenamoro_banner ?? true,
+            show_daily_verse: Boolean(parsed.show_daily_verse),
+            show_fenamoro_banner: Boolean(parsed.show_fenamoro_banner),
           };
         }
       } catch (e) {}
     }
     return {
-      show_daily_verse: true,
-      show_fenamoro_banner: true,
+      show_daily_verse: false,
+      show_fenamoro_banner: false,
     };
   });
 

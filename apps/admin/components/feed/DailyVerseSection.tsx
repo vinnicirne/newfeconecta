@@ -21,17 +21,56 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
   const [showComments, setShowComments] = useState(false);
   const [sending, setSending] = useState(false);
 
-  // Canais de Realtime
+  // Canais de Realtime e Inicialização Limpa
   useEffect(() => {
+    let isFeatureEnabled = true;
+
     if (typeof window !== 'undefined') {
-      const cached = localStorage.getItem('fc_daily_verse_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
-        setDailyVerse(parsed[0] || null);
-        setDailyVerses(parsed);
+      try {
+        const controlsRaw = localStorage.getItem('fc_feed_controls_v1');
+        if (controlsRaw) {
+          const parsedControls = JSON.parse(controlsRaw);
+          if (parsedControls.show_daily_verse === false) {
+            isFeatureEnabled = false;
+            setDailyVerse(null);
+            setDailyVerses([]);
+            localStorage.removeItem('fc_daily_verse_cache');
+          }
+        }
+      } catch (e) {}
+
+      if (isFeatureEnabled) {
+        const cached = localStorage.getItem('fc_daily_verse_cache');
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setDailyVerse(parsed[0]);
+              setDailyVerses(parsed);
+            }
+          } catch (e) {}
+        }
       }
     }
+
+    const handleControlsUpdate = (e: any) => {
+      if (e.detail && e.detail.show_daily_verse === false) {
+        setDailyVerse(null);
+        setDailyVerses([]);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('fc_daily_verse_cache');
+        }
+      } else if (e.detail && e.detail.show_daily_verse === true) {
+        loadDailyVerse();
+      }
+    };
+    window.addEventListener('feed-controls-updated', handleControlsUpdate);
+
     loadDailyVerse();
+
+    return () => {
+      window.removeEventListener('feed-controls-updated', handleControlsUpdate);
+    };
   }, []);
 
   // Monitorar Mudanças Real-time quando o versículo carregar

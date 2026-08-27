@@ -6,23 +6,23 @@ import { supabase } from '@/lib/supabase';
 
 export default function FenamoroBanner({ currentUser }: { currentUser: any }) {
   const [loading, setLoading] = useState(false);
-  const [visible, setVisible] = useState(true);
-
-  useEffect(() => {
-    // 1. Checa cache local inicial de forma rápida
+  
+  // Inicia estritamente como FALSE para eliminar qualquer piscar na tela (Anti-Flash)
+  const [visible, setVisible] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       try {
         const cached = localStorage.getItem('fc_feed_controls_v1');
         if (cached) {
           const parsed = JSON.parse(cached);
-          if (parsed.show_fenamoro_banner === false) {
-            setVisible(false);
-          }
+          return parsed.show_fenamoro_banner === true;
         }
       } catch (e) {}
     }
+    return false;
+  });
 
-    // 2. Escuta eventos customizados de atualização do feed
+  useEffect(() => {
+    // 1. Escuta eventos customizados de atualização do feed
     const handleUpdate = (e: any) => {
       if (e.detail && typeof e.detail.show_fenamoro_banner === 'boolean') {
         setVisible(e.detail.show_fenamoro_banner);
@@ -30,7 +30,7 @@ export default function FenamoroBanner({ currentUser }: { currentUser: any }) {
     };
     window.addEventListener('feed-controls-updated', handleUpdate);
 
-    // 3. Consulta em background do system_configs
+    // 2. Consulta em background do system_configs
     supabase
       .from('system_configs')
       .select('value')
@@ -39,6 +39,14 @@ export default function FenamoroBanner({ currentUser }: { currentUser: any }) {
       .then(({ data }) => {
         if (data?.value && typeof data.value.show_fenamoro_banner === 'boolean') {
           setVisible(data.value.show_fenamoro_banner);
+          try {
+            const cached = localStorage.getItem('fc_feed_controls_v1');
+            const currentObj = cached ? JSON.parse(cached) : {};
+            localStorage.setItem('fc_feed_controls_v1', JSON.stringify({
+              ...currentObj,
+              show_fenamoro_banner: data.value.show_fenamoro_banner
+            }));
+          } catch (e) {}
         }
       });
 
@@ -92,7 +100,7 @@ export default function FenamoroBanner({ currentUser }: { currentUser: any }) {
   };
 
   return (
-    <div className="px-4 mt-4 mb-2">
+    <div className="px-4 mt-4 mb-2 animate-in fade-in duration-300">
       <div className="relative rounded-3xl overflow-hidden cursor-pointer active:scale-[0.98] transition-transform"
         onClick={handleSSO}>
         {/* Background Blur Image */}
