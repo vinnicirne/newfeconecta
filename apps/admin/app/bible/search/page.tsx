@@ -371,12 +371,12 @@ export default function BibleSearchPage() {
                     className="cursor-pointer"
                   >
                     <div className="flex items-center justify-between mb-4">
-                       <span className="px-3 py-1 bg-gray-50 dark:bg-white/10 rounded-xl text-[10px] font-black text-whatsapp-teal uppercase tracking-widest">
+                       <span className="px-3 py-1 bg-gray-100 dark:bg-white/15 rounded-xl text-[10px] font-black text-whatsapp-teal dark:text-whatsapp-green uppercase tracking-widest border border-transparent dark:border-white/10">
                          {result.book} {result.chapter}:{result.verse}
                        </span>
                        <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-whatsapp-teal transition-colors" />
                     </div>
-                    <p className="text-gray-700 dark:text-gray-300 font-medium leading-relaxed group-hover:text-black dark:group-hover:text-white transition-colors">
+                    <p className="text-gray-900 dark:text-white font-medium leading-relaxed group-hover:text-whatsapp-teal dark:group-hover:text-whatsapp-green transition-colors text-base font-outfit">
                       {result.text}
                     </p>
                   </div>

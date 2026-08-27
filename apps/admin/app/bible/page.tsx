@@ -278,10 +278,19 @@ function BibleContent() {
             <div id={`verse-${verse.number}`} key={verse.number} className="group relative">
               <div className={cn("flex gap-4 p-4 rounded-[32px] transition-all", favorites[verse.number] && "bg-amber-500/5")} style={highlights[verse.number] ? { backgroundColor: HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.bg } : undefined}>
                 <div className="pt-1.5 shrink-0 flex flex-col items-center gap-2">
-                  <span className={cn("flex items-center justify-center w-8 h-8 rounded-xl text-[10px] font-black border", favorites[verse.number] ? "bg-amber-500 text-white" : "bg-white dark:bg-white/5 text-whatsapp-teal/30")}>{verse.number}</span>
+                  <span className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black border transition-colors shadow-sm",
+                    favorites[verse.number] 
+                      ? "bg-amber-500 text-white border-amber-400" 
+                      : "bg-white dark:bg-white/15 text-gray-900 dark:text-white border-gray-200 dark:border-white/20"
+                  )}>
+                    {verse.number}
+                  </span>
                 </div>
                 <div className="flex-1">
-                  <p className="text-gray-800 dark:text-gray-200 leading-relaxed text-lg font-medium font-outfit">{verse.text}</p>
+                  <p className="text-gray-900 dark:text-white leading-relaxed text-lg font-medium font-outfit">
+                    {verse.text}
+                  </p>
                   
                   {interactions[verse.number] && interactions[verse.number].map((interaction: any, idx: number) => (
                     <div key={idx} className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 group/comment">
