@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/lib/supabase";
+import { trackQualifiedPostView } from "@/lib/viewTracker";
 
 export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any) => void) {
   const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
@@ -7,7 +7,7 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
   const [isMuted, setIsMuted] = useState(true);
   const [audioProgress, setAudioProgress] = useState(0);
   
-  const hasViewedRef = useRef(false);
+  const dwellTimerRef = useRef<NodeJS.Timeout | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -16,38 +16,35 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
   }, [post.views_count]);
 
   const handlePlayMedia = async () => {
-    if (hasViewedRef.current) return;
-    hasViewedRef.current = true;
-
-    const newCount = viewsCount + 1;
-    setViewsCount(newCount);
-
-    try {
-      const { error: rpcError } = await supabase.rpc("increment_view", {
-        p_post_id: post.id,
-      });
-      // Fallback: se a RPC não existir no banco, usa update direto
-      if (rpcError) {
-        await supabase
-          .from("posts")
-          .update({ views_count: newCount })
-          .eq("id", post.id);
-      }
+    await trackQualifiedPostView(post.id, viewsCount, (newCount) => {
+      setViewsCount(newCount);
       onUpdated?.({ ...post, views_count: newCount });
-    } catch (e) {
-      console.error("Erro ao computar visualização", e);
-    }
+    });
   };
 
   useEffect(() => {
     if (!videoRef.current || !isVideo) return;
     
+    // ⏱️ Padrão Big Tech: IntersectionObserver com Dwell Time de 2 segundos contínuos
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             videoRef.current?.play().catch(() => {});
+
+            // Inicia o contador de 2 segundos de retenção qualificada
+            if (!dwellTimerRef.current) {
+              dwellTimerRef.current = setTimeout(() => {
+                handlePlayMedia();
+              }, 2000);
+            }
           } else {
+            // Cancelar o timer se o usuário rolar rápido antes de 2 segundos
+            if (dwellTimerRef.current) {
+              clearTimeout(dwellTimerRef.current);
+              dwellTimerRef.current = null;
+            }
+
             if (videoRef.current) {
               videoRef.current.pause();
               videoRef.current.muted = true; // Força mute ao sair
@@ -57,15 +54,18 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
           }
         });
       },
-      { threshold: 0.5 } // Só dá play se 50% do vídeo estiver visível
+      { threshold: 0.5 } // Pelo menos 50% do conteúdo visível na tela
     );
 
     observer.observe(videoRef.current);
 
     return () => {
+      if (dwellTimerRef.current) {
+        clearTimeout(dwellTimerRef.current);
+      }
       observer.disconnect();
     };
-  }, [isVideo]);
+  }, [isVideo, post.id, viewsCount]);
 
   const toggleAudio = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -74,7 +74,7 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
         audioRef.current.pause();
       } else {
         audioRef.current.play();
-        handlePlayMedia(); // Aciona o gatilho viral
+        handlePlayMedia();
       }
       setIsPlaying(!isPlaying);
     }
