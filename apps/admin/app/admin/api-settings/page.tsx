@@ -1,233 +1,328 @@
 "use client";
 
-export const dynamic = 'force-dynamic';
-
-
 import React, { useEffect, useState } from "react";
-import { PageHeader } from "@/components/page-header";
+import Link from "next/link";
 import { 
-  Key, 
-  Bell, 
-  Globe, 
-  Copy, 
-  RefreshCw, 
-  ShieldCheck,
-  Zap,
-  Lock,
-  Save
+  Settings, Key, Bell, Globe, Copy, RefreshCw, 
+  ShieldCheck, Zap, Lock, Save, Check, AlertCircle,
+  Sliders, Server, Database, AlertTriangle
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import moment from "moment";
+import "moment/locale/pt-br";
+
+moment.locale("pt-br");
+
+interface GlobalConfig {
+  platform_name: string;
+  support_email: string;
+  default_language: string;
+  timezone: string;
+  posts_per_hour_limit: string;
+  max_media_size: string;
+  open_registration: boolean;
+  two_factor_auth: boolean;
+  maintenance_mode: boolean;
+}
 
 export default function ApiSettingsPage() {
-  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [config, setConfig] = useState<GlobalConfig>({
+    platform_name: "FéConecta",
+    support_email: "suporte@feconecta.app",
+    default_language: "Português (Brasil)",
+    timezone: "America/Sao_Paulo",
+    posts_per_hour_limit: "12",
+    max_media_size: "25 MB",
+    open_registration: true,
+    two_factor_auth: true,
+    maintenance_mode: false,
+  });
 
   useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const [saving, setSaving] = useState(false);
-  const [stats, setStats] = useState({
-    requests: "Calculando...",
-    users: 0
-  });
-
-  const [configs, setConfigs] = useState({
-    google_analytics: "",
-    firebase_active: true,
-    webhook_active: true
-  });
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://vunqyhy...supabase.co";
-
-  useEffect(() => { 
     fetchConfigs();
-    fetchStats();
+
+    // ⚡ Realtime WebSockets para Configurações Globais
+    const channel = supabase.channel("api-settings-realtime-monitor")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "system_configs" },
+        () => {
+          fetchConfigs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchConfigs = async () => {
+    setLoading(true);
     try {
-      const { data } = await supabase
-        .from('system_configs')
-        .select('value')
-        .eq('key', 'api_settings')
-        .single();
-      
-      if (data?.value) setConfigs(data.value);
-    } catch (err) {
-      console.log("Configurações padrão carregadas.");
+      const { data, error } = await supabase
+        .from("system_configs")
+        .select("value")
+        .eq("key", "global_system_params")
+        .maybeSingle();
+
+      if (data?.value) {
+        setConfig(data.value);
+      }
+    } catch {
+      console.warn("[Settings] Usando parâmetros padrão do sistema.");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStats = async () => {
-    const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true });
-    setStats({
-      requests: `${((count || 0) * 15).toLocaleString()} calls`,
-      users: count || 0
-    });
-  };
-
   const handleSave = async () => {
     setSaving(true);
+    const toastId = toast.loading("Salvando parâmetros globais do sistema...");
     try {
-      const { error } = await supabase
-        .from('system_configs')
-        .upsert({ 
-          key: 'api_settings', 
-          value: configs,
-          updated_at: new Date().toISOString()
-        });
+      await Promise.all([
+        supabase.from("system_configs").upsert({
+          key: "global_system_params",
+          value: config,
+          updated_at: new Date().toISOString(),
+        }),
+        supabase.from("system_errors").insert({
+          module: "global_settings",
+          error_message: `[SETTINGS] Parâmetros globais atualizados`,
+          metadata: config,
+        }),
+      ]);
 
-      if (error) throw error;
-      toast.success("Configurações de infraestrutura salvas! ⚡💻");
+      toast.success("Configuração global salva e aplicada à rede! ⚙️✨", { id: toastId });
     } catch (err: any) {
-      toast.error("Erro ao sincronizar infraestrutura.");
+      toast.error("Erro ao salvar configurações: " + err.message, { id: toastId });
     } finally {
       setSaving(false);
     }
   };
 
-  if (!mounted) return null;
-
   return (
-    <div className="pb-12 animate-in fade-in duration-500">
-      <PageHeader 
-        title="Configurações de API & Sistema" 
-        description="Gerencie chaves de acesso real, integradores ativos e telemetria de infraestrutura."
-      >
-        <button 
-          onClick={handleSave}
-          disabled={saving || loading}
-          className="flex items-center gap-2 bg-whatsapp-teal text-white px-8 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-whatsapp-teal/20 transition-all active:scale-95 disabled:opacity-50"
-        >
-          {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-          {saving ? "Salvando..." : "Sincronizar Borda"}
-        </button>
-      </PageHeader>
+    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      {/* ─── HEADER PRINCIPAL ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Configuração global do sistema
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green border border-whatsapp-teal/20">
+              <Settings className="h-3 w-3" />
+              Parâmetros & Segurança
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Alterações são registradas na auditoria · Parâmetros globais da plataforma: cadastro, limites, segurança e integrações.
+          </p>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
-        <div className="space-y-6">
-          <div className="bg-white dark:bg-whatsapp-darkLighter p-10 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-xl shadow-black/[0.02]">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-3 bg-whatsapp-teal/10 rounded-2xl">
-                <Key className="w-6 h-6 text-whatsapp-teal" />
-              </div>
-              <h3 className="font-black dark:text-white uppercase tracking-tight">Coração do Sistema (Supabase)</h3>
-            </div>
-            
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Ambiente de Operação (URL)</label>
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-whatsapp-light dark:bg-whatsapp-dark p-5 rounded-3xl border border-gray-100 dark:border-white/5 text-xs font-mono text-whatsapp-teal font-black truncate">
-                    {supabaseUrl}
-                  </div>
-                  <button 
-                    onClick={() => { navigator.clipboard.writeText(supabaseUrl); toast.success("URL copiada!"); }}
-                    className="p-5 bg-whatsapp-teal/10 rounded-3xl hover:bg-whatsapp-teal/20 transition-all text-whatsapp-teal"
-                  >
-                    <Copy className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchConfigs}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin text-whatsapp-green")} />
+            <span>Atualizar</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-whatsapp-teal text-white text-xs font-semibold hover:bg-whatsapp-tealLight transition-colors shadow-sm active:scale-95 disabled:opacity-50"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span>{saving ? "Salvando..." : "Salvar tudo"}</span>
+          </button>
+        </div>
+      </div>
 
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Supabase Anon Key</label>
-                <div className="flex gap-2">
-                  <div className="flex-1 bg-whatsapp-light dark:bg-whatsapp-dark p-5 rounded-3xl border border-gray-100 dark:border-white/5 text-xs font-mono text-gray-400 font-black">
-                    ••••••••••••••••••••••••••••••••••••••••••••
-                  </div>
-                  <button className="p-5 bg-gray-100 dark:bg-white/10 rounded-3xl hover:bg-gray-200 dark:hover:bg-white/20 transition-all">
-                    <RefreshCw className="w-4 h-4 text-gray-400" />
-                  </button>
-                </div>
-              </div>
+      {/* ─── PAINEL: PARÂMETROS GERAIS ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
+        <div className="border-b border-border pb-3">
+          <h2 className="text-sm font-bold text-foreground">Parâmetros gerais</h2>
+          <p className="text-xs text-muted-foreground">Aplicados a toda a rede, aplicativo móvel e portal web</p>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Nome da plataforma
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Exibido no app e nos e-mails)</span>
+            </label>
+            <input
+              type="text"
+              value={config.platform_name}
+              onChange={(e) => setConfig({ ...config, platform_name: e.target.value })}
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              E-mail de suporte
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Remetente padrão)</span>
+            </label>
+            <input
+              type="email"
+              value={config.support_email}
+              onChange={(e) => setConfig({ ...config, support_email: e.target.value })}
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Idioma padrão
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Novos usuários)</span>
+            </label>
+            <input
+              type="text"
+              value={config.default_language}
+              onChange={(e) => setConfig({ ...config, default_language: e.target.value })}
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Fuso horário
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Base para agendamentos)</span>
+            </label>
+            <input
+              type="text"
+              value={config.timezone}
+              onChange={(e) => setConfig({ ...config, timezone: e.target.value })}
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-mono"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Limite de posts por hora
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Antiflood por usuário)</span>
+            </label>
+            <input
+              type="number"
+              value={config.posts_per_hour_limit}
+              onChange={(e) => setConfig({ ...config, posts_per_hour_limit: e.target.value })}
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Tamanho máximo de mídia
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Upload por arquivo)</span>
+            </label>
+            <input
+              type="text"
+              value={config.max_media_size}
+              onChange={(e) => setConfig({ ...config, max_media_size: e.target.value })}
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Cadastro aberto
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Permitir novos registros sem convite)</span>
+            </label>
+            <div 
+              onClick={() => setConfig({ ...config, open_registration: !config.open_registration })}
+              className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 cursor-pointer select-none hover:bg-muted/60 transition-colors"
+            >
+              <span className={cn(
+                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                config.open_registration ? "bg-whatsapp-teal" : "bg-muted-foreground/30"
+              )}>
+                <span className={cn(
+                  "inline-block size-3.5 rounded-full bg-white transition-transform",
+                  config.open_registration ? "translate-x-4" : "translate-x-1"
+                )} />
+              </span>
+              <span className="text-xs font-medium text-foreground">
+                {config.open_registration ? "Cadastro aberto ativado" : "Apenas com convite"}
+              </span>
             </div>
           </div>
 
-          <div className="bg-white dark:bg-whatsapp-darkLighter p-10 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-xl shadow-black/[0.02]">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-3 bg-blue-500/10 rounded-2xl">
-                <Bell className="w-6 h-6 text-blue-500" />
-              </div>
-              <h3 className="font-black dark:text-white uppercase tracking-tight">Push & Firebase</h3>
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Autenticação em duas etapas
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Obrigatória para administradores)</span>
+            </label>
+            <div 
+              onClick={() => setConfig({ ...config, two_factor_auth: !config.two_factor_auth })}
+              className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 cursor-pointer select-none hover:bg-muted/60 transition-colors"
+            >
+              <span className={cn(
+                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                config.two_factor_auth ? "bg-whatsapp-teal" : "bg-muted-foreground/30"
+              )}>
+                <span className={cn(
+                  "inline-block size-3.5 rounded-full bg-white transition-transform",
+                  config.two_factor_auth ? "translate-x-4" : "translate-x-1"
+                )} />
+              </span>
+              <span className="text-xs font-medium text-foreground">
+                {config.two_factor_auth ? "2FA obrigatória ativada" : "2FA opcional"}
+              </span>
             </div>
-            <p className="text-[11px] text-gray-500 mb-8 font-medium uppercase tracking-tight leading-relaxed">Conectividade ministerial via notificações segmentadas.</p>
-            <button className="w-full py-5 bg-gray-50 dark:bg-black/20 border-none rounded-3xl text-[9px] font-black text-blue-500 uppercase tracking-[0.2em] hover:bg-blue-500 hover:text-white transition-all flex items-center justify-center gap-2">
-              <Lock className="w-4 h-4" /> Atualizar Credenciais JSON
-            </button>
           </div>
         </div>
 
-        <div className="space-y-6">
-          <div className="bg-whatsapp-teal dark:bg-whatsapp-teal p-10 rounded-[40px] shadow-2xl shadow-whatsapp-teal/20 text-white relative overflow-hidden group">
-             <div className="relative z-10">
-               <div className="flex items-center gap-3 mb-8">
-                 <Zap className="w-6 h-6 text-whatsapp-green" />
-                 <h3 className="font-black uppercase tracking-tight">Protocolos de Evento (Webhooks)</h3>
-               </div>
-               <div className="space-y-4">
-                  {[
-                    { label: "Novo Cadastro de Fiel", active: configs.webhook_active, icon: Globe },
-                    { label: "Assinatura Auditada", active: configs.webhook_active, icon: ShieldCheck },
-                  ].map((hook, i) => (
-                    <div key={i} className="flex items-center justify-between p-5 bg-white/10 rounded-3xl border border-white/10 backdrop-blur-sm">
-                      <div className="flex items-center gap-3">
-                        <hook.icon className="w-5 h-5 text-whatsapp-green" />
-                        <span className="text-[11px] font-black uppercase tracking-widest">{hook.label}</span>
-                      </div>
-                      <span className="text-[10px] font-black uppercase text-whatsapp-green tracking-widest">Ativo</span>
-                    </div>
-                  ))}
-               </div>
-               <button className="w-full mt-8 py-4 bg-white/20 hover:bg-white/30 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all">
-                 Adicionar Novo Endpoint
-               </button>
-             </div>
-             <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-white/5 rounded-full blur-3xl opacity-50" />
-          </div>
-
-          <div className="bg-white dark:bg-whatsapp-darkLighter p-10 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-xl shadow-black/[0.02]">
-            <div className="flex items-center gap-3 mb-8">
-              <div className="p-3 bg-orange-500/10 rounded-2xl">
-                <Globe className="w-6 h-6 text-orange-500" />
+        {/* Modo de Manutenção */}
+        <div className="pt-2">
+          <div 
+            onClick={() => setConfig({ ...config, maintenance_mode: !config.maintenance_mode })}
+            className={cn(
+              "flex items-center justify-between p-3.5 rounded-xl border transition-colors cursor-pointer",
+              config.maintenance_mode ? "bg-amber-500/10 border-amber-500/30" : "bg-muted/30 border-border"
+            )}
+          >
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className={cn("h-4 w-4", config.maintenance_mode ? "text-amber-500" : "text-muted-foreground")} />
+              <div>
+                <p className="text-xs font-bold text-foreground">Modo de Manutenção</p>
+                <p className="text-[11px] text-muted-foreground">Deixa o app em somente leitura e exibe banner global de manutenção no feed.</p>
               </div>
-              <h3 className="font-black dark:text-white uppercase tracking-tight">Rastreamento Analítico</h3>
             </div>
-            <div className="space-y-4">
-              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-4">Google Analytics Script</label>
-              <textarea 
-                rows={4}
-                value={configs.google_analytics}
-                onChange={e => setConfigs({...configs, google_analytics: e.target.value})}
-                placeholder="<!-- Paste your Global Site Tag here -->" 
-                className="w-full bg-whatsapp-light dark:bg-whatsapp-dark border-none rounded-3xl px-6 py-6 text-xs font-mono text-whatsapp-teal focus:ring-2 focus:ring-whatsapp-teal/20 transition-all resize-none outline-none"
-              />
-              <p className="text-[10px] text-gray-400 font-black uppercase tracking-tight ml-4">Código injetivo para monitoramento de tráfego ministerial.</p>
-            </div>
+            <span className={cn(
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+              config.maintenance_mode ? "bg-amber-500" : "bg-muted-foreground/30"
+            )}>
+              <span className={cn(
+                "inline-block size-3.5 rounded-full bg-white transition-transform",
+                config.maintenance_mode ? "translate-x-4" : "translate-x-1"
+              )} />
+            </span>
           </div>
+        </div>
 
-          <div className="bg-white dark:bg-whatsapp-darkLighter p-10 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-xl shadow-black/[0.02]">
-             <h4 className="font-black dark:text-white mb-8 text-sm uppercase tracking-tight">Status Telemetria API</h4>
-             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Latência Média</span>
-                  <span className="text-xs font-black text-whatsapp-green">28ms</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Uptime Mensal</span>
-                  <span className="text-xs font-black text-whatsapp-green">99.99%</span>
-                </div>
-                <div className="flex items-center justify-between">
-                   <span className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Auditoria de Carga</span>
-                   <span className="text-xs font-black dark:text-white">{stats.requests}</span>
-                </div>
-             </div>
-          </div>
+        <div className="pt-3 border-t border-border flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="h-9 rounded-lg bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white px-4 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span>Salvar alterações</span>
+          </button>
+          <button
+            onClick={fetchConfigs}
+            className="h-9 rounded-lg border border-border px-4 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            Descartar
+          </button>
         </div>
       </div>
     </div>

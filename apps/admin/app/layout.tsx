@@ -80,6 +80,7 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        <meta name="mobile-web-app-capable" content="yes" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -153,7 +154,6 @@ export default function RootLayout({
             </ThemeProvider>
           </SWRProvider>
         </GoogleProvider>
-        <script type="text/javascript" src="https://cdn.ywxi.net/js/1.js" async></script>
       </body>
     </html>
   );

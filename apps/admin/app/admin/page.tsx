@@ -175,13 +175,30 @@ export default function DashboardPage() {
         supabase.from("verification_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("profiles").select("*", { count: "exact", head: true }).gt("updated_at", activeCutoff),
         supabase.from("profiles").select("id, full_name, username, avatar_url, role, created_at").order("created_at", { ascending: false }).limit(6),
-        supabase.from("posts").select("id, content, views_count, likes, created_at, profiles!user_id(full_name, avatar_url)").order("views_count", { ascending: false }).limit(5),
+        supabase.from("posts").select("id, content, views_count, likes, created_at, author_id, user_id").order("views_count", { ascending: false }).limit(5),
         supabase.from("profiles").select("created_at").gte("created_at", sevenDaysAgo),
         supabase.from("posts").select("created_at").gte("created_at", sevenDaysAgo),
       ]);
 
       const weekProfiles = weekProfilesRes.status === "fulfilled" ? (weekProfilesRes.value.data || []) : [];
       const weekPosts = weekPostsRes.status === "fulfilled" ? (weekPostsRes.value.data || []) : [];
+      const rawTopPosts = topPostsRes.status === "fulfilled" ? (topPostsRes.value.data || []) : [];
+
+      // Enriquecimento seguro dos perfis dos top posts
+      let enrichedTopPosts = rawTopPosts;
+      const topAuthorIds = Array.from(new Set(rawTopPosts.map((p: any) => p.author_id || p.user_id).filter(Boolean)));
+      if (topAuthorIds.length > 0) {
+        const { data: topProfiles } = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url")
+          .in("id", topAuthorIds);
+
+        const pMap = (topProfiles || []).reduce((acc: any, curr: any) => ({ ...acc, [curr.id]: curr }), {});
+        enrichedTopPosts = rawTopPosts.map((p: any) => ({
+          ...p,
+          profiles: pMap[p.author_id || p.user_id] || null,
+        }));
+      }
 
       // Montagem da timeline dos 7 dias sem erro de timezone
       const builtChart = Array.from({ length: 7 }, (_, i) => {
@@ -196,7 +213,7 @@ export default function DashboardPage() {
 
       setChartData(builtChart);
       setRecentUsers(latestUsersRes.status === "fulfilled" ? (latestUsersRes.value.data || []) : []);
-      setTopPosts(topPostsRes.status === "fulfilled" ? (topPostsRes.value.data || []) : []);
+      setTopPosts(enrichedTopPosts);
 
       setMetrics({
         totalUsers: userRes.status === "fulfilled" ? (userRes.value.count || 0) : 0,

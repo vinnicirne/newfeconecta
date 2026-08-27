@@ -102,6 +102,12 @@ export class ErrorMonitor {
 
 
 
+        // Ignorar redirecionamentos nativos do Next.js (NEXT_REDIRECT) e 404 intencional
+        if (errMsg.includes('NEXT_REDIRECT') || errMsg.includes('NEXT_NOT_FOUND')) {
+          event.preventDefault();
+          return;
+        }
+
         // Se for erro de rede/fetch, avisar de forma amigável
         if (errMsg.toLowerCase().includes('fetch') || errMsg.toLowerCase().includes('network')) {
           toast.warning("Sinal instável. Tentando reconectar ao Reino...", {
