@@ -3,25 +3,18 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
-  Sparkles, 
-  Save, 
-  History, 
-  CheckCircle2, 
-  AlertCircle,
-  Plus,
-  Trash2,
-  BookOpen,
-  Search,
-  X,
-  Flame,
-  MessageCircle,
-  Bell,
-  RefreshCw
+  Sparkles, Save, History, CheckCircle2, AlertCircle,
+  Plus, Trash2, BookOpen, Search, X, Flame, Bell, 
+  RefreshCw, Calendar, Send, Edit2, Clock, Check
 } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { toast } from "sonner";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
 import { cn } from "@/lib/utils";
 import moment from "moment";
+import "moment/locale/pt-br";
+
+moment.locale("pt-br");
 
 const bibleCache: Record<string, any> = {};
 
@@ -29,12 +22,14 @@ interface DailyVerse {
   id: string;
   content: string;
   reference: string;
-  book_abbrev: string;
-  chapter: number;
-  verse: number;
+  translation?: string;
+  book_abbrev?: string;
+  chapter?: number;
+  verse?: number;
   is_active: boolean;
+  scheduled_for?: string;
+  push_sent?: boolean;
   created_at: string;
-  likes?: string[];
 }
 
 export default function DailyVerseAdmin() {
@@ -42,35 +37,71 @@ export default function DailyVerseAdmin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  // Form state
-  const [content, setContent] = useState("");
-  const [reference, setReference] = useState("");
-  const [bookAbbrev, setBookAbbrev] = useState(BIBLE_BOOKS[0].abbrev);
-  const [chapter, setChapter] = useState(1);
-  const [verse, setVerse] = useState(1);
-  const [shouldNotify, setShouldNotify] = useState(true);
+  // Form Versículo de Hoje
+  const [activeVerseId, setActiveVerseId] = useState<string | null>(null);
+  const [reference, setReference] = useState("Jeremias 29:11");
+  const [translation, setTranslation] = useState("Almeida Revista e Corrigida");
+  const [content, setContent] = useState(
+    "Porque eu bem sei os pensamentos que tenho a vosso respeito, diz o Senhor; pensamentos de paz, e não de mal, para vos dar o fim que esperais."
+  );
+  const [sendPush, setSendPush] = useState(true);
 
-  // Bible search state
+  // Scanner Bíblico
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
 
+  // Modal de Agendamento
+  const [isScheduleOpen, setIsScheduleOpen] = useState(false);
+  const [scheduleData, setScheduleData] = useState({
+    reference: "",
+    translation: "NVI (Nova Versão Internacional)",
+    content: "",
+    scheduled_for: moment().add(1, "day").format("YYYY-MM-DD"),
+  });
+
   useEffect(() => {
     fetchVerses();
+
+    // ⚡ Escuta Realtime de Versículos Diários
+    const channel = supabase.channel("daily-verses-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "daily_verses" },
+        () => {
+          fetchVerses();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function fetchVerses() {
+    setLoading(true);
     try {
       const { data, error } = await supabase
-        .from('daily_verses')
-        .select('*')
-        .order('created_at', { ascending: false });
+        .from("daily_verses")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setVerses(data || []);
-    } catch (error) {
-      console.error("Erro ao buscar versículos:", error);
-      toast.error("Erro ao carregar histórico");
+
+      const list = data || [];
+      setVerses(list);
+
+      const active = list.find((v: DailyVerse) => v.is_active);
+      if (active) {
+        setActiveVerseId(active.id);
+        setReference(active.reference || "Jeremias 29:11");
+        setContent(active.content || "");
+        setTranslation(active.translation || "Almeida Revista e Corrigida");
+      }
+    } catch (error: any) {
+      console.error("[Versículo] Erro ao carregar versículos:", error);
+      toast.error("Erro ao carregar versículo diário.");
     } finally {
       setLoading(false);
     }
@@ -78,17 +109,21 @@ export default function DailyVerseAdmin() {
 
   async function handleBibleSearch(e: React.FormEvent) {
     e.preventDefault();
-    const q = searchQuery.trim().toLocaleLowerCase('pt-BR');
-    if (q.length < 3) { toast.error("Digite pelo menos 3 letras"); return; }
+    const q = searchQuery.trim().toLocaleLowerCase("pt-BR");
+    if (q.length < 3) {
+      toast.error("Digite pelo menos 3 caracteres para buscar na Bíblia.");
+      return;
+    }
+
     try {
       setSearchLoading(true);
-      if (!bibleCache['nvi']) {
-        const res = await fetch('/bible/nvi.json');
-        if (!res.ok) throw new Error('Falha ao carregar');
-        bibleCache['nvi'] = await res.json();
+      if (!bibleCache["nvi"]) {
+        const res = await fetch("/bible/nvi.json");
+        if (!res.ok) throw new Error("Arquivo da Bíblia não encontrado");
+        bibleCache["nvi"] = await res.json();
       }
 
-      // Detecta referência bíblica
+      // Detecção de livro e capítulo
       let refBook: any = null;
       let refChap: number | null = null;
       let refVerse: number | null = null;
@@ -97,39 +132,46 @@ export default function DailyVerseAdmin() {
         const possibleBook = refMatch[1].trim();
         refChap = parseInt(refMatch[2]);
         if (refMatch[3]) refVerse = parseInt(refMatch[3]);
-        const bMeta = BIBLE_BOOKS.find(b =>
-          b.name.toLocaleLowerCase('pt-BR') === possibleBook ||
-          b.name.toLocaleLowerCase('pt-BR').startsWith(possibleBook) ||
-          b.abbrev.toLocaleLowerCase('pt-BR') === possibleBook
+        const bMeta = BIBLE_BOOKS.find(
+          (b) =>
+            b.name.toLocaleLowerCase("pt-BR") === possibleBook ||
+            b.name.toLocaleLowerCase("pt-BR").startsWith(possibleBook) ||
+            b.abbrev.toLocaleLowerCase("pt-BR") === possibleBook
         );
         if (bMeta) refBook = bMeta;
       }
 
       const found: any[] = [];
-      bibleCache['nvi'].forEach((book: any) => {
-        const meta = BIBLE_BOOKS.find(b => b.abbrev === book.abbrev);
+      bibleCache["nvi"].forEach((book: any) => {
+        const meta = BIBLE_BOOKS.find((b) => b.abbrev === book.abbrev);
         if (!meta) return;
-        book.chapters.forEach((verses: string[], ci: number) => {
+        book.chapters.forEach((versesArr: string[], ci: number) => {
           const currentChap = ci + 1;
-          verses.forEach((text: string, vi: number) => {
+          versesArr.forEach((text: string, vi: number) => {
             const currentVerse = vi + 1;
             let isMatch = false;
             if (refBook && refBook.abbrev === meta.abbrev && currentChap === refChap) {
               isMatch = refVerse ? currentVerse === refVerse : true;
             } else if (!refBook) {
-              isMatch = text.toLocaleLowerCase('pt-BR').includes(q);
+              isMatch = text.toLocaleLowerCase("pt-BR").includes(q);
             }
             if (isMatch) {
-              found.push({ book: meta.name, bookAbbrev: meta.abbrev, chapter: currentChap, verse: currentVerse, text });
+              found.push({
+                book: meta.name,
+                bookAbbrev: meta.abbrev,
+                chapter: currentChap,
+                verse: currentVerse,
+                text,
+              });
             }
           });
         });
       });
 
-      setSearchResults(found.slice(0, 150));
-      if (found.length === 0) toast.info("Nenhum versículo encontrado");
+      setSearchResults(found.slice(0, 100));
+      if (found.length === 0) toast.info("Nenhum versículo encontrado com este termo.");
     } catch {
-      toast.error("Erro ao buscar versículos");
+      toast.error("Erro ao buscar no banco bíblico.");
     } finally {
       setSearchLoading(false);
     }
@@ -138,337 +180,479 @@ export default function DailyVerseAdmin() {
   function selectVerse(result: any) {
     setContent(result.text);
     setReference(`${result.book} ${result.chapter}:${result.verse}`);
-    setBookAbbrev(result.bookAbbrev.toUpperCase());
-    setChapter(result.chapter);
-    setVerse(result.verse);
     setSearchResults([]);
     setSearchQuery("");
+    toast.success(`Versículo selecionado: ${result.book} ${result.chapter}:${result.verse}`);
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!content || !reference) return;
+  async function handleSaveActive() {
+    if (!reference.trim() || !content.trim()) {
+      toast.error("Preencha a referência e o texto do versículo.");
+      return;
+    }
 
     setSaving(true);
+    const toastId = toast.loading("Atualizando Versículo do Dia no feed...");
     try {
       // 1. Desativar versículos atuais
       await supabase
-        .from('daily_verses')
+        .from("daily_verses")
         .update({ is_active: false })
-        .eq('is_active', true);
+        .eq("is_active", true);
 
-      // 2. Inserir Novo (Normalizado)
+      // 2. Inserir ou Atualizar Ativo
       const { data, error } = await supabase
-        .from('daily_verses')
+        .from("daily_verses")
         .insert({
-          content,
-          reference,
-          book_abbrev: bookAbbrev.toUpperCase(),
-          chapter,
-          verse,
-          is_active: true
+          reference: reference.trim(),
+          content: content.trim(),
+          translation: translation.trim(),
+          is_active: true,
+          scheduled_for: new Date().toISOString().split("T")[0],
         })
         .select()
         .single();
 
       if (error) throw error;
 
-      // 3. Notificação Global (Sinal de Edificação)
-      if (shouldNotify) {
-        const { data: profiles } = await supabase.from('profiles').select('fcm_token').not('fcm_token', 'is', null);
-        
+      // 3. Notificação Push opcional
+      if (sendPush) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("fcm_token")
+          .not("fcm_token", "is", null);
+
         if (profiles && profiles.length > 0) {
-          const notifications = profiles.map(p => ({
+          const notifications = profiles.map((p) => ({
             user_id: null,
             fcm_token: p.fcm_token,
-            title: "🙌 Palavra de Edificação",
-            body: content.substring(0, 100) + "...",
-            metadata: { type: 'daily_verse', id: data.id }
+            title: `🙌 Versículo do Dia · ${reference.trim()}`,
+            body: content.trim().substring(0, 120) + "...",
+            metadata: { type: "daily_verse", id: data.id },
           }));
-          
+
           for (let i = 0; i < notifications.length; i += 100) {
-            await supabase.from('notifications').insert(notifications.slice(i, i + 100));
+            await supabase.from("notifications").insert(notifications.slice(i, i + 100));
           }
         }
-
-        await supabase.from('system_errors').insert({
-          module: 'notifications',
-          error_message: `[MENSAGEM_DIA] Notificação enviada para ${profiles?.length || 0} fiéis.`,
-          metadata: { id: data.id, ref: reference }
-        });
       }
 
-      setVerses([data, ...verses.map(v => ({ ...v, is_active: false }))]);
-      setContent("");
-      setReference("");
-      toast.success("Nova Palavra do Dia enviada para toda a rede! 🙌");
-    } catch (error) {
+      toast.success("Versículo do Dia salvo e publicado no topo do feed! 🙌", { id: toastId });
+      fetchVerses();
+    } catch (error: any) {
       console.error("Erro ao salvar:", error);
-      toast.error("Erro ao publicar versículo");
+      toast.error("Erro ao salvar versículo: " + error.message, { id: toastId });
     } finally {
       setSaving(false);
     }
   }
 
-  async function toggleActive(id: string, current: boolean) {
-    try {
-      if (!current) {
-        await supabase.from('daily_verses').update({ is_active: false }).neq('id', id);
-      }
+  async function handleCreateScheduled(e: React.FormEvent) {
+    e.preventDefault();
+    if (!scheduleData.reference.trim() || !scheduleData.content.trim()) {
+      toast.error("Preencha a referência e o texto.");
+      return;
+    }
 
+    const toastId = toast.loading("Agendando versículo...");
+    try {
       const { error } = await supabase
-        .from('daily_verses')
-        .update({ is_active: !current })
-        .eq('id', id);
+        .from("daily_verses")
+        .insert({
+          reference: scheduleData.reference.trim(),
+          content: scheduleData.content.trim(),
+          translation: scheduleData.translation.trim(),
+          is_active: false,
+          scheduled_for: scheduleData.scheduled_for,
+        });
 
       if (error) throw error;
-      
-      setVerses(verses.map(v => {
-        if (v.id === id) return { ...v, is_active: !current };
-        if (!current) return { ...v, is_active: false };
-        return v;
-      }));
-      
-      toast.success(current ? "Palavra recolhida" : "Palavra do Dia atualizada!");
-    } catch (error) {
-      toast.error("Erro ao alterar status");
+
+      toast.success("Versículo agendado com sucesso! 📅", { id: toastId });
+      setIsScheduleOpen(false);
+      setScheduleData({
+        reference: "",
+        translation: "NVI (Nova Versão Internacional)",
+        content: "",
+        scheduled_for: moment().add(1, "day").format("YYYY-MM-DD"),
+      });
+      fetchVerses();
+    } catch (error: any) {
+      toast.error("Erro ao agendar: " + error.message, { id: toastId });
     }
   }
 
-  async function deleteVerse(id: string) {
-    if (!confirm("Tem certeza que deseja apagar este histórico?")) return;
+  async function handleDeleteVerse(id: string) {
+    if (!confirm("Excluir este versículo do histórico?")) return;
     try {
-      const { error } = await supabase.from('daily_verses').delete().eq('id', id);
+      const { error } = await supabase.from("daily_verses").delete().eq("id", id);
       if (error) throw error;
-      setVerses(verses.filter(v => v.id !== id));
-      toast.success("Expurgado com sucesso");
-    } catch (error) {
-      toast.error("Erro ao excluir");
+      setVerses((prev) => prev.filter((v) => v.id !== id));
+      toast.success("Versículo removido do histórico.");
+    } catch (error: any) {
+      toast.error("Erro ao excluir: " + error.message);
     }
   }
+
+  async function handleActivateVerse(verseItem: DailyVerse) {
+    const toastId = toast.loading(`Ativando ${verseItem.reference} como versículo de hoje...`);
+    try {
+      await supabase.from("daily_verses").update({ is_active: false }).neq("id", verseItem.id);
+      await supabase.from("daily_verses").update({ is_active: true }).eq("id", verseItem.id);
+
+      setReference(verseItem.reference);
+      setContent(verseItem.content);
+      setTranslation(verseItem.translation || "Almeida Revista e Corrigida");
+      setActiveVerseId(verseItem.id);
+
+      setVerses((prev) =>
+        prev.map((v) => ({ ...v, is_active: v.id === verseItem.id }))
+      );
+      toast.success(`Versículo ${verseItem.reference} ativado no topo do feed!`, { id: toastId });
+    } catch (error: any) {
+      toast.error("Erro ao ativar versículo: " + error.message, { id: toastId });
+    }
+  }
+
+  // Cálculo da data máxima programada
+  const futureDates = verses
+    .map((v) => v.scheduled_for)
+    .filter(Boolean)
+    .sort()
+    .reverse();
+  const maxScheduledDate = futureDates[0] ? moment(futureDates[0]).format("DD/MM/YYYY") : moment().format("DD/MM/YYYY");
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Header Premium */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      {/* ─── HEADER PRINCIPAL ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-3xl font-black text-whatsapp-dark dark:text-white flex items-center gap-3">
-            <Sparkles className="text-whatsapp-green animate-pulse" />
-            Console de Edificação Diária
-          </h1>
-          <p className="text-gray-500 text-sm mt-1 font-medium italic">Controle atômico da marcação espiritual que todos os usuários verão ao abrir o App.</p>
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+              Versículo do dia
+            </h1>
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green border border-whatsapp-teal/20">
+              <Sparkles className="h-3 w-3" />
+              Edificação Diária
+            </span>
+          </div>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Programado até {maxScheduledDate} · {verses.length} versículos cadastrados no histórico
+          </p>
         </div>
-        <div className="flex items-center gap-2 px-4 py-2 bg-whatsapp-green/10 text-whatsapp-green rounded-full border border-whatsapp-green/20 text-[10px] font-black uppercase tracking-widest">
-           {verses.filter(v => v.is_active).length > 0 ? "Bússola Ativa" : "Vazio Espiritual"}
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={fetchVerses}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin text-whatsapp-green")} />
+            <span>Atualizar</span>
+          </button>
+          <button
+            onClick={() => setIsScheduleOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-whatsapp-teal text-white text-xs font-semibold hover:bg-whatsapp-tealLight transition-colors shadow-sm active:scale-95"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            <span>Agendar versículo</span>
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Editor Column */}
-        <div className="lg:col-span-5">
-          <div className="bg-white dark:bg-whatsapp-darkLighter p-8 rounded-[40px] border border-gray-100 dark:border-white/5 shadow-2xl relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-whatsapp-green/5 blur-3xl -mr-16 -mt-16 group-hover:bg-whatsapp-green/10 transition-all duration-1000" />
-            
-            <h2 className="text-xs font-black uppercase tracking-widest mb-8 flex items-center gap-2 text-whatsapp-teal">
-              <Plus size={16} className="text-whatsapp-green" />
-              Preparar Nova Mensagem
-            </h2>
+      {/* ─── PAINEL: VERSÍCULO DE HOJE ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
+        <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-foreground">Versículo de hoje</h2>
+            <p className="text-xs text-muted-foreground">Exibido no topo do feed principal e no disparo de push matinal</p>
+          </div>
 
-            <form onSubmit={handleCreate} className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Scanner Bíblico</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBibleSearch(e as any); } }}
-                    placeholder="Busque por tema ou referência..."
-                    className="flex-1 bg-whatsapp-light dark:bg-whatsapp-dark border border-black/5 dark:border-white/5 rounded-2xl px-5 py-4 text-sm font-medium focus:ring-2 focus:ring-whatsapp-green transition-all outline-none"
-                  />
-                  <button 
-                    type="button" 
-                    onClick={handleBibleSearch}
-                    className="px-5 py-4 bg-whatsapp-green text-whatsapp-dark rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-lg shadow-whatsapp-green/20"
-                  >
-                    {searchLoading ? <RefreshCw className="animate-spin" size={18} /> : <Search size={18} />}
-                  </button>
-                </div>
-                {searchResults.length > 0 && (
-                  <div className="max-h-60 overflow-y-auto space-y-1 rounded-2xl border border-whatsapp-green/10 p-2 bg-gray-50 dark:bg-whatsapp-dark animate-in slide-in-from-top-2 duration-300">
-                    {searchResults.map((r, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => selectVerse(r)}
-                        className="w-full text-left p-4 rounded-xl hover:bg-white dark:hover:bg-white/5 transition-all group"
-                      >
-                        <span className="text-[10px] font-black text-whatsapp-green uppercase tracking-wider">{r.book} {r.chapter}:{r.verse}</span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic line-clamp-2 leading-relaxed font-medium">"{r.text}"</p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Corpo do Versículo</label>
-                <textarea 
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  placeholder="Cole aqui ou use o buscador acima..."
-                  className="w-full bg-whatsapp-light dark:bg-whatsapp-dark border border-black/5 dark:border-white/5 rounded-3xl p-6 text-sm min-h-[140px] focus:ring-2 focus:ring-whatsapp-green transition-all outline-none font-medium text-gray-700 dark:text-gray-200"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Referência Visível</label>
-                    <input 
-                      type="text"
-                      value={reference}
-                      onChange={(e) => setReference(e.target.value)}
-                      placeholder="Ex: Salmos 23:1"
-                      className="w-full bg-whatsapp-light dark:bg-whatsapp-dark border border-black/5 dark:border-white/5 rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-whatsapp-green transition-all outline-none"
-                      required
-                    />
-                 </div>
-                 <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">ID Livro (Sync)</label>
-                    <input 
-                      type="text"
-                      value={bookAbbrev}
-                      onChange={(e) => setBookAbbrev(e.target.value.toUpperCase())}
-                      className="w-full bg-whatsapp-light dark:bg-whatsapp-dark border border-black/5 dark:border-white/5 rounded-2xl px-5 py-4 text-sm font-black focus:ring-2 focus:ring-whatsapp-green transition-all outline-none text-whatsapp-teal"
-                    />
-                 </div>
-              </div>
-
-              <div className="flex items-center gap-4 bg-gray-50 dark:bg-white/5 p-4 rounded-2xl border border-black/5 dark:border-white/5">
-                 <button 
-                  type="button"
-                  onClick={() => setShouldNotify(!shouldNotify)}
-                  className={cn(
-                    "w-10 h-10 rounded-xl flex items-center justify-center transition-all",
-                    shouldNotify ? "bg-whatsapp-green text-whatsapp-dark" : "bg-gray-200 text-gray-400"
-                  )}
-                 >
-                   <Bell size={18} />
-                 </button>
-                 <div>
-                   <p className="text-[10px] font-black uppercase tracking-widest dark:text-white">Broadcast Global</p>
-                   <p className="text-[9px] text-gray-400 font-bold uppercase">Avisar toda a rede sobre a nova palavra</p>
-                 </div>
-              </div>
-
-              <button 
-                type="submit"
-                disabled={saving}
-                className="w-full py-5 bg-whatsapp-dark dark:bg-whatsapp-green text-white dark:text-whatsapp-dark rounded-[24px] font-black text-xs uppercase tracking-[0.2em] shadow-2xl shadow-whatsapp-green/20 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-3 mt-6 mb-2"
-              >
-                {saving ? "Propagando..." : (
-                  <>
-                    <Save size={18} />
-                    Firmar Palavra do Dia
-                  </>
-                )}
-              </button>
-            </form>
+          {/* Scanner Rápido */}
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleBibleSearch(e); } }}
+              placeholder="Buscar livro, cap:versículo..."
+              className="w-full h-8 pl-8 pr-8 rounded-lg border border-border bg-muted/50 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+            />
+            {searchLoading && (
+              <RefreshCw className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3 w-3 animate-spin text-whatsapp-green" />
+            )}
           </div>
         </div>
 
-        {/* Impact History Column */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 dark:text-white">
-              <History size={16} className="text-gray-400" />
-              Métricas de Impacto
-            </h2>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-tighter italic">Resultados reais da edificação</p>
+        {/* Dropdown de resultados do scanner bíblico */}
+        {searchResults.length > 0 && (
+          <div className="max-h-48 overflow-y-auto space-y-1 rounded-xl border border-border p-2 bg-muted/40 animate-in fade-in">
+            <div className="flex items-center justify-between px-2 pb-1 border-b border-border/50 text-[10px] font-bold text-muted-foreground uppercase">
+              <span>Resultados da Bíblia NVI</span>
+              <button onClick={() => setSearchResults([])} className="hover:text-foreground">Fechar</button>
+            </div>
+            {searchResults.map((r, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => selectVerse(r)}
+                className="w-full text-left p-2 rounded-lg hover:bg-card transition-colors text-xs space-y-0.5"
+              >
+                <span className="font-bold text-whatsapp-teal dark:text-whatsapp-green text-[11px] block">
+                  {r.book} {r.chapter}:{r.verse}
+                </span>
+                <p className="text-muted-foreground line-clamp-1 italic text-[11px]">"{r.text}"</p>
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Referência
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Livro, capítulo e versículo)</span>
+            </label>
+            <input
+              type="text"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Ex: Jeremias 29:11"
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+            />
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Tradução
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Versão bíblica utilizada)</span>
+            </label>
+            <input
+              type="text"
+              value={translation}
+              onChange={(e) => setTranslation(e.target.value)}
+              placeholder="Ex: Almeida Revista e Corrigida / NVI"
+              className="h-9 w-full rounded-lg border border-border bg-muted/40 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Texto Bíblico
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Aparece no card do feed e no app)</span>
+            </label>
+            <textarea
+              rows={3}
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder="Digite ou cole o texto das escrituras..."
+              className="w-full rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green leading-relaxed"
+            />
+          </div>
+
+          <div className="sm:col-span-2">
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              Disparo Automático de Push
+              <span className="text-[11px] text-muted-foreground font-normal ml-1.5">(Dispara às 06:00 no fuso do usuário)</span>
+            </label>
+            <div 
+              onClick={() => setSendPush(!sendPush)}
+              className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 w-fit cursor-pointer select-none hover:bg-muted/60 transition-colors"
+            >
+              <span className={cn(
+                "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
+                sendPush ? "bg-whatsapp-teal" : "bg-muted-foreground/30"
+              )}>
+                <span className={cn(
+                  "inline-block size-3.5 rounded-full bg-white transition-transform",
+                  sendPush ? "translate-x-4" : "translate-x-1"
+                )} />
+              </span>
+              <span className="text-xs font-medium text-foreground">
+                {sendPush ? "Push diário matinal ativado" : "Push desativado"}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-3 border-t border-border flex items-center gap-2">
+          <button
+            onClick={handleSaveActive}
+            disabled={saving}
+            className="h-9 rounded-lg bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white px-4 text-xs font-semibold transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <span>Salvar alterações</span>
+          </button>
+          <button
+            onClick={fetchVerses}
+            className="h-9 rounded-lg border border-border px-4 text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            Descartar
+          </button>
+        </div>
+      </div>
+
+      {/* ─── PAINEL: PROGRAMAÇÃO & HISTÓRICO ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden flex flex-col">
+        <div className="p-4 border-b border-border bg-muted/20">
+          <h2 className="text-sm font-bold text-foreground">Programação & Histórico</h2>
+          <p className="text-xs text-muted-foreground">Próximos versículos agendados e histórico de palavras publicadas</p>
+        </div>
+
+        <div className="divide-y divide-border/60">
           {loading ? (
-             <div className="space-y-4">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="h-40 bg-white/5 rounded-[40px] animate-pulse border border-white/5" />
-                ))}
-             </div>
+            <div className="py-12 text-center text-xs text-muted-foreground">
+              Carregando programação de versículos...
+            </div>
           ) : verses.length === 0 ? (
-            <div className="py-24 text-center bg-white dark:bg-whatsapp-darkLighter rounded-[40px] border border-dashed border-gray-200 dark:border-white/10 shadow-inner">
-              <AlertCircle className="mx-auto w-12 h-12 text-gray-300 mb-4 opacity-20" />
-              <p className="text-gray-400 font-bold uppercase tracking-[0.3em] text-[10px]">Histórico Inexistente</p>
+            <div className="py-16 text-center space-y-2">
+              <BookOpen className="h-8 w-8 text-whatsapp-teal dark:text-whatsapp-green mx-auto opacity-70" />
+              <h3 className="text-sm font-semibold text-foreground">Nenhum versículo registrado</h3>
+              <p className="text-xs text-muted-foreground">Cadastre o primeiro versículo usando o formulário acima.</p>
             </div>
           ) : (
-            <div className="space-y-5">
-              {verses.map((v) => (
-                <div 
-                  key={v.id} 
-                  className={cn(
-                    "relative overflow-hidden bg-white dark:bg-whatsapp-darkLighter p-8 rounded-[40px] border transition-all duration-500 group",
-                    v.is_active ? "border-whatsapp-green shadow-xl shadow-whatsapp-green/10" : "border-gray-100 dark:border-white/5 hover:bg-gray-50/50 hover:dark:bg-white/[0.03]"
-                  )}
+            verses.map((verseItem) => {
+              const isCurrent = verseItem.is_active;
+
+              return (
+                <div
+                  key={verseItem.id}
+                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors"
                 >
-                  {v.is_active && (
-                    <div className="absolute top-0 right-0 py-2 px-6 bg-whatsapp-green text-whatsapp-dark text-[10px] font-black uppercase tracking-widest rounded-bl-[24px] shadow-lg animate-pulse">
-                      Em Exibição
-                    </div>
-                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-foreground">
+                      {isCurrent ? "Hoje" : moment(verseItem.created_at).format("DD/MM")} · {verseItem.reference}
+                    </p>
+                    <p className="truncate text-[11px] text-muted-foreground">
+                      {isCurrent ? "Ativo no topo do feed · Disparo matinal configurado" : `"${verseItem.content.substring(0, 70)}..."`}
+                    </p>
+                  </div>
 
-                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-                    <div className="flex-1 space-y-4">
-                      <div className="flex items-center gap-4">
-                        <div className="px-3 py-1.5 rounded-xl bg-whatsapp-teal/10 text-whatsapp-teal flex items-center gap-2 border border-whatsapp-teal/20">
-                          <BookOpen size={14} />
-                          <span className="text-[11px] font-black uppercase tracking-widest">{v.reference}</span>
-                        </div>
-                        <span className="text-[10px] font-bold text-gray-400 tracking-tighter">
-                          {moment(v.created_at).calendar()}
-                        </span>
-                      </div>
-                      
-                      <p className="text-sm font-medium dark:text-gray-200 leading-relaxed italic border-l-2 border-whatsapp-green/20 pl-4 py-1">"{v.content}"</p>
-                      
-                      <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-orange-500/10 text-orange-500 rounded-full border border-orange-500/10">
-                           <Flame size={12} className={v.is_active ? "animate-bounce" : ""} />
-                           <span className="text-[10px] font-black">{v.likes?.length || 0}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 px-3 py-1 bg-whatsapp-green/10 text-whatsapp-green rounded-full border border-whatsapp-green/10">
-                           <MessageCircle size={12} />
-                           <span className="text-[10px] font-black">Auditado</span>
-                        </div>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {isCurrent ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Publicado
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                        <span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Histórico
+                      </span>
+                    )}
 
-                    <div className="flex items-center gap-2 self-end md:self-start bg-gray-50 dark:bg-white/5 p-2 rounded-2xl border border-black/5 dark:border-white/5">
-                      <button 
-                        onClick={() => toggleActive(v.id, v.is_active)}
-                        className={cn(
-                          "w-12 h-12 rounded-xl flex items-center justify-center transition-all shadow-sm active:scale-90",
-                          v.is_active 
-                            ? "bg-whatsapp-green text-whatsapp-dark shadow-whatsapp-green/30" 
-                            : "bg-white dark:bg-white/5 text-gray-400 hover:text-whatsapp-green"
-                        )}
-                        title={v.is_active ? "Recolher do Feed" : "Propagar no Feed"}
+                    {!isCurrent && (
+                      <button
+                        onClick={() => handleActivateVerse(verseItem)}
+                        className="text-[11px] font-semibold text-whatsapp-teal dark:text-whatsapp-green hover:underline"
                       >
-                        <CheckCircle2 size={20} />
+                        Ativar Hoje
                       </button>
-                      <button 
-                        onClick={() => deleteVerse(v.id)}
-                        className="w-12 h-12 rounded-xl bg-white dark:bg-white/5 text-gray-400 hover:bg-red-500/10 hover:text-red-500 transition-all flex items-center justify-center shadow-sm active:scale-90"
-                        title="Expurgar do Histórico"
-                      >
-                        <Trash2 size={20} />
-                      </button>
-                    </div>
+                    )}
+
+                    <button
+                      onClick={() => handleDeleteVerse(verseItem.id)}
+                      className="p-1 rounded-lg hover:bg-red-500/10 text-muted-foreground hover:text-red-500 transition-colors"
+                      title="Excluir"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })
           )}
         </div>
       </div>
+
+      {/* ─── MODAL DE AGENDAR VERSÍCULO ─── */}
+      <DialogPrimitive.Root open={isScheduleOpen} onOpenChange={setIsScheduleOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
+          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-card p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green">
+                  <Calendar className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-foreground">Agendar Novo Versículo</h3>
+                  <p className="text-[11px] text-muted-foreground">Programe para publicação automática em uma data futura</p>
+                </div>
+              </div>
+              <DialogPrimitive.Close className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </DialogPrimitive.Close>
+            </div>
+
+            <form onSubmit={handleCreateScheduled} className="space-y-4 pt-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Data de Publicação</label>
+                  <input
+                    type="date"
+                    required
+                    value={scheduleData.scheduled_for}
+                    onChange={(e) => setScheduleData({ ...scheduleData, scheduled_for: e.target.value })}
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+                  />
+                </div>
+                <div>
+                  <label className="block text-muted-foreground font-medium mb-1">Referência Bíblica</label>
+                  <input
+                    type="text"
+                    required
+                    value={scheduleData.reference}
+                    onChange={(e) => setScheduleData({ ...scheduleData, reference: e.target.value })}
+                    placeholder="Ex: Filipenses 4:13"
+                    className="w-full h-9 px-3 rounded-lg border border-border bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-muted-foreground font-medium mb-1">Tradução</label>
+                <input
+                  type="text"
+                  value={scheduleData.translation}
+                  onChange={(e) => setScheduleData({ ...scheduleData, translation: e.target.value })}
+                  placeholder="Ex: NVI / ARC"
+                  className="w-full h-9 px-3 rounded-lg border border-border bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+                />
+              </div>
+
+              <div>
+                <label className="block text-muted-foreground font-medium mb-1">Texto Bíblico *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={scheduleData.content}
+                  onChange={(e) => setScheduleData({ ...scheduleData, content: e.target.value })}
+                  placeholder="Texto completo do versículo..."
+                  className="w-full p-2.5 rounded-lg border border-border bg-muted/50 text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green leading-relaxed"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <DialogPrimitive.Close asChild>
+                  <button
+                    type="button"
+                    className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors font-medium"
+                  >
+                    Cancelar
+                  </button>
+                </DialogPrimitive.Close>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-lg bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-semibold transition-colors"
+                >
+                  Confirmar Agendamento
+                </button>
+              </div>
+            </form>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </div>
   );
 }

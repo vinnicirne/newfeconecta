@@ -1,15 +1,23 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { PageHeader } from "@/components/page-header";
+import Image from "next/image";
 import { 
   Plus, Search, MoreHorizontal, RefreshCw, Eye, X, Mail, 
   Church, Calendar, AtSign, ShieldCheck, UserCircle2, 
   ChevronLeft, ChevronRight, BadgeCheck, ShieldAlert, 
   UserPlus, UserMinus, Edit2, Bell, BellOff, Globe, 
-  Smartphone, Trash2, Clock, Compass, Radio
+  Smartphone, Trash2, Clock, Compass, Radio, Users, Download,
+  CheckCircle2, AlertCircle, Copy, Link as LinkIcon, Send
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
 import moment from "moment";
@@ -21,30 +29,23 @@ import { DigitalCredentialModal } from "@/components/admin/DigitalCredentialModa
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
 import { ForceNotificationModal } from "@/components/admin/ForceNotificationModal";
 
-moment.locale('pt-br');
-
-function formatTimeSpent(enteredAt: string | undefined): string {
-  if (!enteredAt) return "agora";
-  const ms = Date.now() - new Date(enteredAt).getTime();
-  if (ms < 0) return "agora";
-  const seconds = Math.floor(ms / 1000);
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  const remSec = seconds % 60;
-  if (minutes < 60) return `${minutes}m ${remSec}s`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours}h ${minutes % 60}m`;
-}
+moment.locale("pt-br");
 
 export default function UsersPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [activeTab, setActiveTab] = useState<'feconecta' | 'fenamoro'>('feconecta');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'online' | string>('all');
+  const [activeTab, setActiveTab] = useState<"feconecta" | "fenamoro">("feconecta");
+  const [statusFilter, setStatusFilter] = useState<"all" | "online" | "verified" | "banned" | string>("all");
+  const [roleFilter, setRoleFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
+  const [verifiedCount, setVerifiedCount] = useState(0);
+  const [bannedCount, setBannedCount] = useState(0);
+  const [newMonthCount, setNewMonthCount] = useState(0);
+
+  // Modais
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isFollowingSelected, setIsFollowingSelected] = useState(false);
@@ -54,58 +55,76 @@ export default function UsersPage() {
   const [userToEdit, setUserToEdit] = useState<any | null>(null);
   const [isForceNotifOpen, setIsForceNotifOpen] = useState(false);
   const [forceNotifUser, setForceNotifUser] = useState<any | null>(null);
-  const PAGE_SIZE = 15;
-  const [realtimePresenceMap, setRealtimePresenceMap] = useState<Record<string, any>>({});
-  const [, setTick] = useState(0);
+  const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
 
-  // Tique-taque a cada 5 segundos para atualizar os cronômetros de tempo de página
-  useEffect(() => {
-    const timer = setInterval(() => setTick(t => t + 1), 5000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Escutar sincronização de presença em tempo real
-  useEffect(() => {
-    const handleSync = (e: any) => {
-      if (e.detail?.state) {
-        const state = e.detail.state;
-        const map: Record<string, any> = {};
-        Object.entries(state).forEach(([userId, presences]: [string, any]) => {
-          if (Array.isArray(presences) && presences.length > 0) {
-            map[userId] = presences[presences.length - 1];
-          }
-        });
-        setRealtimePresenceMap(map);
-      }
-    };
-
-    window.addEventListener('presence-sync', handleSync);
-    return () => window.removeEventListener('presence-sync', handleSync);
-  }, []);
+  const PAGE_SIZE = 12;
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        supabase.from('profiles').select('*').eq('id', user.id).single()
+        supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .single()
           .then(({ data }) => setCurrentUser(data || user));
       }
     });
   }, []);
 
+  // ⚡ Sincronização e Presença Realtime
   useEffect(() => {
     fetchUsers();
+    fetchStats();
     fetchOnlineUsers();
-  }, [page, search, activeTab, statusFilter]);
+
+    const presenceChannel = supabase.channel("admin-users-presence", {
+      config: { presence: { key: "admin-users-monitor" } }
+    });
+
+    presenceChannel
+      .on("presence", { event: "sync" }, () => {
+        fetchOnlineUsers();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [page, search, activeTab, statusFilter, roleFilter]);
+
+  const fetchStats = async () => {
+    try {
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
+      const startOfMonth = moment().startOf("month").toISOString();
+
+      const [vRes, bRes, mRes] = await Promise.allSettled([
+        supabase.from(table).select("*", { count: "exact", head: true }).eq("is_verified", true),
+        supabase.from(table).select("*", { count: "exact", head: true }).eq("verification_label", "BANIDO"),
+        supabase.from(table).select("*", { count: "exact", head: true }).gt("created_at", startOfMonth),
+      ]);
+
+      setVerifiedCount(vRes.status === "fulfilled" ? (vRes.value.count || 0) : 0);
+      setBannedCount(bRes.status === "fulfilled" ? (bRes.value.count || 0) : 0);
+      setNewMonthCount(mRes.status === "fulfilled" ? (mRes.value.count || 0) : 0);
+    } catch (err) {
+      console.error("[Users] Erro ao buscar stats de usuários:", err);
+    }
+  };
 
   const fetchOnlineUsers = async () => {
-    const activeCutoff = new Date(Date.now() - 4 * 60 * 1000).toISOString();
-    const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
-    const { data } = await supabase
-      .from(table)
-      .select('id, full_name, avatar_url, updated_at, last_seen, username, role, current_page, page_title, page_entered_at')
-      .gt('updated_at', activeCutoff)
-      .order('updated_at', { ascending: false });
-    if (data) setOnlineUsers(data);
+    try {
+      const activeCutoff = moment().subtract(5, "minutes").toISOString();
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
+      const { data } = await supabase
+        .from(table)
+        .select("id, full_name, avatar_url, updated_at, last_seen, username, role, current_page, page_title, page_entered_at")
+        .gt("updated_at", activeCutoff)
+        .order("updated_at", { ascending: false });
+      if (data) setOnlineUsers(data);
+    } catch (err) {
+      console.warn("[Users] Erro ao buscar online users:", err);
+    }
   };
 
   const fetchUsers = async () => {
@@ -113,20 +132,24 @@ export default function UsersPage() {
     try {
       const from = page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
-      const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
 
       let query = supabase
         .from(table)
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false });
+        .select("*", { count: "exact" })
+        .order("created_at", { ascending: false });
 
-      if (statusFilter === 'online') {
-        const activeCutoff = new Date(Date.now() - 4 * 60 * 1000).toISOString();
-        query = query.gt('updated_at', activeCutoff);
-      } else if (statusFilter !== 'all') {
-        // Filtrar por página específica
-        const activeCutoff = new Date(Date.now() - 4 * 60 * 1000).toISOString();
-        query = query.gt('updated_at', activeCutoff).eq('page_title', statusFilter);
+      if (statusFilter === "online") {
+        const activeCutoff = moment().subtract(5, "minutes").toISOString();
+        query = query.gt("updated_at", activeCutoff);
+      } else if (statusFilter === "verified") {
+        query = query.eq("is_verified", true);
+      } else if (statusFilter === "banned") {
+        query = query.eq("verification_label", "BANIDO");
+      }
+
+      if (roleFilter !== "all") {
+        query = query.eq("role", roleFilter);
       }
 
       if (search.trim()) {
@@ -137,14 +160,13 @@ export default function UsersPage() {
 
       const { data, count, error } = await query.range(from, to);
 
-      if (error) {
-        console.error("Error fetching users:", error);
-      } else {
-        setUsers(data || []);
-        setTotal(count || 0);
-      }
-    } catch (err) {
-      console.error("Error fetching users:", err);
+      if (error) throw error;
+
+      setUsers(data || []);
+      setTotal(count || 0);
+    } catch (err: any) {
+      console.error("[Users] Erro ao buscar usuários:", err);
+      toast.error("Erro ao carregar usuários: " + (err.message || "Erro de conexão"));
     } finally {
       setLoading(false);
     }
@@ -152,13 +174,17 @@ export default function UsersPage() {
 
   const checkFollowStatus = async (targetId: string) => {
     if (!currentUser) return;
-    const { data } = await supabase
-      .from('follows')
-      .select('id')
-      .eq('follower_id', currentUser.id)
-      .eq('following_id', targetId)
-      .maybeSingle();
-    setIsFollowingSelected(!!data);
+    try {
+      const { data } = await supabase
+        .from("follows")
+        .select("id")
+        .eq("follower_id", currentUser.id)
+        .eq("following_id", targetId)
+        .maybeSingle();
+      setIsFollowingSelected(!!data);
+    } catch {
+      setIsFollowingSelected(false);
+    }
   };
 
   const handleToggleFollow = async (targetUser: any) => {
@@ -168,21 +194,21 @@ export default function UsersPage() {
     try {
       if (isFollowingSelected) {
         await supabase
-          .from('follows')
+          .from("follows")
           .delete()
-          .eq('follower_id', currentUser.id)
-          .eq('following_id', targetUser.id);
+          .eq("follower_id", currentUser.id)
+          .eq("following_id", targetUser.id);
         setIsFollowingSelected(false);
-        toast.success(`Você deixou de seguir ${targetUser.username}`, { id: toastId });
+        toast.success(`Você deixou de seguir @${targetUser.username}`, { id: toastId });
       } else {
         await supabase
-          .from('follows')
+          .from("follows")
           .insert({
             follower_id: currentUser.id,
-            following_id: targetUser.id
+            following_id: targetUser.id,
           });
         setIsFollowingSelected(true);
-        toast.success(`Você agora segue ${targetUser.username}!`, { id: toastId });
+        toast.success(`Você agora segue @${targetUser.username}!`, { id: toastId });
       }
     } catch (err: any) {
       toast.error("Erro na ação: " + err.message, { id: toastId });
@@ -195,7 +221,7 @@ export default function UsersPage() {
       setCredentialUser({
         ...user,
         is_verified: true,
-        verification_label: 'Verificado'
+        verification_label: "Verificado",
       });
       setIsCredentialOpen(true);
     } else {
@@ -204,99 +230,137 @@ export default function UsersPage() {
   };
 
   const executeToggle = async (user: any, newState: boolean) => {
-    const toastId = toast.loading(`${newState ? 'Verificando' : 'Removendo verificação'} de ${user.username}...`);
+    const toastId = toast.loading(`${newState ? "Verificando" : "Removendo verificação"} de @${user.username}...`);
     try {
-      const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
       const { error } = await supabase
         .from(table)
         .update({ 
           is_verified: newState,
-          verification_label: newState ? (user.verification_label || 'Verificado') : null
+          verification_label: newState ? (user.verification_label || "Verificado") : null,
         })
-        .eq('id', user.id);
+        .eq("id", user.id);
       
       if (error) throw error;
       
       setUsers(prev => prev.map(u => u.id === user.id ? { 
         ...u, 
         is_verified: newState,
-        verification_label: newState ? (u.verification_label || 'Verificado') : null 
+        verification_label: newState ? (u.verification_label || "Verificado") : null,
       } : u));
-      toast.success(newState ? "Selo concedido!" : "Selo removido com sucesso!", { id: toastId });
+      toast.success(newState ? "Selo concedido com sucesso!" : "Selo removido com sucesso!", { id: toastId });
+      fetchStats();
     } catch (err: any) {
       toast.error("Erro ao atualizar: " + err.message, { id: toastId });
     }
   };
 
   const handleBanUser = async (user: any) => {
-    const isBanned = user.verification_label === 'BANIDO';
-    const toastId = toast.loading(`${isBanned ? 'Reativando' : 'Banindo'} ${user.username}...`);
+    const isBanned = user.verification_label === "BANIDO";
+    const toastId = toast.loading(`${isBanned ? "Reativando" : "Suspendendo"} @${user.username}...`);
     
     try {
-      const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
       const { error } = await supabase
         .from(table)
         .update({ 
           is_verified: false,
-          verification_label: isBanned ? null : 'BANIDO'
+          verification_label: isBanned ? null : "BANIDO",
         })
-        .eq('id', user.id);
+        .eq("id", user.id);
       
       if (error) throw error;
       
       setUsers(prev => prev.map(u => u.id === user.id ? { 
         ...u, 
         is_verified: false,
-        verification_label: isBanned ? null : 'BANIDO' 
+        verification_label: isBanned ? null : "BANIDO",
       } : u));
-      toast.success(isBanned ? "Usuário reativado!" : "Usuário banido com sucesso!", { id: toastId });
+      toast.success(isBanned ? "Usuário reativado com sucesso!" : "Usuário suspenso com sucesso!", { id: toastId });
+      fetchStats();
     } catch (err: any) {
       toast.error("Erro na operação: " + err.message, { id: toastId });
     }
   };
 
   const handleDeleteUser = async (user: any) => {
-    if (!confirm(`TEM CERTEZA ABSOLUTA? Esta ação vai deletar todos os dados de perfil de ${user.username} da base de dados ativa (${activeTab}). Não pode ser desfeito.`)) return;
+    if (!confirm(`TEM CERTEZA ABSOLUTA? Esta ação vai deletar todos os dados de perfil de "${user.full_name || user.username}" permanentemente.`)) {
+      return;
+    }
     
-    const toastId = toast.loading(`Excluindo ${user.username}...`);
+    const toastId = toast.loading(`Excluindo @${user.username}...`);
     try {
-      const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
       const { error } = await supabase
         .from(table)
         .delete()
-        .eq('id', user.id);
+        .eq("id", user.id);
       
       if (error) throw error;
       
       setUsers(prev => prev.filter(u => u.id !== user.id));
       setTotal(prev => Math.max(0, prev - 1));
       toast.success("Usuário excluído permanentemente!", { id: toastId });
+      fetchStats();
     } catch (err: any) {
-      toast.error("Erro ao excluir: " + err.message, { id: toastId });
+      toast.error("Erro ao excluir usuário: " + err.message, { id: toastId });
     }
   };
 
   const handleToggleRole = async (user: any) => {
-    const newRole = user.role === 'admin' ? 'user' : 'admin';
-    const toastId = toast.loading(`Alterando cargo de ${user.username} para ${newRole}...`);
+    const newRole = user.role === "admin" ? "user" : "admin";
+    const toastId = toast.loading(`Alterando cargo de @${user.username} para ${newRole}...`);
     try {
-      const table = activeTab === 'feconecta' ? 'profiles' : 'dating_profiles';
+      const table = activeTab === "feconecta" ? "profiles" : "dating_profiles";
       const { error } = await supabase
         .from(table)
         .update({ role: newRole })
-        .eq('id', user.id);
+        .eq("id", user.id);
       
       if (error) throw error;
       
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, role: newRole } : u));
-      toast.success(`Usuário agora é ${newRole === 'admin' ? 'Administrador' : 'Membro'}!`, { id: toastId });
+      toast.success(`Usuário agora é ${newRole === "admin" ? "Administrador" : "Membro"}!`, { id: toastId });
     } catch (err: any) {
       toast.error("Erro ao mudar cargo: " + err.message, { id: toastId });
     }
   };
 
-  const handleCreateUser = () => {
-    toast.info("A funcionalidade de criação direta exige configuração do Provedor de E-mail (SMTP) no Supabase. Por enquanto, utilize o convite via Auth Dash.");
+  const exportToCSV = () => {
+    if (users.length === 0) {
+      toast.error("Nenhum usuário para exportar.");
+      return;
+    }
+    const headers = ["ID", "Nome", "Username", "Email", "Igreja", "Cargo", "Status", "Criado Em"];
+    const csvRows = users.map(u => [
+      u.id,
+      `"${(u.full_name || "").replace(/"/g, '""')}"`,
+      `"${(u.username || "").replace(/"/g, '""')}"`,
+      `"${(u.email || "").replace(/"/g, '""')}"`,
+      `"${(u.church || "").replace(/"/g, '""')}"`,
+      u.role || "user",
+      u.verification_label === "BANIDO" ? "Suspenso" : u.is_verified ? "Verificado" : "Normal",
+      u.created_at || "",
+    ]);
+    
+    // Inclusão do BOM UTF-8 para Excel e caracteres especiais em português
+    const csvContent = "\uFEFF" + [headers.join(","), ...csvRows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `usuarios_${activeTab}_${moment().format("YYYY-MM-DD")}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast.success("CSV exportado com sucesso!");
+  };
+
+  const copyInviteLink = () => {
+    const inviteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/register`;
+    navigator.clipboard.writeText(inviteUrl);
+    toast.success("Link de cadastro copiado para a área de transferência! 📋");
   };
 
   useEffect(() => {
@@ -307,331 +371,332 @@ export default function UsersPage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // Agrupamento por página para a Barra Analítica
-  const pageCounts: Record<string, number> = {};
-  onlineUsers.forEach(u => {
-    const live = realtimePresenceMap[u.id];
-    const pTitle = live?.page_title || u.page_title || "Feed Principal";
-    pageCounts[pTitle] = (pageCounts[pTitle] || 0) + 1;
-  });
-
   return (
-    <div className="flex flex-col h-full pb-2 md:pb-4 space-y-6">
-      {/* Header Principal */}
-      <PageHeader 
-        title="Gestão de Usuários" 
-        description={`${total} usuário${total !== 1 ? "s" : ""} cadastrado${total !== 1 ? "s" : ""} na plataforma.`}
-      >
-        <button 
-          onClick={handleCreateUser}
-          className="flex items-center gap-2 bg-whatsapp-teal text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-whatsapp-tealLight transition-all active:scale-95 shadow-lg shadow-whatsapp-teal/20"
-        >
-          <Plus className="w-4 h-4" /> Novo Usuário
-        </button>
-      </PageHeader>
+    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      {/* ─── HEADER PRINCIPAL ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            Gestão de Usuários
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            {total.toLocaleString("pt-BR")} contas registradas · {onlineUsers.length} ativas agora
+          </p>
+        </div>
 
-      {/* Seletor de Base (FéConecta / FéNamoro) */}
-      <div className="flex bg-gray-100 dark:bg-whatsapp-darkLighter p-1 rounded-xl w-fit shadow-inner">
-        <button
-          onClick={() => { setActiveTab('feconecta'); setPage(0); }}
-          className={cn("px-6 py-2 rounded-lg text-sm font-bold transition-all", activeTab === 'feconecta' ? "bg-white dark:bg-whatsapp-dark shadow-sm text-whatsapp-teal" : "text-gray-500 hover:text-gray-700 dark:text-gray-400")}
-        >
-          FéConecta
-        </button>
-        <button
-          onClick={() => { setActiveTab('fenamoro'); setPage(0); }}
-          className={cn("px-6 py-2 rounded-lg text-sm font-bold transition-all", activeTab === 'fenamoro' ? "bg-white dark:bg-whatsapp-dark shadow-sm text-pink-500" : "text-gray-500 hover:text-gray-700 dark:text-gray-400")}
-        >
-          FéNamoro
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Exportar CSV</span>
+          </button>
+          <button
+            onClick={() => setIsInviteModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-whatsapp-teal text-white text-xs font-semibold hover:bg-whatsapp-tealLight transition-colors shadow-sm active:scale-95"
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            <span>Convidar Membro</span>
+          </button>
+        </div>
       </div>
 
-      {/* BARRA ANALÍTICA COMPACTA: Radar de Presença em Tempo Real (Não quebra layout com milhares de usuários) */}
-      <div className="bg-white dark:bg-whatsapp-darkLighter p-4 rounded-2xl border border-gray-200/80 dark:border-white/5 whatsapp-shadow flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-            <Radio className="w-5 h-5 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="font-black text-sm dark:text-white">Radar de Presença</span>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
-                🟢 {onlineUsers.length} Online
-              </span>
+      {/* ─── 4 CARDS DE MÉTRICAS (STATS) ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total de Contas */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Total de Contas</span>
+            <div className="p-2 rounded-lg bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green">
+              <Users className="h-4 w-4" />
             </div>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400">
-              Distribuição dos membros ativos no momento
-            </p>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : total.toLocaleString("pt-BR")}
+            </span>
+            {newMonthCount > 0 && (
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                ▲ {newMonthCount} no mês
+              </span>
+            )}
           </div>
         </div>
 
-        {/* Filtros em Pílulas Compactas */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 max-w-full scrollbar-none">
-          <button
-            onClick={() => { setStatusFilter('all'); setPage(0); }}
-            className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all",
-              statusFilter === 'all'
-                ? "bg-whatsapp-green text-slate-950 shadow-sm"
-                : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
-            )}
-          >
-            Todos ({total})
-          </button>
-          <button
-            onClick={() => { setStatusFilter(statusFilter === 'online' ? 'all' : 'online'); setPage(0); }}
-            className={cn(
-              "px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5",
-              statusFilter === 'online'
-                ? "bg-emerald-500 text-white shadow-sm"
-                : "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
-            )}
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>Online Agora ({onlineUsers.length})</span>
-          </button>
-          {Object.entries(pageCounts).map(([title, count]) => (
+        {/* Verificados */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Verificados</span>
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <ShieldCheck className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : verifiedCount.toLocaleString("pt-BR")}
+            </span>
+            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
+              {total > 0 ? Math.round((verifiedCount / total) * 100) : 0}% da base
+            </span>
+          </div>
+        </div>
+
+        {/* Online Agora */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Online Agora</span>
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Radio className="h-4 w-4 animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {onlineUsers.length}
+            </span>
+            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+              Tempo real
+            </span>
+          </div>
+        </div>
+
+        {/* Suspensos */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Suspensos & Bloqueados</span>
+            <div className="p-2 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400">
+              <UserMinus className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : bannedCount}
+            </span>
+            <span className="text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
+              {bannedCount === 0 ? "Nenhum" : "Ação requerida"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── TABELA PRINCIPAL DE USUÁRIOS ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden space-y-0">
+        {/* Barra Superior com Abas e Filtros */}
+        <div className="p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-3 bg-muted/20">
+          <div className="flex items-center p-1 rounded-lg bg-muted border border-border w-fit">
             <button
-              key={title}
-              onClick={() => { setStatusFilter(statusFilter === title ? 'all' : title); setPage(0); }}
+              onClick={() => { setActiveTab("feconecta"); setPage(0); }}
               className={cn(
-                "px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all flex items-center gap-1.5",
-                statusFilter === title
-                  ? "bg-whatsapp-green text-slate-950 shadow-sm"
-                  : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
+                "px-3.5 py-1 rounded-md text-xs font-semibold transition-all",
+                activeTab === "feconecta"
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <span>{title}</span>
-              <span className="px-1.5 py-0.2 rounded-full bg-black/10 dark:bg-white/10 text-[10px]">
-                {count}
-              </span>
+              FéConecta
             </button>
-          ))}
-        </div>
-      </div>
+            <button
+              onClick={() => { setActiveTab("fenamoro"); setPage(0); }}
+              className={cn(
+                "px-3.5 py-1 rounded-md text-xs font-semibold transition-all",
+                activeTab === "fenamoro"
+                  ? "bg-card text-pink-500 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              FéNamoro
+            </button>
+          </div>
 
-      {/* Busca & Ações */}
-      <div className="bg-white dark:bg-whatsapp-darkLighter p-4 rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow flex flex-col md:flex-row gap-4 items-center">
-        <div className="relative flex-1 group w-full">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-whatsapp-green" />
-          <input 
-            type="text" 
-            value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-            placeholder="Pesquise por nome, email ou username..."
-            className="w-full bg-whatsapp-light dark:bg-whatsapp-dark border-none rounded-xl pl-10 pr-4 py-2 text-sm focus:ring-2 focus:ring-whatsapp-green/20 dark:text-white outline-none"
-          />
-        </div>
-        <div className="flex items-center gap-2 self-end md:self-auto">
-          <button 
-            onClick={() => { setPage(0); fetchUsers(); fetchOnlineUsers(); }} 
-            className="flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-xl text-xs font-bold dark:text-white transition-colors"
-          >
-            <RefreshCw className={cn("w-3 h-3", loading && "animate-spin")} /> Atualizar
-          </button>
-        </div>
-      </div>
+          <div className="flex flex-wrap items-center gap-2 flex-1 md:justify-end">
+            <div className="relative w-full sm:w-60">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+                placeholder="Buscar por nome, @user ou e-mail..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-border bg-muted/60 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+              />
+            </div>
 
-      {/* TABELA PRINCIPAL DE USUÁRIOS COM RASTREAMENTO AO VIVO INTEGRADO */}
-      <div className="flex-1 min-h-[300px] flex flex-col bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow overflow-hidden">
-        <div className="flex-1 overflow-auto custom-scrollbar">
-          <table className="w-full text-left relative">
-            <thead className="bg-gray-50 dark:bg-whatsapp-darkLighter sticky top-0 z-10 shadow-sm">
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-muted-foreground focus:outline-none"
+            >
+              <option value="all">Status: Todos</option>
+              <option value="online">Status: Online</option>
+              <option value="verified">Status: Verificados</option>
+              <option value="banned">Status: Suspensos</option>
+            </select>
+
+            <select
+              value={roleFilter}
+              onChange={(e) => { setRoleFilter(e.target.value); setPage(0); }}
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-muted-foreground focus:outline-none"
+            >
+              <option value="all">Papel: Todos</option>
+              <option value="user">Membro</option>
+              <option value="admin">Administrador</option>
+            </select>
+
+            <button
+              onClick={() => { setPage(0); fetchUsers(); fetchOnlineUsers(); }}
+              title="Recarregar tabela"
+              className="h-8 w-8 grid place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted transition-colors"
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin text-whatsapp-green")} />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabela de Usuários */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-muted/50 border-b border-border uppercase tracking-wider text-[10px] text-muted-foreground font-semibold">
               <tr>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Usuário</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Localização Atual & Rota</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">Igreja</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Gênero</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider hidden md:table-cell">Telefone</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cadastro</th>
-                <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Ações</th>
+                <th className="px-5 py-3">Usuário</th>
+                <th className="px-5 py-3 hidden md:table-cell">Igreja</th>
+                <th className="px-5 py-3">Papel</th>
+                <th className="px-5 py-3">Status</th>
+                <th className="px-5 py-3 hidden lg:table-cell">Cadastro</th>
+                <th className="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-white/5">
+            <tbody className="divide-y divide-border/60">
               {loading ? (
-                <tr><td colSpan={7} className="p-10 text-center text-gray-400 font-bold uppercase tracking-widest text-[10px]">Carregando rebanho digital...</td></tr>
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                    Carregando usuários...
+                  </td>
+                </tr>
               ) : users.length === 0 ? (
-                <tr><td colSpan={7} className="p-10 text-center text-gray-400 font-bold text-xs">Nenhum usuário encontrado.</td></tr>
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                    Nenhum usuário encontrado com os filtros selecionados.
+                  </td>
+                </tr>
               ) : (
-                users.map((u) => {
-                  const live = realtimePresenceMap[u.id];
-                  const isOnline = onlineUsers.some(o => o.id === u.id) || !!live;
-                  const pageTitle = live?.page_title || u.page_title || "Feed Principal";
-                  const pageIcon = live?.page_icon || "📱";
-                  const route = live?.route || u.current_page || "/";
-                  const enteredAt = live?.entered_at || u.page_entered_at || u.updated_at;
-                  const timeSpent = formatTimeSpent(enteredAt);
+                users.map((user) => {
+                  const isOnline = onlineUsers.some(ou => ou.id === user.id);
+                  const isBanned = user.verification_label === "BANIDO";
 
                   return (
-                    <tr key={u.id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                      {/* Coluna 1: Usuário (Avatar + Nome + Online Dot) */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
+                    <tr key={user.id} className="hover:bg-muted/30 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3 min-w-[180px]">
                           <div className="relative shrink-0">
-                            <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 flex items-center justify-center overflow-hidden border border-whatsapp-green/20">
-                              {u.avatar_url && !u.avatar_url.includes('vercel.sh') ? (
-                                <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
+                            <div className="h-8 w-8 rounded-full bg-whatsapp-teal/20 text-whatsapp-teal dark:text-whatsapp-green flex items-center justify-center font-bold text-xs overflow-hidden border border-border">
+                              {user.avatar_url ? (
+                                <Image
+                                  src={user.avatar_url}
+                                  alt=""
+                                  width={32}
+                                  height={32}
+                                  unoptimized
+                                  className="h-full w-full object-cover"
+                                />
                               ) : (
-                                <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white font-black uppercase text-xs shadow-inner">
-                                  {(() => {
-                                    const name = u.full_name || u.username || "U";
-                                    const parts = name.trim().split(/\s+/);
-                                    return parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : parts[0][0].toUpperCase();
-                                  })()}
-                                </div>
+                                (user.full_name || user.username || "U")[0]?.toUpperCase()
                               )}
                             </div>
                             {isOnline && (
-                              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white dark:border-[#111b21] rounded-full animate-pulse shadow-sm" />
+                              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 border-2 border-card" />
                             )}
                           </div>
                           <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <p className="text-sm font-bold dark:text-white truncate">{u.full_name || 'Usuário FéConecta'}</p>
-                              {u.is_verified && (
-                                <VerificationBadge 
-                                  role={u.verification_label} 
-                                  size="xs" 
-                                  onClick={() => {
-                                    setCredentialUser(u);
-                                    setIsCredentialOpen(true);
-                                  }}
-                                />
-                              )}
+                            <div className="font-semibold text-foreground truncate flex items-center gap-1.5">
+                              <span>{user.full_name || "Sem nome"}</span>
+                              {user.is_verified && <VerificationBadge role={user.verification_label} size="xs" />}
                             </div>
-                            <p className="text-xs text-gray-400 font-mono truncate">@{u.username}</p>
+                            <div className="text-[11px] text-muted-foreground truncate">
+                              @{user.username || "usuario"} · {user.email || "sem email"}
+                            </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* Coluna 2: Rota Atual / Status Online com Cronômetro */}
-                      <td className="px-6 py-4">
-                        {isOnline ? (
-                          <div className="flex flex-col space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs">{pageIcon}</span>
-                              <span className="text-xs font-black text-gray-900 dark:text-gray-100">
-                                {pageTitle}
-                              </span>
-                              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded-md">
-                                {timeSpent}
-                              </span>
-                            </div>
-                            <span className="text-[10px] text-gray-400 font-mono truncate block">
-                              {route}
-                            </span>
-                          </div>
+                      <td className="px-5 py-3.5 hidden md:table-cell text-muted-foreground truncate max-w-[180px]">
+                        {user.church || "Não informada"}
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        <span className={cn(
+                          "px-2 py-0.5 rounded text-[10px] font-semibold uppercase",
+                          user.role === "admin"
+                            ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
+                            : "bg-muted text-muted-foreground border border-border"
+                        )}>
+                          {user.role === "admin" ? "Administrador" : "Membro"}
+                        </span>
+                      </td>
+
+                      <td className="px-5 py-3.5">
+                        {isBanned ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
+                            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                            Suspenso
+                          </span>
+                        ) : isOnline ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Online
+                          </span>
                         ) : (
-                          <div className="flex flex-col">
-                            <span className="text-xs text-gray-400 font-medium">Offline</span>
-                            <span className="text-[10px] text-gray-500">
-                              {(() => {
-                                const t = u.last_seen || u.updated_at || u.created_at;
-                                return t ? `Visto ${moment(t).fromNow()}` : '—';
-                              })()}
-                            </span>
-                          </div>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border">
+                            Ativo
+                          </span>
                         )}
                       </td>
 
-                      {/* Coluna 3: Igreja */}
-                      <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-medium hidden md:table-cell truncate max-w-[150px]">
-                        {u.church || '—'}
+                      <td className="px-5 py-3.5 hidden lg:table-cell text-muted-foreground whitespace-nowrap">
+                        {user.created_at ? moment(user.created_at).format("DD/MM/YYYY") : "—"}
                       </td>
 
-                      {/* Coluna 4: Gênero */}
-                      <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-bold hidden lg:table-cell">
-                        {u.gender === 'male' ? 'Homem' : u.gender === 'female' ? 'Mulher' : u.gender || '—'}
-                      </td>
-
-                      {/* Coluna 5: Telefone */}
-                      <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-bold hidden md:table-cell">
-                        {u.phone || '—'}
-                      </td>
-
-                      {/* Coluna 6: Cadastro */}
-                      <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400 font-bold whitespace-nowrap">
-                        {moment(u.created_at).format('DD MMM YYYY')}
-                      </td>
-
-                      {/* Coluna 7: Ações */}
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-1">
-                          <button 
-                            onClick={() => {
-                               setUserToEdit(u);
-                               setIsEditModalOpen(true);
-                            }}
-                            className="p-2 hover:bg-blue-500/10 rounded-lg transition-colors group"
-                            title="Editar Perfil"
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => setSelectedUser(user)}
+                            title="Inspecionar perfil"
+                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           >
-                            <Edit2 className="w-4 h-4 text-gray-400 group-hover:text-blue-500" />
+                            <Eye className="h-4 w-4" />
                           </button>
-                          <button 
-                            onClick={() => setSelectedUser(u)}
-                            className="p-2 hover:bg-whatsapp-teal/10 rounded-lg transition-colors group"
-                            title="Ver detalhes"
-                          >
-                            <Eye className="w-4 h-4 text-whatsapp-teal" />
-                          </button>
+
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <button className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-lg transition-colors">
-                                <MoreHorizontal className="w-4 h-4 text-gray-500" />
+                              <button className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+                                <MoreHorizontal className="h-4 w-4" />
                               </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56 rounded-2xl p-2">
-                              <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-3 py-2">Moderação Profética</DropdownMenuLabel>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  setUserToEdit(u);
-                                  setIsEditModalOpen(true);
-                                }}
-                                className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors text-blue-500"
-                              >
-                                <Edit2 className="w-4 h-4" />
-                                <span className="font-bold text-xs">Editar Cadastro</span>
+                            <DropdownMenuContent align="end" className="w-48">
+                              <DropdownMenuLabel>Ações de Usuário</DropdownMenuLabel>
+                              <DropdownMenuItem onClick={() => { setUserToEdit(user); setIsEditModalOpen(true); }}>
+                                <Edit2 className="h-3.5 w-3.5 mr-2 text-blue-500" /> Editar Perfil
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setCredentialUser(user); setIsCredentialOpen(true); }}>
+                                <BadgeCheck className="h-3.5 w-3.5 mr-2 text-whatsapp-teal" /> Credencial Digital
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { setForceNotifUser(user); setIsForceNotifOpen(true); }}>
+                                <Bell className="h-3.5 w-3.5 mr-2 text-amber-500" /> Disparar Push Direto
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleVerification(user)}>
+                                <ShieldCheck className="h-3.5 w-3.5 mr-2 text-emerald-500" />
+                                {user.is_verified ? "Remover Selo" : "Conceder Selo"}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleToggleRole(user)}>
+                                <Users className="h-3.5 w-3.5 mr-2 text-purple-500" />
+                                {user.role === "admin" ? "Rebaixar p/ Membro" : "Promover a Admin"}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => {
-                                  setForceNotifUser(u);
-                                  setIsForceNotifOpen(true);
-                                }}
-                                className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors text-amber-500"
-                              >
-                                <Bell className="w-4 h-4" />
-                                <span className="font-bold text-xs">Disparar Push</span>
+                              <DropdownMenuItem onClick={() => handleBanUser(user)} className={isBanned ? "text-emerald-500" : "text-red-500"}>
+                                <UserMinus className="h-3.5 w-3.5 mr-2" />
+                                {isBanned ? "Reativar Conta" : "Suspender Usuário"}
                               </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                onClick={() => handleToggleVerification(u)}
-                                className={cn("flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors", u.is_verified ? "text-amber-600" : "text-whatsapp-teal")}
-                              >
-                                <BadgeCheck className="w-4 h-4" />
-                                <span className="font-bold text-xs">{u.is_verified ? "Remover Selo" : "Conceder Selo"}</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleToggleRole(u)}
-                                className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors"
-                              >
-                                <ShieldCheck className="w-4 h-4" />
-                                <span className="font-bold text-xs">{u.role === 'admin' ? "Rebaixar para Membro" : "Tornar Administrador"}</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleBanUser(u)}
-                                className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors text-red-500"
-                              >
-                                <ShieldAlert className="w-4 h-4" />
-                                <span className="font-bold text-xs">{u.verification_label === 'BANIDO' ? "Desbanir Usuário" : "Banir Usuário"}</span>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem 
-                                onClick={() => handleDeleteUser(u)}
-                                className="flex items-center gap-2 rounded-xl px-3 py-2 cursor-pointer transition-colors text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                                <span className="font-bold text-xs">Excluir Conta</span>
+                              <DropdownMenuItem onClick={() => handleDeleteUser(user)} className="text-red-600 focus:text-red-600">
+                                <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir Permanente
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -645,99 +710,100 @@ export default function UsersPage() {
           </table>
         </div>
 
-        {/* Paginação */}
-        <div className="p-4 border-t border-gray-100 dark:border-white/5 flex items-center justify-between">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            Mostrando <span className="font-bold">{users.length}</span> de <span className="font-bold">{total}</span> membros
-          </p>
-          <div className="flex items-center gap-2">
+        {/* Rodapé e Paginação */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-border bg-muted/20 text-xs">
+          <span className="text-muted-foreground">
+            Mostrando <strong className="text-foreground">{users.length}</strong> de <strong className="text-foreground">{total.toLocaleString("pt-BR")}</strong> usuários
+          </span>
+
+          <div className="flex items-center gap-1.5">
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0 || loading}
-              className="p-2 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors"
             >
-              <ChevronLeft className="w-4 h-4 dark:text-white" />
+              <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="text-xs font-bold dark:text-white px-2">
-              Página {page + 1} de {totalPages || 1}
+            <span className="px-2 text-xs font-semibold text-foreground">
+              {page + 1} / {totalPages || 1}
             </span>
             <button
               onClick={() => setPage(p => p + 1)}
               disabled={(page + 1) >= totalPages || loading}
-              className="p-2 border border-gray-200 dark:border-white/10 rounded-xl disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors"
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted disabled:opacity-30 transition-colors"
             >
-              <ChevronRight className="w-4 h-4 dark:text-white" />
+              <ChevronRight className="h-4 w-4" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Modal de Detalhes do Usuário */}
+      {/* ─── MODAL DE INSPEÇÃO DE PERFIL ─── */}
       <DialogPrimitive.Root open={!!selectedUser} onOpenChange={(open) => !open && setSelectedUser(null)}>
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
-          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white dark:bg-whatsapp-darkLighter p-6 rounded-3xl z-50 border border-gray-100 dark:border-white/5 shadow-2xl animate-in zoom-in-95">
+          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-card p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
             {selectedUser && (
-              <div className="space-y-6">
+              <div className="space-y-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-whatsapp-teal/10 flex items-center justify-center overflow-hidden border border-whatsapp-green/20">
-                      {selectedUser.avatar_url && !selectedUser.avatar_url.includes('vercel.sh') ? (
-                        <img src={selectedUser.avatar_url} className="w-full h-full object-cover" alt="" />
+                    <div className="h-12 w-12 rounded-xl bg-whatsapp-teal/20 text-whatsapp-teal dark:text-whatsapp-green flex items-center justify-center overflow-hidden border border-border text-base font-bold">
+                      {selectedUser.avatar_url ? (
+                        <Image src={selectedUser.avatar_url} alt="" width={48} height={48} unoptimized className="h-full w-full object-cover" />
                       ) : (
-                        <UserCircle2 className="w-6 h-6 text-whatsapp-teal" />
+                        (selectedUser.full_name || selectedUser.username || "U")[0]?.toUpperCase()
                       )}
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5">
-                        <h4 className="font-bold dark:text-white">{selectedUser.full_name || 'Sem nome'}</h4>
+                        <h4 className="font-bold text-foreground text-sm">{selectedUser.full_name || "Sem nome"}</h4>
                         {selectedUser.is_verified && <VerificationBadge role={selectedUser.verification_label} size="xs" />}
                       </div>
-                      <p className="text-xs text-gray-400 font-mono">@{selectedUser.username}</p>
+                      <p className="text-xs text-muted-foreground font-mono">@{selectedUser.username}</p>
                     </div>
                   </div>
-                  <DialogPrimitive.Close className="p-2 hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors">
-                    <X className="w-4 h-4 text-gray-500" />
+                  <DialogPrimitive.Close className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors">
+                    <X className="h-4 w-4" />
                   </DialogPrimitive.Close>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs">
-                  <div className="p-3 bg-gray-50 dark:bg-whatsapp-dark rounded-xl border border-gray-100 dark:border-white/5">
-                    <span className="text-gray-400 block mb-1">Localização</span>
-                    <span className="font-bold dark:text-white truncate block">{selectedUser.city ? `${selectedUser.city}, ${selectedUser.state}` : 'Não informada'}</span>
+                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                  <div className="p-2.5 bg-muted/40 rounded-lg border border-border">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Localização</span>
+                    <span className="font-medium text-foreground truncate block mt-0.5">{selectedUser.city ? `${selectedUser.city}, ${selectedUser.state}` : "Não informada"}</span>
                   </div>
-                  <div className="p-3 bg-gray-50 dark:bg-whatsapp-dark rounded-xl border border-gray-100 dark:border-white/5">
-                    <span className="text-gray-400 block mb-1">Igreja</span>
-                    <span className="font-bold dark:text-white truncate block">{selectedUser.church || 'Não informada'}</span>
+                  <div className="p-2.5 bg-muted/40 rounded-lg border border-border">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Igreja</span>
+                    <span className="font-medium text-foreground truncate block mt-0.5">{selectedUser.church || "Não informada"}</span>
                   </div>
-                  <div className="p-3 bg-gray-50 dark:bg-whatsapp-dark rounded-xl border border-gray-100 dark:border-white/5">
-                    <span className="text-gray-400 block mb-1">Telefone</span>
-                    <span className="font-bold dark:text-white truncate block">{selectedUser.phone || 'Não informado'}</span>
+                  <div className="p-2.5 bg-muted/40 rounded-lg border border-border">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Telefone</span>
+                    <span className="font-medium text-foreground truncate block mt-0.5">{selectedUser.phone || "Não informado"}</span>
                   </div>
-                  <div className="p-3 bg-gray-50 dark:bg-whatsapp-dark rounded-xl border border-gray-100 dark:border-white/5">
-                    <span className="text-gray-400 block mb-1">Email</span>
-                    <span className="font-bold dark:text-white truncate block">{selectedUser.email || 'Não informado'}</span>
+                  <div className="p-2.5 bg-muted/40 rounded-lg border border-border">
+                    <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Email</span>
+                    <span className="font-medium text-foreground truncate block mt-0.5">{selectedUser.email || "Não informado"}</span>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 pt-2">
                   <button
                     onClick={() => handleToggleFollow(selectedUser)}
                     className={cn(
-                      "flex-1 py-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all",
+                      "flex-1 py-2.5 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all",
                       isFollowingSelected 
                         ? "bg-red-500/10 text-red-500 hover:bg-red-500/20" 
-                        : "bg-whatsapp-green text-slate-950 hover:bg-whatsapp-greenLight"
+                        : "bg-whatsapp-teal text-white hover:bg-whatsapp-tealLight"
                     )}
                   >
-                    {isFollowingSelected ? <><UserMinus className="w-4 h-4" /> Deixar de Seguir</> : <><UserPlus className="w-4 h-4" /> Seguir Membro</>}
+                    {isFollowingSelected ? <><UserMinus className="h-4 w-4" /> Deixar de Seguir</> : <><UserPlus className="h-4 w-4" /> Seguir Membro</>}
                   </button>
                   <button
                     onClick={() => {
                       setCredentialUser(selectedUser);
                       setIsCredentialOpen(true);
                     }}
-                    className="py-3 px-4 rounded-xl text-xs font-bold bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 dark:text-white transition-colors"
+                    className="py-2.5 px-4 rounded-lg text-xs font-semibold border border-border bg-card hover:bg-muted text-foreground transition-colors"
                   >
                     Credencial
                   </button>
@@ -748,7 +814,53 @@ export default function UsersPage() {
         </DialogPrimitive.Portal>
       </DialogPrimitive.Root>
 
-      {/* Modais de Credencial, Edição e Notificação */}
+      {/* ─── MODAL DE CONVIDAR / LINK DE CADASTRO ─── */}
+      <DialogPrimitive.Root open={isInviteModalOpen} onOpenChange={setIsInviteModalOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
+          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-card p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green">
+                  <UserPlus className="h-5 w-5" />
+                </div>
+                <h3 className="font-bold text-base text-foreground">Convidar Novo Membro</h3>
+              </div>
+              <DialogPrimitive.Close className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </DialogPrimitive.Close>
+            </div>
+
+            <div className="space-y-4 pt-4 text-xs">
+              <p className="text-muted-foreground leading-relaxed">
+                Envie o link oficial de registro para novos membros, pastores e líderes se conectarem à comunidade FéConecta.
+              </p>
+
+              <div className="p-3 bg-muted/50 rounded-xl border border-border flex items-center justify-between gap-2">
+                <span className="font-mono text-foreground truncate text-[11px]">
+                  {typeof window !== "undefined" ? `${window.location.origin}/register` : "/register"}
+                </span>
+                <button
+                  onClick={copyInviteLink}
+                  className="px-3 py-1.5 bg-whatsapp-teal text-white rounded-lg font-semibold text-xs hover:bg-whatsapp-tealLight transition-colors shrink-0 flex items-center gap-1"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copiar
+                </button>
+              </div>
+
+              <div className="flex justify-end pt-3">
+                <DialogPrimitive.Close asChild>
+                  <button className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors font-medium">
+                    Fechar
+                  </button>
+                </DialogPrimitive.Close>
+              </div>
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+
+      {/* Modais Integrados */}
       <DigitalCredentialModal 
         isOpen={isCredentialOpen} 
         onClose={() => setIsCredentialOpen(false)} 

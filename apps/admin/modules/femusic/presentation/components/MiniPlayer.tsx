@@ -5,19 +5,30 @@ import { Play, Pause, SkipBack, SkipForward, X, Music } from 'lucide-react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 
 export default function MiniPlayer() {
-  const { currentTrack, isPlaying, isFullScreen, setFullScreen, pause, resume, next, previous } = usePlayerStore();
+  const { currentTrack, isPlaying, isFullScreen, setFullScreen, pause, resume, next, previous, progressMs, durationMs } = usePlayerStore();
   
   if (!currentTrack || isFullScreen) {
     return null;
   }
 
+  const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
+  const currentPct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (progressMs / effectiveDuration) * 100)) : 0;
+
   return (
     <div 
       onClick={() => setFullScreen(true)}
-      className="fixed left-3 right-3 md:left-auto md:right-4 md:w-96 backdrop-blur-xl border border-white/20 rounded-2xl p-2 shadow-2xl shadow-black flex items-center gap-3 z-[300] cursor-pointer"
-      style={{ bottom: '140px', backgroundColor: 'rgba(24,24,27,0.95)' }}
+      className="fixed left-3 right-3 md:left-auto md:right-4 md:w-96 backdrop-blur-2xl border border-white/10 rounded-2xl p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.6)] flex items-center gap-3 z-[300] cursor-pointer bg-[#131313]/90 text-white overflow-hidden group hover:border-white/20 transition-all"
+      style={{ bottom: '90px' }}
     >
-      <div className="relative w-12 h-12 shrink-0 rounded-lg overflow-hidden bg-white/10 flex items-center justify-center">
+      {/* Barra de Progresso Fina no Topo do Mini Player */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-white/10">
+        <div 
+          className="h-full bg-[#3FFF8B] shadow-[0_0_6px_#3FFF8B] transition-all duration-300"
+          style={{ width: `${currentPct}%` }}
+        />
+      </div>
+
+      <div className="relative w-11 h-11 shrink-0 rounded-xl overflow-hidden bg-white/5 flex items-center justify-center border border-white/10">
         {currentTrack.cover ? (
           <img 
             src={currentTrack.cover} 
@@ -25,39 +36,41 @@ export default function MiniPlayer() {
             className="w-full h-full object-cover"
           />
         ) : (
-          <Music className="w-6 h-6 text-whatsapp-teal" />
+          <Music className="w-5 h-5 text-[#3FFF8B]" />
         )}
       </div>
       
       <div className="flex-1 min-w-0 pr-1">
-        <h4 className="font-bold text-sm text-white truncate">{currentTrack.title}</h4>
-        <p className="text-xs text-whatsapp-teal truncate">{currentTrack.artist}</p>
+        <h4 className="font-bold text-xs text-white truncate leading-tight">{currentTrack.title}</h4>
+        <p className="text-[11px] text-[#A8A8A8] truncate mt-0.5">{currentTrack.artist || 'FéConecta Music'}</p>
       </div>
 
-
-      <div className="flex items-center gap-1.5 pr-2" onClick={(e) => e.stopPropagation()}>
+      <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
         <button 
           onClick={() => previous(true)}
-          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+          aria-label="Faixa anterior"
+          className="w-7 h-7 flex items-center justify-center text-[#A8A8A8] hover:text-white transition-colors active:scale-90"
         >
-          <SkipBack className="w-4 h-4" fill="currentColor" />
+          <SkipBack className="w-3.5 h-3.5" fill="currentColor" />
         </button>
         
         <button 
           onClick={() => isPlaying ? pause() : resume()}
-          className="w-10 h-10 flex items-center justify-center bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all shrink-0"
+          aria-label={isPlaying ? "Pausar" : "Tocar"}
+          className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all shadow-md shrink-0"
         >
-          {isPlaying ? <Pause className="w-5 h-5" fill="currentColor" /> : <Play className="w-5 h-5 ml-1" fill="currentColor" />}
+          {isPlaying ? <Pause className="w-4 h-4" fill="currentColor" /> : <Play className="w-4 h-4 ml-0.5" fill="currentColor" />}
         </button>
         
         <button 
           onClick={() => next(true)}
-          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-white transition-colors"
+          aria-label="Próxima faixa"
+          className="w-7 h-7 flex items-center justify-center text-[#A8A8A8] hover:text-white transition-colors active:scale-90"
         >
-          <SkipForward className="w-4 h-4" fill="currentColor" />
+          <SkipForward className="w-3.5 h-3.5" fill="currentColor" />
         </button>
 
-        <div className="w-px h-6 bg-white/10 mx-1"></div>
+        <div className="w-px h-4 bg-white/10 mx-0.5" />
 
         <button 
           onClick={async (e) => {
@@ -65,10 +78,11 @@ export default function MiniPlayer() {
             await pause();
             usePlayerStore.setState({ currentTrack: null, queue: [], isPlaying: false, progressMs: 0 });
           }}
-          className="w-8 h-8 flex items-center justify-center text-gray-500 hover:text-red-400 transition-colors"
+          aria-label="Fechar player"
+          className="w-7 h-7 flex items-center justify-center text-[#A8A8A8] hover:text-red-400 transition-colors"
           title="Fechar"
         >
-          <X className="w-5 h-5" />
+          <X className="w-4 h-4" />
         </button>
       </div>
     </div>

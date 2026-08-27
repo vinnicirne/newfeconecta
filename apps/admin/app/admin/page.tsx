@@ -1,833 +1,627 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import {
   Users,
   MessageSquare,
   ShieldAlert,
-  TrendingUp,
-  ArrowUpRight,
   UserPlus,
   Heart,
-  Target,
-  Repeat,
-  LayoutDashboard,
-  Link2,
-  Eye,
-  CheckCircle2,
-  FileSearch,
-  Camera,
-  Layout,
-  Type,
-  Smartphone,
-  Mic,
-  Image,
-  Sparkles,
-  Zap,
-  Shield,
-  Play,
-  Flame,
-  Share2,
-  DollarSign,
+  Church,
   ShieldCheck,
-  UserCircle
+  RefreshCw,
+  ArrowUpRight,
+  CheckCircle2,
+  AlertCircle,
+  Bell,
+  CreditCard,
+  Radio,
+  Wifi,
+  WifiOff
 } from "lucide-react";
-import { StatsCard } from "@/components/cards/stats-card";
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
-  AreaChart,
-  Area
+  ResponsiveContainer
 } from "recharts";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { useTheme } from "next-themes";
 import moment from "moment";
-import { toast } from "sonner";
+import "moment/locale/pt-br";
 
-const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+moment.locale("pt-br");
+
+const DAY_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+interface DashboardMetrics {
+  totalUsers: number;
+  newToday: number;
+  totalChurches: number;
+  totalPosts: number;
+  totalLikes: number;
+  pendingReports: number;
+  pendingVerifications: number;
+  verifiedUsers: number;
+  onlineNow: number;
+}
+
+interface ServicesHealth {
+  db: boolean | null;
+  auth: boolean | null;
+  storage: boolean | null;
+  realtime: boolean | null;
+}
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<{
-    totalUsers: number;
-    totalPosts: number;
-    totalTribo: number;
-    totalReposts: number;
-    totalFollows: number;
-    totalViews: number;
-    newToday: number;
-    hashtagCount: number;
-    topHashtags: { tag: string; count: number }[];
-    verifiedUsers: number;
-    pendingVerifications: number;
-    activeRooms: number;
-    activePrices: number;
-    storiesToday: number;
-    bannersSentToday: number;
-    mediaOperational: boolean;
-    onlineNow: number;
-    totalRevenue: number;
-    manualRevenue: number;
-    db: string;
-    auth: string;
-    storage: string;
-    errors: number;
-    noAvatarUsers: number;
-    enginePerformance: string;
-    externalMediaHealth: string;
-    notificationHealth: string;
-    isPriceFallback: boolean;
-    bannersOpenedToday: number;
-    ctr: number;
-    totalExternalMedia: number;
-    videoOptimization: string;
-  }>({
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === "dark";
+
+  const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalUsers: 0,
-    totalPosts: 0,
-    totalTribo: 0,
-    totalReposts: 0,
-    totalFollows: 0,
-    totalViews: 0,
     newToday: 0,
-    hashtagCount: 0,
-    topHashtags: [],
-    verifiedUsers: 0,
+    totalChurches: 0,
+    totalPosts: 0,
+    totalLikes: 0,
+    pendingReports: 0,
     pendingVerifications: 0,
-    activeRooms: 0,
-    activePrices: 0,
-    storiesToday: 0,
-    bannersSentToday: 0,
-    mediaOperational: true,
+    verifiedUsers: 0,
     onlineNow: 0,
-    totalRevenue: 0,
-    manualRevenue: 0,
-    db: 'operational',
-    auth: 'operational',
-    storage: 'operational',
-    errors: 0,
-    noAvatarUsers: 0,
-    enginePerformance: 'Optimized (Memoized)',
-    externalMediaHealth: 'Stable (Resilient Sandbox)',
-    notificationHealth: 'Sincronizado',
-    isPriceFallback: false,
-    bannersOpenedToday: 0,
-    ctr: 0,
-    totalExternalMedia: 0,
-    videoOptimization: 'Ativa (1-Click)'
   });
-  const [loading, setLoading] = useState(true);
+
+  const [servicesHealth, setServicesHealth] = useState<ServicesHealth>({
+    db: null,
+    auth: null,
+    storage: null,
+    realtime: null,
+  });
+
   const [chartData, setChartData] = useState<any[]>([]);
   const [recentUsers, setRecentUsers] = useState<any[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
-  const [totalLikes, setTotalLikes] = useState(0);
-  const [retentionRate, setRetentionRate] = useState(0);
   const [topPosts, setTopPosts] = useState<any[]>([]);
-  const [ping, setPing] = useState<number | null>(null);
-
-  const [adminName, setAdminName] = useState("Admin");
-  const [aiOperational, setAiOperational] = useState<boolean | null>(null);
-  const [livekitOperational, setLivekitOperational] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string>("");
 
   useEffect(() => {
-    fetchStats();
-    fetchAdminName();
-    checkAIStatus();
-    checkLiveKitStatus();
-    const interval = setInterval(() => {
-      const start = Date.now();
-      fetch('/').then(() => setPing(Date.now() - start)).catch(() => {});
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    loadDashboardData();
+    checkServicesHealth();
 
-  const checkLiveKitStatus = async () => {
-    try {
-      let url = (process.env.NEXT_PUBLIC_LIVEKIT_URL || "").replace('wss://', 'https://').replace('ws://', 'http://');
-      if (!url) {
-        setLivekitOperational(false);
-        return;
-      }
-      await fetch(url, { method: 'HEAD', mode: 'no-cors' });
-      setLivekitOperational(true);
-    } catch (err) {
-      setLivekitOperational(!!process.env.NEXT_PUBLIC_LIVEKIT_URL);
-    }
-  };
-
-  const checkAIStatus = async () => {
-    try {
-      const res = await fetch('/api/ai/bible-study');
-      const data = await res.json();
-      setAiOperational(!!data.operational);
-    } catch (err) {
-      setAiOperational(false);
-    }
-  };
-
-  const checkStorageHealth = async () => {
-    try {
-      const { data, error } = await supabase.storage.listBuckets();
-      return !error && !!data;
-    } catch (e) { return false; }
-  };
-
-  const checkAuthHealth = async () => {
-    try {
-      const { data, error } = await supabase.auth.getSession();
-      return !error && !!data;
-    } catch (e) { return false; }
-  };
-
-  const checkDbHealth = async () => {
-    try {
-      const { data, error } = await supabase.from('profiles').select('id').limit(1);
-      return !error;
-    } catch (e) { return false; }
-  };
-
-  const fetchAdminName = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', user.id)
-          .single();
-        if (profile?.full_name) setAdminName(profile.full_name);
-      }
-    } catch (err) {
-      console.warn("Ignorable Auth Lock Error: User session query interrupted", err);
-    }
-  };
-
-  const fetchStats = async () => {
-    setLoading(true);
-    try {
-      const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true });
-      const { count: postCount } = await supabase.from('posts').select('*', { count: 'exact', head: true });
-      const activeCutoff = new Date(Date.now() - 4 * 60 * 1000).toISOString();
-      const { count: onlineCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .gt('updated_at', activeCutoff);
-
-      const { count: mediaErrors } = await supabase
-        .from('system_errors')
-        .select('*', { count: 'exact', head: true })
-        .in('module', ['camera', 'gallery', 'audio', 'story'])
-        .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-        .eq('resolved', false);
-
-      const { count: triboCount } = await supabase
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_type', 'video');
-
-      const { count: externalCount } = await supabase
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_type', 'external_media');
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const { count: newToday } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .gt('created_at', today.toISOString());
-
-      const { data: allPosts } = await supabase.from('posts').select('content').order('created_at', { ascending: false }).limit(500);
-      const tagMap: Record<string, number> = {};
-      let totalTags = 0;
-
-      allPosts?.forEach(post => {
-        const hashtags = post.content?.match(/#[\wáàâãéèêíïóôõöúç]+/g);
-        if (hashtags) {
-          hashtags.forEach((tag: string) => {
-            const lowerTag = tag.toLowerCase();
-            tagMap[lowerTag] = (tagMap[lowerTag] || 0) + 1;
-            totalTags++;
-          });
+    // ⚡ Monitor Ativo do WebSocket Realtime do Supabase
+    const healthChannel = supabase.channel("dashboard-health-monitor");
+    healthChannel
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          setServicesHealth((prev) => ({ ...prev, realtime: true }));
+        } else if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+          setServicesHealth((prev) => ({ ...prev, realtime: false }));
         }
       });
 
-      const topHashtags = Object.entries(tagMap)
-        .map(([tag, count]) => ({ tag, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
+    return () => {
+      supabase.removeChannel(healthChannel);
+    };
+  }, []);
 
-      const { count: repostsCount } = await supabase.from('reposts').select('*', { count: 'exact', head: true });
-      const { count: followsCount } = await supabase.from('follows').select('*', { count: 'exact', head: true });
-      const { data: viewsData } = await supabase.from('posts').select('views_count');
-      const totalViews = viewsData?.reduce((acc, curr) => acc + (Number(curr.views_count) || 0), 0) || 0;
-      const { count: verifiedCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_verified', true);
-      const { count: pendingCount } = await supabase
-        .from('verification_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
+  // 🛡️ Health Check Real e Dinâmico dos Serviços do Backend
+  const checkServicesHealth = async () => {
+    try {
+      // 1. Teste DB
+      const { error: dbErr } = await supabase.from("profiles").select("id", { count: "exact", head: true });
+      const dbHealthy = !dbErr;
 
-      const { data: roomsData } = await supabase
-        .from('rooms')
-        .select('*, profiles!creator_id(full_name)')
-        .eq('status', 'active');
+      // 2. Teste Auth
+      const { error: authErr } = await supabase.auth.getSession();
+      const authHealthy = !authErr;
 
-      const realActiveRooms = roomsData?.length || 0;
-      // 1. Busca de Configurações de Preço Reais
-      const { data: configData } = await supabase
-        .from('system_configs')
-        .select('value')
-        .eq('key', 'verification_prices')
-        .maybeSingle();
-      
-      const defaultPrices = [
-        { role: "Bispo", price: "9,99" }, { role: "Apóstolo", price: "9,99" },
-        { role: "Pastor", price: "9,99" }, { role: "Missionário", price: "9,99" },
-        { role: "Igreja", price: "14,99" }, { role: "Evangelista", price: "6,99" },
-        { role: "Diácono", price: "6,99" }, { role: "Presbítero", price: "6,99" },
-        { role: "Líder", price: "6,99" }, { role: "Levita", price: "3,99" },
-        { role: "Membro", price: "3,99" }
-      ];
-      const isPriceFallback = !configData?.value;
-      const currentPrices = configData?.value || defaultPrices;
+      // 3. Teste Storage
+      const { error: storageErr } = await supabase.storage.listBuckets();
+      const storageHealthy = !storageErr;
 
-      const priceMap: Record<string, number> = {};
-      currentPrices.forEach((p: any) => { priceMap[p.role] = parseFloat(p.price.replace(',', '.')) || 0; });
-
-      const { data: approvedRequests } = await supabase
-        .from('verification_requests')
-        .select('requested_role')
-        .eq('status', 'approved');
-      
-      const totalRevenue = (approvedRequests || []).reduce((acc, curr) => acc + (priceMap[curr.requested_role] || 6.99), 0);
-      const { data: manualTxData } = await supabase.from('transactions').select('amount');
-      const realManualRevenue = (manualTxData || []).reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
-
-      const [isStorageOk, isAuthOk, isDbOk] = await Promise.all([
-        checkStorageHealth(),
-        checkAuthHealth(),
-        checkDbHealth()
-      ]);
-
-      const { count: noAvatarCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .or('avatar_url.is.null,avatar_url.eq.""');
-
-      const { count: storiesCount } = await supabase
-        .from('stories')
-        .select('*', { count: 'exact', head: true })
-        .gt('created_at', today.toISOString());
-
-      const { count: pushErrors } = await supabase
-        .from('system_errors')
-        .select('*', { count: 'exact', head: true })
-        .eq('module', 'admin_push')
-        .gt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-
-      const { count: bannersCount } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('priority', 'high')
-        .gt('created_at', today.toISOString());
-
-      const { count: openedCount } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .not('opened_at', 'is', null)
-        .gt('created_at', today.toISOString());
-
-      const ctr = bannersCount && bannersCount > 0 
-        ? (openedCount || 0) / bannersCount * 100 
-        : 0;
-
-      const pricesCount = currentPrices.length;
-      const notificationHealth = pushErrors && pushErrors > 5 ? 'Alerta Transmissão' : 'Operacional';
-
-      setStats({
-        totalUsers: userCount || 0,
-        totalPosts: postCount || 0,
-        totalTribo: triboCount || 0,
-        totalReposts: repostsCount || 0,
-        totalFollows: followsCount || 0,
-        totalViews: totalViews,
-        newToday: newToday || 0,
-        hashtagCount: totalTags,
-        topHashtags,
-        verifiedUsers: verifiedCount || 0,
-        pendingVerifications: pendingCount || 0,
-        activeRooms: realActiveRooms,
-        activePrices: pricesCount,
-        storiesToday: storiesCount || 0,
-        bannersSentToday: bannersCount || 0,
-        mediaOperational: (mediaErrors || 0) === 0,
-        onlineNow: onlineCount || 0,
-        totalRevenue: totalRevenue + realManualRevenue,
-        manualRevenue: realManualRevenue,
-        db: isDbOk ? 'operational' : 'degraded',
-        auth: isAuthOk ? 'operational' : 'degraded',
-        storage: isStorageOk ? 'operational' : 'degraded',
-        errors: mediaErrors || 0,
-        noAvatarUsers: noAvatarCount || 0,
-        enginePerformance: ping && ping < 300 ? 'Optimized (Memoized)' : 'Latência Alta',
-        externalMediaHealth: (mediaErrors || 0) < 3 ? 'Stable (Resilient)' : 'Degradado',
-        notificationHealth: notificationHealth,
-        isPriceFallback: isPriceFallback,
-        bannersOpenedToday: openedCount || 0,
-        ctr: Math.round(ctr * 10) / 10,
-        totalExternalMedia: externalCount || 0,
-        videoOptimization: (mediaErrors || 0) === 0 ? 'Ativa (Lazy Mount)' : 'Ação Requerida'
-      });
-
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      const [{ data: weekProfiles }, { data: weekPosts }] = await Promise.all([
-        supabase.from('profiles').select('created_at').gte('created_at', sevenDaysAgo.toISOString()),
-        supabase.from('posts').select('created_at').gte('created_at', sevenDaysAgo.toISOString()),
-      ]);
-      const builtChart = Array.from({ length: 7 }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() - (6 - i));
-        const dateStr = d.toISOString().split('T')[0];
-        return {
-          name: DAY_LABELS[d.getDay()],
-          users: weekProfiles?.filter(p => p.created_at.startsWith(dateStr)).length || 0,
-          posts: weekPosts?.filter(p => p.created_at.startsWith(dateStr)).length || 0,
-        };
-      });
-      setChartData(builtChart);
-      const { data: latestUsers } = await supabase
-        .from('profiles')
-        .select('full_name, avatar_url, created_at, username')
-        .order('created_at', { ascending: false })
-        .limit(5);
-      setRecentUsers(latestUsers || []);
-
-      const { data: latestOnline } = await supabase
-        .from('profiles')
-        .select('id, full_name, avatar_url, updated_at, username, role')
-        .gt('updated_at', activeCutoff)
-        .order('updated_at', { ascending: false })
-        .limit(10);
-      setOnlineUsers(latestOnline || []);
-
-      const { count: likesCount } = await supabase
-        .from('likes')
-        .select('*', { count: 'exact', head: true });
-      setTotalLikes(likesCount || 0);
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const { count: activePosts30d } = await supabase
-        .from('posts')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', thirtyDaysAgo.toISOString());
-      const rate = (userCount && userCount > 0)
-        ? Math.min(Math.round(((activePosts30d || 0) / userCount) * 100), 100)
-        : 0;
-      setRetentionRate(rate);
-      const { data: viralData } = await supabase
-        .from('posts')
-        .select('id, content, views_count, likes, profiles!user_id(full_name), post_type')
-        .gte('created_at', sevenDaysAgo.toISOString())
-        .order('views_count', { ascending: false })
-        .limit(5);
-      setTopPosts(viralData || []);
+      setServicesHealth((prev) => ({
+        ...prev,
+        db: dbHealthy,
+        auth: authHealthy,
+        storage: storageHealthy,
+        realtime: prev.realtime ?? (supabase.realtime?.isConnected ? supabase.realtime.isConnected() : true),
+      }));
     } catch (err) {
-      console.error("Error fetching stats:", err);
-    } finally {
-      setLoading(false);
+      console.warn("[Health Check] Erro na verificação de integridade:", err);
+      setServicesHealth({
+        db: false,
+        auth: false,
+        storage: false,
+        realtime: false,
+      });
     }
   };
 
-  const systems = [
-    { name: "Banco de Dados (PostgreSQL)", status: stats.db, latency: ping ? `${ping}ms` : '...', uptime: "100%" },
-    { name: "Autenticação (Supabase Auth)", status: stats.auth, latency: ping ? `${Math.round(ping * 0.8)}ms` : '...', uptime: "99.9%" },
-    { name: "Armazenamento (Edge Storage)", status: stats.storage, latency: ping ? `${Math.round(ping * 1.2)}ms` : '...', uptime: "100%" },
-    { name: "Gateway de Mensagens (Push)", status: stats.errors > 0 ? "degraded" : "operational", latency: ping ? `${Math.round(ping * 1.5)}ms` : '...', uptime: "98.5%" },
-  ];
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      const todayStart = moment().startOf("day").toISOString();
+      const sevenDaysAgo = moment().subtract(7, "days").startOf("day").toISOString();
+      const activeCutoff = moment().subtract(5, "minutes").toISOString();
+
+      // Consultas paralelas seguras ao Supabase
+      const [
+        userRes,
+        newTodayRes,
+        churchesRes,
+        postsRes,
+        likesRes,
+        verifiedRes,
+        reportsRes,
+        verifReqRes,
+        onlineRes,
+        latestUsersRes,
+        topPostsRes,
+        weekProfilesRes,
+        weekPostsRes
+      ] = await Promise.allSettled([
+        supabase.from("profiles").select("*", { count: "exact", head: true }),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).gt("created_at", todayStart),
+        supabase.from("churches").select("*", { count: "exact", head: true }),
+        supabase.from("posts").select("*", { count: "exact", head: true }),
+        supabase.from("likes").select("*", { count: "exact", head: true }),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_verified", true),
+        supabase.from("reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("verification_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("profiles").select("*", { count: "exact", head: true }).gt("updated_at", activeCutoff),
+        supabase.from("profiles").select("id, full_name, username, avatar_url, role, created_at").order("created_at", { ascending: false }).limit(6),
+        supabase.from("posts").select("id, content, views_count, likes, created_at, profiles!user_id(full_name, avatar_url)").order("views_count", { ascending: false }).limit(5),
+        supabase.from("profiles").select("created_at").gte("created_at", sevenDaysAgo),
+        supabase.from("posts").select("created_at").gte("created_at", sevenDaysAgo),
+      ]);
+
+      const weekProfiles = weekProfilesRes.status === "fulfilled" ? (weekProfilesRes.value.data || []) : [];
+      const weekPosts = weekPostsRes.status === "fulfilled" ? (weekPostsRes.value.data || []) : [];
+
+      // Montagem da timeline dos 7 dias sem erro de timezone
+      const builtChart = Array.from({ length: 7 }, (_, i) => {
+        const m = moment().subtract(6 - i, "days");
+        const dateStr = m.format("YYYY-MM-DD");
+        return {
+          name: DAY_LABELS[m.day()],
+          usuarios: weekProfiles.filter((p: any) => p.created_at?.startsWith(dateStr)).length,
+          publicacoes: weekPosts.filter((p: any) => p.created_at?.startsWith(dateStr)).length,
+        };
+      });
+
+      setChartData(builtChart);
+      setRecentUsers(latestUsersRes.status === "fulfilled" ? (latestUsersRes.value.data || []) : []);
+      setTopPosts(topPostsRes.status === "fulfilled" ? (topPostsRes.value.data || []) : []);
+
+      setMetrics({
+        totalUsers: userRes.status === "fulfilled" ? (userRes.value.count || 0) : 0,
+        newToday: newTodayRes.status === "fulfilled" ? (newTodayRes.value.count || 0) : 0,
+        totalChurches: churchesRes.status === "fulfilled" ? (churchesRes.value.count || 0) : 0,
+        totalPosts: postsRes.status === "fulfilled" ? (postsRes.value.count || 0) : 0,
+        totalLikes: likesRes.status === "fulfilled" ? (likesRes.value.count || 0) : 0,
+        pendingReports: reportsRes.status === "fulfilled" ? (reportsRes.value.count || 0) : 0,
+        pendingVerifications: verifReqRes.status === "fulfilled" ? (verifReqRes.value.count || 0) : 0,
+        verifiedUsers: verifiedRes.status === "fulfilled" ? (verifiedRes.value.count || 0) : 0,
+        onlineNow: onlineRes.status === "fulfilled" ? (onlineRes.value.count || 0) : 0,
+      });
+
+      setLastUpdated(moment().format("HH:mm:ss"));
+    } catch (err) {
+      console.error("[Dashboard] Erro ao carregar métricas:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const handleManualRefresh = () => {
+    setRefreshing(true);
+    loadDashboardData();
+    checkServicesHealth();
+  };
+
+  const allServicesOperational = 
+    servicesHealth.db !== false && 
+    servicesHealth.auth !== false && 
+    servicesHealth.storage !== false;
 
   return (
-    <div className="space-y-8 pb-12">
-      {aiOperational === false && (
-        <div className="bg-orange-500/10 border-2 border-orange-500/20 p-6 rounded-[32px] flex flex-col md:flex-row items-center justify-between gap-6 animate-in fade-in slide-in-from-top-4 duration-500 shadow-xl shadow-orange-500/5">
-          <div className="flex items-center gap-5">
-            <div className="w-14 h-14 rounded-2xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/30">
-              <Sparkles className="w-7 h-7 animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-lg font-black text-orange-600 dark:text-orange-500 uppercase tracking-tight">Motor de Análise Bíblica Desativado</h3>
-              <p className="text-sm text-orange-600/70 font-medium">O Sistema de Análise Bíblica (Gemini) requer uma chave de API para processar exegeses bíblicas.</p>
-            </div>
-          </div>
+    <div className="space-y-6 animate-in fade-in duration-300 pb-10">
+      {/* ─── HEADER PRINCIPAL ─── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+            Visão Geral da Plataforma
+          </h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Monitoramento de membros, congregações, moderação e atividade em tempo real.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <span className="text-xs text-muted-foreground hidden sm:inline-block">
+              Atualizado às {lastUpdated}
+            </span>
+          )}
           <button
-            onClick={() => toast.info("Adicione GEMINI_API_KEY ao seu arquivo .env.local para ativar.")}
-            className="px-6 py-3 bg-orange-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-lg shadow-orange-500/20"
+            onClick={handleManualRefresh}
+            disabled={refreshing || loading}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
           >
-            Como Configurar
+            <RefreshCw className={cn("h-3.5 w-3.5", (refreshing || loading) && "animate-spin text-whatsapp-green")} />
+            <span>Atualizar</span>
           </button>
         </div>
-      )}
-
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-3xl font-bold dark:text-white">Bem-vindo, {adminName}</h1>
-          <p className="text-gray-500 dark:text-gray-400">Aqui está o resumo real do seu rebanho digital hoje.</p>
-        </div>
-        <a
-          href="/admin/monitoramento"
-          className="flex items-center gap-2 bg-red-500/10 text-red-500 px-4 py-2 rounded-xl text-sm font-bold border border-red-500/20 hover:bg-red-500/20 transition-all w-fit"
-        >
-          <ShieldAlert className="w-4 h-4" /> Monitor de Falhas
-        </a>
       </div>
 
-      <section className="bg-whatsapp-green/10 border border-whatsapp-green/20 rounded-2xl p-6 whatsapp-shadow">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-black uppercase tracking-widest text-whatsapp-green flex items-center gap-2">
-            <LayoutDashboard className="w-4 h-4" /> Gestão de Recursos Ativos
-          </h2>
-          <span className="text-[10px] bg-whatsapp-green text-whatsapp-dark px-2 py-0.5 rounded-md font-black uppercase">Ciclo de Estabilização v2</span>
+      {/* ─── 4 CARDS PRINCIPAIS DE KPIS ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Membros */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-whatsapp-green/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Total de Membros</span>
+            <div className="p-2 rounded-lg bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green">
+              <Users className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : metrics.totalUsers.toLocaleString("pt-BR")}
+            </span>
+            {metrics.newToday > 0 && (
+              <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                +{metrics.newToday} hoje
+              </span>
+            )}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
+            <span>{metrics.onlineNow} ativos agora</span>
+            <Link href="/admin/users" className="text-whatsapp-teal dark:text-whatsapp-green hover:underline flex items-center gap-1 font-medium">
+              Ver lista <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[
-            { name: 'Rede de Vídeos', status: `${stats.totalTribo} Ativos`, icon: TrendingUp, desc: 'Tribo (Vídeos Nativos)', link: '/admin/posts' },
-            { name: 'Mídia Externa', status: `${stats.totalExternalMedia} Links`, icon: Link2, desc: 'Feed (YouTube/TikTok)', link: '/admin/posts' },
-            { name: 'Otimização Play', status: stats.videoOptimization, icon: Zap, desc: 'Buffer Zero & 1-Click', link: '/admin/monitoramento' },
-            { name: 'Sala de Guerra', status: livekitOperational ? `${stats.activeRooms} Salas Ativas` : 'Servidor Offline', icon: Mic, desc: 'Audio, Transmissão e LiveKit', link: '/admin/rooms' },
-            { name: 'Motor de Análise Bíblica', status: aiOperational === true ? 'Conectado' : (aiOperational === false ? 'Requer Chave' : 'Verificando...'), icon: Sparkles, desc: 'Análise Teológica Gemini 2.5', link: '/bible' },
-            { name: 'Gestão Financeira', status: stats.isPriceFallback ? 'Modo Segurança' : 'Sincronizado', icon: DollarSign, desc: 'Checkouts e Assinaturas', link: '/admin/pricing' },
-            { name: 'Otimização Mídia', status: stats.mediaOperational ? 'Operacional' : 'Falha Detectada', icon: Zap, desc: 'Compressão Dinâmica Flash', link: '/admin/monitoramento' },
-            { name: 'Stories Galeria', status: stats.storiesToday > 0 ? `${stats.storiesToday} Hoje` : 'Ativo (Aguardando)', icon: Image, desc: 'Upload e Gravação 30s', link: '/admin/posts' },
-            { name: 'Higiene de Perfil', status: stats.noAvatarUsers > 0 ? `${stats.noAvatarUsers} s/ Foto` : '100% OK', icon: UserCircle, desc: 'Usuários em Fallback Visual', link: '/admin/users' },
-            { name: 'Auditoria Ministerial', status: stats.pendingVerifications > 0 ? `${stats.pendingVerifications} em Verificação` : 'Identidade Auditada', icon: ShieldCheck, desc: 'Gestão de Selos e Identidade', link: '/admin/verifications' },
-            { name: 'Presença Mobile', status: stats.onlineNow > 0 ? `${stats.onlineNow} Online Agora` : 'Sincronizado', icon: Smartphone, desc: 'App e Admin integrados', link: '/admin/users' },
-            { name: 'Sinalização', status: stats.bannersSentToday > 0 ? `${stats.bannersSentToday} Banners (${stats.ctr}% CTR)` : 'Sincronizado', icon: Zap, desc: 'Push Híbrido e Realtime', link: '/admin/push' },
-            { name: 'Engine Social', status: stats.enginePerformance, icon: Zap, desc: 'Memoização e Cache Ativo', link: '/admin/monitoramento' },
-            { name: 'Estabilidade Mídia', status: stats.externalMediaHealth, icon: ShieldCheck, desc: 'Sandbox Resiliente (SDKs)', link: '/admin/monitoramento' },
-            { name: 'Latência (Ping)', status: ping ? `${ping}ms` : '---', icon: Zap, desc: 'Conexão com Servidor Edge', link: '/admin/status' },
-            { name: 'Compartilhamento Social', status: 'Operacional (OG OK)', icon: Share2, desc: 'Metadados e Deep Linking', link: '/admin/design' },
-          ].map(({ icon: Icon, ...feature }) => (
-            <a
-              href={(feature as any).link || '#'}
-              key={feature.name}
-              className="bg-white dark:bg-[#111b21] p-4 rounded-xl border border-gray-100 dark:border-white/5 flex items-start gap-3 hover:border-whatsapp-green/40 transition-all group"
-            >
-              <div className="w-8 h-8 rounded-lg bg-whatsapp-green/20 flex items-center justify-center text-whatsapp-green group-hover:scale-110 transition-transform">
-                <Icon className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-xs font-bold dark:text-white leading-none mb-1">{feature.name}</h4>
-                <p className="text-[10px] text-gray-500 mb-1 leading-tight">{feature.desc}</p>
-                <div className="flex items-center gap-1.5">
-                  <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse",
-                    feature.status.includes('Pendentes') || feature.status.includes('Falha') || feature.status.includes('Offline') ? 'bg-orange-500' : 'bg-whatsapp-green'
-                  )} />
-                  <span className={cn("text-[9px] font-black uppercase",
-                    feature.status.includes('Pendentes') || feature.status.includes('Falha') || feature.status.includes('Offline') ? 'text-orange-500' : 'text-whatsapp-green'
-                  )}>
-                    {feature.status}
-                  </span>
-                </div>
-              </div>
-            </a>
-          ))}
-        </div>
-      </section>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatsCard
-          title="Total de Usuários"
-          value={loading ? "..." : stats.totalUsers.toLocaleString()}
-          change="Total Auditado"
-          trend="up"
-          icon={Users}
-          color="bg-whatsapp-teal"
-          link="/admin/users"
-        />
-        <StatsCard
-          title="Novos (24h)"
-          value={loading ? "..." : stats.newToday.toLocaleString()}
-          change="Sincronizado"
-          trend="up"
-          icon={UserPlus}
-          color="bg-whatsapp-green"
-          link="/admin/users"
-        />
-        <StatsCard
-          title="Total de Posts"
-          value={loading ? "..." : stats.totalPosts.toLocaleString()}
-          change="Global"
-          trend="up"
-          icon={MessageSquare}
-          color="bg-whatsapp-blue"
-          link="/admin/posts"
-        />
-        <StatsCard
-          title="Aguardando Verificação"
-          value={loading ? "..." : stats.pendingVerifications.toLocaleString()}
-          change={stats.pendingVerifications > 0 ? "Ação Requerida" : "Tudo Limpo"}
-          trend={stats.pendingVerifications > 0 ? "up" : "down"}
-          icon={ShieldAlert}
-          color={stats.pendingVerifications > 0 ? "bg-orange-500" : "bg-whatsapp-green"}
-          link="/admin/verifications"
-        />
-        <StatsCard
-          title="Salas de Guerra Ativas"
-          value={loading ? "..." : stats.activeRooms.toLocaleString()}
-          change="Tempo Real"
-          trend="up"
-          icon={Mic}
-          color="bg-whatsapp-teal"
-          link="/admin/rooms"
-        />
-        <StatsCard
-          title="Perfis Verificados"
-          value={loading ? "..." : stats.verifiedUsers.toLocaleString()}
-          change={`${Math.min(100, Math.round((stats.verifiedUsers / (stats.totalUsers || 1)) * 100))}% Conversion`}
-          trend="up"
-          icon={ShieldCheck}
-          color="bg-whatsapp-green"
-          link="/admin/users"
-        />
-        <StatsCard
-          title="# Hashtags Ativas"
-          value={loading ? "..." : stats.hashtagCount.toLocaleString()}
-          change="Monitorado"
-          trend="up"
-          icon={Target}
-          color="bg-purple-500"
-        />
-        <StatsCard
-          title="Republicações"
-          value={loading ? "..." : stats.totalReposts.toLocaleString()}
-          change="Viral Engine"
-          trend="up"
-          icon={Repeat}
-          color="bg-orange-500"
-        />
-        <StatsCard
-          title="Conexões (Follows)"
-          value={loading ? "..." : stats.totalFollows.toLocaleString()}
-          change="Auditado"
-          trend="up"
-          icon={Link2}
-          color="bg-pink-500"
-        />
-        <StatsCard
-          title="Visualizações"
-          value={loading ? "..." : stats.totalViews.toLocaleString()}
-          change="Telemetria Real"
-          trend="up"
-          icon={Eye}
-          color="bg-blue-600"
-        />
+        {/* Card 2: Igrejas */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-whatsapp-green/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Igrejas & Ministérios</span>
+            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+              <Church className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : metrics.totalChurches.toLocaleString("pt-BR")}
+            </span>
+            <span className="text-[11px] text-muted-foreground">cadastradas</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
+            <span>Congregações ativas</span>
+            <Link href="/admin/churches" className="text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium">
+              Gerenciar <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Card 3: Conteúdo / Posts */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-whatsapp-green/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Publicações & Comunidade</span>
+            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <MessageSquare className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : metrics.totalPosts.toLocaleString("pt-BR")}
+            </span>
+            <span className="text-[11px] text-muted-foreground">posts</span>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
+            <span>{metrics.totalLikes.toLocaleString("pt-BR")} curtidas</span>
+            <Link href="/admin/posts" className="text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 font-medium">
+              Moderar <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Card 4: Usuários Online (Realtime Puro) */}
+        <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-emerald-500/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">Usuários Online</span>
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+              <Radio className="h-4 w-4 animate-pulse" />
+            </div>
+          </div>
+          <div className="mt-3 flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-foreground">
+              {loading ? "..." : metrics.onlineNow}
+            </span>
+            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-ping" />
+              Tempo real
+            </span>
+          </div>
+          <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground border-t border-border/50 pt-2.5">
+            <span>Presença ativa agora</span>
+            <Link href="/admin/users" className="text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1 font-medium">
+              Ver usuários <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Main Chart */}
-        <div className="lg:col-span-2 bg-white dark:bg-whatsapp-darkLighter p-8 rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow">
-          <div className="flex items-center justify-between mb-8">
+      {/* ─── GRID CENTRAL: GRÁFICO DE ATIVIDADE + PAINEL DE AÇÃO E HEALTH CHECK ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Gráfico dos Últimos 7 Dias (2 Colunas) */}
+        <div className="lg:col-span-2 rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-bold dark:text-white">Crescimento da Rede</h3>
-              <p className="text-sm text-gray-500">Atividade de usuários nos últimos 7 dias</p>
+              <h2 className="text-sm font-bold text-foreground">Atividade da Semana</h2>
+              <p className="text-xs text-muted-foreground">Novos cadastros de membros vs publicações criadas</p>
             </div>
-            <button className="flex items-center gap-2 text-sm font-medium text-whatsapp-teal dark:text-whatsapp-green hover:underline">
-              Ver relatório completo <ArrowUpRight className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-4 text-xs font-medium">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-whatsapp-green"></span>
+                <span className="text-muted-foreground">Membros</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-blue-500"></span>
+                <span className="text-muted-foreground">Posts</span>
+              </div>
+            </div>
           </div>
-          <div className="h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="colorUsers" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#128C7E" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#128C7E" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} dy={10} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#111B21',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: '#fff',
-                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="users"
-                  stroke="#128C7E"
-                  strokeWidth={3}
-                  fillOpacity={1}
-                  fill="url(#colorUsers)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+
+          <div className="h-64 w-full pt-2">
+            {loading ? (
+              <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
+                Carregando métricas...
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="userGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#25D366" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#25D366" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="postGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.15} />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#888" }} />
+                  <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: "#888" }} allowDecimals={false} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: isDark ? "rgba(18, 18, 18, 0.95)" : "rgba(255, 255, 255, 0.95)", 
+                      borderRadius: "8px", 
+                      border: isDark ? "1px solid rgba(255,255,255,0.1)" : "1px solid rgba(0,0,0,0.1)",
+                      color: isDark ? "#fff" : "#111",
+                      fontSize: "12px",
+                      boxShadow: "0 4px 12px rgba(0,0,0,0.08)"
+                    }} 
+                  />
+                  <Area type="monotone" dataKey="usuarios" name="Novos Membros" stroke="#25D366" strokeWidth={2} fillOpacity={1} fill="url(#userGrad)" />
+                  <Area type="monotone" dataKey="publicacoes" name="Publicações" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#postGrad)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        {/* Engagement Sidebar */}
-        <div className="bg-whatsapp-teal text-white p-8 rounded-2xl whatsapp-shadow relative overflow-hidden">
-          <div className="relative z-10 flex flex-col h-full">
-            <h3 className="text-xl font-bold mb-2">Um lugar de adoração</h3>
-            <p className="text-sm text-white/70 mb-8">A fé conecta pessoas em todo o mundo através da nossa plataforma.</p>
-
-            <div className="flex-1 space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                  <Heart className="w-5 h-5 text-whatsapp-green" />
-                </div>
-                <div>
-                  <p className="text-xs text-white/50">Reações Totais</p>
-                  <p className="text-lg font-bold">{loading ? '...' : totalLikes.toLocaleString()}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center">
-                  <TrendingUp className="w-5 h-5 text-whatsapp-green" />
-                </div>
-                <div>
-                  <p className="text-xs text-white/50">Taxa de Engajamento (30d)</p>
-                  <p className="text-lg font-bold">{loading ? '...' : `${retentionRate}%`}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-8 pt-8 border-t border-white/10 text-center space-y-3">
-              <div className="bg-white/5 p-3 rounded-xl border border-white/10 text-left">
-                <p className="text-[10px] uppercase font-black text-whatsapp-green tracking-widest mb-1">Tags em Alta</p>
-                <div className="flex flex-wrap gap-2">
-                  {stats.topHashtags.length > 0 ? (
-                    stats.topHashtags.map(h => (
-                      <span key={h.tag} className="text-xs font-bold">{h.tag} <span className="opacity-50 font-normal">({h.count})</span></span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-white/40 italic">Nenhuma tag ainda</span>
-                  )}
-                </div>
-              </div>
-              <button className="w-full bg-whatsapp-green text-whatsapp-dark font-bold py-3 rounded-xl hover:bg-opacity-90 transition-all">
-                Configurar Campanhas
-              </button>
+        {/* Painel Lateral: Atalhos Operacionais & Saúde Dinâmica dos Serviços */}
+        <div className="space-y-4">
+          {/* Ações Rápidas */}
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Ações Rápidas de Gestão
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                href="/admin/users"
+                className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-medium text-foreground transition-all group"
+              >
+                <UserPlus className="h-4 w-4 text-whatsapp-green shrink-0" />
+                <span className="truncate">Gerenciar Usuários</span>
+              </Link>
+              <Link
+                href="/admin/verifications"
+                className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-medium text-foreground transition-all group"
+              >
+                <ShieldCheck className="h-4 w-4 text-blue-400 shrink-0" />
+                <span className="truncate">Validar Selos</span>
+              </Link>
+              <Link
+                href="/admin/push"
+                className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-medium text-foreground transition-all group"
+              >
+                <Bell className="h-4 w-4 text-amber-400 shrink-0" />
+                <span className="truncate">Enviar Push</span>
+              </Link>
+              <Link
+                href="/admin/pricing"
+                className="flex items-center gap-2 p-2.5 rounded-lg border border-border bg-muted/40 hover:bg-muted text-xs font-medium text-foreground transition-all group"
+              >
+                <CreditCard className="h-4 w-4 text-purple-400 shrink-0" />
+                <span className="truncate">Valores & PRO</span>
+              </Link>
             </div>
           </div>
-          <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
-          <div className="absolute top-0 right-0 w-20 h-20 bg-whatsapp-green/10 rounded-full blur-2xl" />
+
+          {/* Integridade dos Serviços com Health Check Dinâmico Real */}
+          <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
+              <span>Status dos Serviços</span>
+              {allServicesOperational ? (
+                <span className="text-[10px] text-emerald-500 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" /> Todos Operacionais
+                </span>
+              ) : (
+                <span className="text-[10px] text-amber-500 font-semibold flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Atenção
+                </span>
+              )}
+            </h3>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs py-1 border-b border-border/40">
+                <span className="text-muted-foreground">Banco de Dados (Supabase)</span>
+                <span className={cn(
+                  "font-medium flex items-center gap-1",
+                  servicesHealth.db === null ? "text-muted-foreground" : servicesHealth.db ? "text-emerald-500" : "text-red-500"
+                )}>
+                  {servicesHealth.db === null ? "Checando..." : servicesHealth.db ? "Conectado" : "Instável"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-1 border-b border-border/40">
+                <span className="text-muted-foreground">Autenticação (Auth)</span>
+                <span className={cn(
+                  "font-medium flex items-center gap-1",
+                  servicesHealth.auth === null ? "text-muted-foreground" : servicesHealth.auth ? "text-emerald-500" : "text-red-500"
+                )}>
+                  {servicesHealth.auth === null ? "Checando..." : servicesHealth.auth ? "Ativa" : "Falha"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-1 border-b border-border/40">
+                <span className="text-muted-foreground">Armazenamento (Storage)</span>
+                <span className={cn(
+                  "font-medium flex items-center gap-1",
+                  servicesHealth.storage === null ? "text-muted-foreground" : servicesHealth.storage ? "text-emerald-500" : "text-red-500"
+                )}>
+                  {servicesHealth.storage === null ? "Checando..." : servicesHealth.storage ? "Operacional" : "Indisponível"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-1">
+                <span className="text-muted-foreground">Presença / Realtime</span>
+                <span className={cn(
+                  "font-medium flex items-center gap-1",
+                  servicesHealth.realtime === null ? "text-muted-foreground" : servicesHealth.realtime ? "text-emerald-500" : "text-amber-500"
+                )}>
+                  {servicesHealth.realtime === null ? "Checando..." : servicesHealth.realtime ? "Conectado" : "Offline"}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Recent Activity Section */}
-      <div className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow overflow-hidden">
-        <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
-          <h3 className="font-bold dark:text-white">Atividade Recente</h3>
-          <button className="text-xs text-whatsapp-teal dark:text-whatsapp-green font-semibold">Ver tudo</button>
-        </div>
-        <div className="divide-y divide-gray-100 dark:divide-white/5">
-          {recentUsers.length === 0 && !loading && (
-            <p className="p-6 text-sm text-gray-400">Nenhum cadastro recente.</p>
-          )}
-          {recentUsers.map((u) => (
-            <div key={u.created_at} className="p-6 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-whatsapp-dark overflow-hidden flex-shrink-0">
-                  {u.avatar_url && !u.avatar_url.includes('vercel.sh')
-                    ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
-                    : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white font-black text-sm uppercase shadow-inner">
-                        {(() => {
-                          const name = u.full_name || u.username || "U";
-                          const parts = name.trim().split(/\s+/);
-                          return parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : parts[0][0].toUpperCase();
-                        })()}
+      {/* ─── GRID INFERIOR: ÚLTIMOS MEMBROS + POSTS EM DESTAQUE ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Lista dos Últimos Membros */}
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Últimos Membros Cadastrados</h3>
+              <p className="text-xs text-muted-foreground">Novos usuários registrados na plataforma</p>
+            </div>
+            <Link href="/admin/users" className="text-xs text-whatsapp-teal dark:text-whatsapp-green hover:underline font-medium">
+              Ver todos ({metrics.totalUsers.toLocaleString("pt-BR")})
+            </Link>
+          </div>
+
+          <div className="divide-y divide-border/50">
+            {loading ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">Carregando membros...</div>
+            ) : recentUsers.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">Nenhum membro encontrado.</div>
+            ) : (
+              recentUsers.map((user) => (
+                <div key={user.id} className="py-2.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="h-8 w-8 rounded-full bg-whatsapp-teal/20 text-whatsapp-teal dark:text-whatsapp-green flex items-center justify-center text-xs font-bold shrink-0 overflow-hidden">
+                      {user.avatar_url ? (
+                        <Image 
+                          src={user.avatar_url} 
+                          alt="" 
+                          width={32} 
+                          height={32} 
+                          unoptimized 
+                          className="h-full w-full object-cover" 
+                        />
+                      ) : (
+                        (user.full_name || user.username || "M")[0]?.toUpperCase()
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-xs font-semibold text-foreground truncate">
+                        {user.full_name || "Sem nome cadastrado"}
                       </div>
-                  }
+                      <div className="text-[11px] text-muted-foreground truncate">
+                        @{user.username || "usuario"}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <span className="text-[10px] text-muted-foreground">
+                      {user.created_at ? moment(user.created_at).fromNow() : "Recentemente"}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium dark:text-white">Novo usuário: <span className="text-whatsapp-teal dark:text-whatsapp-green">{u.full_name || u.username || 'Sem nome'}</span></p>
-                  <p className="text-[11px] text-gray-500">{new Date(u.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
-              </div>
-              <span className="px-2 py-1 bg-whatsapp-green/10 text-whatsapp-green text-[10px] font-bold rounded-md uppercase">Novo</span>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Publicações em Destaque */}
+        <div className="rounded-xl border border-border bg-card p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Publicações com Maior Alcance</h3>
+              <p className="text-xs text-muted-foreground">Posts mais visualizados e engajados</p>
             </div>
-          ))}
+            <Link href="/admin/posts" className="text-xs text-whatsapp-teal dark:text-whatsapp-green hover:underline font-medium">
+              Moderar feed
+            </Link>
+          </div>
+
+          <div className="divide-y divide-border/50">
+            {loading ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">Carregando posts...</div>
+            ) : topPosts.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground">Nenhum post registrado ainda.</div>
+            ) : (
+              topPosts.map((post) => {
+                const likesCount = Array.isArray(post.likes) 
+                  ? post.likes.length 
+                  : (typeof post.likes === "number" ? post.likes : 0);
+
+                return (
+                  <div key={post.id} className="py-2.5 flex items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-foreground font-medium truncate">
+                        {post.content || "Publicação com mídia"}
+                      </p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        Por {post.profiles?.full_name || "Membro"} · {post.created_at ? moment(post.created_at).fromNow() : ""}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Heart className="h-3 w-3 text-red-500" />
+                        {likesCount}
+                      </span>
+                      <span className="font-mono text-[11px] bg-muted px-1.5 py-0.5 rounded">
+                        {(post.views_count || 0).toLocaleString("pt-BR")} views
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </div>
-
-      {/* Online Users Section */}
-      {onlineUsers.length > 0 && (
-        <div className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-whatsapp-green/20 dark:border-whatsapp-green/10 whatsapp-shadow overflow-hidden mt-6">
-          <div className="p-6 border-b border-whatsapp-green/10 flex items-center gap-3">
-            <div className="relative">
-              <Smartphone className="w-5 h-5 text-whatsapp-green" />
-              <div className="absolute -top-1 -right-1 w-2 h-2 bg-whatsapp-green rounded-full animate-ping" />
-            </div>
-            <h3 className="font-bold dark:text-white">Usuários Online Agora ({stats.onlineNow})</h3>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-6">
-            {onlineUsers.map((u) => (
-              <div key={u.id} className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 dark:bg-white/5 border border-transparent hover:border-whatsapp-green/30 transition-all">
-                <div className="relative">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 dark:bg-whatsapp-dark overflow-hidden flex-shrink-0">
-                    {u.avatar_url && !u.avatar_url.includes('vercel.sh')
-                      ? <img src={u.avatar_url} className="w-full h-full object-cover" alt="" />
-                      : <div className="w-full h-full bg-whatsapp-teal flex items-center justify-center text-white font-black text-sm uppercase">
-                          {u.full_name ? u.full_name[0] : 'U'}
-                        </div>
-                    }
-                  </div>
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-[#111b21] rounded-full" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold dark:text-white truncate">{u.full_name || u.username}</p>
-                  <p className="text-[10px] text-gray-400 uppercase tracking-widest">{u.role || 'Membro'}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Posts em Alta — Viral Engine */}
-      {topPosts.length > 0 && (
-        <div className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-gray-100 dark:border-white/5 whatsapp-shadow overflow-hidden">
-          <div className="p-6 border-b border-gray-100 dark:border-white/5 flex items-center gap-3">
-            <Flame className="w-5 h-5 text-orange-500" />
-            <h3 className="font-bold dark:text-white">Posts em Alta (últimos 7 dias)</h3>
-          </div>
-          <div className="divide-y divide-gray-100 dark:divide-white/5">
-            {topPosts.map((p, i) => (
-              <div key={p.id} className="p-4 flex items-center gap-4 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-                <span className={cn("w-7 h-7 rounded-full flex items-center justify-center text-xs font-black flex-shrink-0",
-                  i === 0 ? "bg-orange-500 text-white" : "bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400"
-                )}>{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm dark:text-white font-medium truncate">{p.content?.substring(0, 60) || `Post ${p.post_type}`}...</p>
-                  <p className="text-[11px] text-gray-400">{(p.profiles as any)?.full_name || 'Usuário'}</p>
-                </div>
-                <div className="flex items-center gap-3 flex-shrink-0">
-                  <div className="flex items-center gap-1 text-blue-500">
-                    <Eye className="w-3.5 h-3.5" />
-                    <span className="text-xs font-bold">{(p.views_count || 0).toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-orange-500">
-                    <Flame className="w-3.5 h-3.5" />
-                    <span className="text-xs font-bold">{(p.likes?.length || 0).toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

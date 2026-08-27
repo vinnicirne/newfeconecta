@@ -4,9 +4,9 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronDown, Play, Pause, SkipBack, SkipForward,
-  ThumbsUp, ThumbsDown, MessageCircle, Share2,
+  Heart, MessageCircle, Share2,
   Shuffle, Repeat, Repeat1, Music2, Video,
-  MoreVertical, ListMusic, Loader2,
+  MoreVertical, ListMusic, Loader2, Plus
 } from 'lucide-react';
 import MusicShareModal from './MusicShareModal';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
@@ -16,6 +16,7 @@ import TrackCommentsModal from './TrackCommentsModal';
 import AddToPlaylistModal from './AddToPlaylistModal';
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { supabase } from '@/lib/supabase';
 
 export default function FullscreenPlayer() {
   const { 
@@ -34,7 +35,7 @@ export default function FullscreenPlayer() {
   const [isShareOpen, setIsShareOpen] = React.useState(false);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = React.useState(false);
   const [lyricsOpen, setLyricsOpen] = React.useState(false);
-  const [disliked, setDisliked] = React.useState(false);
+  const [commentsCount, setCommentsCount] = React.useState(0);
 
   // Estados e Refs para arrasto / scrubbing contínuo da barra de progresso
   const timelineRef = React.useRef<HTMLDivElement>(null);
@@ -42,6 +43,36 @@ export default function FullscreenPlayer() {
   const [dragProgressMs, setDragProgressMs] = React.useState<number | null>(null);
 
   React.useEffect(() => { loadLikes(); }, [loadLikes]);
+
+  const ytId = currentTrack ? (currentTrack.providerTrackId || currentTrack.id) : null;
+
+  React.useEffect(() => {
+    if (!ytId) return;
+
+    let isMounted = true;
+    async function loadCommentsCount() {
+      try {
+        const { count } = await supabase
+          .from('music_comments')
+          .select('*', { count: 'exact', head: true })
+          .eq('track_id', ytId);
+
+        if (isMounted) {
+          setCommentsCount(count || 0);
+        }
+      } catch {
+        if (isMounted) {
+          setCommentsCount(0);
+        }
+      }
+    }
+
+    loadCommentsCount();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ytId]);
 
   const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
 
@@ -78,16 +109,13 @@ export default function FullscreenPlayer() {
   };
 
   // Intercepta o botão "Voltar" do celular Android/iOS para fechar o player
-  // sem redirecionar para a página anterior (Feed)
   React.useEffect(() => {
     if (isFullScreen) {
       const isNative = typeof window !== 'undefined' && Capacitor.getPlatform() !== 'web';
 
       if (isNative) {
-        // No Android nativo, pushState "reseta" a Webview e faz o Media Session sumir/quebrar.
-        // Então usamos o evento nativo do Capacitor:
         let backListener: any;
-        CapApp.addListener('backButton', (info) => {
+        CapApp.addListener('backButton', () => {
           setFullScreen(false);
         }).then(listener => {
           backListener = listener;
@@ -97,10 +125,9 @@ export default function FullscreenPlayer() {
           if (backListener) backListener.remove();
         };
       } else {
-        // Na Web (PWA), usamos pushState
         window.history.pushState({ playerOpen: true }, '', window.location.href);
         
-        const handlePopState = (e: PopStateEvent) => {
+        const handlePopState = () => {
           setFullScreen(false);
         };
 
@@ -128,8 +155,6 @@ export default function FullscreenPlayer() {
 
   const displayedProgress = isDragging && dragProgressMs !== null ? dragProgressMs : progressMs;
   const currentPct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (displayedProgress / effectiveDuration) * 100)) : 0;
-  const ytId = currentTrack.providerTrackId || currentTrack.id;
-
 
   return (
     <AnimatePresence>
@@ -138,269 +163,260 @@ export default function FullscreenPlayer() {
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
-          transition={{ type: 'spring', damping: 28, stiffness: 220 }}
-          className="fixed inset-0 z-[9999] text-white"
+          transition={{ type: 'spring', damping: 30, stiffness: 240 }}
+          className="fixed inset-0 z-[9999] text-white bg-black flex flex-col justify-between overflow-hidden antialiased select-none"
           style={{ height: '100dvh' }}
         >
-          {/* Background — sólido primeiro, blur por cima */}
-          <div className="absolute inset-0 bg-[#0d0d0d]" />
+          {/* Fundo dinâmico com blur suave */}
+          <div className="absolute inset-0 bg-[#0e0e0e]" />
           <div
-            className="absolute inset-0 opacity-15 pointer-events-none"
+            className="absolute inset-0 opacity-20 pointer-events-none"
             style={{
               backgroundImage: `url(${currentTrack.cover || ''})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              filter: 'blur(60px)',
-              transform: 'scale(1.3)',
+              filter: 'blur(70px)',
+              transform: 'scale(1.4)',
             }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/60 pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/80 pointer-events-none" />
 
-          {/* Content — flex column full height */}
-          <div className="relative z-10 flex flex-col h-full">
+          {/* ─── HEADER ─── */}
+          <header className="relative z-20 flex items-center justify-between px-4 pt-6 pb-2 shrink-0">
+            <button
+              onClick={() => setFullScreen(false)}
+              aria-label="Minimizar player"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all text-white/90"
+            >
+              <ChevronDown className="w-7 h-7" />
+            </button>
 
-            {/* ─── HEADER ─── */}
-            <div className="flex items-center justify-between px-5 pt-10 pb-3 shrink-0">
-              <button
-                onClick={() => setFullScreen(false)}
-                className="p-2 rounded-full hover:bg-white/10 transition-colors"
-              >
-                <ChevronDown className="w-6 h-6" />
-              </button>
-              <div className="text-center flex-1 px-2">
-                <p className="text-[9px] tracking-[0.2em] uppercase text-gray-500 font-bold">Tocando agora</p>
-                <p className="text-xs font-semibold text-gray-300 truncate max-w-[180px] mx-auto">
-                  {currentTrack.artist || 'FéConecta'}
-                </p>
-              </div>
-              <button
-                onClick={() => setVideoVisible(true)}
-                className="p-2 rounded-full hover:bg-white/10 transition-colors"
-              >
-                <MoreVertical className="w-5 h-5 text-gray-400" />
-              </button>
+            <div className="text-center flex-1 px-2">
+              <h1 className="text-[10px] uppercase tracking-[0.2em] text-[#A8A8A8] font-bold">
+                Tocando agora
+              </h1>
+              <p className="text-xs font-semibold text-gray-200 truncate max-w-[220px] mx-auto mt-0.5">
+                {currentTrack.artist || 'FéConecta Music'}
+              </p>
             </div>
 
-            {/* ─── CAPA (flex-1 para ocupar o espaço disponível) ─── */}
-            <div className="flex-1 flex items-center justify-center px-8 min-h-0">
+            <button
+              onClick={() => setVideoVisible(true)}
+              aria-label="Assistir clipe"
+              title="Assistir clipe / Mais opções"
+              className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-95 transition-all text-white/90"
+            >
+              <MoreVertical className="w-5 h-5 text-white/80" />
+            </button>
+          </header>
+
+          {/* ─── MAIN CONTENT ─── */}
+          <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 min-h-0 py-2">
+            {/* Capa do Álbum com Proporção 1:1 e Efeito Glow */}
+            <div className="w-full flex-1 min-h-0 flex flex-col justify-center items-center relative max-h-[380px]">
               <motion.div
                 key={currentTrack.id}
-                animate={{ scale: isPlaying ? 1 : 0.88 }}
-                transition={{ type: 'spring', stiffness: 180, damping: 22 }}
+                animate={{ scale: isPlaying ? 1 : 0.92 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 24 }}
                 onClick={() => setVideoVisible(true)}
-                className="relative cursor-pointer group rounded-2xl overflow-hidden shadow-2xl bg-gray-800"
-                style={{ width: '100%', maxWidth: '320px', aspectRatio: '1/1' }}
+                className="relative w-full max-w-[320px] aspect-square rounded-2xl overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.65)] bg-surface-container-high transition-transform duration-500 ease-out hover:scale-[1.02] cursor-pointer group"
               >
                 <img
                   src={currentTrack.cover || 'https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?auto=format&fit=crop&w=800&q=80'}
                   alt={currentTrack.title}
-                  className={cn("w-full h-full object-cover transition-all", isLoading && "opacity-50 blur-sm")}
+                  className={cn("w-full h-full object-cover transition-all duration-300", isLoading && "opacity-40 blur-sm")}
                 />
-                
+
                 {isLoading ? (
-                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center">
-                    <Loader2 className="w-10 h-10 text-whatsapp-green animate-spin mb-3 shadow-xl" />
-                    <p className="text-[11px] font-bold text-white text-center tracking-wide">BAIXANDO ÁUDIO...</p>
-                    <p className="text-[9px] text-gray-300 text-center mt-1 uppercase tracking-widest">Só na primeira vez</p>
+                  <div className="absolute inset-0 bg-black/50 backdrop-blur-xs flex flex-col items-center justify-center">
+                    <Loader2 className="w-10 h-10 text-[#3FFF8B] animate-spin mb-2" />
+                    <p className="text-xs font-bold text-white tracking-wide">CARREGANDO ÁUDIO...</p>
                   </div>
                 ) : (
-                  <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Video className="w-10 h-10 text-white" />
-                    <p className="text-[10px] font-bold mt-1.5 tracking-widest uppercase">Assistir Clipe</p>
+                  <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Video className="w-10 h-10 text-white drop-shadow-md" />
+                    <p className="text-[10px] font-bold mt-1.5 tracking-widest uppercase text-white">Assistir Clipe</p>
                   </div>
                 )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
               </motion.div>
             </div>
+          </main>
 
-            {/* ─── ÁREA INFERIOR (tudo shrink-0) ─── */}
-            <div className="shrink-0 px-6 pt-4"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
-            >
-              {/* Título + Like/Dislike */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1 min-w-0 pr-3">
-                  <h2 className="text-[18px] font-black truncate leading-tight">{currentTrack.title}</h2>
-                  <p className="text-sm text-gray-400 truncate mt-0.5">{currentTrack.artist}</p>
-                </div>
-                <div className="flex items-center rounded-full border border-white/15 overflow-hidden shrink-0">
-                  <button
-                    onClick={() => { toggleLike(currentTrack); if (disliked) setDisliked(false); }}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-2 border-r border-white/15 transition-colors text-xs font-semibold',
-                      isLiked ? 'text-white' : 'text-gray-400 hover:text-white'
-                    )}
-                  >
-                    <ThumbsUp className={cn('w-4 h-4', isLiked && 'fill-white')} />
-                    Curtir
-                  </button>
-                  <button
-                    onClick={() => { setDisliked(d => !d); if (isLiked) toggleLike(currentTrack); }}
-                    className={cn('px-3 py-2 transition-colors', disliked ? 'text-white' : 'text-gray-400 hover:text-white')}
-                  >
-                    <ThumbsDown className={cn('w-4 h-4', disliked && 'fill-white')} />
-                  </button>
-                </div>
+          {/* ─── FOOTER CONTROLS ─── */}
+          <footer 
+            className="relative z-10 shrink-0 px-6 pt-2 pb-6 space-y-4 max-w-xl mx-auto w-full"
+            style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
+          >
+            {/* Informações da Faixa + Ações */}
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div className="flex-1 min-w-0 pr-2">
+                <h2 className="text-xl sm:text-2xl font-extrabold text-white truncate tracking-tight leading-tight">
+                  {currentTrack.title}
+                </h2>
+                <p className="text-sm sm:text-base font-medium text-[#A8A8A8] truncate mt-0.5">
+                  {currentTrack.artist || 'FéConecta Music'}
+                </p>
               </div>
 
-              {/* Action Pills */}
-              <div className="flex items-center gap-2 mb-4 overflow-x-auto no-scrollbar">
+              {/* Ações em Linha */}
+              <div className="flex items-center gap-1 shrink-0">
+                {/* Botão Curtir */}
                 <button
-                  onClick={() => setLyricsOpen(l => !l)}
-                  className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all shrink-0',
-                    lyricsOpen ? 'bg-white text-black border-white' : 'bg-white/10 text-gray-300 border-white/10'
-                  )}
+                  onClick={() => toggleLike(currentTrack)}
+                  aria-label="Curtir música"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/90"
                 >
-                  <Music2 className="w-3.5 h-3.5" />Letra
+                  <Heart className={cn("w-6 h-6 transition-colors", isLiked ? "text-[#0095F6] fill-[#0095F6]" : "text-white/80")} />
                 </button>
-                <button
-                  onClick={() => setIsCommentsOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 text-gray-300 border border-white/10 shrink-0"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" />Comentar
-                </button>
+
+                {/* Botão Adicionar à Playlist */}
                 <button
                   onClick={() => setIsAddToPlaylistOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 text-gray-300 border border-white/10 shrink-0 hover:bg-white/20 transition-colors"
+                  aria-label="Adicionar à playlist"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/80 hover:text-white"
                 >
-                  <ListMusic className="w-3.5 h-3.5 text-whatsapp-teal" />Playlist
+                  <ListMusic className="w-6 h-6" />
                 </button>
+
+                {/* Botão Comentários */}
+                <button
+                  onClick={() => setIsCommentsOpen(true)}
+                  aria-label="Ver comentários"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/80 hover:text-white relative"
+                >
+                  <MessageCircle className="w-5 h-5" />
+                  {commentsCount > 0 && (
+                    <span className="absolute top-1 right-0.5 min-w-[16px] h-4 px-1 bg-[#3FFF8B] text-black text-[9px] font-bold rounded-full flex items-center justify-center shadow-sm">
+                      {commentsCount > 99 ? '99+' : commentsCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* Botão Compartilhar */}
                 <button
                   onClick={() => setIsShareOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/10 text-gray-300 border border-white/10 shrink-0"
+                  aria-label="Compartilhar música"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/80 hover:text-white"
                 >
-                  <Share2 className="w-3.5 h-3.5" />Comp.
+                  <Share2 className="w-5 h-5" />
                 </button>
               </div>
+            </div>
 
-              {/* Lyrics placeholder */}
-              <AnimatePresence>
-                {lyricsOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="overflow-hidden mb-3"
-                  >
-                    <div className="bg-white/5 rounded-xl p-3 text-center border border-white/10">
-                      <p className="text-xs text-gray-400">Letra não disponível</p>
-                      <a
-                        href={`https://www.youtube.com/watch?v=${ytId}`}
-                        target="_blank" rel="noopener noreferrer"
-                        className="text-[11px] text-blue-400 hover:underline"
-                      >Ver no YouTube ↗</a>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              {/* Progress Bar com suporte a toque e arrasto (Scrubbing / Drag) */}
-              <div 
+            {/* Barra de Progresso com Neon Glow e Scrubbing */}
+            <div className="px-1 group">
+              <div
                 ref={timelineRef}
-                className="relative mb-1 py-4 cursor-pointer select-none touch-none group"
+                className="relative w-full h-3 flex items-center cursor-pointer select-none touch-none"
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
                 onPointerCancel={handlePointerUp}
               >
-                <div className="w-full h-1.5 group-hover:h-2.5 bg-white/20 rounded-full relative overflow-hidden transition-all duration-150">
-                  <div 
-                    className="h-full bg-whatsapp-teal rounded-full" 
-                    style={{ width: `${currentPct}%` }} 
+                <div className="w-full h-1 group-hover:h-2 bg-[#353535] rounded-full overflow-hidden transition-all duration-200">
+                  <div
+                    className="h-full bg-[#3FFF8B] rounded-full shadow-[0_0_10px_#3FFF8B]"
+                    style={{ width: `${currentPct}%` }}
                   />
                 </div>
                 <div
                   className={cn(
-                    "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full shadow-lg pointer-events-none ring-2 ring-whatsapp-teal/40 transition-transform duration-100",
-                    isDragging ? "w-5 h-5 bg-whatsapp-teal scale-110" : "w-3.5 h-3.5 bg-white group-hover:scale-125"
+                    "absolute top-1/2 -translate-y-1/2 -translate-x-1/2 rounded-full pointer-events-none transition-all duration-100",
+                    isDragging ? "w-4 h-4 bg-white shadow-[0_0_12px_#3FFF8B]" : "w-3 h-3 bg-white group-hover:scale-125 opacity-0 group-hover:opacity-100"
                   )}
                   style={{ left: `${currentPct}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[11px] text-gray-400 font-mono mb-4">
-                <span>{fmt(isDragging && dragProgressMs !== null ? dragProgressMs : progressMs)}</span>
+
+              <div className="flex justify-between items-center text-[11px] text-[#A8A8A8] font-mono mt-0.5">
+                <span>{fmt(displayedProgress)}</span>
                 <span>{fmt(effectiveDuration)}</span>
               </div>
-
-
-              {/* Controls */}
-              <div className="flex items-center justify-between px-2">
-                {/* Shuffle */}
-                <button
-                  onClick={toggleShuffle}
-                  className={cn(
-                    'w-10 h-10 flex items-center justify-center rounded-full transition-all',
-                    isShuffled ? 'text-green-400' : 'text-gray-500 hover:text-white'
-                  )}
-                >
-                  <Shuffle className="w-[18px] h-[18px]" />
-                </button>
-
-                {/* Previous */}
-                <button
-                  onClick={() => previous(true)}
-                  className="w-12 h-12 flex items-center justify-center text-white active:scale-90 transition-transform"
-                >
-                  <SkipBack className="w-7 h-7" fill="currentColor" />
-                </button>
-
-                {/* Play/Pause */}
-                <button
-                  onClick={() => {
-                    if (isLoading) return;
-                    isPlaying ? pause() : resume();
-                  }}
-                  className={cn(
-                    "w-[58px] h-[58px] flex items-center justify-center rounded-full shadow-xl transition-all",
-                    isLoading ? "bg-gray-700 text-gray-400 cursor-not-allowed opacity-50" : "bg-white text-black hover:scale-105 active:scale-95"
-                  )}
-                >
-                  {isLoading ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : isPlaying ? (
-                    <Pause className="w-6 h-6" fill="currentColor" />
-                  ) : (
-                    <Play className="w-6 h-6 ml-0.5" fill="currentColor" />
-                  )}
-                </button>
-
-                {/* Next */}
-                <button
-                  onClick={() => next(true)}
-                  className="w-12 h-12 flex items-center justify-center text-white active:scale-90 transition-transform"
-                >
-                  <SkipForward className="w-7 h-7" fill="currentColor" />
-                </button>
-
-                {/* Repeat */}
-                <button
-                  onClick={cycleRepeat}
-                  className={cn(
-                    'w-10 h-10 flex items-center justify-center rounded-full transition-all relative',
-                    repeatMode !== 'off' ? 'text-green-400' : 'text-gray-500 hover:text-white'
-                  )}
-                >
-                  {repeatMode === 'one' ? (
-                    <Repeat1 className="w-[18px] h-[18px]" />
-                  ) : (
-                    <Repeat className="w-[18px] h-[18px]" />
-                  )}
-                </button>
-              </div>
             </div>
-          </div>
 
-          {/* Modais */}
+            {/* Controles de Reprodução (Playback Controls) */}
+            <div className="flex items-center justify-between px-2 pt-1 h-20">
+              {/* Shuffle (Aleatório) */}
+              <button
+                onClick={toggleShuffle}
+                aria-label="Modo aleatório"
+                className={cn(
+                  "w-11 h-11 flex items-center justify-center rounded-full transition-all active:scale-90",
+                  isShuffled ? "text-[#3FFF8B]" : "text-[#A8A8A8] hover:text-white"
+                )}
+              >
+                <Shuffle className="w-5 h-5" />
+              </button>
+
+              {/* Previous */}
+              <button
+                onClick={() => previous(true)}
+                aria-label="Faixa anterior"
+                className="w-13 h-13 flex items-center justify-center text-white hover:text-[#3FFF8B] active:scale-90 transition-all"
+              >
+                <SkipBack className="w-8 h-8" fill="currentColor" />
+              </button>
+
+              {/* Play / Pause Principal (Gigante com Glow) */}
+              <button
+                onClick={() => {
+                  if (isLoading) return;
+                  isPlaying ? pause() : resume();
+                }}
+                aria-label={isPlaying ? "Pausar" : "Tocar"}
+                className={cn(
+                  "w-[70px] h-[70px] rounded-full bg-white text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-[0_0_24px_rgba(255,255,255,0.3)] shrink-0",
+                  isLoading && "opacity-60 cursor-not-allowed"
+                )}
+              >
+                {isLoading ? (
+                  <Loader2 className="w-7 h-7 text-black animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="w-8 h-8" fill="currentColor" />
+                ) : (
+                  <Play className="w-8 h-8 ml-1" fill="currentColor" />
+                )}
+              </button>
+
+              {/* Next */}
+              <button
+                onClick={() => next(true)}
+                aria-label="Próxima faixa"
+                className="w-13 h-13 flex items-center justify-center text-white hover:text-[#3FFF8B] active:scale-90 transition-all"
+              >
+                <SkipForward className="w-8 h-8" fill="currentColor" />
+              </button>
+
+              {/* Repeat */}
+              <button
+                onClick={cycleRepeat}
+                aria-label="Repetir faixa"
+                className={cn(
+                  "w-11 h-11 flex items-center justify-center rounded-full transition-all active:scale-90 relative",
+                  repeatMode !== 'off' ? "text-[#3FFF8B]" : "text-[#A8A8A8] hover:text-white"
+                )}
+              >
+                {repeatMode === 'one' ? (
+                  <Repeat1 className="w-5 h-5" />
+                ) : (
+                  <Repeat className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+          </footer>
+
+          {/* Modais Integrados */}
           <MusicComposerModal
             isOpen={isComposerOpen}
             onClose={() => setIsComposerOpen(false)}
             onSuccess={() => { setIsComposerOpen(false); }}
-            initialUrl={`https://www.youtube.com/watch?v=${ytId}`}
+            initialUrl={ytId ? `https://www.youtube.com/watch?v=${ytId}` : ''}
           />
           <TrackCommentsModal
             isOpen={isCommentsOpen}
             onClose={() => setIsCommentsOpen(false)}
-            trackId={ytId}
+            trackId={ytId || ''}
             trackTitle={currentTrack.title}
           />
           <MusicShareModal
@@ -409,7 +425,7 @@ export default function FullscreenPlayer() {
             trackTitle={currentTrack.title}
             trackArtist={currentTrack.artist || ''}
             trackCover={currentTrack.cover ?? undefined}
-            youtubeId={ytId}
+            youtubeId={ytId || ''}
           />
           <AddToPlaylistModal
             isOpen={isAddToPlaylistOpen}
