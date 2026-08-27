@@ -91,6 +91,10 @@ export default function RootPage() {
   const profilesCacheRef = useRef<Record<string, any>>({});
   const [streak, setStreak] = useState(0);
   const [userChurches, setUserChurches] = useState<any[]>([]);
+  const [feedControls, setFeedControls] = useState({
+    show_daily_verse: true,
+    show_fenamoro_banner: true,
+  });
 
   const loadStreak = async (id: string) => {
     try {
@@ -534,6 +538,21 @@ export default function RootPage() {
           loadStreak(authUser.id);
           loadUserChurches(authUser.id);
 
+          // Controles de Exibição Globais (Palavra do Dia e FéNamoro)
+          supabase
+            .from('system_configs')
+            .select('value')
+            .eq('key', 'feed_display_controls_v1')
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data?.value) {
+                setFeedControls({
+                  show_daily_verse: data.value.show_daily_verse ?? true,
+                  show_fenamoro_banner: data.value.show_fenamoro_banner ?? true,
+                });
+              }
+            });
+
           // FASE 3: Serviços de Background
           requestPermission(authUser.id);
           listenToForegroundMessages();
@@ -543,6 +562,20 @@ export default function RootPage() {
         } else {
           await loadInitialPosts();
           loadStories();
+
+          supabase
+            .from('system_configs')
+            .select('value')
+            .eq('key', 'feed_display_controls_v1')
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data?.value) {
+                setFeedControls({
+                  show_daily_verse: data.value.show_daily_verse ?? true,
+                  show_fenamoro_banner: data.value.show_fenamoro_banner ?? true,
+                });
+              }
+            });
         }
       } catch (err: any) {
         console.error("Init error:", err);
@@ -569,6 +602,15 @@ export default function RootPage() {
 
     const channel = supabase
       .channel('unified-feed-updates')
+      // CONTROLES DE EXIBIÇÃO REALTIME
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'system_configs' }, (payload: any) => {
+        if (payload.new?.key === 'feed_display_controls_v1' && payload.new?.value) {
+          setFeedControls({
+            show_daily_verse: payload.new.value.show_daily_verse ?? true,
+            show_fenamoro_banner: payload.new.value.show_fenamoro_banner ?? true,
+          });
+        }
+      })
       // FEED POSTS REALTIME
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
         const newPost = payload.new;
@@ -1055,14 +1097,18 @@ export default function RootPage() {
           </div>
 
           {/* VERSÍCULO DO DIA — desktop: 4º / mobile: 2º */}
-          <div className="order-2 lg:order-4">
-            <DailyVerseSection currentUser={currentUser} />
-          </div>
+          {feedControls.show_daily_verse && (
+            <div className="order-2 lg:order-4">
+              <DailyVerseSection currentUser={currentUser} />
+            </div>
+          )}
 
           {/* CROSS-PROMOTION FÉNAMORO — desktop: 5º / mobile: 3º */}
-          <div className="order-3 lg:order-5">
-            <FenamoroBanner currentUser={currentUser} />
-          </div>
+          {feedControls.show_fenamoro_banner && (
+            <div className="order-3 lg:order-5">
+              <FenamoroBanner currentUser={currentUser} />
+            </div>
+          )}
 
           <div className="order-6 px-4 py-4 space-y-4">
             {posts.length > 0 ? (

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   BookOpen, Sparkles, Search, RefreshCw, Check, 
   Share2, Heart, Highlighter, FileText, ArrowUpRight,
-  MessageSquare, Send, CheckCircle2, Wand2
+  MessageSquare, Send, CheckCircle2, Wand2, Eye, EyeOff, Flame
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -30,6 +30,11 @@ interface BibleConfig {
   allow_verse_comments: boolean;
   enable_verse_feed_share: boolean;
   reading_plan_active: boolean;
+}
+
+interface FeedControls {
+  show_daily_verse: boolean;
+  show_fenamoro_banner: boolean;
 }
 
 interface RealStats {
@@ -63,6 +68,12 @@ export default function AdminBiblePage() {
     reading_plan_active: true,
   });
 
+  // Controles de Visibilidade no Feed (Palavra do Dia e FéNamoro)
+  const [feedControls, setFeedControls] = useState<FeedControls>({
+    show_daily_verse: true,
+    show_fenamoro_banner: true,
+  });
+
   // Métricas 100% REAIS diretamente do Supabase (Zero Mocks)
   const [stats, setStats] = useState<RealStats>({
     favoritesCount: 0,
@@ -92,14 +103,20 @@ export default function AdminBiblePage() {
 
   const loadConfigsOnly = async () => {
     try {
-      const { data } = await supabase
-        .from("system_configs")
-        .select("value")
-        .eq("key", "bible_system_config_v2")
-        .maybeSingle();
+      const [bibleRes, feedRes] = await Promise.allSettled([
+        supabase.from("system_configs").select("value").eq("key", "bible_system_config_v2").maybeSingle(),
+        supabase.from("system_configs").select("value").eq("key", "feed_display_controls_v1").maybeSingle(),
+      ]);
 
-      if (data?.value) {
-        setConfig(data.value);
+      if (bibleRes.status === "fulfilled" && bibleRes.value.data?.value) {
+        setConfig(bibleRes.value.data.value);
+      }
+
+      if (feedRes.status === "fulfilled" && feedRes.value.data?.value) {
+        setFeedControls({
+          show_daily_verse: feedRes.value.data.value.show_daily_verse ?? true,
+          show_fenamoro_banner: feedRes.value.data.value.show_fenamoro_banner ?? true,
+        });
       }
     } catch (err) {
       console.warn("[Bible] Erro ao sincronizar configs:", err);
@@ -111,12 +128,14 @@ export default function AdminBiblePage() {
     try {
       const [
         configRes,
+        feedRes,
         favRes,
         highRes,
         noteRes,
         shareRes
       ] = await Promise.allSettled([
         supabase.from("system_configs").select("value").eq("key", "bible_system_config_v2").maybeSingle(),
+        supabase.from("system_configs").select("value").eq("key", "feed_display_controls_v1").maybeSingle(),
         supabase.from("bible_interactions").select("*", { count: "exact", head: true }).eq("is_favorite", true),
         supabase.from("bible_interactions").select("*", { count: "exact", head: true }).not("highlight_color", "is", null),
         supabase.from("bible_interactions").select("*", { count: "exact", head: true }).not("comment", "is", null),
@@ -127,6 +146,13 @@ export default function AdminBiblePage() {
         setConfig(configRes.value.data.value);
       }
 
+      if (feedRes.status === "fulfilled" && feedRes.value.data?.value) {
+        setFeedControls({
+          show_daily_verse: feedRes.value.data.value.show_daily_verse ?? true,
+          show_fenamoro_banner: feedRes.value.data.value.show_fenamoro_banner ?? true,
+        });
+      }
+
       setStats({
         favoritesCount: favRes.status === "fulfilled" ? (favRes.value.count || 0) : 0,
         highlightsCount: highRes.status === "fulfilled" ? (highRes.value.count || 0) : 0,
@@ -135,9 +161,32 @@ export default function AdminBiblePage() {
       });
 
     } catch (err) {
-      console.error("[Bible] Erro ao carregar métricas reais:", err);
+      console.error("[Bible] Erro ao carregar dados:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Alternar Visibilidade dos Cards do Feed Instantaneamente
+  const handleToggleFeedControl = async (key: keyof FeedControls) => {
+    const updated = {
+      ...feedControls,
+      [key]: !feedControls[key]
+    };
+    setFeedControls(updated);
+
+    try {
+      await supabase.from("system_configs").upsert({
+        key: "feed_display_controls_v1",
+        value: updated,
+        updated_at: new Date().toISOString(),
+      });
+
+      const label = key === "show_daily_verse" ? "Palavra do Dia no Feed" : "Card FéNamoro no Feed";
+      const statusText = updated[key] ? "ATIVADO" : "DESATIVADO";
+      toast.success(`${label} ${statusText} com sucesso! 🙌`);
+    } catch (err: any) {
+      toast.error("Erro ao atualizar controle do feed: " + err.message);
     }
   };
 
@@ -189,27 +238,33 @@ export default function AdminBiblePage() {
     try {
       const referenceText = `${config.featured_verse.book} ${config.featured_verse.chapter}:${config.featured_verse.verse}`;
 
-      await Promise.allSettled([
-        // 1. Atualiza nas configurações gerais
-        supabase.from("system_configs").upsert({
-          key: "bible_system_config_v2",
-          value: config,
-          updated_at: new Date().toISOString(),
-        }),
-        // 2. Atualiza na tabela diária de versículos da comunidade
-        supabase.from("daily_verses").upsert({
-          content: config.featured_verse.text,
-          reference: referenceText,
-          book_abbrev: config.featured_verse.book.toLowerCase(),
-          chapter: config.featured_verse.chapter,
-          verse: config.featured_verse.verse,
-          is_active: true,
-          updated_at: new Date().toISOString()
-        }, { onConflict: "reference" }),
-      ]);
+      // 1. Atualiza nas configurações gerais da Bíblia
+      await supabase.from("system_configs").upsert({
+        key: "bible_system_config_v2",
+        value: config,
+        updated_at: new Date().toISOString(),
+      });
+
+      // 2. Desativa os versículos ativos anteriores
+      await supabase
+        .from("daily_verses")
+        .update({ is_active: false })
+        .eq("is_active", true);
+
+      // 3. Insere o novo Versículo do Dia no schema real
+      const { error: insertError } = await supabase.from("daily_verses").insert({
+        reference: referenceText,
+        content: config.featured_verse.text,
+        translation: config.featured_verse.version,
+        is_active: true,
+        scheduled_for: new Date().toISOString().split("T")[0],
+      });
+
+      if (insertError) throw insertError;
 
       toast.success(`Palavra do Dia (${referenceText}) aplicada e publicada com sucesso! 🙌✨`, { id: toastId });
     } catch (err: any) {
+      console.error("[Bible] Erro ao aplicar versículo:", err);
       toast.error("Erro ao aplicar: " + err.message, { id: toastId });
     } finally {
       setApplyingVerse(false);
@@ -281,6 +336,97 @@ export default function AdminBiblePage() {
             <Check className="h-4 w-4" />
             <span>{saving ? "Salvando..." : "Salvar Configuração"}</span>
           </button>
+        </div>
+      </div>
+
+      {/* ─── CONTROLES DE EXIBIÇÃO NO FEED (ATIVAR / DESATIVAR PALAVRA DO DIA & FÉNAMORO) ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
+        <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Controles de Visibilidade no Feed da Comunidade
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              Ative ou desative os cards no topo do feed dos membros em tempo real.
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-whatsapp-teal dark:text-whatsapp-green bg-whatsapp-teal/10 px-2 py-0.5 rounded">
+            Tempo Real (WebSocket)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Toggle: Palavra do Dia no Feed */}
+          <div
+            onClick={() => handleToggleFeedControl("show_daily_verse")}
+            className={cn(
+              "flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none",
+              feedControls.show_daily_verse 
+                ? "bg-amber-500/5 border-amber-500/30 hover:bg-amber-500/10" 
+                : "bg-muted/20 border-border opacity-70 hover:opacity-100"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-lg",
+                feedControls.show_daily_verse ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
+              )}>
+                {feedControls.show_daily_verse ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Palavra do Dia no Feed</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {feedControls.show_daily_verse ? "Visível no topo do feed dos membros" : "Ocultado do feed de todos os usuários"}
+                </p>
+              </div>
+            </div>
+
+            <span className={cn(
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
+              feedControls.show_daily_verse ? "bg-amber-500" : "bg-muted-foreground/30"
+            )}>
+              <span className={cn(
+                "inline-block size-3.5 rounded-full bg-white transition-transform",
+                feedControls.show_daily_verse ? "translate-x-4" : "translate-x-1"
+              )} />
+            </span>
+          </div>
+
+          {/* Toggle: Card FéNamoro no Feed */}
+          <div
+            onClick={() => handleToggleFeedControl("show_fenamoro_banner")}
+            className={cn(
+              "flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none",
+              feedControls.show_fenamoro_banner 
+                ? "bg-pink-500/5 border-pink-500/30 hover:bg-pink-500/10" 
+                : "bg-muted/20 border-border opacity-70 hover:opacity-100"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-lg",
+                feedControls.show_fenamoro_banner ? "bg-pink-500/10 text-pink-500" : "bg-muted text-muted-foreground"
+              )}>
+                <Heart className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Card Promocional FéNamoro</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {feedControls.show_fenamoro_banner ? "Banner ativo no feed e no menu" : "Card e link ocultados de toda a rede"}
+                </p>
+              </div>
+            </div>
+
+            <span className={cn(
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
+              feedControls.show_fenamoro_banner ? "bg-pink-500" : "bg-muted-foreground/30"
+            )}>
+              <span className={cn(
+                "inline-block size-3.5 rounded-full bg-white transition-transform",
+                feedControls.show_fenamoro_banner ? "translate-x-4" : "translate-x-1"
+              )} />
+            </span>
+          </div>
         </div>
       </div>
 
