@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   BookOpen, Sparkles, Search, RefreshCw, Check, 
   Share2, Heart, Highlighter, FileText, ArrowUpRight,
-  MessageSquare, ExternalLink, SlidersHorizontal, Eye
+  MessageSquare, Send, CheckCircle2, Wand2
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -42,6 +42,8 @@ interface RealStats {
 export default function AdminBiblePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [applyingVerse, setApplyingVerse] = useState(false);
+  const [fetchingText, setFetchingText] = useState(false);
   const [searchBook, setSearchBook] = useState("");
   const [selectedTestament, setSelectedTestament] = useState<"ALL" | "VT" | "NT">("ALL");
 
@@ -114,15 +116,10 @@ export default function AdminBiblePage() {
         noteRes,
         shareRes
       ] = await Promise.allSettled([
-        // 1. Configurações da Bíblia
         supabase.from("system_configs").select("value").eq("key", "bible_system_config_v2").maybeSingle(),
-        // 2. Total real de versículos favoritados pelos membros
         supabase.from("bible_interactions").select("*", { count: "exact", head: true }).eq("is_favorite", true),
-        // 3. Total real de versículos grifados com marca-texto
         supabase.from("bible_interactions").select("*", { count: "exact", head: true }).not("highlight_color", "is", null),
-        // 4. Total real de anotações e devocionais pessoais
         supabase.from("bible_interactions").select("*", { count: "exact", head: true }).not("comment", "is", null),
-        // 5. Total real de versículos compartilhados na timeline/feed
         supabase.from("posts").select("*", { count: "exact", head: true }).eq("post_type", "verse_share"),
       ]);
 
@@ -144,20 +141,62 @@ export default function AdminBiblePage() {
     }
   };
 
-  const handleSave = async () => {
-    setSaving(true);
-    const toastId = toast.loading("Salvando parâmetros e atualizando a Palavra do Dia...");
+  // 📖 Busca automática do texto do versículo diretamente dos arquivos da Bíblia
+  const handleAutoFetchVerseText = async (bookName = config.featured_verse.book, chapter = config.featured_verse.chapter, verse = config.featured_verse.verse, version = config.featured_verse.version) => {
+    setFetchingText(true);
+    try {
+      const bookObj = BIBLE_BOOKS.find(b => b.name.toLowerCase() === bookName.toLowerCase() || b.abbrev.toLowerCase() === bookName.toLowerCase());
+      if (!bookObj) {
+        toast.error("Livro não encontrado no catálogo.");
+        return;
+      }
+
+      const versionFile = version.toLowerCase() === "acf" ? "acf" : (version.toLowerCase() === "aa" ? "aa" : "nvi");
+      const res = await fetch(`/bible/${versionFile}.json`);
+      if (!res.ok) throw new Error("Arquivo da versão bíblica não encontrado.");
+
+      const bibleData = await res.json();
+      const targetBook = bibleData.find((b: any) => b.abbrev.toLowerCase() === bookObj.abbrev.toLowerCase());
+
+      if (targetBook && targetBook.chapters[chapter - 1] && targetBook.chapters[chapter - 1][verse - 1]) {
+        const foundText = targetBook.chapters[chapter - 1][verse - 1];
+        setConfig(prev => ({
+          ...prev,
+          featured_verse: {
+            ...prev.featured_verse,
+            book: bookObj.name,
+            chapter,
+            verse,
+            text: foundText,
+            version,
+          }
+        }));
+        toast.success(`Texto de ${bookObj.name} ${chapter}:${verse} carregado!`);
+      } else {
+        toast.warning(`Capítulo ou versículo não localizado em ${bookObj.name}.`);
+      }
+    } catch (err: any) {
+      toast.error("Erro ao buscar texto: " + err.message);
+    } finally {
+      setFetchingText(false);
+    }
+  };
+
+  // 🚀 Ação Direta: Aplicar e Publicar Palavra do Dia
+  const handleApplyFeaturedVerse = async () => {
+    setApplyingVerse(true);
+    const toastId = toast.loading("Aplicando e publicando Palavra do Dia na rede...");
     try {
       const referenceText = `${config.featured_verse.book} ${config.featured_verse.chapter}:${config.featured_verse.verse}`;
 
       await Promise.allSettled([
-        // Grava no system_configs
+        // 1. Atualiza nas configurações gerais
         supabase.from("system_configs").upsert({
           key: "bible_system_config_v2",
           value: config,
           updated_at: new Date().toISOString(),
         }),
-        // Grava na tabela de Palavra do Dia da comunidade
+        // 2. Atualiza na tabela diária de versículos da comunidade
         supabase.from("daily_verses").upsert({
           content: config.featured_verse.text,
           reference: referenceText,
@@ -169,7 +208,20 @@ export default function AdminBiblePage() {
         }, { onConflict: "reference" }),
       ]);
 
-      toast.success("Configurações salvas e Palavra do Dia aplicada! 📖✨", { id: toastId });
+      toast.success(`Palavra do Dia (${referenceText}) aplicada e publicada com sucesso! 🙌✨`, { id: toastId });
+    } catch (err: any) {
+      toast.error("Erro ao aplicar: " + err.message, { id: toastId });
+    } finally {
+      setApplyingVerse(false);
+    }
+  };
+
+  const handleSaveAll = async () => {
+    setSaving(true);
+    const toastId = toast.loading("Salvando parâmetros gerais da Bíblia...");
+    try {
+      await handleApplyFeaturedVerse();
+      toast.success("Todas as configurações foram salvas com sucesso! 📖", { id: toastId });
     } catch (err: any) {
       toast.error("Erro ao salvar: " + err.message, { id: toastId });
     } finally {
@@ -222,7 +274,7 @@ export default function AdminBiblePage() {
           </button>
 
           <button
-            onClick={handleSave}
+            onClick={handleSaveAll}
             disabled={saving}
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg bg-whatsapp-teal text-white text-xs font-semibold hover:bg-whatsapp-tealLight transition-colors shadow-sm active:scale-95 disabled:opacity-50"
           >
@@ -319,40 +371,48 @@ export default function AdminBiblePage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* COLUNA 1 & 2: VERSÍCULO EM DESTAQUE & PARÂMETROS */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Card: Versículo em Destaque do Dia */}
+          {/* Card: Versículo em Destaque do Dia com Ação Direta de Aplicação */}
           <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
-            <div className="border-b border-border pb-3 flex items-center justify-between">
+            <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h3 className="text-sm font-bold text-foreground">Versículo em Destaque do Dia</h3>
-                <p className="text-xs text-muted-foreground">Exibido no cabeçalho da Bíblia e como Palavra do Dia no feed</p>
+                <p className="text-xs text-muted-foreground">Exibido no cabeçalho da Bíblia e publicado como Palavra do Dia no feed</p>
               </div>
-              <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+              <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20 self-start sm:self-auto">
                 Palavra do Dia
               </span>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-semibold text-foreground mb-1.5">Livro</label>
-                <input
-                  type="text"
+                <label className="block text-xs font-semibold text-foreground mb-1.5">Livro da Bíblia</label>
+                <select
                   value={config.featured_verse.book}
-                  onChange={(e) => setConfig({
-                    ...config,
-                    featured_verse: { ...config.featured_verse, book: e.target.value }
-                  })}
+                  onChange={(e) => {
+                    const newBook = e.target.value;
+                    setConfig({
+                      ...config,
+                      featured_verse: { ...config.featured_verse, book: newBook }
+                    });
+                    handleAutoFetchVerseText(newBook, config.featured_verse.chapter, config.featured_verse.verse);
+                  }}
                   className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
-                />
+                >
+                  {BIBLE_BOOKS.map(b => (
+                    <option key={b.id} value={b.name}>{b.name} ({b.abbrev.toUpperCase()})</option>
+                  ))}
+                </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1.5">Capítulo</label>
                 <input
                   type="number"
+                  min={1}
                   value={config.featured_verse.chapter}
                   onChange={(e) => setConfig({
                     ...config,
-                    featured_verse: { ...config.featured_verse, chapter: Number(e.target.value) }
+                    featured_verse: { ...config.featured_verse, chapter: Math.max(1, Number(e.target.value)) }
                   })}
                   className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 />
@@ -362,10 +422,11 @@ export default function AdminBiblePage() {
                 <label className="block text-xs font-semibold text-foreground mb-1.5">Versículo</label>
                 <input
                   type="number"
+                  min={1}
                   value={config.featured_verse.verse}
                   onChange={(e) => setConfig({
                     ...config,
-                    featured_verse: { ...config.featured_verse, verse: Number(e.target.value) }
+                    featured_verse: { ...config.featured_verse, verse: Math.max(1, Number(e.target.value)) }
                   })}
                   className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 />
@@ -373,7 +434,18 @@ export default function AdminBiblePage() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-foreground mb-1.5">Texto Sagrado</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-semibold text-foreground">Texto Sagrado</label>
+                <button
+                  type="button"
+                  onClick={() => handleAutoFetchVerseText()}
+                  disabled={fetchingText}
+                  className="inline-flex items-center gap-1 text-[11px] text-whatsapp-teal dark:text-whatsapp-green hover:underline font-semibold disabled:opacity-50"
+                >
+                  <Wand2 className={cn("h-3 w-3", fetchingText && "animate-spin")} />
+                  <span>{fetchingText ? "Buscando..." : "Buscar texto na Bíblia"}</span>
+                </button>
+              </div>
               <textarea
                 rows={3}
                 value={config.featured_verse.text}
@@ -404,18 +476,38 @@ export default function AdminBiblePage() {
                 <label className="block text-xs font-semibold text-foreground mb-1.5">Versão Tradução</label>
                 <select
                   value={config.featured_verse.version}
-                  onChange={(e) => setConfig({
-                    ...config,
-                    featured_verse: { ...config.featured_verse, version: e.target.value }
-                  })}
+                  onChange={(e) => {
+                    const newVer = e.target.value;
+                    setConfig({
+                      ...config,
+                      featured_verse: { ...config.featured_verse, version: newVer }
+                    });
+                    handleAutoFetchVerseText(config.featured_verse.book, config.featured_verse.chapter, config.featured_verse.verse, newVer);
+                  }}
                   className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green font-medium"
                 >
                   <option value="NVI">NVI — Nova Versão Internacional</option>
                   <option value="ACF">ACF — Almeida Corrigida Fiel</option>
+                  <option value="AA">AA — Almeida Atualizada</option>
                   <option value="ARC">ARC — Almeida Revista e Corrigida</option>
-                  <option value="NVT">NVT — Nova Versão Transformadora</option>
                 </select>
               </div>
+            </div>
+
+            {/* 🚀 BOTÃO DEDICADO DE APLICAÇÃO DA PALAVRA DO DIA */}
+            <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border/40">
+              <span className="text-[11px] text-muted-foreground text-center sm:text-left">
+                Ao clicar em aplicar, a Palavra do Dia será publicada instantaneamente no feed da rede.
+              </span>
+              <button
+                type="button"
+                onClick={handleApplyFeaturedVerse}
+                disabled={applyingVerse}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-9 px-5 rounded-lg bg-whatsapp-teal text-white text-xs font-bold hover:bg-whatsapp-tealLight transition-all shadow-md active:scale-95 disabled:opacity-50 shrink-0"
+              >
+                <Send className={cn("h-3.5 w-3.5", applyingVerse && "animate-spin")} />
+                <span>{applyingVerse ? "Publicando..." : "Aplicar Palavra do Dia"}</span>
+              </button>
             </div>
           </div>
 
