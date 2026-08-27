@@ -91,9 +91,23 @@ export default function RootPage() {
   const profilesCacheRef = useRef<Record<string, any>>({});
   const [streak, setStreak] = useState(0);
   const [userChurches, setUserChurches] = useState<any[]>([]);
-  const [feedControls, setFeedControls] = useState({
-    show_daily_verse: true,
-    show_fenamoro_banner: true,
+  const [feedControls, setFeedControls] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('fc_feed_controls_v1');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          return {
+            show_daily_verse: parsed.show_daily_verse ?? true,
+            show_fenamoro_banner: parsed.show_fenamoro_banner ?? true,
+          };
+        }
+      } catch (e) {}
+    }
+    return {
+      show_daily_verse: true,
+      show_fenamoro_banner: true,
+    };
   });
 
   const loadStreak = async (id: string) => {
@@ -599,6 +613,16 @@ export default function RootPage() {
       }
     };
     window.addEventListener('presence-sync', handlePresenceSync);
+
+    const handleFeedControlsUpdate = (e: any) => {
+      if (e.detail) {
+        setFeedControls({
+          show_daily_verse: e.detail.show_daily_verse ?? true,
+          show_fenamoro_banner: e.detail.show_fenamoro_banner ?? true,
+        });
+      }
+    };
+    window.addEventListener('feed-controls-updated', handleFeedControlsUpdate);
 
     const channel = supabase
       .channel('unified-feed-updates')

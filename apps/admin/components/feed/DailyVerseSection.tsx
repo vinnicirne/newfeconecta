@@ -107,12 +107,12 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
       } else {
         setDailyVerses([]);
         setDailyVerse(null);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('fc_daily_verse_cache');
+        }
       }
     } catch (err) {
-      const hasCache = localStorage.getItem('fc_daily_verse_cache');
-      if (!hasCache) {
-        console.error("Erro ao carregar versículo do dia:", err);
-      }
+      console.error("Erro ao carregar versículo do dia:", err);
     }
   };
 

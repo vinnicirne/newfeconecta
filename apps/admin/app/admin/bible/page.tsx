@@ -176,11 +176,33 @@ export default function AdminBiblePage() {
     setFeedControls(updated);
 
     try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("fc_feed_controls_v1", JSON.stringify(updated));
+        window.dispatchEvent(new CustomEvent("feed-controls-updated", { detail: updated }));
+      }
+
       await supabase.from("system_configs").upsert({
         key: "feed_display_controls_v1",
         value: updated,
         updated_at: new Date().toISOString(),
       });
+
+      if (key === "show_daily_verse") {
+        if (!updated.show_daily_verse) {
+          // Desativa versículos ativos no banco para ocultar imediatamente de todos os feeds
+          await supabase.from("daily_verses").update({ is_active: false }).eq("is_active", true);
+        } else {
+          // Se reativou, garante o versículo em destaque ativo
+          const referenceText = `${config.featured_verse.book} ${config.featured_verse.chapter}:${config.featured_verse.verse}`;
+          await supabase.from("daily_verses").upsert({
+            reference: referenceText,
+            content: config.featured_verse.text,
+            translation: config.featured_verse.version,
+            is_active: true,
+            scheduled_for: new Date().toISOString().split("T")[0],
+          });
+        }
+      }
 
       const label = key === "show_daily_verse" ? "Palavra do Dia no Feed" : "Card FéNamoro no Feed";
       const statusText = updated[key] ? "ATIVADO" : "DESATIVADO";

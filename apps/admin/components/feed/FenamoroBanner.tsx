@@ -1,11 +1,53 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Heart, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function FenamoroBanner({ currentUser }: { currentUser: any }) {
   const [loading, setLoading] = useState(false);
+  const [visible, setVisible] = useState(true);
+
+  useEffect(() => {
+    // 1. Checa cache local inicial de forma rápida
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('fc_feed_controls_v1');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed.show_fenamoro_banner === false) {
+            setVisible(false);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 2. Escuta eventos customizados de atualização do feed
+    const handleUpdate = (e: any) => {
+      if (e.detail && typeof e.detail.show_fenamoro_banner === 'boolean') {
+        setVisible(e.detail.show_fenamoro_banner);
+      }
+    };
+    window.addEventListener('feed-controls-updated', handleUpdate);
+
+    // 3. Consulta em background do system_configs
+    supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'feed_display_controls_v1')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value && typeof data.value.show_fenamoro_banner === 'boolean') {
+          setVisible(data.value.show_fenamoro_banner);
+        }
+      });
+
+    return () => {
+      window.removeEventListener('feed-controls-updated', handleUpdate);
+    };
+  }, []);
+
+  if (!visible) return null;
 
   const handleSSO = async () => {
     if (!currentUser) {
@@ -60,31 +102,37 @@ export default function FenamoroBanner({ currentUser }: { currentUser: any }) {
         />
         
         {/* Gradient Overlay */}
-        <div className="absolute inset-0" style={{ background: "linear-gradient(to right, rgba(10,31,28,0.95), rgba(10,31,28,0.6))" }} />
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-950/90 via-teal-900/80 to-transparent" />
 
         {/* Content */}
-        <div className="relative z-10 p-5 flex flex-col justify-center">
-          <div className="flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-whatsapp-green/20">
-              <Heart className="w-4 h-4 text-whatsapp-green fill-whatsapp-green" />
+        <div className="relative p-6 z-10 flex flex-col justify-between h-44">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                <Heart className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
+              </div>
+              <span className="text-xs font-black tracking-widest text-emerald-400 uppercase">FéNamoro</span>
             </div>
-            <span className="font-outfit font-bold text-white text-lg tracking-tight">FéNamoro</span>
+            
+            <h3 className="text-xl font-black text-white leading-tight">
+              Buscando conexões com propósito?
+            </h3>
+            <p className="text-xs text-white/80 mt-1 max-w-[280px]">
+              Encontre cristãos da mesma fé perto de você.
+            </p>
           </div>
-          
-          <h3 className="font-jakarta font-bold text-white text-xl mb-1 text-balance">
-            Buscando conexões com propósito?
-          </h3>
-          <p className="font-manrope text-white/70 text-sm mb-4 max-w-[260px] leading-tight">
-            Encontre cristãos da mesma fé perto de você.
-          </p>
 
-          <button 
-            disabled={loading}
-            className="self-start px-5 py-2.5 rounded-full text-white text-sm font-bold flex items-center gap-2 transition-all"
-            style={{ background: "linear-gradient(135deg, #25D366, #128C7E)" }}
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Ativar meu perfil 🕊️"}
-          </button>
+          <div className="flex items-center justify-between">
+            <button className="bg-emerald-500 hover:bg-emerald-400 text-black font-extrabold text-xs px-4 py-2 rounded-full flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/20">
+              {loading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Conectando...
+                </>
+              ) : (
+                <>Ativar meu perfil 🕊️</>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
