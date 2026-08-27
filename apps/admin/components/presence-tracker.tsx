@@ -130,16 +130,23 @@ export function PresenceTracker() {
           })
           .subscribe(async (status) => {
             if (status === "SUBSCRIBED" && userId) {
-              await channel.track({
-                user_id: userId,
-                online_at: new Date().toISOString(),
-                route: currentFriendly.route,
-                page_title: currentFriendly.title,
-                page_icon: currentFriendly.icon,
-                entered_at: pageEnteredAtRef.current,
-                user_name: cached?.full_name || cached?.username || "Usuário",
-                avatar_url: cached?.avatar_url || null
-              });
+              try {
+                await channel.track({
+                  user_id: userId,
+                  online_at: new Date().toISOString(),
+                  route: currentFriendly.route,
+                  page_title: currentFriendly.title,
+                  page_icon: currentFriendly.icon,
+                  entered_at: pageEnteredAtRef.current,
+                  user_name: cached?.full_name || cached?.username || "Usuário",
+                  avatar_url: cached?.avatar_url || null
+                });
+              } catch (e) {}
+            } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+              // Se o servidor WebSocket estiver inacessível, desmonta o canal para não travar a UI em loop
+              try {
+                supabase.removeChannel(channel);
+              } catch (e) {}
             }
           });
 

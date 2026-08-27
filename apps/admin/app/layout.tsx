@@ -1,23 +1,13 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import BottomNav from "@/components/feed/BottomNav";
 import { Toaster } from "sonner";
 import { AuthGuard } from "@/components/auth-guard";
 import { ErrorInitializer } from "@/components/error-initializer";
 import { SWRProvider } from "@/components/swr-provider";
-import { OnboardingModal } from "@/components/OnboardingModal";
-import { MarketingOverlay } from "@/components/MarketingOverlay";
 import { GoogleProvider } from "@/components/google-provider";
-import MiniPlayer from "@/modules/femusic/presentation/components/MiniPlayer";
-import dynamic from "next/dynamic";
-import FullscreenPlayer from "@/modules/femusic/presentation/components/FullscreenPlayer";
 import { PresenceTracker } from "@/components/presence-tracker";
-
-const GlobalYouTubePlayer = dynamic(
-  () => import("@/modules/femusic/presentation/components/GlobalYouTubePlayer"),
-  { ssr: false }
-);
+import { GlobalShellFeatures } from "@/components/GlobalShellFeatures";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://newfeconecta.vercel.app"),
@@ -142,13 +132,8 @@ export default function RootLayout({
             >
               <AuthGuard>
                 <PresenceTracker />
-                <MarketingOverlay />
+                <GlobalShellFeatures />
                 {children}
-                <GlobalYouTubePlayer />
-                <BottomNav />
-                <MiniPlayer />
-                <OnboardingModal />
-                <FullscreenPlayer />
               </AuthGuard>
               <Toaster richColors position="top-center" />
             </ThemeProvider>
