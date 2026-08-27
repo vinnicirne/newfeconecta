@@ -26,7 +26,8 @@ import {
   Church, 
   Mail,
   ChevronRight,
-  BookOpen
+  BookOpen,
+  Music
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -63,6 +64,7 @@ const navigationGroups: NavGroup[] = [
       { name: "Salas de Oração", href: "/admin/rooms", icon: Mic },
       { name: "Mensagem do Dia", href: "/admin/mensagem-do-dia", icon: Sparkles },
       { name: "Bíblia Sagrada", href: "/admin/bible", icon: BookOpen },
+      { name: "FéMusic (Louvores)", href: "/admin/music", icon: Music },
       { name: "Páginas Institucionais", href: "/admin/pages", icon: FileText },
     ],
   },

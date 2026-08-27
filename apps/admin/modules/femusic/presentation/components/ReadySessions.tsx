@@ -1,16 +1,32 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { READY_SESSIONS, ReadySession } from '../../domain/sessions';
 import { YouTubeService } from '../../infrastructure/services/YouTubeService';
 import { MusicTrack } from '../../domain/entities/MusicTrack';
 import { saveContinueSession } from '../../domain/continueListening';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 export default function ReadySessions() {
+  const [sessions, setSessions] = useState<ReadySession[]>(READY_SESSIONS);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const { play } = usePlayerStore();
+
+  useEffect(() => {
+    // 1. Carrega do system_configs gerenciado pelo Admin
+    supabase
+      .from('system_configs')
+      .select('value')
+      .eq('key', 'femusic_system_config_v1')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.value?.sessions && Array.isArray(data.value.sessions) && data.value.sessions.length > 0) {
+          setSessions(data.value.sessions);
+        }
+      });
+  }, []);
 
   const startSession = async (session: ReadySession) => {
     setLoadingId(session.id);
@@ -77,12 +93,12 @@ export default function ReadySessions() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {READY_SESSIONS.map((session) => (
+        {sessions.map((session) => (
           <button
             key={session.id}
             onClick={() => startSession(session)}
             disabled={loadingId === session.id}
-            className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${session.color} active:scale-95 hover:brightness-110 transition-all shadow-lg border border-white/10 flex flex-col justify-between min-h-[130px]`}
+            className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${session.color || 'from-purple-600 to-indigo-700'} active:scale-95 hover:brightness-110 transition-all shadow-lg border border-white/10 flex flex-col justify-between min-h-[130px]`}
           >
             <div className="flex items-start justify-between w-full mb-2">
               <span className="text-2xl drop-shadow-md">{session.emoji}</span>
