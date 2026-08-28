@@ -205,6 +205,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     try {
       await provider.play(track);
       set({ isPlaying: true, progressMs: 0, durationMs: track.duration || 0, consecutiveFailures: 0, isLoading: false });
+
+      // Atualiza o ranking oficial de músicas mais ouvidas
+      import('../../domain/ranking').then(({ recordTrackPlay }) => {
+        recordTrackPlay(track);
+      }).catch(() => {});
     } catch (e) {
       console.warn("Failed to play track:", e);
       set({ currentTrack: null, isPlaying: false, isFullScreen: false, isLoading: false });

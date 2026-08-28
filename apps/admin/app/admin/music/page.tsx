@@ -8,7 +8,7 @@ import {
   Share2, ShieldCheck, ExternalLink, ArrowUpRight, Flame,
   CheckCircle2, Volume2, Clock, Eye, EyeOff, Sliders, VolumeX, 
   ListPlus, ShieldAlert, AlertTriangle, UserX, BellRing, Filter,
-  User, CheckCircle, Ban, History
+  User, CheckCircle, Ban, History, Trophy
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { READY_SESSIONS, ReadySession } from "@/modules/femusic/domain/sessions";
 import { YouTubeService } from "@/modules/femusic/infrastructure/services/YouTubeService";
 import { MusicTrack } from "@/modules/femusic/domain/entities/MusicTrack";
+import { fetchTopRankedTracks, RankedTrack } from "@/modules/femusic/domain/ranking";
 
 interface FeMusicConfig {
   enable_femusic_feed: boolean;
@@ -86,6 +87,10 @@ export default function AdminFeMusicPage() {
   const [currentPlayingTrack, setCurrentPlayingTrack] = useState<MusicTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [selectedSessionForAdd, setSelectedSessionForAdd] = useState<string>("");
+
+  // 🏆 Ranking Oficial de Louvores Mais Ouvidos
+  const [ranking, setRanking] = useState<RankedTrack[]>([]);
+  const [loadingRanking, setLoadingRanking] = useState(true);
 
   // Moderação de Músicas & Usuários
   const [moderatedTracks, setModeratedTracks] = useState<ModeratedTrackItem[]>([]);
@@ -343,6 +348,16 @@ export default function AdminFeMusicPage() {
         totalMusicShares,
         activeSessionsCount: sessions.length,
       });
+
+      // Carrega Ranking Oficial das Mais Tocadas
+      try {
+        const topTracks = await fetchTopRankedTracks(15);
+        setRanking(topTracks);
+      } catch (rErr) {
+        console.warn("[FeMusic] Erro ao carregar ranking no admin:", rErr);
+      } finally {
+        setLoadingRanking(false);
+      }
 
     } catch (err) {
       console.error("[FeMusic] Erro ao carregar telemetria:", err);
@@ -984,6 +999,175 @@ export default function AdminFeMusicPage() {
                     </td>
                   </tr>
                 ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* ─── 🏆 RANKING OFICIAL DE LOUVORES MAIS OUVIDOS NO APP ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
+        <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-amber-500 fill-amber-500" />
+              <h3 className="text-sm font-bold text-foreground">Ranking Oficial de Louvores Mais Ouvidos (Top Plays)</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Classificação em tempo real das músicas mais reproduzidas, salvas em playlists e compartilhadas no feed pela comunidade.
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded">
+            Atualizado em Tempo Real
+          </span>
+        </div>
+
+        {/* Tabela do Ranking */}
+        <div className="overflow-x-auto border border-border rounded-xl">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
+              <tr>
+                <th className="p-3">Posição</th>
+                <th className="p-3">Louvor / Faixa</th>
+                <th className="p-3 text-center">Plays Reais</th>
+                <th className="p-3 text-center">Em Playlists</th>
+                <th className="p-3 text-center">No Feed</th>
+                <th className="p-3 text-center">Pontuação</th>
+                <th className="p-3 text-right">Ações Rápidas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loadingRanking ? (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                    Carregando ranking oficial...
+                  </td>
+                </tr>
+              ) : ranking.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-6 text-center text-muted-foreground">
+                    Nenhum play registrado ainda.
+                  </td>
+                </tr>
+              ) : (
+                ranking.map((item, index) => {
+                  const trackForAction: MusicTrack = {
+                    id: item.providerTrackId || item.id,
+                    providerTrackId: item.providerTrackId || item.id,
+                    title: item.title,
+                    artist: item.artist,
+                    cover: item.cover,
+                    duration: item.duration || 240,
+                    provider: 'youtube',
+                  };
+
+                  return (
+                    <tr key={item.id || index} className="hover:bg-muted/20 transition-colors">
+                      {/* Posição com Medalhas */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-2">
+                          {index === 0 ? (
+                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-black font-black text-[11px] flex items-center justify-center shadow-sm">
+                              🥇
+                            </span>
+                          ) : index === 1 ? (
+                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-300 to-gray-400 text-black font-black text-[11px] flex items-center justify-center shadow-sm">
+                              🥈
+                            </span>
+                          ) : index === 2 ? (
+                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-700 to-amber-900 text-white font-black text-[11px] flex items-center justify-center shadow-sm">
+                              🥉
+                            </span>
+                          ) : (
+                            <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground font-bold text-[10px] flex items-center justify-center">
+                              #{index + 1}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* Louvor / Capa / Cantor */}
+                      <td className="p-3">
+                        <div className="flex items-center gap-3">
+                          <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black">
+                            {item.cover ? (
+                              <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <Music className="w-5 h-5 text-white/50 m-2.5" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-foreground truncate max-w-[200px]">{item.title}</p>
+                            <p className="text-[11px] text-muted-foreground truncate">{item.artist}</p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Total de Plays */}
+                      <td className="p-3 text-center">
+                        <span className="font-bold font-mono text-foreground">
+                          {item.playCount.toLocaleString('pt-BR')}
+                        </span>
+                      </td>
+
+                      {/* Em Playlists */}
+                      <td className="p-3 text-center">
+                        <span className="text-muted-foreground font-mono">
+                          {item.playlistCount}
+                        </span>
+                      </td>
+
+                      {/* No Feed */}
+                      <td className="p-3 text-center">
+                        <span className="text-muted-foreground font-mono">
+                          {item.feedShareCount}
+                        </span>
+                      </td>
+
+                      {/* Pontuação */}
+                      <td className="p-3 text-center">
+                        <span className="inline-flex items-center gap-1 font-bold text-whatsapp-teal dark:text-whatsapp-green bg-whatsapp-teal/10 px-2 py-0.5 rounded-full text-[10px]">
+                          <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
+                          {item.score} pts
+                        </span>
+                      </td>
+
+                      {/* Ações Rápidas */}
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => {
+                              if (currentPlayingTrack?.id === trackForAction.id) {
+                                setIsPlaying(!isPlaying);
+                              } else {
+                                setCurrentPlayingTrack(trackForAction);
+                                setIsPlaying(true);
+                              }
+                            }}
+                            className="p-1.5 rounded-lg bg-muted hover:bg-whatsapp-teal hover:text-white transition-colors"
+                            title="Pré-escutar no Estúdio"
+                          >
+                            {currentPlayingTrack?.id === trackForAction.id && isPlaying ? (
+                              <Pause className="w-3.5 h-3.5 fill-current" />
+                            ) : (
+                              <Play className="w-3.5 h-3.5 fill-current" />
+                            )}
+                          </button>
+
+                          <a
+                            href={`https://youtube.com/watch?v=${item.providerTrackId || item.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 rounded-lg bg-muted hover:bg-red-600 hover:text-white transition-colors"
+                            title="Abrir no YouTube"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -10,6 +10,7 @@ import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayer
 import { YouTubeService } from '@/modules/femusic/infrastructure/services/YouTubeService';
 import ReadySessions from '@/modules/femusic/presentation/components/ReadySessions';
 import ContinueListening from '@/modules/femusic/presentation/components/ContinueListening';
+import MusicRankingSection from '@/modules/femusic/presentation/components/MusicRankingSection';
 import { useWarmCache } from '@/modules/femusic/application/useWarmCache';
 import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
@@ -222,6 +223,11 @@ export default function MusicFeedPage() {
       {/* Sessões Prontas Oficiais */}
       <div className="px-4">
         <ReadySessions />
+      </div>
+
+      {/* 🏆 Top 10 Louvores Mais Tocados (Ranking da Comunidade) */}
+      <div className="px-4">
+        <MusicRankingSection />
       </div>
 
       {/* Carrossel: Em alta */}
