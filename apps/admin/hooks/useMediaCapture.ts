@@ -9,27 +9,31 @@ export type FacingMode = "user" | "environment";
 
 function getSupportedMimeType(kind: "video" | "audio"): string {
   if (kind === "video") {
-    if (MediaRecorder.isTypeSupported("video/mp4")) return "video/mp4"; // iOS preferido
-    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9")) return "video/webm;codecs=vp9";
-    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8")) return "video/webm;codecs=vp8";
+    // Ordem de preferência: H.264 High Profile (padrão Instagram) -> MP4 -> WebM
+    if (MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.640028,mp4a.40.2")) return "video/mp4;codecs=avc1.640028,mp4a.40.2";
+    if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) return "video/mp4;codecs=h264,aac";
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=h264,opus")) return "video/webm;codecs=h264,opus";
+    if (MediaRecorder.isTypeSupported("video/mp4")) return "video/mp4";
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) return "video/webm;codecs=vp9,opus";
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) return "video/webm;codecs=vp8,opus";
     if (MediaRecorder.isTypeSupported("video/webm")) return "video/webm";
     return "";
   }
+  if (MediaRecorder.isTypeSupported("audio/mp4;codecs=mp4a.40.2")) return "audio/mp4;codecs=mp4a.40.2";
   if (MediaRecorder.isTypeSupported("audio/mp4")) return "audio/mp4";
   if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
   if (MediaRecorder.isTypeSupported("audio/webm")) return "audio/webm";
   return "";
 }
 
-/** FOV aberto (estilo Instagram) — sem crop forçado do sensor */
+/** Padrão Instagram Stories: 1080x1920 (9:16 vertical), 30 fps */
 function buildVideoConstraints(facingMode: FacingMode): MediaTrackConstraints {
   return {
     facingMode: { ideal: facingMode },
-    // Resolução moderada: evita crop digital em vários Androids
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
-    frameRate: { ideal: 30, min: 24 },
-    // NÃO pedir aspectRatio aqui — o crop 9:16 fica no CSS (object-cover)
+    width: { ideal: 1080, max: 1920 },
+    height: { ideal: 1920, max: 1920 },
+    frameRate: { ideal: 30, max: 60 },
+    aspectRatio: { ideal: 9 / 16 },
   };
 }
 
@@ -43,7 +47,7 @@ export function useMediaCapture(
   const [handsFree, setHandsFree] = useState(false);
   const [micMuted, setMicMuted] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
-  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [isProcessingMedia, setIsProcessingMedia] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isReady, setIsReady] = useState(false); // preview com frames reais
 
@@ -91,17 +95,22 @@ export function useMediaCapture(
       requestAnimationFrame(() => video.play().catch(() => {}));
     }
 
-    // Marca “pronto” quando o primeiro frame chega (evita capturar tela preta)
+    // Marca “pronto” quando o primeiro frame chega com validação de dimensões
     const onReady = () => {
-      if (video.videoWidth > 0) {
+      if (video.videoWidth > 0 && video.videoHeight > 0) {
         setIsReady(true);
         video.removeEventListener("loadeddata", onReady);
+        video.removeEventListener("playing", onReady);
+        video.removeEventListener("canplay", onReady);
       }
     };
+
     if (video.readyState >= 2 && video.videoWidth > 0) {
       setIsReady(true);
     } else {
       video.addEventListener("loadeddata", onReady);
+      video.addEventListener("playing", onReady);
+      video.addEventListener("canplay", onReady);
     }
   }, []);
 
@@ -191,8 +200,8 @@ export function useMediaCapture(
               echoCancellation: true,
               noiseSuppression: true,
               autoGainControl: true,
-              sampleRate: { ideal: 48000 },
-              channelCount: { ideal: 1 },
+              sampleRate: { ideal: 44100 },
+              channelCount: { ideal: 2 },
             }
           : false,
       };
@@ -349,9 +358,9 @@ export function useMediaCapture(
     const options: MediaRecorderOptions = {};
     if (mimeType) options.mimeType = mimeType;
 
-    // Bitrate no patamar Instagram Stories (~5 Mbps vídeo)
+    // Bitrate no patamar Instagram Stories (3.5 Mbps vídeo alvo / 128 kbps áudio)
     if (mode !== "audio") {
-      options.videoBitsPerSecond = 5_000_000;
+      options.videoBitsPerSecond = 3_500_000;
       options.audioBitsPerSecond = 128_000;
     } else {
       options.audioBitsPerSecond = 128_000;
@@ -360,7 +369,16 @@ export function useMediaCapture(
     try {
       recorderRef.current = new MediaRecorder(streamRef.current, options);
     } catch {
-      recorderRef.current = new MediaRecorder(streamRef.current);
+      // Fallback 1: tenta sem mimeType mas com bitrates
+      try {
+        recorderRef.current = new MediaRecorder(streamRef.current, {
+          videoBitsPerSecond: options.videoBitsPerSecond,
+          audioBitsPerSecond: options.audioBitsPerSecond,
+        });
+      } catch {
+        // Fallback 2: MediaRecorder padrão do browser/device
+        recorderRef.current = new MediaRecorder(streamRef.current);
+      }
     }
 
     recorderRef.current.ondataavailable = (e) => {
@@ -375,23 +393,24 @@ export function useMediaCapture(
     timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
   }, [mode, isReady]);
 
-  const stopRecording = useCallback(() => {
+  const stopRecording = useCallback((shouldStopCamera: boolean = true) => {
     return new Promise<Blob | null>((resolve) => {
       if (!recorderRef.current || recorderRef.current.state === "inactive") {
         resolve(null);
         return;
       }
-      setIsProcessingPhoto(true);
+      setIsProcessingMedia(true);
 
       recorderRef.current.onstop = () => {
         const finalMime =
           recorderRef.current?.mimeType ||
           getSupportedMimeType(mode === "audio" ? "audio" : "video");
         const blob = new Blob(chunksRef.current, { type: finalMime });
-        setIsProcessingPhoto(false);
+        setIsProcessingMedia(false);
         resolve(blob);
-        // Adia stopCamera para não interromper a drenagem de chunks pendentes no Android WebView
-        setTimeout(() => stopCamera(), 0);
+        if (shouldStopCamera) {
+          setTimeout(() => stopCamera(), 0);
+        }
       };
 
       recorderRef.current.stop();
@@ -414,7 +433,8 @@ export function useMediaCapture(
     cameraError,
     isReady,
     flashOn,
-    isProcessingPhoto,
+    isProcessingMedia,
+    isProcessingPhoto: isProcessingMedia,
     startCamera,
     stopCamera,
     capturePhoto,

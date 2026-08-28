@@ -314,29 +314,40 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[10005] flex items-center justify-center p-0 md:p-6 bg-black/85 backdrop-blur-xl animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[10005] flex items-center justify-center p-0 md:p-6 bg-black/90 md:bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200">
       
-      {/* CARD DO STORIES: Formato Vertical Perfeito 9:16 com Respiro e Bordas Arredondadas */}
-      <div className="relative w-full h-full md:h-[90vh] md:max-h-[820px] md:max-w-[420px] bg-zinc-950 md:rounded-[32px] overflow-hidden shadow-2xl border border-white/10 flex flex-col justify-between">
+      {/* ─── CARD DO STORIES: Proporção Vertical 9:16 Perfeita com Safe-Area Resguardada ─── */}
+      <div className="relative w-full h-full md:h-[92vh] md:max-h-[820px] md:max-w-[410px] bg-zinc-950 md:rounded-[36px] overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.8)] border-0 md:border md:border-white/15 flex flex-col justify-between select-none">
         
-        {/* ─── HEADER COM BOTÕES FLUTUANTES ─── */}
-        <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 pt-5 md:pt-4 bg-gradient-to-b from-black/80 via-black/40 to-transparent">
+        {/* ─── HEADER SUPERIOR COM BOTÕES FLUTUANTES ─── */}
+        <div className="absolute top-0 inset-x-0 z-50 flex items-center justify-between p-4 pt-[max(env(safe-area-inset-top),16px)] bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none">
+          {/* Botão Fechar */}
           <button
             onClick={handleClose}
-            className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 shadow-md"
+            className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-lg border border-white/20 flex items-center justify-center text-white transition-all active:scale-90 shadow-lg pointer-events-auto"
             title="Fechar"
           >
             <X className="w-5 h-5" />
           </button>
 
-          {/* Controles de Câmera (Flip & Flash) */}
+          {/* Indicador de Gravação de Vídeo Central */}
+          {recording && (
+            <div className="bg-rose-600/90 backdrop-blur-lg px-3.5 py-1 rounded-full border border-white/25 flex items-center gap-2 shadow-xl animate-pulse pointer-events-auto">
+              <div className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
+              <span className="text-xs font-mono font-black text-white">
+                00:{recordDuration.toString().padStart(2, '0')} / 01:00
+              </span>
+            </div>
+          )}
+
+          {/* Controles de Câmera Direita (Flash & Flip) */}
           {(activeTab === 'photo' || activeTab === 'video') && !preview && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 pointer-events-auto">
               <button
                 onClick={toggleFlash}
                 className={cn(
-                  "w-10 h-10 rounded-full backdrop-blur-md border border-white/15 flex items-center justify-center transition-all active:scale-90 shadow-md",
-                  flashOn ? "bg-amber-500 text-black border-amber-400 font-bold" : "bg-black/40 text-white hover:bg-black/70"
+                  "w-10 h-10 rounded-full backdrop-blur-lg border border-white/20 flex items-center justify-center transition-all active:scale-90 shadow-lg",
+                  flashOn ? "bg-amber-500 text-black border-amber-400 font-bold" : "bg-black/50 text-white hover:bg-black/80"
                 )}
                 title="Alternar Flash"
               >
@@ -345,7 +356,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
               <button
                 onClick={toggleFacingMode}
-                className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 shadow-md"
+                className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-lg border border-white/20 flex items-center justify-center text-white transition-all active:scale-90 shadow-lg"
                 title="Trocar Câmera (Frontal / Traseira)"
               >
                 <FlipHorizontal className="w-5 h-5" />
@@ -360,21 +371,21 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                 const idx = colors.indexOf(bgColor);
                 setBgColor(colors[(idx + 1) % colors.length]);
               }}
-              className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 shadow-md"
+              className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-lg border border-white/20 flex items-center justify-center text-white transition-all active:scale-90 shadow-lg pointer-events-auto"
               title="Trocar cor de fundo"
             >
               <Palette className="w-5 h-5" />
             </button>
           )}
 
-          {/* Botão Refazer no Preview */}
+          {/* Botão Refazer no Modo Preview */}
           {preview && (
             <button
               onClick={() => {
                 if (preview.url) URL.revokeObjectURL(preview.url);
                 setPreview(null);
               }}
-              className="w-10 h-10 rounded-full bg-black/40 hover:bg-black/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-white transition-all active:scale-90 shadow-md"
+              className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/80 backdrop-blur-lg border border-white/20 flex items-center justify-center text-white transition-all active:scale-90 shadow-lg pointer-events-auto"
               title="Descartar e refazer"
             >
               <RotateCcw className="w-5 h-5" />
@@ -384,11 +395,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
 
         {/* ─── CORPO CENTRAL DO VIEWFINDER / CONTEÚDO ─── */}
-        <div className="flex-1 relative w-full h-full overflow-hidden flex items-center justify-center bg-black">
+        <div className="relative w-full h-full flex-1 overflow-hidden bg-black flex items-center justify-center">
           
           {/* CÂMERA AO VIVO (FOTO / VÍDEO) */}
           {(activeTab === 'photo' || activeTab === 'video') && !preview && (
-            <div className="relative w-full h-full">
+            <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
               <video 
                 ref={videoRef} 
                 autoPlay 
@@ -401,9 +412,9 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
               />
 
               {!isReady && !cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/80 gap-3 text-white">
-                  <Loader2 className="w-8 h-8 animate-spin text-whatsapp-teal" />
-                  <span className="text-xs font-semibold text-white/70">Iniciando câmera...</span>
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 gap-3 text-white">
+                  <Loader2 className="w-9 h-9 animate-spin text-whatsapp-teal" />
+                  <span className="text-xs font-bold text-white/80">Iniciando câmera em alta definição...</span>
                 </div>
               )}
 
@@ -416,20 +427,10 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   </div>
                   <button
                     onClick={() => setActiveTab('gallery')}
-                    className="px-5 py-2 rounded-full bg-whatsapp-teal text-white text-xs font-bold shadow-lg"
+                    className="px-5 py-2.5 rounded-full bg-whatsapp-teal text-white text-xs font-bold shadow-lg"
                   >
                     Usar fotos da Galeria
                   </button>
-                </div>
-              )}
-
-              {/* Indicador de Gravação de Vídeo */}
-              {recording && (
-                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-40 bg-rose-600/90 backdrop-blur-md px-4 py-1 rounded-full border border-white/20 flex items-center gap-2 shadow-xl animate-pulse">
-                  <div className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
-                  <span className="text-xs font-mono font-black text-white">
-                    00:{recordDuration.toString().padStart(2, '0')} / 01:00
-                  </span>
                 </div>
               )}
             </div>
@@ -450,7 +451,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   Toque para selecionar da galeria do seu aparelho
                 </p>
               </div>
-              <span className="px-5 py-2 rounded-full bg-whatsapp-teal text-white text-xs font-bold shadow-lg shadow-whatsapp-teal/20">
+              <span className="px-5 py-2.5 rounded-full bg-whatsapp-teal text-white text-xs font-bold shadow-lg shadow-whatsapp-teal/20">
                 Abrir Galeria
               </span>
             </div>
@@ -541,11 +542,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
 
         {/* ─── RODAPÉ: DISPARADOR, SELETORES E PUBLICAÇÃO ─── */}
-        <div className="p-4 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-3.5 z-40">
+        <div className="p-4 pb-[max(env(safe-area-inset-bottom),20px)] pt-5 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-3.5 z-40">
           
-          {/* SE NÃO ESTIVER EM PREVIEW: BOTAO DE DISPARO E SELETOR DE MODOS */}
+          {/* SE NÃO ESTIVER EM PREVIEW: DISPARADOR E SELETOR DE MODOS */}
           {!preview ? (
-            <div className="flex flex-col items-center gap-3">
+            <div className="flex flex-col items-center gap-3.5">
               
               {/* Botão Central de Disparo da Câmera */}
               {(activeTab === 'photo' || activeTab === 'video') && (
@@ -553,7 +554,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   {/* Botão Galeria Rápido */}
                   <button
                     onClick={() => fileRef.current?.click()}
-                    className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-white transition-all active:scale-95 shadow-md"
+                    className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white transition-all active:scale-90 shadow-lg"
                     title="Galeria"
                   >
                     <ImageIcon className="w-5 h-5" />
@@ -564,7 +565,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                     <button
                       onClick={handleTakePhoto}
                       disabled={isProcessingPhoto}
-                      className="w-18 h-18 rounded-full border-4 border-white p-1 flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.3)] disabled:opacity-50"
+                      className="w-18 h-18 rounded-full border-4 border-white p-1 flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.4)] disabled:opacity-50"
                       title="Tirar Foto"
                     >
                       <div className="w-14 h-14 rounded-full bg-white" />
@@ -574,7 +575,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                       onClick={handleToggleVideoRecord}
                       className={cn(
                         "w-18 h-18 rounded-full border-4 p-1 flex items-center justify-center active:scale-90 transition-all shadow-xl",
-                        recording ? "border-rose-500 shadow-rose-500/40 animate-pulse" : "border-white shadow-white/20"
+                        recording ? "border-rose-500 shadow-rose-500/40 animate-pulse" : "border-white shadow-white/30"
                       )}
                       title={recording ? "Parar Gravação" : "Gravar Vídeo"}
                     >
@@ -588,7 +589,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   {/* Flip de Câmera Rápido */}
                   <button
                     onClick={toggleFacingMode}
-                    className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center text-white transition-all active:scale-95 shadow-md"
+                    className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 border border-white/20 flex items-center justify-center text-white transition-all active:scale-90 shadow-lg"
                     title="Virar Câmera"
                   >
                     <FlipHorizontal className="w-5 h-5" />
@@ -597,12 +598,12 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
               )}
 
               {/* Barra Deslizante de Modos Estilo Instagram */}
-              <div className="flex items-center justify-center gap-4 bg-white/5 border border-white/10 px-4 py-1.5 rounded-full backdrop-blur-md">
+              <div className="flex items-center justify-center gap-3.5 sm:gap-4 bg-black/40 border border-white/15 px-4 py-1.5 rounded-full backdrop-blur-xl shadow-lg">
                 <button
                   onClick={() => setActiveTab('photo')}
                   className={cn(
                     "text-[11px] font-black tracking-wider transition-all uppercase",
-                    activeTab === 'photo' ? "text-whatsapp-green scale-105 font-bold" : "text-white/40 hover:text-white/70"
+                    activeTab === 'photo' ? "text-whatsapp-teal scale-105 font-bold" : "text-white/40 hover:text-white/70"
                   )}
                 >
                   Foto
@@ -611,7 +612,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   onClick={() => setActiveTab('video')}
                   className={cn(
                     "text-[11px] font-black tracking-wider transition-all uppercase",
-                    activeTab === 'video' ? "text-whatsapp-green scale-105 font-bold" : "text-white/40 hover:text-white/70"
+                    activeTab === 'video' ? "text-whatsapp-teal scale-105 font-bold" : "text-white/40 hover:text-white/70"
                   )}
                 >
                   Vídeo
@@ -620,7 +621,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   onClick={() => setActiveTab('gallery')}
                   className={cn(
                     "text-[11px] font-black tracking-wider transition-all uppercase",
-                    activeTab === 'gallery' ? "text-whatsapp-green scale-105 font-bold" : "text-white/40 hover:text-white/70"
+                    activeTab === 'gallery' ? "text-whatsapp-teal scale-105 font-bold" : "text-white/40 hover:text-white/70"
                   )}
                 >
                   Galeria
@@ -629,7 +630,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   onClick={() => setActiveTab('text')}
                   className={cn(
                     "text-[11px] font-black tracking-wider transition-all uppercase",
-                    activeTab === 'text' ? "text-whatsapp-green scale-105 font-bold" : "text-white/40 hover:text-white/70"
+                    activeTab === 'text' ? "text-whatsapp-teal scale-105 font-bold" : "text-white/40 hover:text-white/70"
                   )}
                 >
                   Texto
@@ -638,7 +639,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   onClick={() => setActiveTab('audio')}
                   className={cn(
                     "text-[11px] font-black tracking-wider transition-all uppercase",
-                    activeTab === 'audio' ? "text-whatsapp-green scale-105 font-bold" : "text-white/40 hover:text-white/70"
+                    activeTab === 'audio' ? "text-whatsapp-teal scale-105 font-bold" : "text-white/40 hover:text-white/70"
                   )}
                 >
                   Áudio
@@ -654,19 +655,19 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                   placeholder="Adicionar legenda ao story..."
                   value={caption}
                   onChange={(e) => setCaption(e.target.value)}
-                  className="w-full h-10 px-4 rounded-xl bg-white/10 border border-white/15 text-white placeholder:text-white/40 text-xs outline-none focus:border-whatsapp-teal"
+                  className="w-full h-11 px-4 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 text-xs outline-none focus:border-whatsapp-teal backdrop-blur-md"
                 />
               )}
 
               <div className="flex items-center justify-between gap-3">
-                <span className="text-[11px] text-white/50">
+                <span className="text-[11px] text-white/60 font-medium">
                   {activeTab === 'text' ? "Disponível por 24h" : "Pronto para publicar"}
                 </span>
 
                 <button
                   onClick={handlePublish}
                   disabled={isUploading}
-                  className="h-11 px-6 rounded-full bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-whatsapp-teal/25 transition-all active:scale-95 disabled:opacity-50"
+                  className="h-11 px-6 rounded-full bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-whatsapp-teal/30 transition-all active:scale-95 disabled:opacity-50"
                 >
                   {isUploading ? (
                     <>
@@ -690,7 +691,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
               <button
                 onClick={handlePublish}
                 disabled={isUploading || !textContent.trim()}
-                className="h-10 px-5 rounded-full bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-40"
+                className="h-11 px-6 rounded-full bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-whatsapp-teal/30 transition-all active:scale-95 disabled:opacity-40"
               >
                 <Send className="w-4 h-4" />
                 Publicar Texto
