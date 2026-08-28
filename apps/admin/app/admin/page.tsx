@@ -93,7 +93,7 @@ export default function DashboardPage() {
     loadDashboardData();
     checkServicesHealth();
 
-    // ⚡ Monitor Seguro do WebSocket Realtime do Supabase (sem loops)
+    // ⚡ Monitor Seguro do WebSocket Realtime do Supabase (sem loops ou recursão)
     const healthChannel = supabase.channel("dashboard-health-monitor");
     healthChannel
       .subscribe((status) => {
@@ -101,9 +101,6 @@ export default function DashboardPage() {
           setServicesHealth((prev) => ({ ...prev, realtime: true }));
         } else if (status === "CLOSED" || status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           setServicesHealth((prev) => ({ ...prev, realtime: false }));
-          try {
-            supabase.removeChannel(healthChannel);
-          } catch (e) {}
         }
       });
 
