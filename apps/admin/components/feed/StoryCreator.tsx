@@ -65,18 +65,23 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     '#8b5cf6', '#d946ef', '#f43f5e', '#ea580c', '#18181b'
   ];
 
-  // Iniciar ou pausar câmera ao abrir/fechar ou mudar de aba
+  const needsCamera =
+    open && (activeTab === "photo" || activeTab === "video") && !preview;
+
+  // Iniciar ou pausar câmera apenas quando o estado geral de necessidade muda
   useEffect(() => {
-    if (open) {
-      if ((activeTab === 'photo' || activeTab === 'video') && !preview) {
-        startCamera();
-      } else {
-        stopCamera();
-      }
-    } else {
+    if (!open) {
       handleReset();
+      return;
     }
-  }, [open, activeTab, preview, startCamera, stopCamera]);
+
+    if (needsCamera) {
+      startCamera();
+    } else {
+      stopCamera();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsCamera, open]);
 
   const handleReset = () => {
     if (preview?.url && preview.url.startsWith('blob:')) {

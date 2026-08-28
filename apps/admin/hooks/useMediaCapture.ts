@@ -26,14 +26,15 @@ function getSupportedMimeType(kind: "video" | "audio"): string {
   return "";
 }
 
-/** Padrão Instagram Stories: 1080x1920 (9:16 vertical), 30 fps */
+/** FOV aberto natural (sem super zoom / sem crop forçado do sensor) */
 function buildVideoConstraints(facingMode: FacingMode): MediaTrackConstraints {
   return {
     facingMode: { ideal: facingMode },
-    width: { ideal: 1080, max: 1920 },
-    height: { ideal: 1920, max: 1920 },
-    frameRate: { ideal: 30, max: 60 },
-    aspectRatio: { ideal: 9 / 16 },
+    // NÃO pedir 1080x1920 nem aspectRatio 9:16 aqui.
+    // Isso força crop digital (super zoom) na maioria dos celulares.
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
   };
 }
 
@@ -210,15 +211,11 @@ export function useMediaCapture(
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (firstErr: any) {
-        // Fallback robusto HD: tenta resolução 720x1280 (9:16)
-        console.warn("[useMediaCapture] fallback constraints acionado:", firstErr?.name);
+        console.warn("[useMediaCapture] fallback constraints solto acionado:", firstErr?.name);
         stream = await navigator.mediaDevices.getUserMedia({
           video: needsVideo
             ? {
                 facingMode: { ideal: facingMode },
-                width: { ideal: 720, max: 1280 },
-                height: { ideal: 1280, max: 1920 },
-                frameRate: { ideal: 30 },
               }
             : false,
           audio: needsAudio,
@@ -301,13 +298,13 @@ export function useMediaCapture(
   }, [startCamera]);
 
   useEffect(() => {
-    if (
-      streamRef.current &&
-      (prevConfigRef.current.facingMode !== facingMode ||
-        prevConfigRef.current.mode !== mode)
-    ) {
-      startCamera();
-    }
+    // Só reinicia se já existe stream e a config mudou
+    if (!streamRef.current) return;
+
+    const prev = prevConfigRef.current;
+    if (prev.facingMode === facingMode && prev.mode === mode) return;
+
+    startCamera();
   }, [facingMode, mode, startCamera]);
 
   const toggleFacingMode = useCallback(() => {

@@ -26,7 +26,7 @@ export default function StoryViewerHeader() {
 
   return (
     <>
-      <div className="absolute top-6 left-0 right-0 z-20 px-2 flex gap-1">
+      <div className="absolute top-[max(0.75rem,env(safe-area-inset-top))] left-0 right-0 z-20 px-2 flex gap-1">
         {group.stories.map((_: any, i: number) => (
           <div key={i} className="h-1 flex-1 bg-white/20 rounded-full overflow-hidden">
             <div 
@@ -40,7 +40,7 @@ export default function StoryViewerHeader() {
         ))}
       </div>
 
-      <div className="absolute top-10 left-0 right-0 z-20 px-4 flex items-center justify-between">
+      <div className="absolute top-[max(2.5rem,calc(env(safe-area-inset-top)+1.5rem))] left-0 right-0 z-20 px-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
            <div className="w-9 h-9 rounded-full overflow-hidden border-2 border-whatsapp-green bg-whatsapp-teal">
               {group.author_avatar && <img src={group.author_avatar} className="w-full h-full object-cover" alt="" />}
