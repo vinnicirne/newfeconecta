@@ -99,7 +99,9 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
       case 'follow': return <UserPlus className="w-3.5 h-3.5 text-whatsapp-teal" />;
       case 'repost': return <Repeat className="w-3.5 h-3.5 text-green-500" />;
       case 'story_reaction': return <Zap className="w-3.5 h-3.5 fill-yellow-500 text-yellow-500" />;
-      case 'room_invite': return <Zap className="w-3.5 h-3.5 fill-whatsapp-teal text-whatsapp-teal" />;
+      case 'room_invite':
+      case 'new_room': 
+        return <Zap className="w-3.5 h-3.5 fill-whatsapp-teal text-whatsapp-teal" />;
       case 'message': return <MessageCircle className="w-3.5 h-3.5 fill-whatsapp-teal text-whatsapp-teal" />;
       default: return <Bell className="w-3.5 h-3.5 text-gray-500" />;
     }
@@ -187,7 +189,7 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
                       if (notif.post_id) router.push(`/post/${notif.post_id}`);
                       else if (notif.type === 'message' && (notif as any).sender_id) router.push(`/messages?userId=${(notif as any).sender_id}`);
                       else if (notif.type === 'follow') router.push(`/profile/${notif.sender?.username}`);
-                      else if (notif.type === 'room_invite' || (notif as any).metadata?.room_id) {
+                      else if (notif.type === 'room_invite' || notif.type === 'new_room' || (notif as any).metadata?.room_id) {
                         const rId = (notif as any).metadata?.room_id || notif.id;
                         router.push(`/room/${rId}`);
                       }

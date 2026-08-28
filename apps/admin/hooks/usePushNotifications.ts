@@ -230,6 +230,8 @@ export const usePushNotifications = () => {
             'mention': 'Mencionou você',
             'repost': 'Republicou seu post',
             'room_invite': 'Convidou você para uma Sala de Guerra 🙏',
+            'new_room': 'Abriu uma nova Sala de Guerra 🙏',
+            'new_post': 'Fez uma nova publicação',
             'story_reaction': 'Reagiu ao seu Status',
             'message': 'Enviou uma mensagem',
             'broadcast': 'Aviso Oficial',

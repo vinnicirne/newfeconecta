@@ -9,13 +9,15 @@ interface NotifyParams {
   postId?: string;
   storyId?: string;
   content?: string;
+  metadata?: any;
+  link?: string;
 }
 
 export const NotificationService = {
   /**
    * Envia uma notificação centralizada com validação de segurança e regras de negócio.
    */
-  async notify({ recipientId, senderId, type, postId, storyId, content }: NotifyParams) {
+  async notify({ recipientId, senderId, type, postId, storyId, content, metadata, link }: NotifyParams) {
     // 1. Regra de Ouro: Não notificar a si mesmo
     if (recipientId === senderId) return { success: false, reason: 'self-notification' };
 
@@ -60,11 +62,13 @@ export const NotificationService = {
         post_id: postId,
         story_id: storyId,
         content,
+        link,
         is_read: false,
         priority: 'high',
         metadata: {
           push_banner: true,
-          sound: 'default'
+          sound: 'default',
+          ...metadata
         }
       });
 
@@ -225,7 +229,9 @@ export const NotificationService = {
             senderId,
             type: type,
             postId: type === 'new_post' ? referenceId : undefined,
-            content: formattedContent
+            content: formattedContent,
+            metadata: type === 'new_room' ? { room_id: referenceId } : undefined,
+            link: type === 'new_room' ? `/room/${referenceId}` : undefined
           })
         );
         await Promise.all(notifications);
