@@ -1,28 +1,69 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Heart, MessageCircle, Share2, Play, Music, Loader2 } from 'lucide-react';
+import { Heart, MessageCircle, Share2, Play, Music, Loader2, Sparkles } from 'lucide-react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+const FALLBACK_DISCOVER_TRACKS = [
+  {
+    id: 'disc-1',
+    title: 'Lugar Secreto',
+    artist: 'Gabriela Rocha',
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=800',
+    duration: 320,
+    provider: 'youtube',
+    providerTrackId: 'y3x9B92p10w',
+    reflection: 'Tu és tudo o que eu mais quero, o meu fôlego de vida... 🙏✨',
+    user: { full_name: 'FéConecta Música', username: 'feconecta', avatar_url: null }
+  },
+  {
+    id: 'disc-2',
+    title: 'A Casa É Sua',
+    artist: 'Casa Worship',
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800',
+    duration: 480,
+    provider: 'youtube',
+    providerTrackId: 'v4m3X89fL10',
+    reflection: 'Essa casa é sua casa, nós deixamos ela pra você, Jesus! ❤️',
+    user: { full_name: 'Comunidade da Fé', username: 'louvor', avatar_url: null }
+  },
+  {
+    id: 'disc-3',
+    title: 'Bondade de Deus',
+    artist: 'Isadora Pompeo',
+    cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=800',
+    duration: 310,
+    provider: 'youtube',
+    providerTrackId: 'i8L3k11w9Mp',
+    reflection: 'Toda a minha vida foste fiel, toda a minha vida foste tão bom!',
+    user: { full_name: 'Adoração Cristã', username: 'adoradores', avatar_url: null }
+  },
+];
+
 export default function DiscoverPage() {
   const { play, toggleLike, likedTracks } = usePlayerStore();
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<any[]>(FALLBACK_DISCOVER_TRACKS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchDiscover() {
-      const { data, error } = await supabase
-        .from('music_posts')
-        .select('*, user:profiles(full_name, avatar_url, username), track:music_tracks(*)')
-        .order('created_at', { ascending: false })
-        .limit(50);
-        
-      if (!error && data) {
-        setItems(data);
+      try {
+        const { data, error } = await supabase
+          .from('music_posts')
+          .select('*, user:profiles(full_name, avatar_url, username), track:music_tracks(*)')
+          .order('created_at', { ascending: false })
+          .limit(50);
+          
+        if (!error && data && data.length > 0) {
+          setItems(data);
+        }
+      } catch (e) {
+        console.warn("Usando catálogo de descoberta", e);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     fetchDiscover();
   }, []);
@@ -35,25 +76,13 @@ export default function DiscoverPage() {
     );
   }
 
-  if (items.length === 0) {
-    return (
-      <div className="h-[calc(100vh-130px)] w-full flex flex-col items-center justify-center bg-black text-white px-4 text-center">
-        <Music className="w-12 h-12 text-whatsapp-teal mb-4 opacity-80" />
-        <h3 className="font-bold text-lg mb-1">Nenhum louvor compartilhado ainda</h3>
-        <p className="text-xs text-gray-400 max-w-xs">
-          Compartilhe suas músicas e reflexões favoritas para que a comunidade possa ouvir aqui.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="h-[calc(100vh-130px)] w-full overflow-y-scroll snap-y snap-mandatory no-scrollbar bg-black text-white relative">
       {items.map((item) => {
         const track = item.track || {
           id: item.external_id || item.id,
           provider: item.platform || 'youtube',
-          providerTrackId: item.external_id || item.id,
+          providerTrackId: item.external_id || item.id || item.providerTrackId,
           title: item.title || 'Louvor',
           artist: item.artist || 'FéConecta',
           cover: item.cover,
@@ -105,7 +134,7 @@ export default function DiscoverPage() {
             <div className="absolute bottom-6 right-3 z-10 flex flex-col items-center gap-5">
               <button 
                 onClick={() => play(track, items.map(i => i.track || i))}
-                className="w-12 h-12 rounded-full bg-whatsapp-teal text-black flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+                className="w-12 h-12 rounded-full bg-whatsapp-teal text-white flex items-center justify-center shadow-lg active:scale-90 transition-transform"
                 title="Tocar Agora"
               >
                 <Play className="w-6 h-6 fill-current ml-0.5" />
@@ -146,4 +175,3 @@ export default function DiscoverPage() {
     </div>
   );
 }
-

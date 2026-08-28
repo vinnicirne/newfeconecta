@@ -4,14 +4,15 @@ import { requireAuth } from '@/lib/auth-server';
 export async function POST(request: Request) {
   try {
     // SECURITY: Apenas usuários autenticados podem requisitar extração de áudio.
+    let currentUser: any = null;
     try {
-      await requireAuth(request);
+      currentUser = await requireAuth(request);
     } catch (authErr: any) {
       return NextResponse.json({ error: 'Não autorizado', details: authErr?.message || 'Token ausente' }, { status: 401 });
     }
 
     const body = await request.json();
-    const { url } = body;
+    const { url, track } = body;
 
     if (!url) {
       return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -30,11 +31,23 @@ export async function POST(request: Request) {
       
       const { data: cacheRows } = await supabase
         .from('femusic_cache')
-        .select('audio_url')
+        .select('*')
         .eq('youtube_id', videoId)
         .limit(1);
 
       if (cacheRows && cacheRows.length > 0 && cacheRows[0].audio_url) {
+        // Se já existe no cache, atualiza o último usuário que ouviu/baixou caso não tenha
+        if (currentUser?.id && !cacheRows[0].user_id) {
+          await supabase
+            .from('femusic_cache')
+            .update({ 
+              user_id: currentUser.id,
+              title: track?.title || cacheRows[0].title,
+              artist: track?.artist || cacheRows[0].artist,
+              cover: track?.cover || cacheRows[0].cover
+            })
+            .eq('youtube_id', videoId);
+        }
         return NextResponse.json({ success: true, url: cacheRows[0].audio_url });
       }
     }
@@ -74,7 +87,15 @@ export async function POST(request: Request) {
       
       const { error: insertError } = await supabase
         .from('femusic_cache')
-        .upsert([{ youtube_id: videoId, audio_url: data.url }], { onConflict: 'youtube_id' });
+        .upsert([{ 
+          youtube_id: videoId, 
+          audio_url: data.url,
+          user_id: currentUser?.id || null,
+          title: track?.title || null,
+          artist: track?.artist || null,
+          cover: track?.cover || null,
+          created_at: new Date().toISOString()
+        }], { onConflict: 'youtube_id' });
         
       if (insertError) {
         console.error('[AudioExtractor] Erro ao salvar cache:', insertError);

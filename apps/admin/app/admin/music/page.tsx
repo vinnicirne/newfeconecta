@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { 
   Music, Sparkles, RefreshCw, Check, Plus, Trash2, Edit2, 
   Play, Pause, Search, Radio, Headphones, ListMusic, 
   Share2, ShieldCheck, ExternalLink, ArrowUpRight, Flame,
-  CheckCircle2, Volume2, Clock, Eye, EyeOff, Sliders
+  CheckCircle2, Volume2, Clock, Eye, EyeOff, Sliders, VolumeX, 
+  ListPlus, ShieldAlert, AlertTriangle, UserX, BellRing, Filter,
+  User, CheckCircle, Ban, History
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
@@ -28,6 +30,27 @@ interface FeMusicStats {
   totalPlaylistTracks: number;
   totalMusicShares: number;
   activeSessionsCount: number;
+}
+
+export interface ModeratedTrackItem {
+  id: string;
+  provider_track_id: string;
+  title: string;
+  artist: string;
+  cover?: string | null;
+  duration?: number | null;
+  source_type: "playlist" | "feed_post" | "audio_cache" | "track";
+  created_at: string;
+  user?: {
+    id: string;
+    full_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+    email?: string | null;
+    is_verified?: boolean;
+    verification_label?: string | null;
+  } | null;
+  isSecularSuspect: boolean;
 }
 
 export default function AdminFeMusicPage() {
@@ -62,9 +85,28 @@ export default function AdminFeMusicPage() {
   const [searchResults, setSearchResults] = useState<MusicTrack[]>([]);
   const [currentPlayingTrack, setCurrentPlayingTrack] = useState<MusicTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [selectedSessionForAdd, setSelectedSessionForAdd] = useState<string>("");
+
+  // Moderação de Músicas & Usuários
+  const [moderatedTracks, setModeratedTracks] = useState<ModeratedTrackItem[]>([]);
+  const [loadingTracks, setLoadingTracks] = useState(true);
+  const [trackSearchFilter, setTrackSearchFilter] = useState("");
+  const [trackSourceFilter, setTrackSourceFilter] = useState<string>("all");
+  const [trackStatusFilter, setTrackStatusFilter] = useState<"all" | "suspect" | "banned">("all");
+
+  // Modais de Ação Disciplinar
+  const [notifyModalOpen, setNotifyModalOpen] = useState(false);
+  const [suspendModalOpen, setSuspendModalOpen] = useState(false);
+  const [banModalOpen, setBanModalOpen] = useState(false);
+  const [selectedTrackForAction, setSelectedTrackForAction] = useState<ModeratedTrackItem | null>(null);
+  const [customNotifyMessage, setCustomNotifyMessage] = useState(
+    "Aviso da Moderação FéConecta: Identificamos a inserção de músicas não-cristãs/seculares em sua conta. O FéConecta é um espaço exclusivamente dedicado ao louvor e à adoração a Deus. Por favor, remova o conteúdo ou sua conta poderá ser suspensa."
+  );
+  const [suspendDurationDays, setSuspendDurationDays] = useState<number>(7);
 
   useEffect(() => {
     loadAllData();
+    loadModeratedTracks();
 
     // Sincronização em tempo real via WebSocket
     const channel = supabase.channel("admin_femusic_realtime")
@@ -98,6 +140,172 @@ export default function AdminFeMusicPage() {
       }
     } catch (err) {
       console.warn("[FeMusic] Erro ao sincronizar configs:", err);
+    }
+  };
+
+  const checkSecularSuspect = (title: string, artist: string): boolean => {
+    const text = `${title} ${artist}`.toLowerCase();
+    const gospelKeywords = [
+      "gospel", "louvor", "adoração", "adoracao", "deus", "jesus", "cristo", 
+      "senhor", "igreja", "culto", "harpa", "hino", "worship", "praise",
+      "fé", "feconecta", "santidade", "salvação", "salvacao", "glória", "gloria",
+      "pastor", "ministério", "ministerio", "cantor cristão", "cantora cristã",
+      "gabriela rocha", "morada", "fernandinho", "aline barros", "anderson freire",
+      "isadora pompeo", "casa worship", "theo rubia", "kemuel", "diante do trono",
+      "midian lima", "davi sacer", "bruna karla", "cassiane", "laura souguellis"
+    ];
+
+    const hasGospelKeyword = gospelKeywords.some(keyword => text.includes(keyword));
+    return !hasGospelKeyword; // Suspeita se não contiver nenhum termo cristão
+  };
+
+  const loadModeratedTracks = async () => {
+    setLoadingTracks(true);
+    try {
+      const itemsMap = new Map<string, ModeratedTrackItem>();
+
+      // 1. Faixas de Playlists com dados do criador da playlist
+      const { data: playlistTracks, error: ptErr } = await supabase
+        .from("music_playlist_tracks")
+        .select(`
+          id,
+          track_id,
+          track_data,
+          added_at,
+          playlist:music_playlists (
+            id,
+            title,
+            user_id,
+            user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+          )
+        `)
+        .order("added_at", { ascending: false })
+        .limit(60);
+
+      if (!ptErr && playlistTracks) {
+        for (const item of playlistTracks) {
+          const tData = item.track_data || {};
+          const trackId = tData.providerTrackId || tData.id || item.track_id;
+          const title = tData.title || "Louvor";
+          const artist = tData.artist || "Artista";
+          const playlistUser = (item.playlist as any)?.user;
+
+          itemsMap.set(`pt-${item.id}`, {
+            id: item.id,
+            provider_track_id: trackId,
+            title,
+            artist,
+            cover: tData.cover || null,
+            duration: tData.duration || null,
+            source_type: "playlist",
+            created_at: item.added_at || new Date().toISOString(),
+            user: playlistUser ? {
+              id: playlistUser.id,
+              full_name: playlistUser.full_name,
+              username: playlistUser.username,
+              avatar_url: playlistUser.avatar_url,
+              is_verified: playlistUser.is_verified,
+              verification_label: playlistUser.verification_label,
+            } : null,
+            isSecularSuspect: checkSecularSuspect(title, artist),
+          });
+        }
+      }
+
+      // 2. Posts de Louvor no Feed (com autor do post)
+      const { data: postTracks, error: postErr } = await supabase
+        .from("posts")
+        .select(`
+          id,
+          title,
+          content,
+          media_url,
+          media_data,
+          created_at,
+          user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+        `)
+        .eq("post_type", "music")
+        .order("created_at", { ascending: false })
+        .limit(40);
+
+      if (!postErr && postTracks) {
+        for (const post of postTracks) {
+          const mData = post.media_data || {};
+          const title = mData.title || post.title || "Louvor no Feed";
+          const artist = mData.artist || "Comunidade FéConecta";
+          const postUser = (post as any).user;
+
+          itemsMap.set(`post-${post.id}`, {
+            id: post.id,
+            provider_track_id: mData.providerTrackId || mData.id || post.id,
+            title,
+            artist,
+            cover: mData.cover || post.media_url || null,
+            duration: mData.duration || null,
+            source_type: "feed_post",
+            created_at: post.created_at || new Date().toISOString(),
+            user: postUser ? {
+              id: postUser.id,
+              full_name: postUser.full_name,
+              username: postUser.username,
+              avatar_url: postUser.avatar_url,
+              is_verified: postUser.is_verified,
+              verification_label: postUser.verification_label,
+            } : null,
+            isSecularSuspect: checkSecularSuspect(title, artist),
+          });
+        }
+      }
+
+      // 3. Cache de Áudio Baixado no Servidor (femusic_cache) com usuário que baixou
+      const { data: cacheTracks, error: cacheErr } = await supabase
+        .from("femusic_cache")
+        .select(`
+          id,
+          youtube_id,
+          title,
+          artist,
+          cover,
+          user_id,
+          created_at,
+          user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+        `)
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!cacheErr && cacheTracks) {
+        for (const cache of cacheTracks) {
+          const title = cache.title || `Áudio Extraído [${cache.youtube_id}]`;
+          const artist = cache.artist || "Download do Aplicativo";
+          const cacheUser = (cache as any).user;
+
+          itemsMap.set(`cache-${cache.id}`, {
+            id: cache.id,
+            provider_track_id: cache.youtube_id,
+            title,
+            artist,
+            cover: cache.cover || null,
+            duration: null,
+            source_type: "audio_cache",
+            created_at: cache.created_at || new Date().toISOString(),
+            user: cacheUser ? {
+              id: cacheUser.id,
+              full_name: cacheUser.full_name,
+              username: cacheUser.username,
+              avatar_url: cacheUser.avatar_url,
+              is_verified: cacheUser.is_verified,
+              verification_label: cacheUser.verification_label,
+            } : null,
+            isSecularSuspect: checkSecularSuspect(title, artist),
+          });
+        }
+      }
+
+      setModeratedTracks(Array.from(itemsMap.values()));
+    } catch (err) {
+      console.error("[FeMusic] Erro ao carregar faixas para moderação:", err);
+    } finally {
+      setLoadingTracks(false);
     }
   };
 
@@ -158,6 +366,10 @@ export default function AdminFeMusicPage() {
         updated_at: new Date().toISOString(),
       });
 
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("femusic-config-updated", { detail: { config, sessions } }));
+      }
+
       toast.success("Configurações do FéMusic salvas com sucesso! 🎵🙌", { id: toastId });
     } catch (err: any) {
       toast.error("Erro ao salvar: " + err.message, { id: toastId });
@@ -182,6 +394,130 @@ export default function AdminFeMusicPage() {
       toast.error("Erro na busca: " + err.message);
     } finally {
       setSearching(false);
+    }
+  };
+
+  // AÇÕES DE MODERAÇÃO DISCIPLINAR
+  // 1. Notificar Usuário sobre Música Secular
+  const handleSendWarningNotification = async () => {
+    if (!selectedTrackForAction?.user?.id) {
+      toast.error("Usuário responsável não identificado nesta faixa.");
+      return;
+    }
+
+    const toastId = toast.loading(`Enviando notificação de advertência para @${selectedTrackForAction.user.username}...`);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const adminSenderId = session?.user?.id || selectedTrackForAction.user.id;
+
+      await supabase.from("notifications").insert({
+        recipient_id: selectedTrackForAction.user.id,
+        sender_id: adminSenderId,
+        profile_id: selectedTrackForAction.user.id,
+        user_id: adminSenderId,
+        type: "mention",
+        content: customNotifyMessage,
+        data: {
+          action: "secular_music_warning",
+          track_title: selectedTrackForAction.title,
+          track_artist: selectedTrackForAction.artist,
+        },
+        read: false,
+        created_at: new Date().toISOString(),
+      });
+
+      toast.success(`Advertência enviada com sucesso para @${selectedTrackForAction.user.username}! 📩`, { id: toastId });
+      setNotifyModalOpen(false);
+    } catch (err: any) {
+      toast.error("Falha ao enviar notificação: " + err.message, { id: toastId });
+    }
+  };
+
+  // 2. Bloquear Usuário Temporariamente
+  const handleSuspendUser = async () => {
+    if (!selectedTrackForAction?.user?.id) return;
+    const toastId = toast.loading(`Aplicando suspensão de ${suspendDurationDays} dias para @${selectedTrackForAction.user.username}...`);
+
+    try {
+      const banLabel = `SUSPENSO_${suspendDurationDays}D`;
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_verified: false,
+          verification_label: banLabel,
+        })
+        .eq("id", selectedTrackForAction.user.id);
+
+      if (error) throw error;
+
+      // Envia notificação informando o bloqueio
+      const { data: { session } } = await supabase.auth.getSession();
+      const adminSenderId = session?.user?.id || selectedTrackForAction.user.id;
+
+      await supabase.from("notifications").insert({
+        recipient_id: selectedTrackForAction.user.id,
+        sender_id: adminSenderId,
+        profile_id: selectedTrackForAction.user.id,
+        user_id: adminSenderId,
+        type: "mention",
+        content: `Sua conta foi suspensa temporariamente por ${suspendDurationDays} dias devido à reincidência de músicas seculares no FéConecta.`,
+        read: false,
+        created_at: new Date().toISOString(),
+      });
+
+      toast.success(`Usuário @${selectedTrackForAction.user.username} suspenso por ${suspendDurationDays} dias! ⏱️`, { id: toastId });
+      setSuspendModalOpen(false);
+      loadModeratedTracks();
+    } catch (err: any) {
+      toast.error("Erro ao suspender usuário: " + err.message, { id: toastId });
+    }
+  };
+
+  // 3. Banir Usuário Permanentemente
+  const handleBanUserPermanent = async () => {
+    if (!selectedTrackForAction?.user?.id) return;
+    const toastId = toast.loading(`Banindo permanentemente @${selectedTrackForAction.user.username}...`);
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          is_verified: false,
+          verification_label: "BANIDO",
+        })
+        .eq("id", selectedTrackForAction.user.id);
+
+      if (error) throw error;
+
+      toast.success(`Usuário @${selectedTrackForAction.user.username} BANIDO com sucesso! 🚫`, { id: toastId });
+      setBanModalOpen(false);
+      loadModeratedTracks();
+    } catch (err: any) {
+      toast.error("Erro ao banir usuário: " + err.message, { id: toastId });
+    }
+  };
+
+  // 4. Purgar Música Secular do Banco e Cache
+  const handlePurgeTrack = async (item: ModeratedTrackItem) => {
+    if (!confirm(`Remover permanentemente "${item.title}" (${item.artist}) de todas as playlists, posts e cache da rede?`)) return;
+
+    const toastId = toast.loading(`Purgando música "${item.title}" da plataforma...`);
+    try {
+      // Deleta do cache se houver
+      await supabase.from("femusic_cache").delete().eq("youtube_id", item.provider_track_id);
+      
+      // Deleta das playlists
+      await supabase.from("music_playlist_tracks").delete().eq("track_id", item.provider_track_id);
+
+      // Deleta do posts de música se for post
+      if (item.source_type === "feed_post") {
+        await supabase.from("posts").delete().eq("id", item.id);
+      }
+
+      toast.success(`Música "${item.title}" purgada com sucesso! 🗑️`, { id: toastId });
+      setModeratedTracks(prev => prev.filter(t => t.id !== item.id));
+    } catch (err: any) {
+      toast.error("Erro ao purgar música: " + err.message, { id: toastId });
     }
   };
 
@@ -240,7 +576,7 @@ export default function AdminFeMusicPage() {
     setSessions(updatedList);
     setIsEditingSession(false);
     setEditingSessionData(null);
-    toast.success("Sessão atualizada na curadoria! Lembre-se de clicar em 'Salvar Configurações'.");
+    toast.success("Sessão atualizada na curadoria! Clique em 'Salvar Configurações' para publicar.");
   };
 
   const handleResetDefaultSessions = () => {
@@ -248,6 +584,51 @@ export default function AdminFeMusicPage() {
     setSessions(READY_SESSIONS);
     toast.success("Sessões restauradas para o padrão oficial.");
   };
+
+  // Adicionar faixa encontrada diretamente como query de uma sessão
+  const handleAddTrackToSession = (track: MusicTrack, targetSessionId: string) => {
+    if (!targetSessionId) {
+      toast.error("Selecione uma sessão de destino.");
+      return;
+    }
+
+    const target = sessions.find(s => s.id === targetSessionId);
+    if (!target) return;
+
+    const queryToAdd = `${track.artist} ${track.title}`.trim();
+    if (target.queries.includes(queryToAdd)) {
+      toast.info("Este louvor já está na sessão.");
+      return;
+    }
+
+    const updatedSessions = sessions.map(s => {
+      if (s.id === targetSessionId) {
+        return {
+          ...s,
+          queries: [...s.queries, queryToAdd],
+        };
+      }
+      return s;
+    });
+
+    setSessions(updatedSessions);
+    toast.success(`"${track.title}" adicionado à sessão "${target.title}"!`);
+  };
+
+  // Filtragem da lista de moderação
+  const filteredModeratedTracks = moderatedTracks.filter(item => {
+    if (trackSourceFilter !== "all" && item.source_type !== trackSourceFilter) return false;
+    if (trackStatusFilter === "suspect" && !item.isSecularSuspect) return false;
+    if (trackStatusFilter === "banned" && item.user?.verification_label !== "BANIDO") return false;
+
+    if (trackSearchFilter.trim()) {
+      const q = trackSearchFilter.toLowerCase();
+      const matchTrack = item.title.toLowerCase().includes(q) || item.artist.toLowerCase().includes(q);
+      const matchUser = item.user?.full_name?.toLowerCase().includes(q) || item.user?.username?.toLowerCase().includes(q);
+      return matchTrack || matchUser;
+    }
+    return true;
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-16">
@@ -257,15 +638,15 @@ export default function AdminFeMusicPage() {
         <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              Controle do FéMusic & Louvores
+              Controle & Moderação do FéMusic
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
               <Headphones className="h-3.5 w-3.5" />
-              v1.8.4 Stream Ready
+              v1.8.5 Guard & Moderation
             </span>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Gerencie o catálogo de louvores, sessões temáticas de adoração, playlists comunitárias e parâmetros de streaming.
+            Audite músicas baixadas e reproduzidas no app, identifique usuários com músicas seculares, envie advertências, aplique bloqueios temporários ou banimento.
           </p>
         </div>
 
@@ -280,7 +661,7 @@ export default function AdminFeMusicPage() {
           </Link>
 
           <button
-            onClick={loadAllData}
+            onClick={() => { loadAllData(); loadModeratedTracks(); }}
             disabled={loading}
             className="inline-flex items-center gap-1.5 h-9 px-3.5 rounded-lg border border-border bg-card text-xs font-semibold text-foreground hover:bg-muted transition-colors disabled:opacity-50 shadow-sm"
           >
@@ -382,6 +763,233 @@ export default function AdminFeMusicPage() {
         </div>
       </div>
 
+      {/* ─── 🛡️ CENTRAL DE AUDITORIA & MODERAÇÃO DE MÚSICAS BAIXADAS E USUÁRIOS ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
+        <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              <h3 className="text-sm font-bold text-foreground">Auditoria & Moderação de Músicas no App</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Monitore todas as músicas baixadas, playlists salvas e posts de áudio. Aplique advertências, bloqueio temporário ou banimento a usuários com músicas seculares.
+            </p>
+          </div>
+          <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded">
+            {filteredModeratedTracks.length} registros auditados
+          </span>
+        </div>
+
+        {/* Filtros e Busca de Moderação */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Buscar por música, cantor, nome de usuário ou @username..."
+              value={trackSearchFilter}
+              onChange={(e) => setTrackSearchFilter(e.target.value)}
+              className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+            />
+          </div>
+
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              value={trackSourceFilter}
+              onChange={(e) => setTrackSourceFilter(e.target.value)}
+              className="h-9 rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+            >
+              <option value="all">Origem: Todas</option>
+              <option value="playlist">Em Playlists</option>
+              <option value="feed_post">No Feed</option>
+              <option value="audio_cache">Cache do Servidor</option>
+            </select>
+
+            <select
+              value={trackStatusFilter}
+              onChange={(e) => setTrackStatusFilter(e.target.value as any)}
+              className="h-9 rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+            >
+              <option value="all">Status: Todos</option>
+              <option value="suspect">⚠️ Suspeita Secular</option>
+              <option value="banned">🚫 Usuários Banidos</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Tabela de Moderação */}
+        <div className="overflow-x-auto border border-border rounded-xl">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
+              <tr>
+                <th className="p-3">Música / Faixa</th>
+                <th className="p-3">Usuário Responsável</th>
+                <th className="p-3">Origem</th>
+                <th className="p-3">Classificação</th>
+                <th className="p-3 text-right">Ações Disciplinares</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {loadingTracks ? (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                    Carregando faixas para moderação...
+                  </td>
+                </tr>
+              ) : filteredModeratedTracks.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                    Nenhuma música encontrada com os filtros selecionados.
+                  </td>
+                </tr>
+              ) : (
+                filteredModeratedTracks.map((item) => (
+                  <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                    {/* Coluna 1: Faixa */}
+                    <td className="p-3">
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black">
+                          {item.cover ? (
+                            <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <Music className="w-5 h-5 text-white/50 m-2.5" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate max-w-[200px]">{item.title}</p>
+                          <p className="text-[11px] text-muted-foreground truncate">{item.artist}</p>
+                          <a
+                            href={`https://youtube.com/watch?v=${item.provider_track_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5 mt-0.5"
+                          >
+                            <span>Ouvir</span>
+                            <ExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* Coluna 2: Usuário Responsável */}
+                    <td className="p-3">
+                      {item.user ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted shrink-0 border border-border flex items-center justify-center">
+                            {item.user.avatar_url ? (
+                              <img src={item.user.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              <span className="font-bold text-[10px] uppercase">
+                                {(item.user.full_name || item.user.username || 'U')[0]}
+                              </span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1">
+                              <p className="font-bold text-foreground truncate">{item.user.full_name || item.user.username}</p>
+                              {item.user.verification_label === "BANIDO" && (
+                                <span className="text-[9px] font-bold bg-red-500/20 text-red-500 px-1 rounded">BANIDO</span>
+                              )}
+                              {item.user.verification_label?.startsWith("SUSPENSO") && (
+                                <span className="text-[9px] font-bold bg-amber-500/20 text-amber-500 px-1 rounded">SUSPENSO</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground">@{item.user.username || 'membro'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">Sistema / Cache Geral</span>
+                      )}
+                    </td>
+
+                    {/* Coluna 3: Origem */}
+                    <td className="p-3">
+                      <span className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
+                        item.source_type === "playlist" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+                        item.source_type === "feed_post" && "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+                        item.source_type === "audio_cache" && "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                      )}>
+                        {item.source_type === "playlist" ? "Playlist" : item.source_type === "feed_post" ? "Feed Post" : "Cache Servidor"}
+                      </span>
+                    </td>
+
+                    {/* Coluna 4: Classificação */}
+                    <td className="p-3">
+                      {item.isSecularSuspect ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                          <AlertTriangle className="w-3 h-3" />
+                          Suspeita Secular
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                          <CheckCircle className="w-3 h-3" />
+                          Louvor Cristão
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Coluna 5: Ações Disciplinares */}
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {item.user && (
+                          <>
+                            {/* Notificar / Advertir */}
+                            <button
+                              onClick={() => {
+                                setSelectedTrackForAction(item);
+                                setNotifyModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-muted hover:bg-amber-500/20 hover:text-amber-500 text-muted-foreground transition-colors"
+                              title="Enviar Notificação de Advertência"
+                            >
+                              <BellRing className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Bloquear Temporário */}
+                            <button
+                              onClick={() => {
+                                setSelectedTrackForAction(item);
+                                setSuspendModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-muted hover:bg-orange-500/20 hover:text-orange-500 text-muted-foreground transition-colors"
+                              title="Bloquear Usuário por Tempo (24h / 7d / 30d)"
+                            >
+                              <Clock className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Banir Usuário */}
+                            <button
+                              onClick={() => {
+                                setSelectedTrackForAction(item);
+                                setBanModalOpen(true);
+                              }}
+                              className="p-1.5 rounded-lg bg-muted hover:bg-red-500/20 hover:text-red-500 text-muted-foreground transition-colors"
+                              title="Banir Usuário Permanentemente"
+                            >
+                              <Ban className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+
+                        {/* Purgar Música */}
+                        <button
+                          onClick={() => handlePurgeTrack(item)}
+                          className="p-1.5 rounded-lg bg-muted hover:bg-red-500/20 hover:text-red-500 text-muted-foreground transition-colors"
+                          title="Purgar Música da Plataforma"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       {/* ─── CONTROLES DE RECURSOS DO FÉMUSIC (TOGGLES EM TEMPO REAL) ─── */}
       <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
         <div className="border-b border-border pb-3 flex items-center justify-between">
@@ -390,7 +998,7 @@ export default function AdminFeMusicPage() {
             <p className="text-xs text-muted-foreground">Defina a visibilidade do player, reprodução contínua e permissões de playlists</p>
           </div>
           <span className="text-[10px] font-bold text-whatsapp-teal bg-whatsapp-teal/10 px-2 py-0.5 rounded">
-            Tempo Real
+            Tempo Real (WebSocket)
           </span>
         </div>
 
@@ -579,14 +1187,16 @@ export default function AdminFeMusicPage() {
         </div>
       </div>
 
-      {/* ─── ESTÚDIO DE TESTE & PRÉ-ESCUTA DE LOUVORES DO YOUTUBE ─── */}
+      {/* ─── ESTÚDIO DE TESTE & PRÉ-ESCUTA DE LOUVORES DO YOUTUBE COM PLAYER REAL ─── */}
       <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
         <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h3 className="text-sm font-bold text-foreground">Estúdio de Busca & Pré-escuta de Louvores</h3>
-            <p className="text-xs text-muted-foreground">Teste os resultados retornados pelo motor de busca em tempo real</p>
+            <p className="text-xs text-muted-foreground">Teste os resultados retornados pelo motor de busca e pré-escute antes de associar a uma sessão</p>
           </div>
-          <span className="text-xs text-muted-foreground">Motor YouTube SSR</span>
+          <span className="text-xs text-muted-foreground bg-muted px-2.5 py-0.5 rounded font-mono">
+            YouTube Scraper SSR
+          </span>
         </div>
 
         {/* Barra de Busca de Músicas */}
@@ -611,68 +1221,270 @@ export default function AdminFeMusicPage() {
           </button>
         </form>
 
+        {/* Player Flutuante / Embutido para Pré-Escuta Real */}
+        {currentPlayingTrack && (
+          <div className="p-3.5 rounded-xl border border-whatsapp-teal/30 bg-whatsapp-teal/5 flex items-center justify-between gap-4 animate-in fade-in">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 border border-border bg-black">
+                {currentPlayingTrack.cover ? (
+                  <img src={currentPlayingTrack.cover} className="w-full h-full object-cover" alt="" />
+                ) : (
+                  <Music className="w-6 h-6 text-white m-3" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-foreground truncate">{currentPlayingTrack.title}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{currentPlayingTrack.artist}</p>
+                <span className="text-[10px] text-whatsapp-teal font-medium flex items-center gap-1 mt-0.5">
+                  <Volume2 className="w-3 h-3 animate-pulse" />
+                  Reproduzindo áudio no estúdio de teste
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <a
+                href={`https://www.youtube.com/watch?v=${currentPlayingTrack.providerTrackId || currentPlayingTrack.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-8 px-3 rounded-lg bg-red-600 text-white text-xs font-bold flex items-center gap-1 hover:bg-red-700 transition-colors"
+              >
+                <span>Assistir no YouTube</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <button
+                onClick={() => {
+                  setCurrentPlayingTrack(null);
+                  setIsPlaying(false);
+                }}
+                className="h-8 px-2.5 rounded-lg border border-border text-xs text-muted-foreground hover:text-foreground"
+              >
+                Parar
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Resultados da Busca */}
         {searchResults.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-2">
             {searchResults.map((track) => (
               <div
                 key={track.id}
-                className="flex items-center gap-3 p-2.5 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors group"
+                className="flex flex-col justify-between p-3 rounded-xl border border-border bg-muted/20 hover:bg-muted/40 transition-colors group"
               >
-                <div className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-black">
-                  {track.cover ? (
-                    <img src={track.cover} alt={track.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-white/40">
-                      <Music className="w-6 h-6" />
-                    </div>
-                  )}
-                  <button
-                    onClick={() => {
-                      if (currentPlayingTrack?.id === track.id) {
-                        setIsPlaying(!isPlaying);
-                      } else {
-                        setCurrentPlayingTrack(track);
-                        setIsPlaying(true);
-                      }
-                    }}
-                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
-                  >
-                    {currentPlayingTrack?.id === track.id && isPlaying ? (
-                      <Pause className="w-5 h-5 fill-current" />
+                <div className="flex items-center gap-3">
+                  <div className="relative w-14 h-14 rounded-lg overflow-hidden shrink-0 bg-black">
+                    {track.cover ? (
+                      <img src={track.cover} alt={track.title} className="w-full h-full object-cover" />
                     ) : (
-                      <Play className="w-5 h-5 fill-current" />
+                      <div className="w-full h-full flex items-center justify-center bg-zinc-800 text-white/40">
+                        <Music className="w-6 h-6" />
+                      </div>
                     )}
-                  </button>
+                    <button
+                      onClick={() => {
+                        if (currentPlayingTrack?.id === track.id) {
+                          setIsPlaying(!isPlaying);
+                        } else {
+                          setCurrentPlayingTrack(track);
+                          setIsPlaying(true);
+                        }
+                      }}
+                      className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white"
+                      title="Pré-escutar louvor"
+                    >
+                      {currentPlayingTrack?.id === track.id && isPlaying ? (
+                        <Pause className="w-5 h-5 fill-current" />
+                      ) : (
+                        <Play className="w-5 h-5 fill-current" />
+                      )}
+                    </button>
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground truncate">{track.title}</p>
+                    <p className="text-[11px] text-muted-foreground truncate">{track.artist}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
+                        <Clock className="w-3 h-3" />
+                        {(() => {
+                          const dur = track.duration || 0;
+                          return `${Math.floor(dur / 60)}:${(dur % 60).toString().padStart(2, '0')}`;
+                        })()}
+                      </span>
+                      <a
+                        href={`https://youtube.com/watch?v=${track.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5"
+                      >
+                        <span>YouTube</span>
+                        <ExternalLink className="w-2.5 h-2.5" />
+                      </a>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-foreground truncate">{track.title}</p>
-                  <p className="text-[11px] text-muted-foreground truncate">{track.artist}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                      <Clock className="w-3 h-3" />
-                      {(() => {
-                        const dur = track.duration || 0;
-                        return `${Math.floor(dur / 60)}:${(dur % 60).toString().padStart(2, '0')}`;
-                      })()}
-                    </span>
-                    <a
-                      href={`https://youtube.com/watch?v=${track.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5"
-                    >
-                      <span>YouTube</span>
-                      <ExternalLink className="w-2.5 h-2.5" />
-                    </a>
-                  </div>
+                {/* Ação rápida: Adicionar a uma Sessão do Admin */}
+                <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between gap-2">
+                  <select
+                    value={selectedSessionForAdd}
+                    onChange={(e) => setSelectedSessionForAdd(e.target.value)}
+                    className="h-7 w-full rounded-md border border-border bg-muted/40 px-2 text-[10px] text-foreground outline-none"
+                  >
+                    <option value="">Selecione uma sessão...</option>
+                    {sessions.map(s => (
+                      <option key={s.id} value={s.id}>{s.emoji} {s.title}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    onClick={() => handleAddTrackToSession(track, selectedSessionForAdd)}
+                    disabled={!selectedSessionForAdd}
+                    className="h-7 px-2.5 rounded-md bg-whatsapp-teal text-white text-[10px] font-bold hover:bg-whatsapp-tealLight disabled:opacity-40 shrink-0 flex items-center gap-1"
+                    title="Adicionar à Sessão Selecionada"
+                  >
+                    <ListPlus className="w-3 h-3" />
+                    <span>Adicionar</span>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         )}
       </div>
+
+      {/* ─── MODAL 1: NOTIFICAR / ADVERTIR USUÁRIO (MÚSICA SECULAR) ─── */}
+      {notifyModalOpen && selectedTrackForAction?.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <BellRing className="w-5 h-5 text-amber-500" />
+                <h3 className="text-base font-bold text-foreground">Enviar Advertência ao Usuário</h3>
+              </div>
+              <button onClick={() => setNotifyModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
+              <p className="font-bold text-foreground">Usuário: @{selectedTrackForAction.user.username}</p>
+              <p className="text-muted-foreground">Música auditada: <span className="font-semibold text-foreground">"{selectedTrackForAction.title}"</span> ({selectedTrackForAction.artist})</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Mensagem de Notificação</label>
+              <textarea
+                value={customNotifyMessage}
+                onChange={(e) => setCustomNotifyMessage(e.target.value)}
+                rows={4}
+                className="w-full rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+              />
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setNotifyModalOpen(false)}
+                className="h-9 px-4 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSendWarningNotification}
+                className="h-9 px-5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 shadow-sm"
+              >
+                Enviar Advertência
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 2: SUSPENDER USUÁRIO TEMPORARIAMENTE ─── */}
+      {suspendModalOpen && selectedTrackForAction?.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-500" />
+                <h3 className="text-base font-bold text-foreground">Bloqueio Temporário</h3>
+              </div>
+              <button onClick={() => setSuspendModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              O usuário <strong className="text-foreground">@{selectedTrackForAction.user.username}</strong> terá o acesso suspenso temporariamente e receberá um aviso disciplinar.
+            </p>
+
+            <div>
+              <label className="block text-xs font-semibold text-foreground mb-1">Período de Bloqueio</label>
+              <select
+                value={suspendDurationDays}
+                onChange={(e) => setSuspendDurationDays(parseInt(e.target.value, 10))}
+                className="h-9 w-full rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+              >
+                <option value={1}>24 Horas (1 dia)</option>
+                <option value={7}>7 Dias (1 semana)</option>
+                <option value={15}>15 Dias</option>
+                <option value={30}>30 Dias (1 mês)</option>
+              </select>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setSuspendModalOpen(false)}
+                className="h-9 px-4 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSuspendUser}
+                className="h-9 px-5 rounded-lg bg-orange-600 text-white text-xs font-bold hover:bg-orange-700 shadow-sm"
+              >
+                Confirmar Bloqueio
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 3: BANIR USUÁRIO PERMANENTEMENTE ─── */}
+      {banModalOpen && selectedTrackForAction?.user && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
+            <div className="border-b border-border pb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Ban className="w-5 h-5 text-red-500" />
+                <h3 className="text-base font-bold text-red-500">Banir Usuário da Plataforma</h3>
+              </div>
+              <button onClick={() => setBanModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
+            </div>
+
+            <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-xs space-y-1">
+              <p className="font-bold text-red-600 dark:text-red-400">Atenção: Ação Definitiva</p>
+              <p className="text-muted-foreground">
+                O usuário <strong className="text-foreground">@{selectedTrackForAction.user.username}</strong> perderá o acesso a todas as funcionalidades do FéConecta permanentemente por violação das diretrizes espirituais.
+              </p>
+            </div>
+
+            <div className="pt-2 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setBanModalOpen(false)}
+                className="h-9 px-4 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleBanUserPermanent}
+                className="h-9 px-5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 shadow-sm"
+              >
+                Banir Usuário
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── MODAL DE ADICIONAR / EDITAR SESSÃO TEMÁTICA ─── */}
       {isEditingSession && editingSessionData && (

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { PlayCircle, Plus, Music, Sparkles, Radio, ListPlus } from 'lucide-react';
+import { PlayCircle, Plus, Music, Sparkles, Radio, ListPlus, Flame, Loader2 } from 'lucide-react';
 import MusicComposerModal from '@/components/feed/MusicComposerModal';
 import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToPlaylistModal';
 import { MusicTrack } from '@/modules/femusic/domain/entities/MusicTrack';
@@ -15,23 +15,80 @@ import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 import { getStoredProfile } from '@/lib/profile-cache';
 
-const defaultTrending = [
-  ...READY_SESSIONS[0].curatedTracks.slice(0, 4),
-  ...READY_SESSIONS[3].curatedTracks.slice(0, 4),
-  ...READY_SESSIONS[1].curatedTracks.slice(0, 3)
+const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
+  {
+    id: 'trending-1',
+    title: 'Lugar Secreto',
+    artist: 'Gabriela Rocha',
+    duration: 320,
+    cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600',
+    provider: 'youtube',
+    providerTrackId: 'y3x9B92p10w',
+  },
+  {
+    id: 'trending-2',
+    title: 'A Casa É Sua',
+    artist: 'Casa Worship',
+    duration: 480,
+    cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
+    provider: 'youtube',
+    providerTrackId: 'v4m3X89fL10',
+  },
+  {
+    id: 'trending-3',
+    title: 'Bondade de Deus',
+    artist: 'Isadora Pompeo',
+    duration: 310,
+    cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=600',
+    provider: 'youtube',
+    providerTrackId: 'i8L3k11w9Mp',
+  },
+  {
+    id: 'trending-4',
+    title: 'Pode Morar Aqui',
+    artist: 'Theo Rubia',
+    duration: 520,
+    cover: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=600',
+    provider: 'youtube',
+    providerTrackId: 't9K2m10w8Lp',
+  },
 ];
 
-const defaultWorship = [
-  ...READY_SESSIONS[2].curatedTracks.slice(0, 4),
-  ...READY_SESSIONS[0].curatedTracks.slice(4, 8),
-  ...READY_SESSIONS[1].curatedTracks.slice(3, 7)
+const INITIAL_WORSHIP_SEEDS: MusicTrack[] = [
+  {
+    id: 'worship-1',
+    title: 'Para Que Entre o Rei',
+    artist: 'Morada',
+    duration: 410,
+    cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
+    provider: 'youtube',
+    providerTrackId: 'p7k9N21w8L0',
+  },
+  {
+    id: 'worship-2',
+    title: 'Raridade',
+    artist: 'Anderson Freire',
+    duration: 285,
+    cover: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=600',
+    provider: 'youtube',
+    providerTrackId: 'a9K1m00w8Ff',
+  },
+  {
+    id: 'worship-3',
+    title: 'Em Teus Braços',
+    artist: 'Laura Souguellis',
+    duration: 430,
+    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600',
+    provider: 'youtube',
+    providerTrackId: 'n4X8p11fL22',
+  },
 ];
 
 export default function MusicFeedPage() {
   useWarmCache();
   const [history, setHistory] = useState<any[]>([]);
-  const [trending, setTrending] = useState<any[]>(defaultTrending);
-  const [worship, setWorship] = useState<any[]>(defaultWorship);
+  const [trending, setTrending] = useState<MusicTrack[]>(INITIAL_TRENDING_SEEDS);
+  const [worship, setWorship] = useState<MusicTrack[]>(INITIAL_WORSHIP_SEEDS);
   const [loading, setLoading] = useState(true);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [selectedTrackForPlaylist, setSelectedTrackForPlaylist] = useState<MusicTrack | null>(null);
@@ -57,42 +114,42 @@ export default function MusicFeedPage() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
-      // Fetch trending gospel from YouTube using high-quality keywords
+      
+      // 1. Carrega histórico real do localStorage
+      if (typeof window !== 'undefined') {
+        try {
+          const historyStr = localStorage.getItem('fc_music_history');
+          if (historyStr) {
+            const parsed = JSON.parse(historyStr);
+            setHistory(parsed.filter((t: any) => t && t.title && t.title.trim() !== ''));
+          } else {
+            setHistory([]);
+          }
+        } catch (e) {
+          console.error("Falha ao ler histórico", e);
+        }
+      }
+
+      // 2. Busca Louvores em Alta do YouTube
       try {
         const youtubeGospel = await YouTubeService.getTrending(20);
         if (youtubeGospel && youtubeGospel.length > 0) {
           setTrending(youtubeGospel);
         }
       } catch (e) {
-        console.error("Falha ao buscar youtube gospel", e);
+        console.warn("Usando catálogo semente para Em Alta", e);
       }
 
-      // Fetch worship hits for the second carousel
+      // 3. Busca Louvores & Adoração ao Vivo
       try {
-        const worshipHits = await YouTubeService.search('louvor e adoração gospel ao vivo oficial', 50);
+        const worshipHits = await YouTubeService.search('louvor e adoração gospel ao vivo oficial', 30);
         if (worshipHits && worshipHits.length > 0) {
-          setWorship(worshipHits.filter((t: any) => t.duration <= 900).slice(0, 15));
+          setWorship(worshipHits.filter((t: any) => t.duration <= 1200).slice(0, 15));
         }
       } catch (e) {
-        console.error("Falha ao buscar adoração", e);
+        console.warn("Usando catálogo semente para Adoração", e);
       }
 
-      // Carregar histórico real do localStorage
-      if (typeof window !== 'undefined') {
-        try {
-          const historyStr = localStorage.getItem('fc_music_history');
-          if (historyStr) {
-            const parsed = JSON.parse(historyStr);
-            // Filtrar apenas faixas que tenham título válido
-            setHistory(parsed.filter((t: any) => t && t.title && t.title.trim() !== ''));
-          } else {
-            setHistory([]); // Vazio por padrão se não tiver histórico
-          }
-        } catch (e) {
-          console.error("Falha ao ler histórico", e);
-        }
-      }
-      
       setLoading(false);
     }
     
@@ -100,20 +157,21 @@ export default function MusicFeedPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black/95 text-gray-900 dark:text-gray-100 pb-24">
-      {/* New Header */}
+    <div className="min-h-screen bg-gray-50 dark:bg-black/95 text-gray-900 dark:text-gray-100 pb-28">
+      {/* Header do FéMusic */}
       <div className="px-4 py-6 flex items-center justify-between">
         <div>
           <h1 className="font-black text-2xl leading-tight">
-            {getGreeting()}, {user?.full_name ? user.full_name.split(' ')[0] : 'irmão(ã)'}!
+            {getGreeting()}, {user?.full_name ? user.full_name.split(' ')[0] : (user?.username || 'irmão(ã)')}!
           </h1>
-          <p className="text-sm text-gray-500 font-medium">O que vamos ouvir hoje?</p>
+          <p className="text-xs sm:text-sm text-gray-500 font-medium">O que vamos louvar hoje?</p>
         </div>
         <button
           onClick={() => setIsComposerOpen(true)}
-          className="w-12 h-12 rounded-full bg-whatsapp-teal text-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all"
+          className="w-11 h-11 rounded-full bg-whatsapp-teal text-white flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 hover:scale-105 active:scale-95 transition-all"
+          title="Compartilhar Louvor"
         >
-          <Plus className="w-6 h-6" />
+          <Plus className="w-5 h-5" />
         </button>
       </div>
 
@@ -122,21 +180,19 @@ export default function MusicFeedPage() {
         <ContinueListening />
       </div>
 
-
-      {/* Jukebox: Músicas ouvidas recentemente — 2 linhas com scroll horizontal */}
+      {/* Músicas ouvidas recentemente */}
       {history.length > 0 && (
         <div className="px-4 mb-8">
-          <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
+          <h2 className="font-bold text-base sm:text-lg mb-3 flex items-center gap-2">
             <PlayCircle className="w-5 h-5 text-whatsapp-teal" />
             Músicas ouvidas recentemente
           </h2>
-          {/* Grid fixo de 3 colunas × 2 linhas (max 6 músicas) */}
-          <div className="grid grid-cols-3 grid-rows-2 gap-3 pb-3">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 pb-2">
             {history.slice(0, 6).map((track, i) => (
               <div
                 key={i}
                 onClick={() => play(track, history)}
-                className="relative aspect-square w-full rounded-xl overflow-hidden cursor-pointer group shadow-md bg-gray-200 dark:bg-white/5"
+                className="relative aspect-square w-full rounded-2xl overflow-hidden cursor-pointer group shadow-md bg-gray-200 dark:bg-white/5 border border-white/5"
               >
                 {track.cover ? (
                   <img
@@ -149,13 +205,11 @@ export default function MusicFeedPage() {
                     <Music className="w-8 h-8 text-gray-400" />
                   </div>
                 )}
-                {/* Overlay escuro com ícone de play */}
                 <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 active:opacity-100 transition-opacity duration-200">
-                  <PlayCircle className="w-8 h-8 text-white drop-shadow-lg" />
+                  <PlayCircle className="w-7 h-7 text-white drop-shadow-lg" />
                 </div>
-                {/* Gradiente com título na base */}
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-1.5 pb-1.5 pt-4">
-                  <p className="text-white text-[9px] font-bold leading-tight truncate drop-shadow">
+                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent px-2 pb-1.5 pt-4">
+                  <p className="text-white text-[10px] font-bold leading-tight truncate drop-shadow">
                     {track.title || 'Faixa'}
                   </p>
                 </div>
@@ -165,28 +219,37 @@ export default function MusicFeedPage() {
         </div>
       )}
 
-      {/* Sessões Prontas */}
+      {/* Sessões Prontas Oficiais */}
       <div className="px-4">
         <ReadySessions />
       </div>
 
       {/* Carrossel: Em alta */}
       <div className="px-4 mb-8">
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <Music className="w-5 h-5 text-whatsapp-teal" />
-          Em alta no FéConecta
-        </h2>
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x">
-          {trending.length > 0 ? trending.map((track, i) => (
-            <div key={i} className="snap-start shrink-0 w-40 flex flex-col gap-2 cursor-pointer group" onClick={() => play(track, trending)}>
-              <div className="w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-base sm:text-lg flex items-center gap-2">
+            <Music className="w-5 h-5 text-whatsapp-teal" />
+            Em alta no FéConecta
+          </h2>
+          <span className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green">
+            Top Louvores
+          </span>
+        </div>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-3 snap-x">
+          {trending.map((track, i) => (
+            <div 
+              key={track.id || i} 
+              className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2 cursor-pointer group" 
+              onClick={() => play(track, trending)}
+            >
+              <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
                 {track.cover ? (
-                  <img src={track.cover} className="w-full h-full object-cover" />
+                  <img src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
                 ) : (
                   <Music className="w-8 h-8 text-gray-400" />
                 )}
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <PlayCircle className="w-8 h-8 text-white" />
+                  <PlayCircle className="w-8 h-8 text-white drop-shadow-md" />
                 </div>
                 <button
                   onClick={(e) => {
@@ -199,34 +262,41 @@ export default function MusicFeedPage() {
                   <ListPlus className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div>
-                <h3 className="font-bold text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
-                <p className="text-xs text-gray-500 truncate">{track.artist || 'Sem artista'}</p>
+              <div className="min-w-0">
+                <h3 className="font-bold text-xs sm:text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
+                <p className="text-[11px] text-gray-500 truncate">{track.artist || 'FéConecta Music'}</p>
               </div>
             </div>
-          )) : (
-            <div className="text-gray-500 text-sm">Nenhuma música em alta.</div>
-          )}
+          ))}
         </div>
       </div>
 
       {/* Carrossel: Louvor & Adoração */}
-      <div className="px-4 mb-12">
-        <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
-          <Sparkles className="w-5 h-5 text-whatsapp-teal" />
-          Louvor & Adoração ao Vivo
-        </h2>
-        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-4 snap-x">
-          {worship.length > 0 ? worship.map((track, i) => (
-            <div key={i} className="snap-start shrink-0 w-40 flex flex-col gap-2 cursor-pointer group" onClick={() => play(track, worship)}>
-              <div className="w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center">
+      <div className="px-4 mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-bold text-base sm:text-lg flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-whatsapp-teal" />
+            Louvor & Adoração ao Vivo
+          </h2>
+          <span className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green">
+            Ao Vivo
+          </span>
+        </div>
+        <div className="flex gap-4 overflow-x-auto no-scrollbar pb-3 snap-x">
+          {worship.map((track, i) => (
+            <div 
+              key={track.id || i} 
+              className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2 cursor-pointer group" 
+              onClick={() => play(track, worship)}
+            >
+              <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
                 {track.cover ? (
-                  <img src={track.cover} className="w-full h-full object-cover" />
+                  <img src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
                 ) : (
                   <Radio className="w-8 h-8 text-gray-400" />
                 )}
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <PlayCircle className="w-8 h-8 text-white" />
+                  <PlayCircle className="w-8 h-8 text-white drop-shadow-md" />
                 </div>
                 <button
                   onClick={(e) => {
@@ -239,14 +309,12 @@ export default function MusicFeedPage() {
                   <ListPlus className="w-3.5 h-3.5" />
                 </button>
               </div>
-              <div>
-                <h3 className="font-bold text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
-                <p className="text-xs text-gray-500 truncate">{track.artist || 'Sem artista'}</p>
+              <div className="min-w-0">
+                <h3 className="font-bold text-xs sm:text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
+                <p className="text-[11px] text-gray-500 truncate">{track.artist || 'FéConecta Music'}</p>
               </div>
             </div>
-          )) : (
-            <div className="text-gray-500 text-sm">Carregando louvores...</div>
-          )}
+          ))}
         </div>
       </div>
 

@@ -5,8 +5,8 @@ export interface MusicTrack {
   title: string;
   artist: string;
   album?: string | null;
-  duration?: number | null; // em milissegundos
+  duration?: number | null; // em segundos ou milissegundos
   cover?: string | null;
   previewUrl?: string | null;
-  createdAt: string;
+  createdAt?: string | null;
 }
