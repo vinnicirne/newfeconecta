@@ -69,18 +69,46 @@ export class ErrorMonitor {
       });
 
       window.addEventListener('error', (event) => {
-        if (event.message?.includes('ResizeObserver')) return;
+        const filename = event.filename || '';
+        const message = event.message || '';
+        const stack = event.error?.stack || '';
+
+        // Ignorar ativamente erros provocados por extensões do navegador (Chrome/Edge/Firefox)
+        if (
+          filename.startsWith('chrome-extension://') ||
+          filename.startsWith('moz-extension://') ||
+          filename.startsWith('safari-extension://') ||
+          stack.includes('chrome-extension://') ||
+          message.includes('M_ID') ||
+          message.includes('ResizeObserver')
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
         
         this.log('system', event.error || new Error(event.message), {
           source: event.filename,
           lineno: event.lineno,
           colno: event.colno
         });
-      });
+      }, true);
 
       window.addEventListener('unhandledrejection', (event) => {
         const errObj = event.reason;
         const errMsg = String(errObj?.message || errObj);
+        const errStack = String(errObj?.stack || '');
+
+        // Ignorar erros de extensões do Chrome
+        if (
+          errStack.includes('chrome-extension://') ||
+          errStack.includes('moz-extension://') ||
+          errMsg.includes('M_ID')
+        ) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          return;
+        }
 
         // Ignorar erros de concorrência de sessão (Lock Manager)
         if (errMsg.includes('Lock broken') || errMsg.includes('steal') || errMsg.includes('stole')) {
