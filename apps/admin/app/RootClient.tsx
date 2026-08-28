@@ -16,6 +16,7 @@ import {
   MoreVertical,
   ShieldCheck,
   ScrollText,
+  FileText,
   Cookie,
   Megaphone,
   Users,
@@ -810,11 +811,11 @@ export default function RootPage() {
                       <span className="text-[11px] font-bold text-indigo-700 dark:text-indigo-300">Jogos & Quiz</span>
                     </Link>
                     <Link href="/bible" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-                      <ScrollText className="w-6 h-6 mb-1 text-emerald-500" />
+                      <BookOpen className="w-6 h-6 mb-1 text-emerald-500" />
                       <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Bíblia</span>
                     </Link>
                     <Link href="/notes" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-                      <BookOpen className="w-6 h-6 mb-1 text-amber-500" />
+                      <FileText className="w-6 h-6 mb-1 text-amber-500" />
                       <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Notas</span>
                     </Link>
                     <Link href="/music" className="flex flex-col items-center justify-center p-3 rounded-xl bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
@@ -977,7 +978,7 @@ export default function RootPage() {
                 </button>
 
                 <Link href="/bible" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-emerald-500 transition-all" title="Bíblia Sagrada">
-                  <ScrollText className="w-5 h-5" />
+                  <BookOpen className="w-5 h-5" />
                 </Link>
               </>
             )}
@@ -1017,8 +1018,8 @@ export default function RootPage() {
           {/* Navegação Principal */}
           <nav className="space-y-0.5">
             <Link href="/" className="w-full flex items-center gap-3 px-4 py-3 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</Link>
-            <Link href="/bible" className="w-full flex items-center gap-3 px-4 py-3 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><ScrollText className="w-5 h-5" /> Bíblia Sagrada</Link>
-            <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Notas</Link>
+            <Link href="/bible" className="w-full flex items-center gap-3 px-4 py-3 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Bíblia Sagrada</Link>
+            <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><FileText className="w-5 h-5" /> Notas</Link>
             <Link href="/music" className="w-full flex items-center gap-3 px-4 py-3 text-purple-500 hover:bg-purple-500/5 rounded-2xl transition-all font-bold"><Music className="w-5 h-5" /> Música</Link>
             <Link href="/messages" className="w-full flex items-center justify-between px-4 py-3 text-whatsapp-teal dark:text-whatsapp-green hover:bg-whatsapp-teal/5 rounded-2xl transition-all font-bold">
               <span className="flex items-center gap-3"><MessageSquare className="w-5 h-5" /> Chat</span>
