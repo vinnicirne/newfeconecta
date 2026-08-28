@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Search, ChevronRight, ChevronLeft, Heart, Send,
-  X, FileText, ChevronDown, Sparkles, Plus, Check, Columns3, Loader2, Highlighter, Eraser, Play, Square, Trash2, Globe, Lock
+  X, FileText, ChevronDown, Sparkles, Plus, Check, Columns3, Loader2, Highlighter, Eraser, Play, Square, Trash2, Globe, Lock,
+  Share2, Copy, CheckSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -14,6 +15,7 @@ import { useBibleChapter } from "@/hooks/useBibleChapter";
 import { useBibleTTS } from "@/hooks/useBibleTTS";
 import { useBibleAI } from "@/hooks/useBibleAI";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
+import VerseShareModal from "@/components/bible/VerseShareModal";
 
 const BIBLE_VERSIONS = [
   { id: "nvi", name: "NVI", label: "Nova Versão Internacional", color: "#00A884" },
@@ -48,6 +50,11 @@ function BibleContent() {
   const [searchQuery, setSearchQuery] = useState("");
   const [focusedVerse, setFocusedVerse] = useState<number | null>(null);
   const [highlightPickerVerse, setHighlightPickerVerse] = useState<number | null>(null);
+
+  // Seleção Múltipla de Versículos & Compartilhamento (Instagram / WhatsApp / Apps)
+  const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [versesToShare, setVersesToShare] = useState<any[]>([]);
 
   // Hook Atômico 1: Fetch e Cache de Capítulo
   const { verses, loading } = useBibleChapter(selectedBook, selectedChapter, selectedVersion, selectedBookName);
@@ -203,6 +210,70 @@ function BibleContent() {
     } catch (error) { toast.error("Erro ao compartilhar"); }
   }
 
+  // Alterna a seleção de um versículo (para compartilhamento múltiplo)
+  const toggleVerseSelection = (verseNum: number) => {
+    setSelectedVerses(prev => 
+      prev.includes(verseNum) 
+        ? prev.filter(n => n !== verseNum)
+        : [...prev, verseNum].sort((a, b) => a - b)
+    );
+  };
+
+  const clearSelection = () => setSelectedVerses([]);
+
+  // Abre o modal de compartilhamento (para 1 versículo ou para os selecionados)
+  const openShareModal = (targetVerses?: any[]) => {
+    if (targetVerses && targetVerses.length > 0) {
+      setVersesToShare(targetVerses);
+    } else if (selectedVerses.length > 0) {
+      const selectedList = verses.filter(v => selectedVerses.includes(v.number));
+      setVersesToShare(selectedList);
+    }
+    setIsShareModalOpen(true);
+  };
+
+  // Copia os versículos selecionados
+  const copySelectedVerses = () => {
+    if (selectedVerses.length === 0) return;
+    const selectedList = verses.filter(v => selectedVerses.includes(v.number));
+    const formattedNums = selectedVerses.length === 1
+      ? `${selectedVerses[0]}`
+      : `${selectedVerses[0]}-${selectedVerses[selectedVerses.length - 1]}`;
+    const text = selectedList.map(v => (selectedList.length > 1 ? `(${v.number}) ${v.text}` : v.text)).join(" ");
+    const fullMsg = `"${text}" — ${selectedBookName} ${selectedChapter}:${formattedNums} (${selectedVersion.name})`;
+    navigator.clipboard.writeText(fullMsg);
+    toast.success("Versículos copiados com sucesso! 📋");
+  };
+
+  // Publica os versículos selecionados no feed do FéConecta
+  const shareSelectedToFeed = async () => {
+    if (selectedVerses.length === 0 || !authUser) {
+      if (!authUser) toast.error("Faça login para publicar no feed.");
+      return;
+    }
+    const selectedList = verses.filter(v => selectedVerses.includes(v.number));
+    const formattedNums = selectedVerses.length === 1
+      ? `${selectedVerses[0]}`
+      : `${selectedVerses[0]}-${selectedVerses[selectedVerses.length - 1]}`;
+    const text = selectedList.map(v => (selectedList.length > 1 ? `(${v.number}) ${v.text}` : v.text)).join(" ");
+    const postContent = `📖 ${selectedBookName} ${selectedChapter}:${formattedNums} (${selectedVersion.name})\n"${text}"`;
+
+    try {
+      const { error } = await supabase.from("posts").insert({
+        author_id: authUser.id,
+        user_id: authUser.id,
+        profile_id: authUser.id,
+        content: postContent,
+        post_type: 'verse_share'
+      });
+      if (error) throw error;
+      toast.success("Versículos publicados no Feed! 🙌");
+      clearSelection();
+    } catch (e) {
+      toast.error("Erro ao publicar versículos no feed.");
+    }
+  };
+
   async function openCompare(verse: any) {
     setCompareData({});
     for (const version of BIBLE_VERSIONS) {
@@ -274,83 +345,115 @@ function BibleContent() {
                    </div>
                 </div>
              ))
-          ) : verses.map((verse) => (
-            <div id={`verse-${verse.number}`} key={verse.number} className="group relative">
-              <div className={cn("flex gap-4 p-4 rounded-[32px] transition-all", favorites[verse.number] && "bg-amber-500/5")} style={highlights[verse.number] ? { backgroundColor: HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.bg } : undefined}>
-                <div className="pt-1.5 shrink-0 flex flex-col items-center gap-2">
-                  <span className={cn(
-                    "flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black border transition-colors shadow-sm",
-                    favorites[verse.number] 
-                      ? "bg-amber-500 text-white border-amber-400" 
-                      : "bg-white dark:bg-white/15 text-gray-900 dark:text-white border-gray-200 dark:border-white/20"
-                  )}>
-                    {verse.number}
-                  </span>
-                </div>
-                <div className="flex-1">
-                  <p className="text-gray-900 dark:text-white leading-relaxed text-lg font-medium font-outfit">
-                    {verse.text}
-                  </p>
-                  
-                  {interactions[verse.number] && interactions[verse.number].map((interaction: any, idx: number) => (
-                    <div key={idx} className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 group/comment">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <FileText size={14} className="text-emerald-600 dark:text-emerald-500" />
-                          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest">Sua Anotação</span>
-                        </div>
-                        <button 
-                          onClick={() => {
-                            if (confirm("Tem certeza que deseja apagar esta anotação?")) {
-                              updateInteraction(verse, { comment: null });
-                              toast.success("Anotação excluída");
-                            }
-                          }}
-                          className="w-7 h-7 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-400 hover:bg-red-500 hover:text-white transition-all active:scale-90 opacity-0 group-hover/comment:opacity-100"
-                          title="Excluir anotação"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <p className="text-sm text-emerald-900 dark:text-emerald-100 font-medium font-outfit leading-relaxed">{interaction.comment}</p>
-                    </div>
-                  ))}
-
-                  <div className="flex flex-wrap items-center gap-6 mt-6 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all bg-white/5 dark:bg-white/5 p-3 rounded-2xl md:bg-transparent w-fit">
-                    <button title="Favoritar Versículo" onClick={() => toggleFavorite(verse)} className={cn("flex items-center gap-1.5 transition-all active:scale-90", favorites[verse.number] ? "text-amber-500 scale-110" : "text-gray-400 hover:text-amber-500")}>
-                      <Heart size={20} className={favorites[verse.number] ? "fill-current" : ""} />
-                    </button>
-                    <button title="Nova Anotação" onClick={() => setCommentingVerse(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-500 transition-all hover:scale-110 active:scale-90">
-                      <Plus size={22} />
-                    </button>
-                    <button title="Criar Devocional Diário" onClick={() => createNoteFromVerse(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-blue-500 transition-all hover:scale-110 active:scale-90">
-                      <FileText size={20} />
-                    </button>
-                    <button title="Compartilhar no Feed" onClick={() => shareToFeed(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-whatsapp-teal transition-all hover:scale-110 active:scale-90">
-                      <Send size={20} />
-                    </button>
-                    {aiOperational && (
-                      <button title="Estudo Bíblico com Inteligência Artificial" onClick={() => handleAIStudy(verse)} className="flex items-center gap-1.5 text-whatsapp-teal animate-in fade-in duration-1000 transition-all hover:scale-125 active:scale-90">
-                        <Sparkles size={20} className="fill-whatsapp-teal/20" />
-                      </button>
-                    )}
-                    <button title="Comparar Versões" onClick={() => { setCompareVerse(verse); openCompare(verse); }} className="flex items-center gap-1.5 text-gray-400 hover:text-violet-500 transition-all hover:scale-110 active:scale-90">
-                      <Columns3 size={20} />
-                    </button>
-                    <button title="Destacar / Colorir" onClick={() => setHighlightPickerVerse(verse.number)} className="flex items-center gap-1.5 text-gray-400 hover:text-yellow-500 transition-all hover:scale-110 active:scale-90">
-                      <Highlighter size={20} />
-                    </button>
+          ) : verses.map((verse) => {
+            const isSelected = selectedVerses.includes(verse.number);
+            return (
+              <div 
+                id={`verse-${verse.number}`} 
+                key={verse.number} 
+                className="group relative cursor-pointer"
+                onClick={() => toggleVerseSelection(verse.number)}
+              >
+                <div 
+                  className={cn(
+                    "flex gap-4 p-4 rounded-[32px] transition-all border",
+                    isSelected 
+                      ? "bg-whatsapp-teal/10 border-whatsapp-teal/40 ring-2 ring-whatsapp-teal/20 shadow-md" 
+                      : favorites[verse.number] 
+                        ? "bg-amber-500/5 border-transparent" 
+                        : "border-transparent hover:bg-gray-50/80 dark:hover:bg-white/5"
+                  )} 
+                  style={!isSelected && highlights[verse.number] ? { backgroundColor: HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.bg } : undefined}
+                >
+                  <div className="pt-1.5 shrink-0 flex flex-col items-center gap-2">
+                    <span className={cn(
+                      "flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black border transition-all shadow-sm select-none",
+                      isSelected
+                        ? "bg-whatsapp-teal text-white border-whatsapp-teal scale-105"
+                        : favorites[verse.number] 
+                          ? "bg-amber-500 text-white border-amber-400" 
+                          : "bg-white dark:bg-white/15 text-gray-900 dark:text-white border-gray-200 dark:border-white/20 group-hover:border-whatsapp-teal/40"
+                    )}>
+                      {isSelected ? <Check size={14} className="stroke-[3]" /> : verse.number}
+                    </span>
                   </div>
-                  {highlightPickerVerse === verse.number && (
-                    <div className="flex gap-2 mt-2">
-                      {HIGHLIGHT_COLORS.map(c => <button key={c.id} onClick={() => { updateHighlight(verse, c.id); setHighlightPickerVerse(null); }} className="w-6 h-6 rounded-full" style={{ backgroundColor: c.dot }} />)}
-                      <button onClick={() => { updateHighlight(verse, null); setHighlightPickerVerse(null); }}><Eraser size={14} /></button>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-gray-900 dark:text-white leading-relaxed text-lg font-medium font-outfit select-text">
+                      {verse.text}
+                    </p>
+                    
+                    {interactions[verse.number] && interactions[verse.number].map((interaction: any, idx: number) => (
+                      <div key={idx} className="mt-4 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30 group/comment" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <FileText size={14} className="text-emerald-600 dark:text-emerald-500" />
+                            <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-500 uppercase tracking-widest">Sua Anotação</span>
+                          </div>
+                          <button 
+                            onClick={() => {
+                              if (confirm("Tem certeza que deseja apagar esta anotação?")) {
+                                updateInteraction(verse, { comment: null });
+                                toast.success("Anotação excluída");
+                              }
+                            }}
+                            className="w-7 h-7 flex items-center justify-center rounded-xl bg-red-50 dark:bg-red-900/20 text-red-400 hover:bg-red-500 hover:text-white transition-all active:scale-90 opacity-0 group-hover/comment:opacity-100"
+                            title="Excluir anotação"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                        <p className="text-sm text-emerald-900 dark:text-emerald-100 font-medium font-outfit leading-relaxed">{interaction.comment}</p>
+                      </div>
+                    ))}
+
+                    <div 
+                      className="flex flex-wrap items-center gap-5 sm:gap-6 mt-5 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all bg-white/5 dark:bg-white/5 p-2.5 rounded-2xl md:bg-transparent w-fit"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {/* Compartilhar no Instagram / WhatsApp / Outros Apps */}
+                      <button 
+                        title="Compartilhar no Instagram / WhatsApp / Outros Apps" 
+                        onClick={() => openShareModal([verse])} 
+                        className="flex items-center gap-1.5 text-gray-400 hover:text-rose-500 transition-all hover:scale-110 active:scale-90"
+                      >
+                        <Share2 size={20} />
+                      </button>
+
+                      <button title="Favoritar Versículo" onClick={() => toggleFavorite(verse)} className={cn("flex items-center gap-1.5 transition-all active:scale-90", favorites[verse.number] ? "text-amber-500 scale-110" : "text-gray-400 hover:text-amber-500")}>
+                        <Heart size={20} className={favorites[verse.number] ? "fill-current" : ""} />
+                      </button>
+                      <button title="Nova Anotação" onClick={() => setCommentingVerse(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-emerald-500 transition-all hover:scale-110 active:scale-90">
+                        <Plus size={22} />
+                      </button>
+                      <button title="Criar Devocional Diário" onClick={() => createNoteFromVerse(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-blue-500 transition-all hover:scale-110 active:scale-90">
+                        <FileText size={20} />
+                      </button>
+                      <button title="Compartilhar no Feed" onClick={() => shareToFeed(verse)} className="flex items-center gap-1.5 text-gray-400 hover:text-whatsapp-teal transition-all hover:scale-110 active:scale-90">
+                        <Send size={20} />
+                      </button>
+                      {aiOperational && (
+                        <button title="Estudo Bíblico com Inteligência Artificial" onClick={() => handleAIStudy(verse)} className="flex items-center gap-1.5 text-whatsapp-teal animate-in fade-in duration-1000 transition-all hover:scale-125 active:scale-90">
+                          <Sparkles size={20} className="fill-whatsapp-teal/20" />
+                        </button>
+                      )}
+                      <button title="Comparar Versões" onClick={() => { setCompareVerse(verse); openCompare(verse); }} className="flex items-center gap-1.5 text-gray-400 hover:text-violet-500 transition-all hover:scale-110 active:scale-90">
+                        <Columns3 size={20} />
+                      </button>
+                      <button title="Destacar / Colorir" onClick={() => setHighlightPickerVerse(verse.number)} className="flex items-center gap-1.5 text-gray-400 hover:text-yellow-500 transition-all hover:scale-110 active:scale-90">
+                        <Highlighter size={20} />
+                      </button>
                     </div>
-                  )}
+                    {highlightPickerVerse === verse.number && (
+                      <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                        {HIGHLIGHT_COLORS.map(c => <button key={c.id} onClick={() => { updateHighlight(verse, c.id); setHighlightPickerVerse(null); }} className="w-6 h-6 rounded-full" style={{ backgroundColor: c.dot }} />)}
+                        <button onClick={() => { updateHighlight(verse, null); setHighlightPickerVerse(null); }}><Eraser size={14} /></button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Reprodutor de Áudio e Navegação de Capítulo Inferior */}
@@ -506,10 +609,76 @@ function BibleContent() {
           )}
         </div>
       )}
+
+      {/* ─── BARRA FLUTUANTE DE SELEÇÃO DE VERSÍCULOS ─── */}
+      {selectedVerses.length > 0 && (
+        <div className="fixed bottom-6 inset-x-4 max-w-xl mx-auto z-[80] animate-in fade-in slide-in-from-bottom-6 duration-200">
+          <div className="bg-[#121214]/95 dark:bg-[#121214]/95 text-white backdrop-blur-xl border border-white/15 rounded-3xl p-3 sm:p-4 shadow-2xl flex items-center justify-between gap-2 sm:gap-3">
+            {/* Lado Esquerdo: Contagem e Referência */}
+            <div className="min-w-0 flex-1 pl-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-whatsapp-teal block truncate">
+                {selectedVerses.length} {selectedVerses.length === 1 ? "versículo selecionado" : "versículos selecionados"}
+              </span>
+              <p className="text-xs sm:text-sm font-black truncate text-white">
+                {selectedBookName} {selectedChapter}:{selectedVerses.length === 1 ? selectedVerses[0] : `${selectedVerses[0]}-${selectedVerses[selectedVerses.length - 1]}`}
+              </p>
+            </div>
+
+            {/* Lado Direito: Botões de Ação */}
+            <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Botão Principal: Compartilhar Imagem (Instagram / WhatsApp) */}
+              <button
+                onClick={() => openShareModal()}
+                className="h-10 px-3.5 sm:px-4 rounded-2xl bg-gradient-to-r from-pink-600 to-amber-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md hover:brightness-110 active:scale-95 transition-all"
+                title="Compartilhar no Instagram / WhatsApp"
+              >
+                <Share2 className="w-4 h-4" />
+                <span className="hidden sm:inline">Compartilhar</span>
+              </button>
+
+              {/* Botão Copiar */}
+              <button
+                onClick={copySelectedVerses}
+                className="w-10 h-10 rounded-2xl bg-white/10 hover:bg-white/20 flex items-center justify-center text-white active:scale-95 transition-all"
+                title="Copiar Versículos"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
+
+              {/* Botão Feed FéConecta */}
+              <button
+                onClick={shareSelectedToFeed}
+                className="w-10 h-10 rounded-2xl bg-whatsapp-teal hover:bg-whatsapp-tealLight flex items-center justify-center text-white active:scale-95 transition-all"
+                title="Publicar no Feed"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+
+              {/* Botão Fechar Seleção */}
+              <button
+                onClick={clearSelection}
+                className="w-9 h-9 rounded-2xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-white active:scale-95 transition-all ml-1"
+                title="Limpar Seleção"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL DE COMPARTILHAMENTO PROFISSIONAL (INSTAGRAM / APPS) ─── */}
+      <VerseShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        bookName={selectedBookName}
+        chapter={selectedChapter}
+        versionName={selectedVersion.name}
+        verses={versesToShare}
+      />
     </div>
   );
 }
-
 
 export default function BiblePage() {
   return (
