@@ -529,8 +529,9 @@ export default function StoryViewer({
 
   return (
     <StoryViewerContext.Provider value={ctxValue}>
-      <div className="fixed inset-0 z-[400] bg-black flex flex-col items-center justify-center touch-none overscroll-contain">
-        <div className="relative w-full h-full max-w-md bg-whatsapp-dark overflow-hidden sm:rounded-[40px] shadow-2xl">
+      <div className="fixed inset-0 z-[400] bg-black touch-none overscroll-contain flex items-center justify-center pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)]">
+        {/* Mobile: full screen | Desktop: card estilo Instagram */}
+        <div className="relative w-full h-full md:h-[min(92vh,820px)] md:max-w-[410px] bg-black overflow-hidden md:rounded-[36px] md:border md:border-white/15 md:shadow-[0_0_60px_rgba(0,0,0,0.8)]">
           <StoryViewerMedia />
           <StoryViewerHeader />
           <StoryViewerControls />

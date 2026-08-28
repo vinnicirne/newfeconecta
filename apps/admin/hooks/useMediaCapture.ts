@@ -210,12 +210,14 @@ export function useMediaCapture(
       try {
         stream = await navigator.mediaDevices.getUserMedia(constraints);
       } catch (firstErr: any) {
-        // Fallback Instagram-style: solta resolução/aspect, mantém facing + fps
-        console.warn("[useMediaCapture] fallback constraints:", firstErr?.name);
+        // Fallback robusto HD: tenta resolução 720x1280 (9:16)
+        console.warn("[useMediaCapture] fallback constraints acionado:", firstErr?.name);
         stream = await navigator.mediaDevices.getUserMedia({
           video: needsVideo
             ? {
                 facingMode: { ideal: facingMode },
+                width: { ideal: 720, max: 1280 },
+                height: { ideal: 1280, max: 1920 },
                 frameRate: { ideal: 30 },
               }
             : false,
@@ -226,6 +228,10 @@ export function useMediaCapture(
       streamRef.current = stream;
 
       if (needsVideo) {
+        const settings = stream.getVideoTracks()[0]?.getSettings?.();
+        if (settings) {
+          console.log("[câmera] resolução real do sensor:", settings.width, "x", settings.height, "@", settings.frameRate, "fps");
+        }
         await attachStreamToVideo(stream);
         await applyAdvancedConstraints(stream);
       }

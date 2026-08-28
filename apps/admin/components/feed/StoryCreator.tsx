@@ -314,13 +314,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[10005] flex items-center justify-center p-0 md:p-6 bg-black/90 md:bg-black/85 backdrop-blur-2xl animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[10005] bg-black touch-none overscroll-contain flex items-center justify-center pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] animate-in fade-in duration-200">
       
-      {/* ─── CARD DO STORIES: Proporção Vertical 9:16 Perfeita com Safe-Area Resguardada ─── */}
-      <div className="relative w-full h-full md:h-[92vh] md:max-h-[820px] md:max-w-[410px] bg-zinc-950 md:rounded-[36px] overflow-hidden shadow-[0_0_60px_rgba(0,0,0,0.8)] border-0 md:border md:border-white/15 flex flex-col justify-between select-none">
+      {/* ─── CARD DO STORIES: Mobile Full-Screen | Desktop 9:16 Card ─── */}
+      <div className="relative w-full h-full md:h-[min(92vh,820px)] md:max-w-[410px] bg-black overflow-hidden md:rounded-[36px] md:border md:border-white/15 md:shadow-[0_0_60px_rgba(0,0,0,0.8)] flex flex-col justify-between select-none">
         
         {/* ─── HEADER SUPERIOR COM BOTÕES FLUTUANTES ─── */}
-        <div className="absolute top-0 inset-x-0 z-50 flex items-center justify-between p-4 pt-[max(env(safe-area-inset-top),16px)] bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none">
+        <div className="absolute top-0 inset-x-0 z-50 flex items-center justify-between p-4 pt-[max(1rem,env(safe-area-inset-top))] bg-gradient-to-b from-black/80 via-black/30 to-transparent pointer-events-none">
           {/* Botão Fechar */}
           <button
             onClick={handleClose}
@@ -395,31 +395,31 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
 
         {/* ─── CORPO CENTRAL DO VIEWFINDER / CONTEÚDO ─── */}
-        <div className="relative w-full h-full flex-1 overflow-hidden bg-black flex items-center justify-center">
+        <div className="absolute inset-0 z-0 overflow-hidden bg-black flex items-center justify-center">
           
           {/* CÂMERA AO VIVO (FOTO / VÍDEO) */}
           {(activeTab === 'photo' || activeTab === 'video') && !preview && (
-            <div className="relative w-full h-full flex items-center justify-center overflow-hidden">
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden bg-black">
               <video 
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
                 muted 
                 className={cn(
-                  "w-full h-full object-cover transition-transform duration-300",
+                  "absolute inset-0 w-full h-full object-cover object-center bg-black transition-transform duration-300",
                   facingMode === 'user' && "-scale-x-100"
                 )} 
               />
 
               {!isReady && !cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 gap-3 text-white">
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 gap-3 text-white z-20">
                   <Loader2 className="w-9 h-9 animate-spin text-whatsapp-teal" />
                   <span className="text-xs font-bold text-white/80">Iniciando câmera em alta definição...</span>
                 </div>
               )}
 
               {cameraError && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-zinc-950 gap-4">
+                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center bg-zinc-950 gap-4 z-20">
                   <Camera className="w-12 h-12 text-rose-500/80" />
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-white">Câmera indisponível</p>
@@ -440,7 +440,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           {activeTab === 'gallery' && !preview && (
             <div 
               onClick={() => fileRef.current?.click()}
-              className="flex flex-col items-center justify-center gap-4 p-8 text-center cursor-pointer group hover:bg-white/5 transition-colors w-full h-full"
+              className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center cursor-pointer group hover:bg-white/5 transition-colors z-10"
             >
               <div className="w-20 h-20 rounded-3xl bg-whatsapp-teal/15 border-2 border-dashed border-whatsapp-teal flex items-center justify-center group-hover:scale-110 transition-all shadow-lg shadow-whatsapp-teal/10">
                 <Upload className="w-8 h-8 text-whatsapp-teal" />
@@ -460,7 +460,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           {/* MODO TEXTO (VERSÍCULOS / REFLEXÕES) */}
           {activeTab === 'text' && (
             <div 
-              className="w-full h-full flex items-center justify-center p-8 transition-colors duration-300 relative"
+              className="absolute inset-0 flex items-center justify-center p-8 transition-colors duration-300 z-10"
               style={{ backgroundColor: bgColor }}
             >
               <textarea
@@ -476,7 +476,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
           {/* MODO ÁUDIO */}
           {activeTab === 'audio' && !preview && (
-            <div className="flex flex-col items-center justify-center gap-6 p-8 text-center w-full h-full bg-gradient-to-b from-zinc-900 to-black">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-6 p-8 text-center bg-gradient-to-b from-zinc-900 to-black z-10">
               <button
                 onClick={isRecordingAudio ? stopAudioRecording : startAudioRecording}
                 className={cn(
@@ -504,7 +504,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
           {/* PREVIEW DA FOTO CAPTURADA / SELECIONADA */}
           {preview?.type === 'image' && (
-            <img src={preview.url} className="w-full h-full object-cover" alt="Preview Story" />
+            <img src={preview.url} className="absolute inset-0 w-full h-full object-cover object-center" alt="Preview Story" />
           )}
 
           {/* PREVIEW DO VÍDEO GRAVADO / SELECIONADO */}
@@ -514,14 +514,14 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
               autoPlay 
               loop 
               playsInline 
-              controls 
-              className="w-full h-full object-cover" 
+              muted={false}
+              className="absolute inset-0 w-full h-full object-cover object-center bg-black" 
             />
           )}
 
           {/* PREVIEW DO ÁUDIO */}
           {preview?.type === 'audio' && (
-            <div className="flex flex-col items-center justify-center gap-4 p-8 w-full h-full bg-zinc-900">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 bg-zinc-900 z-10">
               <div className="w-20 h-20 rounded-full bg-whatsapp-teal/20 border border-whatsapp-teal flex items-center justify-center animate-pulse">
                 <Mic className="w-8 h-8 text-whatsapp-teal" />
               </div>
@@ -542,7 +542,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
 
         {/* ─── RODAPÉ: DISPARADOR, SELETORES E PUBLICAÇÃO ─── */}
-        <div className="p-4 pb-[max(env(safe-area-inset-bottom),20px)] pt-5 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-3.5 z-40">
+        <div className="absolute bottom-0 inset-x-0 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-8 bg-gradient-to-t from-black via-black/90 to-transparent flex flex-col gap-3.5 z-40">
           
           {/* SE NÃO ESTIVER EM PREVIEW: DISPARADOR E SELETOR DE MODOS */}
           {!preview ? (
@@ -565,23 +565,23 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                     <button
                       onClick={handleTakePhoto}
                       disabled={isProcessingPhoto}
-                      className="w-18 h-18 rounded-full border-4 border-white p-1 flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.4)] disabled:opacity-50"
+                      className="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full border-4 border-white p-1 flex items-center justify-center active:scale-90 transition-transform shadow-[0_0_30px_rgba(255,255,255,0.4)] disabled:opacity-50"
                       title="Tirar Foto"
                     >
-                      <div className="w-14 h-14 rounded-full bg-white" />
+                      <div className="w-full h-full rounded-full bg-white" />
                     </button>
                   ) : (
                     <button
                       onClick={handleToggleVideoRecord}
                       className={cn(
-                        "w-18 h-18 rounded-full border-4 p-1 flex items-center justify-center active:scale-90 transition-all shadow-xl",
+                        "w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-full border-4 p-1 flex items-center justify-center active:scale-90 transition-all shadow-xl",
                         recording ? "border-rose-500 shadow-rose-500/40 animate-pulse" : "border-white shadow-white/30"
                       )}
                       title={recording ? "Parar Gravação" : "Gravar Vídeo"}
                     >
                       <div className={cn(
                         "transition-all duration-300",
-                        recording ? "w-7 h-7 rounded-md bg-rose-500" : "w-14 h-14 rounded-full bg-rose-500"
+                        recording ? "w-6 h-6 rounded-md bg-rose-500" : "w-full h-full rounded-full bg-rose-500"
                       )} />
                     </button>
                   )}
