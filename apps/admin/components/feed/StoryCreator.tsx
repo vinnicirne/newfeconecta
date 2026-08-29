@@ -266,7 +266,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
         const fileToUpload = preview.file || (preview.blob ? new File([preview.blob], `story-${Date.now()}.${preview.type === 'audio' ? 'webm' : (preview.type === 'video' ? 'mp4' : 'jpg')}`, { type: preview.mimeType }) : null);
 
         if (fileToUpload) {
-          const path = `stories/${user.id}/${Date.now()}-${fileToUpload.name}`;
+          const path = `${user.id}/${Date.now()}-${fileToUpload.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
           const { error: uploadError } = await supabase.storage
             .from('stories')
             .upload(path, fileToUpload, { cacheControl: '3600', upsert: false });
@@ -295,8 +295,10 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           author_id: user.id,
           user_id: user.id,
           type: storyType,
+          media_type: storyType,
           media_url: mediaUrl,
           content: activeTab === 'text' ? textContent.trim() : caption.trim() || null,
+          background_color: activeTab === 'text' ? bgColor : null,
           metadata: {
             bg_color: activeTab === 'text' ? bgColor : undefined,
           },

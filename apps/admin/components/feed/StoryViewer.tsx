@@ -474,7 +474,7 @@ export default function StoryViewer({
     try {
       if (state.coverFile) {
         const url = await uploadMedia(state.coverFile, {
-          bucket: "avatars", // you may want to change this to 'highlights'
+          bucket: "stories",
           folder: "highlights",
         });
         if (!url) throw new Error("Falha ao subir capa");
