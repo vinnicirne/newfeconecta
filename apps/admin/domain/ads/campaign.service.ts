@@ -14,6 +14,8 @@ import { assertTransition } from "./campaign-state-machine";
 import {
   Campaign,
   CampaignStatus,
+  CampaignFormat,
+  CampaignObjective,
   CreateCampaignDto,
   InsufficientBalanceError,
   InvalidStatusTransitionError,
