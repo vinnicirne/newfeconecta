@@ -539,27 +539,37 @@ export default function AdminFeMusicPage() {
     }
   };
 
-  // 4. Purgar Música Secular do Banco e Cache
+  // 4. Purgar Música do Banco, Playlists, Posts e Cache (Admin Nuclear Clean)
   const handlePurgeTrack = async (item: ModeratedTrackItem) => {
-    if (!confirm(`Remover permanentemente "${item.title}" (${item.artist}) de todas as playlists, posts e cache da rede?`)) return;
+    if (!confirm(`Deseja remover permanentemente "${item.title}" (${item.artist}) da plataforma? A faixa será deletada do cache, playlists, posts do feed e indexação.`)) return;
 
-    const toastId = toast.loading(`Purgando música "${item.title}" da plataforma...`);
+    const toastId = toast.loading(`Removendo "${item.title}" da plataforma...`);
     try {
-      // Deleta do cache se houver
+      // 1. Deleta do cache de áudio
       await supabase.from("femusic_cache").delete().eq("youtube_id", item.provider_track_id);
       
-      // Deleta das playlists
+      // 2. Deleta das faixas indexadas
+      await supabase.from("music_tracks").delete().eq("provider_track_id", item.provider_track_id);
+
+      // 3. Deleta de todas as playlists dos usuários
       await supabase.from("music_playlist_tracks").delete().eq("track_id", item.provider_track_id);
 
-      // Deleta do posts de música se for post
-      if (item.source_type === "feed_post") {
-        await supabase.from("posts").delete().eq("id", item.id);
+      // 4. Deleta de posts de música no feed se originada de post
+      if (item.source_type === "feed_post" || item.id.startsWith("post-")) {
+        const cleanPostId = item.id.replace(/^post-/, "");
+        await supabase.from("posts").delete().eq("id", cleanPostId);
       }
 
-      toast.success(`Música "${item.title}" purgada com sucesso! 🗑️`, { id: toastId });
-      setModeratedTracks(prev => prev.filter(t => t.id !== item.id));
+      // 5. Remove do localStorage local se estiver em cache no cliente
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(`fc_audio_cache_${item.provider_track_id}`);
+      }
+
+      toast.success(`Música "${item.title}" removida com sucesso! 🗑️`, { id: toastId });
+      setModeratedTracks(prev => prev.filter(t => t.id !== item.id && t.provider_track_id !== item.provider_track_id));
+      loadAllData();
     } catch (err: any) {
-      toast.error("Erro ao purgar música: " + err.message, { id: toastId });
+      toast.error("Erro ao remover música: " + err.message, { id: toastId });
     }
   };
 
