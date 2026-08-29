@@ -144,15 +144,23 @@ export function useMediaCapture(
     }
   }, []);
 
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const facingModeRef = useRef(facingMode);
+  facingModeRef.current = facingMode;
+
   const startCamera = useCallback(async () => {
     if (isStartingCameraRef.current) return;
 
+    const currentMode = modeRef.current;
+    const currentFacingMode = facingModeRef.current;
+
     if (
       streamRef.current &&
-      prevConfigRef.current.mode === mode &&
-      prevConfigRef.current.facingMode === facingMode
+      prevConfigRef.current.mode === currentMode &&
+      prevConfigRef.current.facingMode === currentFacingMode
     ) {
-      if (mode === "photo" || mode === "video") {
+      if (currentMode === "photo" || currentMode === "video") {
         await attachStreamToVideo(streamRef.current);
       }
       return;
@@ -160,7 +168,7 @@ export function useMediaCapture(
 
     stopCamera();
     isStartingCameraRef.current = true;
-    prevConfigRef.current = { mode, facingMode };
+    prevConfigRef.current = { mode: currentMode, facingMode: currentFacingMode };
     setCameraError(null);
     setIsReady(false);
 
@@ -186,8 +194,8 @@ export function useMediaCapture(
         }
       }
 
-      const needsVideo = mode === "photo" || mode === "video";
-      const needsAudio = mode === "video" || mode === "audio";
+      const needsVideo = currentMode === "photo" || currentMode === "video";
+      const needsAudio = currentMode === "video" || currentMode === "audio";
 
       if (!needsVideo && !needsAudio) {
         isStartingCameraRef.current = false;
@@ -195,7 +203,7 @@ export function useMediaCapture(
       }
 
       const constraints: MediaStreamConstraints = {
-        video: needsVideo ? buildVideoConstraints(facingMode) : false,
+        video: needsVideo ? buildVideoConstraints(currentFacingMode) : false,
         audio: needsAudio
           ? {
               echoCancellation: true,
@@ -215,7 +223,7 @@ export function useMediaCapture(
         stream = await navigator.mediaDevices.getUserMedia({
           video: needsVideo
             ? {
-                facingMode: { ideal: facingMode },
+                facingMode: { ideal: currentFacingMode },
               }
             : false,
           audio: needsAudio,
@@ -247,7 +255,7 @@ export function useMediaCapture(
     } finally {
       isStartingCameraRef.current = false;
     }
-  }, [mode, facingMode, stopCamera, attachStreamToVideo, applyAdvancedConstraints]);
+  }, [stopCamera, attachStreamToVideo, applyAdvancedConstraints]);
 
   // Liga stream quando o <video> monta depois
   useEffect(() => {

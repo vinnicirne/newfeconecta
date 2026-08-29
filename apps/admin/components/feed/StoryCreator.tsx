@@ -68,7 +68,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   const needsCamera =
     open && (activeTab === "photo" || activeTab === "video") && !preview;
 
-  // Iniciar ou pausar câmera apenas quando o estado geral de necessidade muda
+  // Iniciar ou pausar câmera com base estrita no estado de necessidade
   useEffect(() => {
     if (!open) {
       handleReset();
@@ -81,7 +81,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       stopCamera();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [needsCamera, open]);
+  }, [open, activeTab, !!preview]);
 
   const handleReset = () => {
     if (preview?.url && preview.url.startsWith('blob:')) {
@@ -411,7 +411,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                 playsInline 
                 muted 
                 className={cn(
-                  "absolute inset-0 w-full h-full object-cover object-center bg-black transition-transform duration-300",
+                  "absolute inset-0 w-full h-full object-cover object-center bg-black",
                   facingMode === 'user' && "-scale-x-100"
                 )} 
               />
