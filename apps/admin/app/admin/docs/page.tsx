@@ -54,7 +54,7 @@ export default function GlobalDocsPage() {
       statusText: "Atual",
       statusTone: "brand",
       updated_at: "Hoje",
-      summary: "Manual completo do FéAds: Modelos de cobrança pré-paga, exemplos práticos de consumo de saldo, edição completa de campanhas, rastreamento de cliques/WhatsApp e Ad Serving no feed.",
+      summary: "Manual completo do FéAds: Modelos de cobrança pré-paga, exemplos práticos de consumo de saldo, edição completa de campanhas, interações nativas (Fogo e Comentários), extrato paginado e Ad Serving no feed.",
       content: `### 1. Visão Geral da Plataforma FéAds
 O **FéAds** é o ecossistema oficial de publicidade nativa e patrocínios da rede social FéConecta. Ele permite que igrejas, editoras, artistas, mentores e empresas cristãs promovam seus livros, conferências, louvores, cursos e produtos diretamente na timeline dos fiéis.
 
@@ -63,23 +63,23 @@ O **FéAds** é o ecossistema oficial de publicidade nativa e patrocínios da re
 ### 2. Como Funciona a Cobrança do Cliente (Modelo Pré-pago)
 O sistema opera em formato **100% pré-pago e transparente**, garantindo que o anunciante nunca seja cobrado além do que ele mesmo estipulou:
 
-1. **Recarga de Créditos:** O anunciante adiciona fundos à sua Carteira FéAds via **Pix Instantâneo** ou **Cartão de Crédito (Checkout Mercado Pago)**.
+1. **Recarga de Créditos:** O anunciante adiciona fundos à sua Carteira FéAds via **Pix Instantâneo (QR Code + Copia e Cola)** ou **Cartão de Crédito (Checkout Pro Mercado Pago)**.
 2. **Criação da Campanha:** Ao criar um anúncio em \`/campanha/nova\`, o parceiro escolhe o orçamento que deseja investir (mínimo de R$ 5,00). Nesse momento, o saldo **NÃO** é descontado.
-3. **Aprovação pela Moderação:** Quando a moderação da FéConecta aprova a campanha, o valor do orçamento é transferido atomicamente de \`saldo_disponivel\` para \`saldo_investido\`.
+3. **Aprovação pela Moderação:** Quando a moderação da FéConecta aprova a campanha no painel administrativo, o valor do orçamento é transferido atomicamente de \`saldo_disponivel\` para \`saldo_investido\`.
 4. **Consumo por Resultados (CPC / CPM):** À medida que os usuários visualizam o anúncio e clicam nos botões de ação, o saldo da campanha é consumido gradualmente até o teto estipulado.
 
 ---
 
 ### 3. Exemplos Práticos de Cobrança e Consumo de Saldo
 
-#### 📌 Exemplo 1: Campanha com Objetivo de Cliques no Link / WhatsApp (CPC)
+#### 📌 Exemplo 1: Campanha de Venda de Livro / Infoproduto (CPC - Custo por Clique)
 * **Cenário:** O parceiro recarrega **R$ 100,00** na carteira via Pix e cria a campanha *"Venda do Livro - O Fim do Jogo Narcizista"* com orçamento de **R$ 100,00**.
 * **Como ocorre a cobrança:**
   1. A equipe aprova o anúncio. Os R$ 100,00 ficam vinculados à veiculação da campanha.
   2. O anúncio aparece no Feed Social de milhares de fiéis.
   3. Cada clique no botão **\`Comprar Agora\`** ou **\`Falar no WhatsApp\`** custa um valor unitário fixo (ex: R$ 0,50 por clique).
   4. Quando a campanha atinge **200 cliques** (200 x R$ 0,50 = R$ 100,00), o orçamento é atingido e o anúncio é pausado automaticamente.
-  5. O parceiro recebe **200 pessoas interessadas** diretamente no seu checkout ou no seu WhatsApp.
+  5. O parceiro recebe **200 pessoas interessadas** diretamente no seu checkout da Hotmart/Kiwify ou no seu WhatsApp.
 
 #### 📌 Exemplo 2: Encerramento Antecipado com Devolução de Saldo Restante
 * **Cenário:** O anunciante alocou **R$ 100,00** em uma campanha de conferência para o fim de semana.
@@ -112,11 +112,28 @@ O anunciante tem liberdade para ajustar seu anúncio a qualquer momento pela pá
 
 ---
 
-### 5. Motor de Entrega Social (Ad Delivery Engine)
+### 5. Padrão FéConecta de Interações no Anúncio (Feed)
+Os anúncios patrocinados comportam-se como publicações nativas de alto engajamento da rede:
+
+* **Ícone de Fogo no Like (\`Flame\` 🔥):** Ao curtir o anúncio, o ícone acende em verde vibrante oficial (\`#25D366\`) com brilho em neon.
+* **Comentários Nativos Integrados:** Ao clicar em \`Comentar\`, abre a seção de comentários da FéConecta onde o público pode enviar dúvidas, testemunhos e interagir com o anunciante em tempo real.
+* **Compartilhamento Rápido:** Dispara o menu nativo do dispositivo para WhatsApp e redes sociais ou copia o link direto do criativo.
+
+---
+
+### 6. Motor de Entrega Social (Ad Delivery Engine)
 * **Serviço de Borda:** \`AdServingService\` via \`GET /api/ads/serve?format=feed\`.
-* **Entrega no Feed:** O componente \`<SponsoredAdCard />\` é injetado a cada bloco de posts no feed principal.
+* **Entrega no Feed:** O componente \`<SponsoredAdCard />\` é injetado a cada bloco de posts no feed principal de forma fluida.
 * **Segurança e Privacidade:** O anúncio exibe o selo **\`📢 Patrocinado • FéAds\`**, foto do parceiro, selo de verificado e redireciona os cliques de forma segura em nova aba (\`target="_blank"\`).
-* **Auditoria:** Contabilização atômica de impressões e cliques em tempo real via endpoints de tracking dedicados.`,
+* **Auditoria:** Contabilização atômica de impressões e cliques em tempo real via endpoints de tracking dedicados.
+
+---
+
+### 7. Extrato Completo e Histórico Auditável
+* **Rota do Parceiro:** \`/campanha/pagamentos\`
+* **Endpoint Paginado:** \`GET /api/wallet/transactions?page=1&pageSize=50\`
+* **Filtros Disponíveis:** Todas as transações, Recargas, Débito em Campanhas, Estornos de Reprovação e Reembolsos.
+* **Vínculo Transparente:** Exibe o nome da campanha e o ID da transação vinculado a cada centavo movimentado.`,
     },
     {
       id: "doc-1",
