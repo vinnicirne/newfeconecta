@@ -827,6 +827,12 @@ export default function RootPage() {
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Atalhos</span>
                   </div>
                   <div className="grid grid-cols-2 gap-2 mb-3">
+                    <Link href="/campanha" className="flex flex-col items-center justify-center p-3 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 hover:bg-emerald-500/20 dark:hover:bg-emerald-500/30 transition-colors border border-emerald-500/30 col-span-2 shadow-sm">
+                      <div className="flex items-center gap-2">
+                        <Megaphone className="w-5 h-5 text-emerald-500" />
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">FéAds (Anúncios & Parcerias)</span>
+                      </div>
+                    </Link>
                     <Link href="/messages" className="flex flex-col items-center justify-center p-3 rounded-xl bg-whatsapp-teal/10 dark:bg-whatsapp-green/10 hover:bg-whatsapp-teal/20 dark:hover:bg-whatsapp-green/20 transition-colors border border-whatsapp-teal/20 dark:border-whatsapp-green/20">
                       <MessageSquare className="w-6 h-6 mb-1 text-whatsapp-teal dark:text-whatsapp-green" />
                       <span className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green">Mensagens</span>
