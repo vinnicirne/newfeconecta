@@ -37,7 +37,7 @@ export interface NavItem {
   name: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  badgeKey?: "pendingReports" | "pendingVerifications";
+  badgeKey?: "pendingReports" | "pendingVerifications" | "pendingCampaigns";
 }
 
 export interface NavGroup {
@@ -61,6 +61,7 @@ const navigationGroups: NavGroup[] = [
       { name: "Waroom (Incidentes)", href: "/admin/waroom", icon: ShieldAlert },
       { name: "Moderação de Posts", href: "/admin/posts", icon: MessageSquare },
       { name: "Denúncias", href: "/admin/reports", icon: ShieldAlert, badgeKey: "pendingReports" },
+      { name: "Campanhas Ads", href: "/ads", icon: Megaphone, badgeKey: "pendingCampaigns" },
       { name: "Salas de Oração", href: "/admin/rooms", icon: Mic },
       { name: "Mensagem do Dia", href: "/admin/mensagem-do-dia", icon: Sparkles },
       { name: "Bíblia Sagrada", href: "/admin/bible", icon: BookOpen },
@@ -99,9 +100,10 @@ export function Sidebar({ onNavigate, isMobile }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [adminProfile, setAdminProfile] = useState<any>(null);
-  const [badges, setBadges] = useState<{ pendingReports: number; pendingVerifications: number }>({
+  const [badges, setBadges] = useState<{ pendingReports: number; pendingVerifications: number; pendingCampaigns: number }>({
     pendingReports: 0,
     pendingVerifications: 0,
+    pendingCampaigns: 0,
   });
 
   useEffect(() => {
@@ -118,14 +120,16 @@ export function Sidebar({ onNavigate, isMobile }: SidebarProps) {
 
     const fetchBadges = async () => {
       try {
-        const [{ count: reportsCount }, { count: verificationsCount }] = await Promise.all([
+        const [{ count: reportsCount }, { count: verificationsCount }, { count: campaignsCount }] = await Promise.all([
           supabase.from("reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
           supabase.from("verification_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+          supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "pendente"),
         ]);
 
         setBadges({
           pendingReports: reportsCount || 0,
           pendingVerifications: verificationsCount || 0,
+          pendingCampaigns: campaignsCount || 0,
         });
       } catch (err) {
         // Silencioso caso a tabela/política tenha outro nome
@@ -133,6 +137,22 @@ export function Sidebar({ onNavigate, isMobile }: SidebarProps) {
     };
 
     fetchBadges();
+
+    // Listener Realtime para novas campanhas enviadas para análise
+    const campaignsChannel = supabase
+      .channel("sidebar-campaigns-notifications")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "campaigns" },
+        () => {
+          fetchBadges();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(campaignsChannel);
+    };
   }, []);
 
   const handleLogout = async () => {

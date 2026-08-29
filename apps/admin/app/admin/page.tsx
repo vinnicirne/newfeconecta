@@ -19,7 +19,8 @@ import {
   CreditCard,
   Radio,
   Wifi,
-  WifiOff
+  WifiOff,
+  Megaphone
 } from "lucide-react";
 import {
   AreaChart,
@@ -33,6 +34,8 @@ import {
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { useTheme } from "next-themes";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import moment from "moment";
 import "moment/locale/pt-br";
 
@@ -48,6 +51,7 @@ interface DashboardMetrics {
   totalLikes: number;
   pendingReports: number;
   pendingVerifications: number;
+  pendingCampaigns: number;
   verifiedUsers: number;
   onlineNow: number;
 }
@@ -60,6 +64,7 @@ interface ServicesHealth {
 }
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
 
@@ -71,6 +76,7 @@ export default function DashboardPage() {
     totalLikes: 0,
     pendingReports: 0,
     pendingVerifications: 0,
+    pendingCampaigns: 0,
     verifiedUsers: 0,
     onlineNow: 0,
   });
@@ -104,12 +110,41 @@ export default function DashboardPage() {
         }
       });
 
+    // 🔔 Notificação Realtime de Novas Campanhas submetidas para análise
+    const campaignsChannel = supabase
+      .channel("admin-campaigns-notifier")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "campaigns" },
+        (payload: any) => {
+          if (payload.new?.status === "pendente") {
+            toast.info("📢 Nova Campanha para Análise!", {
+              description: `A campanha "${payload.new.nome}" foi submetida e aguarda moderação.`,
+              action: {
+                label: "Moderar",
+                onClick: () => router.push("/ads"),
+              },
+            });
+            loadDashboardData();
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "campaigns" },
+        () => {
+          loadDashboardData();
+        }
+      )
+      .subscribe();
+
     return () => {
       try {
         supabase.removeChannel(healthChannel);
+        supabase.removeChannel(campaignsChannel);
       } catch (e) {}
     };
-  }, []);
+  }, [router]);
 
   // 🛡️ Health Check Real e Dinâmico dos Serviços do Backend
   const checkServicesHealth = async () => {
@@ -160,6 +195,7 @@ export default function DashboardPage() {
         verifiedRes,
         reportsRes,
         verifReqRes,
+        campaignsRes,
         onlineRes,
         latestUsersRes,
         topPostsRes,
@@ -173,6 +209,7 @@ export default function DashboardPage() {
         supabase.from("profiles").select("*", { count: "exact", head: true }).eq("is_verified", true),
         supabase.from("reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("verification_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("campaigns").select("*", { count: "exact", head: true }).eq("status", "pendente"),
         supabase.from("profiles").select("*", { count: "exact", head: true }).gt("updated_at", activeCutoff),
         supabase.from("profiles").select("id, full_name, username, avatar_url, role, created_at").order("created_at", { ascending: false }).limit(6),
         supabase.from("posts").select("id, content, views_count, likes, created_at, author_id, user_id").order("views_count", { ascending: false }).limit(5),
@@ -233,6 +270,7 @@ export default function DashboardPage() {
         totalLikes: Math.max(totalLikesCalculated, 120),
         pendingReports: reportsRes.status === "fulfilled" ? (reportsRes.value.count || 0) : 0,
         pendingVerifications: verifReqRes.status === "fulfilled" ? (verifReqRes.value.count || 0) : 0,
+        pendingCampaigns: campaignsRes.status === "fulfilled" ? (campaignsRes.value.count || 0) : 0,
         verifiedUsers: verifiedRes.status === "fulfilled" ? (verifiedRes.value.count || 0) : 0,
         onlineNow: onlineRes.status === "fulfilled" ? (onlineRes.value.count || 0) : 0,
       });
@@ -286,6 +324,40 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* ─── BANNER DE NOTIFICAÇÃO: CAMPANHAS PENDENTES DE ANÁLISE ─── */}
+      {metrics.pendingCampaigns > 0 && (
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-500 shadow-sm animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-500 shrink-0">
+              <Megaphone className="w-5 h-5 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-foreground">
+                  {metrics.pendingCampaigns === 1
+                    ? "1 Nova Campanha aguardando análise"
+                    : `${metrics.pendingCampaigns} Novas Campanhas aguardando análise`}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                  FéAds
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Existem anúncios patrocinados submetidos por parceiros que necessitam de aprovação de conteúdo e orçamento.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            href="/ads"
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 active:scale-95 text-black font-bold text-xs transition-all shadow-md shadow-amber-500/20 shrink-0"
+          >
+            <span>Moderar Campanhas</span>
+            <ArrowUpRight className="w-4 h-4" />
+          </Link>
+        </div>
+      )}
 
       {/* ─── 4 CARDS PRINCIPAIS DE KPIS ─── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

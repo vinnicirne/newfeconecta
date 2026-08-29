@@ -75,13 +75,23 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               window.addEventListener('unhandledrejection', function(event) {
-                if (event.reason && event.reason.stack && event.reason.stack.includes('chrome-extension')) {
+                var reason = event.reason || {};
+                var msg = String(reason.message || reason || '');
+                var stack = String(reason.stack || '');
+                if (stack.indexOf('chrome-extension://') !== -1 || msg.indexOf('M_ID') !== -1 || stack.indexOf('moz-extension://') !== -1) {
                   event.preventDefault();
+                  event.stopImmediatePropagation();
+                  return true;
                 }
-              });
+              }, true);
               window.addEventListener('error', function(event) {
-                if (event.filename && event.filename.includes('chrome-extension')) {
+                var filename = String(event.filename || '');
+                var msg = String(event.message || '');
+                var stack = String((event.error && event.error.stack) || '');
+                if (filename.indexOf('chrome-extension://') !== -1 || msg.indexOf('M_ID') !== -1 || stack.indexOf('chrome-extension://') !== -1 || filename.indexOf('moz-extension://') !== -1) {
                   event.preventDefault();
+                  event.stopImmediatePropagation();
+                  return true;
                 }
               }, true);
             `

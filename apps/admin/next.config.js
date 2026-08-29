@@ -2,17 +2,17 @@
 
 const cspHeader = `
   default-src 'self';
-  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live https://cdn.ywxi.net https://*.trustedsite.com https:;
+  script-src 'self' 'unsafe-inline' 'unsafe-eval' https://sdk.mercadopago.com https://*.mercadopago.com https://*.mercadopago.com.br https://http2.mlstatic.com https://accounts.google.com https://apis.google.com https://www.youtube.com https://s.ytimg.com https://*.googleapis.com https://va.vercel-scripts.com https://vercel.live https://cdn.ywxi.net https://*.trustedsite.com https:;
   style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' blob: data: https: https://cdn.ywxi.net https://*.trustedsite.com;
+  img-src 'self' blob: data: https: https://cdn.ywxi.net https://*.trustedsite.com https://*.mercadopago.com https://http2.mlstatic.com;
   media-src 'self' blob: data: https:;
   font-src 'self' https://fonts.gstatic.com data:;
   object-src 'none';
   base-uri 'self';
   form-action 'self';
   frame-ancestors 'self';
-  frame-src 'self' https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live https://*.trustedsite.com;
-  connect-src 'self' https: wss: blob: data: https://cdn.ywxi.net https://*.trustedsite.com;
+  frame-src 'self' https://sdk.mercadopago.com https://*.mercadopago.com https://*.mercadopago.com.br https://http2.mlstatic.com https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://accounts.google.com https://fenamoro.vercel.app https://vercel.live https://*.trustedsite.com;
+  connect-src 'self' https: wss: blob: data: https://api.mercadopago.com https://*.mercadopago.com https://cdn.ywxi.net https://*.trustedsite.com;
   worker-src 'self' blob:;
   upgrade-insecure-requests;
 `.replace(/\s{2,}/g, ' ').trim();

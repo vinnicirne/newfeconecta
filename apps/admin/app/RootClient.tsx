@@ -34,7 +34,8 @@ import {
   Heart,
   Music,
   HelpCircle,
-  Gamepad2
+  Gamepad2,
+  Wallet
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -46,6 +47,7 @@ import dynamic from "next/dynamic";
 const CreatePost = dynamic(() => import("@/components/feed/CreatePost"), { ssr: false });
 import PostCard from "@/components/feed/PostCard";
 import FollowSuggestions from "@/components/feed/FollowSuggestions";
+import SponsoredAdCard from "@/components/feed/SponsoredAdCard";
 
 const StoriesBar = dynamic(() => import("@/components/feed/StoriesBar"), { ssr: false });
 const StoryCreator = dynamic(() => import("@/components/feed/StoryCreator"), { ssr: false });
@@ -70,6 +72,7 @@ import PostSkeleton from "@/components/feed/PostSkeleton";
 export default function RootPage() {
   const router = useRouter();
   const [posts, setPosts] = useState<any[]>([]);
+  const [activeAds, setActiveAds] = useState<any[]>([]);
   const [storyGroups, setStoryGroups] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
@@ -205,7 +208,7 @@ export default function RootPage() {
     }
 
     try {
-      const [postsRes, repostsRes] = await Promise.all([
+      const [postsRes, repostsRes, adServerRes] = await Promise.all([
         supabase
           .from('posts')
           .select('*')
@@ -215,8 +218,30 @@ export default function RootPage() {
           .from('reposts')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(10)
+          .limit(10),
+        fetch('/api/ads/serve?format=feed', { cache: 'no-store' }).catch(() => null)
       ]);
+
+      if (adServerRes && adServerRes.ok && adServerRes.status === 200) {
+        const adData = await adServerRes.json().catch(() => null);
+        if (adData && adData.campaign_id) {
+          setActiveAds([{
+            id: adData.campaign_id,
+            nome: adData.nome,
+            texto: adData.texto,
+            criativo_url: adData.criativo_url,
+            criativo_tipo: adData.criativo_tipo,
+            call_to_action: adData.call_to_action,
+            profiles: {
+              full_name: adData.partner_nome,
+              avatar_url: adData.partner_avatar,
+              is_verified: adData.partner_verified,
+            },
+            tracking_url_impression: adData.tracking_url_impression,
+            tracking_url_click: adData.tracking_url_click,
+          }]);
+        }
+      }
 
       const postsData = postsRes.data;
       const repostsData = repostsRes.data;
@@ -844,6 +869,21 @@ export default function RootPage() {
 
                   <div className="my-2 border-t border-gray-100 dark:border-white/5" />
                   <div className="px-3 py-1 mt-1">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400">Parceiros & Anúncios</span>
+                  </div>
+                  <Link href="/campanha">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 transition-colors">
+                      <Megaphone className="w-4 h-4 mr-3 text-emerald-500" /> FéAds
+                    </DropdownMenuItem>
+                  </Link>
+                  <Link href="/campanha/carteira">
+                    <DropdownMenuItem className="py-2.5 px-3 cursor-pointer rounded-xl font-medium text-sm text-gray-900 dark:text-white hover:bg-white/10 transition-colors mt-1">
+                      <Wallet className="w-4 h-4 mr-3 text-teal-500" /> Carteira de Anúncios
+                    </DropdownMenuItem>
+                  </Link>
+
+                  <div className="my-2 border-t border-gray-100 dark:border-white/5" />
+                  <div className="px-3 py-1 mt-1">
                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-900 dark:text-white">Igrejas</span>
                   </div>
                   <Link href="/igreja">
@@ -910,7 +950,7 @@ export default function RootPage() {
                     <Link href="/privacy" className="text-[10px] text-gray-900 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Privacidade</Link>
                     <Link href="/terms" className="text-[10px] text-gray-900 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Termos de Uso</Link>
                     <Link href="/cookies" className="text-[10px] text-gray-900 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Cookies</Link>
-                    <Link href="/advertising" className="text-[10px] text-gray-900 dark:text-gray-400 hover:text-black dark:hover:text-white transition-colors">Publicidade</Link>
+                    <Link href="/campanha" className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline transition-colors">Anunciar / Ads</Link>
                     <Link href="/delete-account" className="text-[10px] text-red-500/70 hover:text-red-500 transition-colors">Deletar Conta</Link>
                   </div>
 
@@ -1036,6 +1076,20 @@ export default function RootPage() {
             <Flame className="w-5 h-5 fill-amber-500/30" /> Lugar Secreto
           </Link>
 
+          {/* Parceiros & Anúncios */}
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 px-2 py-2">Parceiros & Anúncios</p>
+            <nav className="space-y-0.5">
+              <Link href="/campanha" className="w-full flex items-center justify-between px-4 py-3 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-2xl transition-all font-bold">
+                <span className="flex items-center gap-3"><Megaphone className="w-5 h-5 text-emerald-500" /> FéAds</span>
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">Anunciar</span>
+              </Link>
+              <Link href="/campanha/carteira" className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 dark:text-gray-300 hover:bg-black/5 dark:hover:bg-white/5 rounded-2xl transition-all font-bold">
+                <Wallet className="w-5 h-5 text-teal-500" /> Carteira de Anúncios
+              </Link>
+            </nav>
+          </div>
+
           {/* Igrejas */}
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 px-2 py-2">Igrejas</p>
@@ -1086,7 +1140,7 @@ export default function RootPage() {
             <Link href="/privacy" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Privacidade</Link>
             <Link href="/terms" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Termos de Uso</Link>
             <Link href="/cookies" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Cookies</Link>
-            <Link href="/advertising" className="text-[10px] text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors">Publicidade</Link>
+            <Link href="/campanha" className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline transition-colors">Anunciar / Ads</Link>
             <Link href="/delete-account" className="text-[10px] text-red-500/70 hover:text-red-500 transition-colors">Deletar Conta</Link>
           </div>
         </div>
@@ -1150,7 +1204,16 @@ export default function RootPage() {
                       onDeleted={(id: string) => setPosts(prev => prev.filter(p => p.id !== id))}
                       onUpdated={(updated: any) => setPosts(prev => prev.map(p => p.id === updated.id ? { ...p, ...updated } : p))}
                     />
-                    {idx === 1 && (
+
+                    {/* ─── ANÚNCIO PATROCINADO FÉADS ─── */}
+                    {activeAds.length > 0 && (idx === 0 || (idx > 0 && (idx + 1) % 4 === 0)) && (
+                      <SponsoredAdCard 
+                        campaign={activeAds[Math.floor(idx / 4) % activeAds.length]} 
+                        currentUser={currentUser} 
+                      />
+                    )}
+
+                    {idx === 2 && (
                       <FollowSuggestions currentUser={currentUser} />
                     )}
                   </div>

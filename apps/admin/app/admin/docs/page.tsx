@@ -46,6 +46,79 @@ export default function GlobalDocsPage() {
 
   const [docs, setDocs] = useState<DocItem[]>([
     {
+      id: "doc-feads",
+      title: "FéAds — Sistema de Anúncios Patrocinados & Mercado Pago",
+      category: "FéAds",
+      categoryTag: "FéAds · atualizado hoje",
+      status: "atual",
+      statusText: "Atual",
+      statusTone: "brand",
+      updated_at: "Hoje",
+      summary: "Manual completo do FéAds: Modelos de cobrança pré-paga, exemplos práticos de consumo de saldo, edição completa de campanhas, rastreamento de cliques/WhatsApp e Ad Serving no feed.",
+      content: `### 1. Visão Geral da Plataforma FéAds
+O **FéAds** é o ecossistema oficial de publicidade nativa e patrocínios da rede social FéConecta. Ele permite que igrejas, editoras, artistas, mentores e empresas cristãs promovam seus livros, conferências, louvores, cursos e produtos diretamente na timeline dos fiéis.
+
+---
+
+### 2. Como Funciona a Cobrança do Cliente (Modelo Pré-pago)
+O sistema opera em formato **100% pré-pago e transparente**, garantindo que o anunciante nunca seja cobrado além do que ele mesmo estipulou:
+
+1. **Recarga de Créditos:** O anunciante adiciona fundos à sua Carteira FéAds via **Pix Instantâneo** ou **Cartão de Crédito (Checkout Mercado Pago)**.
+2. **Criação da Campanha:** Ao criar um anúncio em \`/campanha/nova\`, o parceiro escolhe o orçamento que deseja investir (mínimo de R$ 5,00). Nesse momento, o saldo **NÃO** é descontado.
+3. **Aprovação pela Moderação:** Quando a moderação da FéConecta aprova a campanha, o valor do orçamento é transferido atomicamente de \`saldo_disponivel\` para \`saldo_investido\`.
+4. **Consumo por Resultados (CPC / CPM):** À medida que os usuários visualizam o anúncio e clicam nos botões de ação, o saldo da campanha é consumido gradualmente até o teto estipulado.
+
+---
+
+### 3. Exemplos Práticos de Cobrança e Consumo de Saldo
+
+#### 📌 Exemplo 1: Campanha com Objetivo de Cliques no Link / WhatsApp (CPC)
+* **Cenário:** O parceiro recarrega **R$ 100,00** na carteira via Pix e cria a campanha *"Venda do Livro - O Fim do Jogo Narcizista"* com orçamento de **R$ 100,00**.
+* **Como ocorre a cobrança:**
+  1. A equipe aprova o anúncio. Os R$ 100,00 ficam vinculados à veiculação da campanha.
+  2. O anúncio aparece no Feed Social de milhares de fiéis.
+  3. Cada clique no botão **\`Comprar Agora\`** ou **\`Falar no WhatsApp\`** custa um valor unitário fixo (ex: R$ 0,50 por clique).
+  4. Quando a campanha atinge **200 cliques** (200 x R$ 0,50 = R$ 100,00), o orçamento é atingido e o anúncio é pausado automaticamente.
+  5. O parceiro recebe **200 pessoas interessadas** diretamente no seu checkout ou no seu WhatsApp.
+
+#### 📌 Exemplo 2: Encerramento Antecipado com Devolução de Saldo Restante
+* **Cenário:** O anunciante alocou **R$ 100,00** em uma campanha de conferência para o fim de semana.
+* **O que acontece se encerrar antes:**
+  1. A conferência acontece no sábado. Até lá, a campanha consumiu **R$ 40,00** em cliques.
+  2. O anunciante clica em *Encerrar Campanha*.
+  3. Os **R$ 60,00 restantes retornam instantaneamente** para o \`saldo_disponivel\` da sua carteira.
+  4. Ele pode usar esses R$ 60,00 para lançar um novo anúncio ou solicitar o estorno para sua conta bancária via Pix.
+
+#### 📌 Exemplo 3: Reprovação na Moderação (Garantia de 0 Prejuízo)
+* **Cenário:** O anunciante envia um criativo que não cumpre as diretrizes da comunidade cristã.
+* **O que acontece:**
+  1. A moderação clica em *Reprovar* e insere a justificativa.
+  2. O valor do orçamento **nunca é debitado**: ele permanece 100% como saldo disponível na carteira do parceiro para ser usado na próxima campanha.
+
+---
+
+### 4. Como Editar a Campanha por Inteiro (Copy, Mídia e Links)
+O anunciante tem liberdade para ajustar seu anúncio a qualquer momento pela página da campanha (\`/campanha/[id]\`):
+
+1. **Botão \`✏️ Editar Campanha Completa\`:** Localizado no canto superior direito dos detalhes da campanha.
+2. **Campos Editáveis:**
+   * **Nome:** Atualização do título da campanha.
+   * **Texto / Copy Persuasiva:** Modificação de todo o texto que aparece acima do criativo.
+   * **Mídia Criativa (Imagem/Vídeo):** Upload de novo arquivo com **compressão automática para WebP 1080px** (economiza dados e acelera o carregamento) ou vídeo MP4 de até 50MB.
+   * **Texto do Botão (CTA) e Presets:** *Comprar Agora*, *Falar no WhatsApp*, *Saiba Mais*, *Garantir Vaga*, *Ouvir Agora*.
+   * **Link de Destino / URL:** Direcionamento para links externos (Hotmart, Kiwify, Eduzz, Shopify) ou WhatsApp direto (\`wa.me/5511999999999\`).
+   * **Formato e Objetivo:** Feed, Stories, Banners, Alcance ou Conversões.
+   * **Datas de Veiculação:** Alteração da janela de início e término.
+
+---
+
+### 5. Motor de Entrega Social (Ad Delivery Engine)
+* **Serviço de Borda:** \`AdServingService\` via \`GET /api/ads/serve?format=feed\`.
+* **Entrega no Feed:** O componente \`<SponsoredAdCard />\` é injetado a cada bloco de posts no feed principal.
+* **Segurança e Privacidade:** O anúncio exibe o selo **\`📢 Patrocinado • FéAds\`**, foto do parceiro, selo de verificado e redireciona os cliques de forma segura em nova aba (\`target="_blank"\`).
+* **Auditoria:** Contabilização atômica de impressões e cliques em tempo real via endpoints de tracking dedicados.`,
+    },
+    {
       id: "doc-1",
       title: "Runbook SEV-1 — onda de spam",
       category: "Waroom",
