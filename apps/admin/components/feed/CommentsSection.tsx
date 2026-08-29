@@ -245,18 +245,41 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
     const hasReplies = replies.length > 0;
     const isExpanded = expandedThreads[c.id];
 
+    const profileLink = c.author?.username 
+      ? `/profile/${c.author.username}` 
+      : c.author?.id 
+      ? `/profile/${c.author.id}` 
+      : null;
+
     return (
       <div key={c.id} className={`flex gap-2 ${isReply ? 'ml-9 mt-2' : 'mt-4'}`}>
-        <div className={`${isReply ? 'w-6 h-6' : 'w-8 h-8'} rounded-full overflow-hidden bg-muted flex-shrink-0 border border-white/5`}>
-          {c.author?.avatar_url
-            ? <img src={c.author.avatar_url} className="w-full h-full object-cover" alt="" />
-            : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white text-[10px] font-black uppercase shadow-inner">{(c.author?.full_name || c.author?.username || 'U')[0]}</div>
-          }
-        </div>
+        {profileLink ? (
+          <Link href={profileLink} className={`${isReply ? 'w-6 h-6' : 'w-8 h-8'} rounded-full overflow-hidden bg-muted flex-shrink-0 border border-white/5 hover:opacity-80 transition-opacity block`}>
+            {c.author?.avatar_url
+              ? <img src={c.author.avatar_url} className="w-full h-full object-cover" alt="" />
+              : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white text-[10px] font-black uppercase shadow-inner">{(c.author?.full_name || c.author?.username || 'U')[0]}</div>
+            }
+          </Link>
+        ) : (
+          <div className={`${isReply ? 'w-6 h-6' : 'w-8 h-8'} rounded-full overflow-hidden bg-muted flex-shrink-0 border border-white/5`}>
+            {c.author?.avatar_url
+              ? <img src={c.author.avatar_url} className="w-full h-full object-cover" alt="" />
+              : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white text-[10px] font-black uppercase shadow-inner">{(c.author?.full_name || c.author?.username || 'U')[0]}</div>
+            }
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="bg-gray-50 dark:bg-whatsapp-dark rounded-2xl px-3 py-2 border border-gray-100 dark:border-white/5 relative group">
             <div className="flex justify-between items-start mb-0.5">
-              <p className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green leading-none">{c.author?.full_name}</p>
+              {profileLink ? (
+                <Link href={profileLink} className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green leading-none hover:underline cursor-pointer">
+                  {c.author?.full_name || c.author?.username || 'Irmão FéConecta'}
+                </Link>
+              ) : (
+                <p className="text-[11px] font-bold text-whatsapp-teal dark:text-whatsapp-green leading-none">
+                  {c.author?.full_name || c.author?.username || 'Irmão FéConecta'}
+                </p>
+              )}
               
               {isOwner && (
                 <DropdownMenu>

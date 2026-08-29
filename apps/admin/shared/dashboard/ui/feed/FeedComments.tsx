@@ -97,22 +97,45 @@ export function FeedComments({ postId, currentUser, autoFocus }: FeedCommentsPro
 
     return (
       <div className={`space-y-3 ${depth > 0 ? 'ml-4 sm:ml-8 border-l-2 border-black/5 dark:border-white/5 pl-3 mt-3' : 'mt-4'}`}>
-        {thread.map(comment => (
-          <div key={comment.id} className="flex gap-3 relative group">
-            <img 
-              src={comment.profile?.avatar_url || 'https://via.placeholder.com/32'} 
-              className="w-8 h-8 rounded-full object-cover shrink-0 bg-gray-100 dark:bg-zinc-800"
-              alt={comment.profile?.full_name}
-            />
-            <div className="flex-1">
-              <div className="bg-gray-100 dark:bg-[#1A2429] rounded-2xl px-4 py-2.5 inline-block min-w-full sm:min-w-0">
-                <div className="font-bold text-sm text-gray-900 dark:text-white leading-tight">
-                  {comment.profile?.full_name || 'Usuário'}
+        {thread.map(comment => {
+          const profileLink = comment.profile?.username 
+            ? `/profile/${comment.profile.username}` 
+            : comment.profile?.id || comment.user_id
+            ? `/profile/${comment.profile?.id || comment.user_id}` 
+            : null;
+
+          return (
+            <div key={comment.id} className="flex gap-3 relative group">
+              {profileLink ? (
+                <a href={profileLink} className="shrink-0 block">
+                  <img 
+                    src={comment.profile?.avatar_url || 'https://via.placeholder.com/32'} 
+                    className="w-8 h-8 rounded-full object-cover bg-gray-100 dark:bg-zinc-800 hover:opacity-80 transition-opacity"
+                    alt={comment.profile?.full_name}
+                  />
+                </a>
+              ) : (
+                <img 
+                  src={comment.profile?.avatar_url || 'https://via.placeholder.com/32'} 
+                  className="w-8 h-8 rounded-full object-cover shrink-0 bg-gray-100 dark:bg-zinc-800"
+                  alt={comment.profile?.full_name}
+                />
+              )}
+              <div className="flex-1">
+                <div className="bg-gray-100 dark:bg-[#1A2429] rounded-2xl px-4 py-2.5 inline-block min-w-full sm:min-w-0">
+                  {profileLink ? (
+                    <a href={profileLink} className="font-bold text-sm text-gray-900 dark:text-white leading-tight hover:underline block cursor-pointer">
+                      {comment.profile?.full_name || 'Usuário'}
+                    </a>
+                  ) : (
+                    <div className="font-bold text-sm text-gray-900 dark:text-white leading-tight">
+                      {comment.profile?.full_name || 'Usuário'}
+                    </div>
+                  )}
+                  <div className="text-gray-700 dark:text-gray-200 text-sm mt-0.5 whitespace-pre-wrap">
+                    {comment.content}
+                  </div>
                 </div>
-                <div className="text-gray-700 dark:text-gray-200 text-sm mt-0.5 whitespace-pre-wrap">
-                  {comment.content}
-                </div>
-              </div>
               <div className="flex items-center gap-4 mt-1 px-2">
                 <span className="text-[11px] text-gray-500 font-medium">
                   {moment(comment.created_at).fromNow(true)}
