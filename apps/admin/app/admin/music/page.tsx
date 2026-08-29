@@ -262,47 +262,76 @@ export default function AdminFeMusicPage() {
         }
       }
 
-      // 3. Cache de Áudio Baixado no Servidor (femusic_cache) com usuário que baixou
+      // 3. Cache de Áudio Baixado no Servidor (femusic_cache) + Louvores Indexados (music_tracks)
       const { data: cacheTracks, error: cacheErr } = await supabase
         .from("femusic_cache")
-        .select(`
-          id,
-          youtube_id,
-          title,
-          artist,
-          cover,
-          user_id,
-          created_at,
-          user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
-        `)
+        .select("youtube_id, audio_url, created_at")
         .order("created_at", { ascending: false })
-        .limit(50);
+        .limit(100);
 
-      if (!cacheErr && cacheTracks) {
+      if (!cacheErr && cacheTracks && cacheTracks.length > 0) {
+        const ytIds = cacheTracks.map((c) => c.youtube_id).filter(Boolean);
+        
+        // Busca metadados correspondentes na tabela music_tracks
+        let trackDetailsMap = new Map<string, any>();
+        if (ytIds.length > 0) {
+          const { data: trackDetails } = await supabase
+            .from("music_tracks")
+            .select("provider_track_id, title, artist, cover, duration")
+            .in("provider_track_id", ytIds);
+          
+          if (trackDetails) {
+            trackDetails.forEach((td) => {
+              trackDetailsMap.set(td.provider_track_id, td);
+            });
+          }
+        }
+
         for (const cache of cacheTracks) {
-          const title = cache.title || `Áudio Extraído [${cache.youtube_id}]`;
-          const artist = cache.artist || "Download do Aplicativo";
-          const cacheUser = (cache as any).user;
+          const matchedTrack = trackDetailsMap.get(cache.youtube_id);
+          const title = matchedTrack?.title || `Louvor Extraído [${cache.youtube_id}]`;
+          const artist = matchedTrack?.artist || "Comunidade FéConecta (Download)";
+          const cover = matchedTrack?.cover || `https://i.ytimg.com/vi/${cache.youtube_id}/hqdefault.jpg`;
 
-          itemsMap.set(`cache-${cache.id}`, {
-            id: cache.id,
+          itemsMap.set(`cache-${cache.youtube_id}`, {
+            id: cache.youtube_id,
             provider_track_id: cache.youtube_id,
             title,
             artist,
-            cover: cache.cover || null,
-            duration: null,
+            cover,
+            duration: matchedTrack?.duration || null,
             source_type: "audio_cache",
             created_at: cache.created_at || new Date().toISOString(),
-            user: cacheUser ? {
-              id: cacheUser.id,
-              full_name: cacheUser.full_name,
-              username: cacheUser.username,
-              avatar_url: cacheUser.avatar_url,
-              is_verified: cacheUser.is_verified,
-              verification_label: cacheUser.verification_label,
-            } : null,
+            user: null,
             isSecularSuspect: checkSecularSuspect(title, artist),
           });
+        }
+      }
+
+      // 4. Músicas Indexadas Diretamente (music_tracks)
+      const { data: indexedTracks, error: idxErr } = await supabase
+        .from("music_tracks")
+        .select("id, provider_track_id, title, artist, cover, duration, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (!idxErr && indexedTracks) {
+        for (const track of indexedTracks) {
+          const key = `track-${track.provider_track_id || track.id}`;
+          if (!itemsMap.has(key) && !itemsMap.has(`cache-${track.provider_track_id}`)) {
+            itemsMap.set(key, {
+              id: track.id,
+              provider_track_id: track.provider_track_id || track.id,
+              title: track.title || "Louvor",
+              artist: track.artist || "Artista Cristão",
+              cover: track.cover || (track.provider_track_id ? `https://i.ytimg.com/vi/${track.provider_track_id}/hqdefault.jpg` : null),
+              duration: track.duration || null,
+              source_type: "track",
+              created_at: track.created_at || new Date().toISOString(),
+              user: null,
+              isSecularSuspect: checkSecularSuspect(track.title || "", track.artist || ""),
+            });
+          }
         }
       }
 
@@ -818,6 +847,7 @@ export default function AdminFeMusicPage() {
               <option value="playlist">Em Playlists</option>
               <option value="feed_post">No Feed</option>
               <option value="audio_cache">Cache do Servidor</option>
+              <option value="track">Louvores Indexados</option>
             </select>
 
             <select
@@ -924,8 +954,15 @@ export default function AdminFeMusicPage() {
                         item.source_type === "playlist" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
                         item.source_type === "feed_post" && "bg-purple-500/10 text-purple-600 dark:text-purple-400",
                         item.source_type === "audio_cache" && "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+                        item.source_type === "track" && "bg-amber-500/10 text-amber-600 dark:text-amber-400",
                       )}>
-                        {item.source_type === "playlist" ? "Playlist" : item.source_type === "feed_post" ? "Feed Post" : "Cache Servidor"}
+                        {item.source_type === "playlist" 
+                          ? "Playlist" 
+                          : item.source_type === "feed_post" 
+                          ? "Feed Post" 
+                          : item.source_type === "audio_cache" 
+                          ? "Cache Servidor" 
+                          : "Indexado"}
                       </span>
                     </td>
 
