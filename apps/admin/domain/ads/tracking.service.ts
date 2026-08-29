@@ -35,7 +35,8 @@ export class TrackingService {
 
   /**
    * Registra uma impressão de anúncio e atualiza o gasto da campanha atomicamente.
-   * Custo padrão por impressão: 1 centavo (R$ 0,01 = CPM de R$ 10,00).
+   * - Para objetivo "alcance" (CPM): 1 centavo por visualização (R$ 0,01 = CPM R$ 10,00).
+   * - Para objetivo "cliques" / "conversoes" (CPC): impressão gratuita (R$ 0,00).
    */
   async trackImpression(params: {
     campaignId: string;
@@ -44,9 +45,24 @@ export class TrackingService {
     costCents?: number;
     metadata?: Record<string, unknown>;
   }): Promise<{ impressionId: string; newGasto: number; budgetReached: boolean }> {
-    const costCents = params.costCents ?? 1; // 1 centavo por visualização padrão
+    // 1. Busca objetivo da campanha para definir custo de visualização
+    let costCents = params.costCents;
+    if (costCents === undefined) {
+      const { data: camp } = await this.db
+        .from("campaigns")
+        .select("objetivo")
+        .eq("id", params.campaignId)
+        .maybeSingle();
 
-    // 1. Inserir no log de impressões (append-only)
+      // Se for cliques ou conversões, impressão é gratuita no modelo CPC
+      if (camp?.objetivo === "cliques" || camp?.objetivo === "conversoes") {
+        costCents = 0;
+      } else {
+        costCents = 1; // 1 centavo por visualização padrão (CPM)
+      }
+    }
+
+    // 2. Inserir no log de impressões (append-only)
     const { data: imp, error: impError } = await this.db
       .from("ad_impressions")
       .insert({
@@ -63,29 +79,34 @@ export class TrackingService {
       throw new Error(`Erro ao registrar impressão: ${impError?.message}`);
     }
 
-    // 2. Incrementar gasto atomicamente via RPC
-    const { data: rpcRes, error: rpcError } = await this.db.rpc(
-      "increment_campaign_gasto_atomic",
-      {
-        p_campaign_id: params.campaignId,
-        p_amount: costCents,
+    let newGasto = 0;
+    let budgetReached = false;
+
+    // 3. Incrementar gasto atomicamente via RPC se houver custo
+    if (costCents > 0) {
+      const { data: rpcRes, error: rpcError } = await this.db.rpc(
+        "increment_campaign_gasto_atomic",
+        {
+          p_campaign_id: params.campaignId,
+          p_amount: costCents,
+        }
+      );
+
+      if (rpcError) {
+        throw new Error(`Erro ao atualizar gasto da campanha: ${rpcError.message}`);
       }
-    );
 
-    if (rpcError) {
-      throw new Error(`Erro ao atualizar gasto da campanha: ${rpcError.message}`);
-    }
+      const row = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
+      newGasto = Number(row?.new_gasto ?? 0);
+      budgetReached = Boolean(row?.budget_reached);
 
-    const row = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
-    const newGasto = Number(row?.new_gasto ?? 0);
-    const budgetReached = Boolean(row?.budget_reached);
-
-    // 3. Se atingiu o orçamento, fecha a campanha automaticamente
-    if (budgetReached) {
-      try {
-        await this.closingService.closeIfEligible(params.campaignId);
-      } catch (closeErr) {
-        console.error(`[TrackingService] Falha ao encerrar campanha após atingir orçamento:`, closeErr);
+      // Se atingiu o orçamento, fecha a campanha automaticamente
+      if (budgetReached) {
+        try {
+          await this.closingService.closeIfEligible(params.campaignId);
+        } catch (closeErr) {
+          console.error(`[TrackingService] Falha ao encerrar campanha após atingir orçamento:`, closeErr);
+        }
       }
     }
 
@@ -97,7 +118,7 @@ export class TrackingService {
   }
 
   /**
-   * Registra um clique no anúncio com verificação de anti-fraude.
+   * Registra um clique no anúncio com verificação de anti-fraude e débito CPC.
    */
   async trackClick(params: {
     campaignId: string;
@@ -111,7 +132,6 @@ export class TrackingService {
 
     // Verificação de Rate Limit (max 3 cliques a cada 5 minutos por usuário/IP)
     const record = clickRateLimitMap.get(trackerKey) || { timestamps: [] };
-    // Remove registros mais antigos que 5 minutos
     record.timestamps = record.timestamps.filter((t) => now - t < 5 * 60 * 1000);
 
     const isSuspicious = record.timestamps.length >= 3;
@@ -138,6 +158,32 @@ export class TrackingService {
 
     if (error || !data) {
       throw new Error(`Erro ao registrar clique: ${error?.message}`);
+    }
+
+    // Se o clique for legítimo e o modelo for CPC, debita o custo por clique
+    if (!isSuspicious) {
+      const { data: camp } = await this.db
+        .from("campaigns")
+        .select("objetivo")
+        .eq("id", params.campaignId)
+        .maybeSingle();
+
+      if (camp?.objetivo === "cliques" || camp?.objetivo === "conversoes") {
+        const clickCostCents = camp.objetivo === "conversoes" ? 50 : 25; // R$ 0,25 CPC / R$ 0,50 Conversão
+        const { data: rpcRes } = await this.db.rpc("increment_campaign_gasto_atomic", {
+          p_campaign_id: params.campaignId,
+          p_amount: clickCostCents,
+        });
+
+        const row = Array.isArray(rpcRes) ? rpcRes[0] : rpcRes;
+        if (row?.budget_reached) {
+          try {
+            await this.closingService.closeIfEligible(params.campaignId);
+          } catch (closeErr) {
+            console.error(`[TrackingService] Falha ao encerrar campanha após clique esgotar orçamento:`, closeErr);
+          }
+        }
+      }
     }
 
     return {

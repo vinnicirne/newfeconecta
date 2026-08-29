@@ -47,3 +47,11 @@ O **FéConecta** é a primeira rede social cristã completa do Brasil. Um ecossi
   - **Validação Segura por Token:** O responsável recebe um link criptográfico único (válido por 7 dias) para autorizar o acesso com um clique.
   - **Tela de Espera em Tempo Real:** O adolescente aguarda na tela `/guardian/pending`, que detecta automaticamente a aprovação do pai/mãe e redireciona sem necessidade de recarregar.
   - **Reenvio de E-mail:** Opção de disparar novamente o e-mail caso o responsável não tenha recebido.
+
+### 2.7. FéAds & FéConecta Pixel (Publicidade Cristã & Conversões)
+- **Ecossistema de Publicidade Nativa:** Anúncios patrocinados perfeitamente integrados ao feed de postagens.
+- **5+2 Objetivos de Campanha:** Reconhecimento, Tráfego, Engajamento, Contatos (WhatsApp), Conversões, Instalações e Eventos.
+- **Fluxo de Criação em 6 Passos:** Wizard guiado com estimativa algorítmica de metas em tempo real.
+- **FéConecta Pixel & Conversions API (CAPI):** Tag de rastreamento de compras externas (`Purchase` com `value`, `currency`, `order_id`), leads e atribuição de 30 dias por first-party cookie e Webhooks.
+- **Painel Executivo AdsAdmin:** Moderação de campanhas, fila de reembolso, métricas consolidadas em tempo real, auditoria de extrato e gráficos de linhas multi-séries com âncoras inteligentes anti-corte.
+- **Cobrança Pré-paga & Transparente:** Fórmulas dinâmicas CPM vs CPC, débito atômico e travas de segurança anti-fraude.

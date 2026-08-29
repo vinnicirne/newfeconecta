@@ -6,20 +6,30 @@ import { AdminAdsNavbar } from "@/components/ads/AdminAdsNavbar";
 import { KpiCard } from "@/components/ads/KpiCard";
 import { StatusBadge } from "@/components/ads/StatusBadge";
 import { DataTable, Column } from "@/components/ads/DataTable";
-import { adsApiFetch, formatCurrency, formatDate } from "@/lib/ads-utils";
+import { adsApiFetch, formatCurrency, formatDate, formatPercentage } from "@/lib/ads-utils";
 import { Campaign } from "@/domain/ads/types";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
 export default function AdminPerformancePage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [totalClicksCount, setTotalClicksCount] = useState<number>(0);
+  const [totalImpressionsCount, setTotalImpressionsCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function loadData() {
       try {
         setIsLoading(true);
-        const res = await adsApiFetch<{ campaigns: Campaign[] }>("/api/admin/campaigns");
-        setCampaigns(res.campaigns || []);
+        const [campsRes, clicksRes, impRes] = await Promise.all([
+          adsApiFetch<{ campaigns: Campaign[] }>("/api/admin/campaigns"),
+          supabase.from("ad_clicks").select("id", { count: "exact", head: true }),
+          supabase.from("ad_impressions").select("id", { count: "exact", head: true }),
+        ]);
+
+        setCampaigns(campsRes.campaigns || []);
+        setTotalClicksCount(clicksRes.count ?? 0);
+        setTotalImpressionsCount(impRes.count ?? 0);
       } catch (err: any) {
         toast.error("Erro ao carregar métricas de desempenho", { description: err.message });
       } finally {
@@ -36,6 +46,11 @@ export default function AdminPerformancePage() {
 
   const totalGasto = campaigns.reduce((sum, c) => sum + c.gasto, 0);
   const totalAtivas = campaigns.filter((c) => c.status === "ativa").length;
+
+  const totalGastoReais = totalGasto / 100;
+  const cpcMedio = totalClicksCount > 0 
+    ? (totalGastoReais / totalClicksCount).toFixed(2)
+    : (totalGastoReais > 0 ? totalGastoReais.toFixed(2) : "0,00");
 
   const columns: Column<Campaign>[] = [
     {
@@ -72,10 +87,9 @@ export default function AdminPerformancePage() {
     {
       header: "% Orçamento",
       cell: (c) => {
-        const pct = c.orcamento > 0 ? Math.min(Math.round((c.gasto / c.orcamento) * 100), 100) : 0;
         return (
           <span className="text-xs font-semibold text-zinc-300">
-            {pct}%
+            {formatPercentage(c.gasto, c.orcamento)}
           </span>
         );
       },
@@ -121,8 +135,8 @@ export default function AdminPerformancePage() {
           />
           <KpiCard
             label="CPC Médio da Rede"
-            value="R$ 0,18"
-            description="Média geral de custo por clique"
+            value={`R$ ${cpcMedio}`}
+            description={`${totalClicksCount} cliques totais computados`}
             tooltip="Custo médio por clique registrado em todo o ecossistema de anúncios."
             icon={MousePointerClick}
           />

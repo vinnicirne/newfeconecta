@@ -17,6 +17,19 @@ export function formatCurrency(cents: number | null | undefined): string {
 }
 
 /**
+ * Formata percentual com precisão decimal quando < 10% para evitar "0%".
+ * Exemplo: 46 centavos de 10000 -> "0,46%"
+ */
+export function formatPercentage(spent: number | null | undefined, total: number | null | undefined): string {
+  if (!total || total <= 0 || !spent || spent <= 0) return "0%";
+  const pct = (spent / total) * 100;
+  if (pct >= 100) return "100%";
+  if (pct >= 10) return `${Math.round(pct)}%`;
+  if (pct >= 1) return `${pct.toFixed(1).replace(".", ",")}%`;
+  return `${pct.toFixed(2).replace(".", ",")}%`;
+}
+
+/**
  * Formata data ISO para pt-BR (ex: "28/08/2026").
  */
 export function formatDate(isoString: string | null | undefined): string {

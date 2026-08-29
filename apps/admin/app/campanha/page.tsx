@@ -9,7 +9,7 @@ import { KpiCard } from "@/components/ads/KpiCard";
 import { StatusBadge } from "@/components/ads/StatusBadge";
 import { BudgetProgress } from "@/components/ads/BudgetProgress";
 import { DataTable, Column } from "@/components/ads/DataTable";
-import { adsApiFetch, formatCurrency, formatDate } from "@/lib/ads-utils";
+import { adsApiFetch, formatCurrency, formatDate, formatPercentage } from "@/lib/ads-utils";
 import { Campaign, WalletBalanceDto } from "@/domain/ads/types";
 import { toast } from "sonner";
 
@@ -24,15 +24,16 @@ export default function PartnerDashboardPage() {
     async function loadData() {
       try {
         setIsLoading(true);
-        const [walletRes, campaignsRes] = await Promise.all([
+        const [walletRes, campsRes] = await Promise.all([
           adsApiFetch<WalletBalanceDto>("/api/wallet").catch(() => null),
-          adsApiFetch<{ campaigns: Campaign[] }>("/api/campaigns").catch(() => ({ campaigns: [] })),
+          adsApiFetch<Campaign[]>("/api/campaigns"),
         ]);
-
         if (walletRes) setWallet(walletRes);
-        if (campaignsRes?.campaigns) setCampaigns(campaignsRes.campaigns);
+        setCampaigns(campsRes || []);
       } catch (err: any) {
-        toast.error("Erro ao carregar dados do painel", { description: err.message });
+        toast.error("Erro ao carregar dados do parceiro", {
+          description: err.message,
+        });
       } finally {
         setIsLoading(false);
       }
@@ -45,7 +46,7 @@ export default function PartnerDashboardPage() {
   const activeCampaigns = campaigns.filter((c) => c.status === "ativa").length;
   const totalGasto = campaigns.reduce((acc, c) => acc + (Number(c.gasto) || 0), 0);
   const totalOrcamento = campaigns.reduce((acc, c) => acc + (Number(c.orcamento) || 0), 0);
-  const percentConsumido = totalOrcamento > 0 ? Math.round((totalGasto / totalOrcamento) * 100) : 0;
+  const percentConsumido = formatPercentage(totalGasto, totalOrcamento);
 
   const filteredCampaigns = campaigns.filter((c) => {
     if (statusFilter === "todos") return true;
@@ -119,8 +120,8 @@ export default function PartnerDashboardPage() {
               href="/campanha/carteira"
               className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-200 hover:bg-white/10 transition-colors"
             >
-              <Wallet className="h-4 w-4 text-emerald-400" />
-              <span>Gerenciar Carteira</span>
+              <Wallet className="h-4 w-4" />
+              <span>Minha Carteira</span>
             </Link>
 
             <Link
@@ -162,7 +163,7 @@ export default function PartnerDashboardPage() {
           <KpiCard
             label="Total Consumido"
             value={formatCurrency(totalGasto)}
-            description={`${percentConsumido}% do orçamento alocado`}
+            description={`${percentConsumido} do orçamento alocado`}
             tooltip="Total financeiro consumido em veiculação de anúncios em todas as suas campanhas."
             icon={Eye}
           />

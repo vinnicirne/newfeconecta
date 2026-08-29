@@ -30,7 +30,26 @@ export type RefundRequestStatus =
 
 export type CampaignFormat = "feed" | "stories" | "banner";
 
-export type CampaignObjective = "alcance" | "cliques" | "conversoes";
+export type CampaignObjective =
+  | "reconhecimento"
+  | "trafego"
+  | "engajamento"
+  | "contatos"
+  | "conversoes"
+  | "instalacoes"
+  | "eventos"
+  | "alcance"
+  | "cliques";
+
+export type ConversionAction =
+  | "whatsapp"
+  | "compra"
+  | "cadastro"
+  | "link_externo"
+  | "inscricao_evento"
+  | "visita_igreja"
+  | "instalacao_app"
+  | "engajamento_social";
 
 // ---------------------------------------------------------------------------
 // Entidades de banco (espelham as tabelas do Supabase)
@@ -74,6 +93,7 @@ export interface Campaign {
   nome: string;
   formato: CampaignFormat;
   objetivo: CampaignObjective;
+  acao_conversao?: ConversionAction | null;
   orcamento: number;           // em centavos
   gasto: number;               // em centavos — consumo real de impressões/cliques
   status: CampaignStatus;
@@ -146,11 +166,11 @@ export interface ApproveRefundResponseDto {
   processado_em: string;
 }
 
-// POST /api/campaigns (criar campanha)
 export interface CreateCampaignDto {
   nome: string;
   formato: CampaignFormat;
   objetivo: CampaignObjective;
+  acao_conversao?: ConversionAction;
   orcamento: number;          // em centavos
   periodo_inicio: string;
   periodo_fim: string;

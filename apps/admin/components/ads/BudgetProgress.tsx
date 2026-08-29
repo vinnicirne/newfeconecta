@@ -1,5 +1,5 @@
 import React from "react";
-import { formatCurrency } from "@/lib/ads-utils";
+import { formatCurrency, formatPercentage } from "@/lib/ads-utils";
 
 interface BudgetProgressProps {
   spent: number;
@@ -7,7 +7,8 @@ interface BudgetProgressProps {
 }
 
 export function BudgetProgress({ spent, total }: BudgetProgressProps) {
-  const percentage = total > 0 ? Math.min(Math.round((spent / total) * 100), 100) : 0;
+  const pctNumber = total > 0 ? Math.min((spent / total) * 100, 100) : 0;
+  const pctFormatted = formatPercentage(spent, total);
 
   return (
     <div className="w-full space-y-1.5">
@@ -18,11 +19,11 @@ export function BudgetProgress({ spent, total }: BudgetProgressProps) {
       <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
         <div
           className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400 transition-all duration-300"
-          style={{ width: `${percentage}%` }}
+          style={{ width: `${Math.max(pctNumber, spent > 0 ? 0.8 : 0)}%` }}
         />
       </div>
       <div className="text-right text-[10px] text-zinc-400">
-        {percentage}% consumido
+        {pctFormatted} consumido
       </div>
     </div>
   );

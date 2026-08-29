@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function DocRedirect() {
-  redirect("/admin/docs");
+  redirect("/docs");
 }

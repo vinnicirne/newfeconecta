@@ -16,6 +16,7 @@ import {
   CampaignStatus,
   CampaignFormat,
   CampaignObjective,
+  ConversionAction,
   CreateCampaignDto,
   InsufficientBalanceError,
   InvalidStatusTransitionError,
@@ -70,27 +71,45 @@ export class CampaignService {
     partnerId: string,
     dto: CreateCampaignDto
   ): Promise<Campaign> {
-    const { data, error } = await this.db
+    const insertData: any = {
+      partner_id: partnerId,
+      nome: dto.nome,
+      formato: dto.formato,
+      objetivo: dto.objetivo,
+      orcamento: dto.orcamento,
+      gasto: 0,
+      status: "pendente" satisfies CampaignStatus,
+      periodo_inicio: dto.periodo_inicio,
+      periodo_fim: dto.periodo_fim,
+      publico: {
+        ...(dto.publico ?? {}),
+        acao_conversao: dto.acao_conversao ?? "whatsapp",
+      },
+      criativo_url: dto.criativo_url ?? null,
+      criativo_tipo: dto.criativo_tipo ?? null,
+      call_to_action: dto.call_to_action ?? null,
+      texto: dto.texto ?? null,
+      motivo_reprovacao: null,
+    };
+
+    let { data, error } = await this.db
       .from("campaigns")
       .insert({
-        partner_id: partnerId,
-        nome: dto.nome,
-        formato: dto.formato,
-        objetivo: dto.objetivo,
-        orcamento: dto.orcamento,
-        gasto: 0,
-        status: "pendente" satisfies CampaignStatus,
-        periodo_inicio: dto.periodo_inicio,
-        periodo_fim: dto.periodo_fim,
-        publico: dto.publico ?? {},
-        criativo_url: dto.criativo_url ?? null,
-        criativo_tipo: dto.criativo_tipo ?? null,
-        call_to_action: dto.call_to_action ?? null,
-        texto: dto.texto ?? null,
-        motivo_reprovacao: null,
+        ...insertData,
+        acao_conversao: dto.acao_conversao ?? null,
       })
       .select("*")
       .single();
+
+    if (error && (error.message.includes("acao_conversao") || error.code === "PGRST204")) {
+      const retry = await this.db
+        .from("campaigns")
+        .insert(insertData)
+        .select("*")
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       throw new Error(`[CampaignService] Erro ao criar campanha: ${error?.message}`);
@@ -257,6 +276,7 @@ export class CampaignService {
       nome?: string;
       formato?: CampaignFormat;
       objetivo?: CampaignObjective;
+      acao_conversao?: ConversionAction;
       periodo_inicio?: string;
       periodo_fim?: string;
       publico?: any;
@@ -266,12 +286,31 @@ export class CampaignService {
       texto?: string | null;
     }
   ): Promise<Campaign> {
-    const { data, error } = await this.db
+    let { data, error } = await this.db
       .from("campaigns")
       .update(updates)
       .eq("id", campaignId)
       .select("*")
       .single();
+
+    if (error && (error.message.includes("acao_conversao") || error.code === "PGRST204")) {
+      const fallbackUpdates: any = { ...updates };
+      delete fallbackUpdates.acao_conversao;
+      if (updates.acao_conversao) {
+        fallbackUpdates.publico = {
+          ...(fallbackUpdates.publico || {}),
+          acao_conversao: updates.acao_conversao,
+        };
+      }
+      const retry = await this.db
+        .from("campaigns")
+        .update(fallbackUpdates)
+        .eq("id", campaignId)
+        .select("*")
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       throw new Error(`[CampaignService] Erro ao atualizar campanha: ${error?.message}`);

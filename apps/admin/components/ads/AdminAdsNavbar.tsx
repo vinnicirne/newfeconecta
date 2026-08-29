@@ -10,10 +10,10 @@ export function AdminAdsNavbar() {
   const pathname = usePathname();
 
   const links = [
-    { href: "/ads", label: "Fila de Moderação", icon: Layers, exact: true },
-    { href: "/ads/carteira", label: "Fila de Reembolsos", icon: Wallet },
-    { href: "/ads/desempenho", label: "Desempenho Global", icon: BarChart3 },
-    { href: "/ads/pagamentos", label: "Recargas & Config", icon: Receipt },
+    { href: "/ads", label: "Moderação", icon: Layers, exact: true },
+    { href: "/ads/carteira", label: "Reembolso", icon: Wallet },
+    { href: "/ads/desempenho", label: "Desempenho", icon: BarChart3 },
+    { href: "/ads/pagamentos", label: "Extrato", icon: Receipt },
   ];
 
   return (
@@ -25,7 +25,7 @@ export function AdminAdsNavbar() {
             className="flex items-center gap-2 text-xs font-semibold text-zinc-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
-            <span className="hidden sm:inline">Painel Geral Admin</span>
+            <span className="hidden sm:inline">Admin</span>
           </Link>
 
           <div className="h-5 w-px bg-white/10 hidden sm:block" />
@@ -35,10 +35,7 @@ export function AdminAdsNavbar() {
               <ShieldCheck className="h-4 w-4" />
             </div>
             <div>
-              <span className="text-sm font-bold text-white tracking-tight">FéConecta Ads</span>
-              <span className="ml-1.5 rounded-md bg-purple-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-purple-400 border border-purple-500/20">
-                Admin
-              </span>
+              <span className="text-sm font-bold text-white tracking-tight">AdsAdmin</span>
             </div>
           </div>
 
@@ -72,7 +69,7 @@ export function AdminAdsNavbar() {
             href="/campanha"
             className="text-xs font-semibold text-zinc-400 hover:text-emerald-400 transition-colors"
           >
-            Visualizar como Parceiro &rarr;
+            Painel Usuario &rarr;
           </Link>
         </div>
       </div>

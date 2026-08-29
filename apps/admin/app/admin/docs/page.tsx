@@ -47,93 +47,191 @@ export default function GlobalDocsPage() {
   const [docs, setDocs] = useState<DocItem[]>([
     {
       id: "doc-feads",
-      title: "FéAds — Sistema de Anúncios Patrocinados & Mercado Pago",
+      title: "FéAds — Sistema de Anúncios Patrocinados, Métricas & Cobrança",
       category: "FéAds",
       categoryTag: "FéAds · atualizado hoje",
       status: "atual",
       statusText: "Atual",
       statusTone: "brand",
       updated_at: "Hoje",
-      summary: "Manual completo do FéAds: Modelos de cobrança pré-paga, exemplos práticos de consumo de saldo, edição completa de campanhas, interações nativas (Fogo e Comentários), extrato paginado e Ad Serving no feed.",
+      summary: "Manual oficial do FéAds: Matriz de 5+2 objetivos de campanha, ações de conversão, fluxo de criação em 6 passos, regras e fórmulas de cobrança (CPM vs CPC), painel do anunciante com métricas reais, proteções anti-fraude e integração Mercado Pago.",
       content: `### 1. Visão Geral da Plataforma FéAds
-O **FéAds** é o ecossistema oficial de publicidade nativa e patrocínios da rede social FéConecta. Ele permite que igrejas, editoras, artistas, mentores e empresas cristãs promovam seus livros, conferências, louvores, cursos e produtos diretamente na timeline dos fiéis.
+O **FéAds** é o ecossistema oficial de publicidade nativa e patrocínios da rede social FéConecta. Ele permite que igrejas, editoras, artistas, mentores e empresas cristãs promovam seus livros, conferências, louvores, cursos e produtos diretamente na timeline dos fiéis, com foco total em **resultados mensuráveis e ROI transparente**.
 
 ---
 
-### 2. Como Funciona a Cobrança do Cliente (Modelo Pré-pago)
-O sistema opera em formato **100% pré-pago e transparente**, garantindo que o anunciante nunca seja cobrado além do que ele mesmo estipulou:
+### 2. Matriz de Objetivos de Campanha & Otimização de Entrega
+O FéAds estrutura as campanhas com base no **resultado que o anunciante quer obter**, e o algoritmo otimiza a distribuição para essa ação específica:
 
-1. **Recarga de Créditos:** O anunciante adiciona fundos à sua Carteira FéAds via **Pix Instantâneo (QR Code + Copia e Cola)** ou **Cartão de Crédito (Checkout Pro Mercado Pago)**.
-2. **Criação da Campanha:** Ao criar um anúncio em \`/campanha/nova\`, o parceiro escolhe o orçamento que deseja investir (mínimo de R$ 5,00). Nesse momento, o saldo **NÃO** é descontado.
-3. **Aprovação pela Moderação:** Quando a moderação da FéConecta aprova a campanha no painel administrativo, o valor do orçamento é transferido atomicamente de \`saldo_disponivel\` para \`saldo_investido\`.
-4. **Consumo por Resultados (CPC / CPM):** À medida que os usuários visualizam o anúncio e clicam nos botões de ação, o saldo da campanha é consumido gradualmente até o teto estipulado.
-
----
-
-### 3. Exemplos Práticos de Cobrança e Consumo de Saldo
-
-#### 📌 Exemplo 1: Campanha de Venda de Livro / Infoproduto (CPC - Custo por Clique)
-* **Cenário:** O parceiro recarrega **R$ 100,00** na carteira via Pix e cria a campanha *"Venda do Livro - O Fim do Jogo Narcizista"* com orçamento de **R$ 100,00**.
-* **Como ocorre a cobrança:**
-  1. A equipe aprova o anúncio. Os R$ 100,00 ficam vinculados à veiculação da campanha.
-  2. O anúncio aparece no Feed Social de milhares de fiéis.
-  3. Cada clique no botão **\`Comprar Agora\`** ou **\`Falar no WhatsApp\`** custa um valor unitário fixo (ex: R$ 0,50 por clique).
-  4. Quando a campanha atinge **200 cliques** (200 x R$ 0,50 = R$ 100,00), o orçamento é atingido e o anúncio é pausado automaticamente.
-  5. O parceiro recebe **200 pessoas interessadas** diretamente no seu checkout da Hotmart/Kiwify ou no seu WhatsApp.
-
-#### 📌 Exemplo 2: Encerramento Antecipado com Devolução de Saldo Restante
-* **Cenário:** O anunciante alocou **R$ 100,00** em uma campanha de conferência para o fim de semana.
-* **O que acontece se encerrar antes:**
-  1. A conferência acontece no sábado. Até lá, a campanha consumiu **R$ 40,00** em cliques.
-  2. O anunciante clica em *Encerrar Campanha*.
-  3. Os **R$ 60,00 restantes retornam instantaneamente** para o \`saldo_disponivel\` da sua carteira.
-  4. Ele pode usar esses R$ 60,00 para lançar um novo anúncio ou solicitar o estorno para sua conta bancária via Pix.
-
-#### 📌 Exemplo 3: Reprovação na Moderação (Garantia de 0 Prejuízo)
-* **Cenário:** O anunciante envia um criativo que não cumpre as diretrizes da comunidade cristã.
-* **O que acontece:**
-  1. A moderação clica em *Reprovar* e insere a justificativa.
-  2. O valor do orçamento **nunca é debitado**: ele permanece 100% como saldo disponível na carteira do parceiro para ser usado na próxima campanha.
+| Objetivo | O que o FéConecta busca | Conversão Principal | Modelo de Cobrança |
+| :--- | :--- | :--- | :---: |
+| **👁️ Reconhecimento** | Mostrar para o maior número de pessoas | Impressão / Alcance único | **CPM** (R$ 0,01 / visualização) |
+| **🔗 Tráfego** | Levar pessoas para um site, página ou link | Clique no Link / Site | **CPC** (R$ 0,25 / clique) |
+| **❤️ Engajamento** | Fazer pessoas interagirem no feed | Curtida (fogo), comentários, partilha | **CPM** (R$ 0,01 / visualização) |
+| **💬 Contatos** | Gerar contato direto no WhatsApp / chat | Mensagem no WhatsApp / Ligação | **CPC** (R$ 0,50 / clique qualificado) |
+| **🎯 Conversões** | Gerar uma ação de negócio (compra / lead) | Compra / Cadastro / Formulário | **CPC** (R$ 0,50 / clique qualificado) |
+| **📱 Instalações** | Conseguir novos usuários para o app | Instalação do aplicativo | **CPC** (R$ 0,50 / clique qualificado) |
+| **📅 Eventos** | Divulgar congressos e cultos especiais | Inscrição confirmada no evento | **CPC** (R$ 0,50 / clique qualificado) |
 
 ---
 
-### 4. Como Editar a Campanha por Inteiro (Copy, Mídia e Links)
-O anunciante tem liberdade para ajustar seu anúncio a qualquer momento pela página da campanha (\`/campanha/[id]\`):
-
-1. **Botão \`✏️ Editar Campanha Completa\`:** Localizado no canto superior direito dos detalhes da campanha.
-2. **Campos Editáveis:**
-   * **Nome:** Atualização do título da campanha.
-   * **Texto / Copy Persuasiva:** Modificação de todo o texto que aparece acima do criativo.
-   * **Mídia Criativa (Imagem/Vídeo):** Upload de novo arquivo com **compressão automática para WebP 1080px** (economiza dados e acelera o carregamento) ou vídeo MP4 de até 50MB.
-   * **Texto do Botão (CTA) e Presets:** *Comprar Agora*, *Falar no WhatsApp*, *Saiba Mais*, *Garantir Vaga*, *Ouvir Agora*.
-   * **Link de Destino / URL:** Direcionamento para links externos (Hotmart, Kiwify, Eduzz, Shopify) ou WhatsApp direto (\`wa.me/5511999999999\`).
-   * **Formato e Objetivo:** Feed, Stories, Banners, Alcance ou Conversões.
-   * **Datas de Veiculação:** Alteração da janela de início e término.
+### 3. Ações de Conversão Personalizadas
+Cada anunciante define **qual é o seu resultado final desejado**, permitindo que o painel calcule o Custo por Ação (CPA) correto:
+* 📞 **WhatsApp:** Contato iniciado no WhatsApp (\`wa.me/...\`)
+* 🛒 **Compra:** Compra ou checkout realizado
+* 📝 **Cadastro:** Formulário ou lead preenchido
+* 🔗 **Link Externo:** Visita qualificada na página de destino
+* 📅 **Evento:** Inscrição confirmada no congresso/culto
+* ⛪ **Igreja:** Pedido de visita ou informações pastorais
+* 📱 **App:** Instalação ou registro no aplicativo
+* ❤️ **Engajamento Social:** Curtida com fogo ou comentário na timeline
 
 ---
 
-### 5. Padrão FéConecta de Interações no Anúncio (Feed)
-Os anúncios patrocinados comportam-se como publicações nativas de alto engajamento da rede:
-
-* **Ícone de Fogo no Like (\`Flame\` 🔥):** Ao curtir o anúncio, o ícone acende em verde vibrante oficial (\`#25D366\`) com brilho em neon.
-* **Comentários Nativos Integrados:** Ao clicar em \`Comentar\`, abre a seção de comentários da FéConecta onde o público pode enviar dúvidas, testemunhos e interagir com o anunciante em tempo real.
-* **Compartilhamento Rápido:** Dispara o menu nativo do dispositivo para WhatsApp e redes sociais ou copia o link direto do criativo.
-
----
-
-### 6. Motor de Entrega Social (Ad Delivery Engine)
-* **Serviço de Borda:** \`AdServingService\` via \`GET /api/ads/serve?format=feed\`.
-* **Entrega no Feed:** O componente \`<SponsoredAdCard />\` é injetado a cada bloco de posts no feed principal de forma fluida.
-* **Segurança e Privacidade:** O anúncio exibe o selo **\`📢 Patrocinado • FéAds\`**, foto do parceiro, selo de verificado e redireciona os cliques de forma segura em nova aba (\`target="_blank"\`).
-* **Auditoria:** Contabilização atômica de impressões e cliques em tempo real via endpoints de tracking dedicados.
+### 4. Fluxo de Criação em 6 Passos (\`/campanha/nova\`)
+1. **Passo 1 — Escolha o Objetivo:** Seleção visual com foco no resultado desejado.
+2. **Passo 2 — Defina o Público:** Segmentação por região geográfica, denominações cristãs e interesses.
+3. **Passo 3 — Defina Orçamento & Projeção de Metas:** Cálculo em tempo real de estimativa de conversões (ex: *R$ 500 = ~110 a 200 mensagens*).
+4. **Passo 4 — Crie o Anúncio:** Nome, formato (Feed, Stories, Banner), upload com compressão automática WebP 1080px, copy persuasiva e botão CTA.
+5. **Passo 5 — Defina a Conversão:** Vinculação da ação de sucesso para cálculo de CPA.
+6. **Passo 6 — Otimização Algorítmica:** O FéConecta direciona a exibição para membros com maior propensão de converter.
 
 ---
 
-### 7. Extrato Completo e Histórico Auditável
-* **Rota do Parceiro:** \`/campanha/pagamentos\`
-* **Endpoint Paginado:** \`GET /api/wallet/transactions?page=1&pageSize=50\`
-* **Filtros Disponíveis:** Todas as transações, Recargas, Débito em Campanhas, Estornos de Reprovação e Reembolsos.
-* **Vínculo Transparente:** Exibe o nome da campanha e o ID da transação vinculado a cada centavo movimentado.`,
+### 5. Cálculo e Regras de Cobrança de Valores
+A cobrança é **100% pré-paga e controlada pelo motor de tracking atômico**:
+
+#### A) Modelo CPM (Custo por Mil Impressões) — Para *Reconhecimento* e *Engajamento*:
+* **Custo:** **R$ 0,01** por visualização no feed (1 centavo).
+* **Fórmula do CPM:**
+  $$\\text{CPM} = \\left( \\frac{\\text{Gasto Total (R\\$)}}{\\text{Total de Impressões}} \\right) \\times 1.000 = \\text{R\\$} 10,00 \\text{ por mil visualizações}$$
+* **Cliques no link:** São **100% gratuitos**.
+
+#### B) Modelo CPC (Custo por Clique) — Para *Tráfego*, *Contatos*, *Conversões*, *Eventos*, *Apps*:
+* **Custo:** **R$ 0,25 a R$ 0,50** por clique legítimo no CTA/link.
+* **Impressões no feed:** São **100% gratuitas** (R$ 0,00 por exibição).
+* **Fórmula do CPC:**
+  $$\\text{CPC} = \\frac{\\text{Gasto Total (R\\$)}}{\\text{Total de Cliques}}$$
+
+#### C) Trava de Orçamento Automática:
+* O PostgreSQL executa \`increment_campaign_gasto_atomic\`. Assim que $\\text{Gasto} \\ge \\text{Orçamento}$, a campanha é encerrada no mesmo milissegundo. **O anunciante nunca gasta mais do que aprovou.**
+
+#### D) Proteção Anti-Fraude (Rate Limit):
+* Cliques repetidos em menos de 5 minutos do mesmo IP ou usuário são detectados como suspeitos e **descartados da cobrança**.
+
+---
+
+### 6. Painel de Desempenho & Gráficos Interativos (\`/campanha/[id]\`)
+1. **Hero Indicator (Resultado Real da Campanha):**
+   * *Exemplo Tráfego:* 🎯 **Resultado da Campanha: \`3.240 Cliques no Link\`** *(R$ 0,25 por clique)*
+   * *Exemplo Contatos:* 🎯 **Resultado da Campanha: \`186 Contatos no WhatsApp\`** *(R$ 2,68 por contato)*
+   * *Exemplo Compras:* 🎯 **Resultado da Campanha: \`25 Compras Realizadas\`** *(Receita: R$ 3.747,50 | ROAS: 7,49x)*
+
+2. **Cards Clicáveis com Comparação Multi-Séries:**
+   Ao clicar em qualquer um dos 6 cards de métricas, ele alterna a exibição da sua respectiva curva no gráfico:
+   * 🟢 **Impressões:** Curva contínua verde esmeralda (\`#10b981\`).
+   * 🔵 **Alcance:** Curva tracejada azul ciano (\`#06b6d4\`), visível perfeitamente mesmo com números iguais aos de impressões.
+   * 🟣 **Cliques:** Curva roxa (\`#a855f7\`) escalada na proporção exata do volume do funil.
+   * 🌸 **CTR (%):** Curva rosa (\`#ec4899\`) com escala percentual.
+   * 🟡 **Gasto Diário:** Curva dourada (\`#f59e0b\`) com escala monetária em Reais.
+   * 🟢 **Conversões:** Curva verde neon (\`#22c55e\`) com contagem exata de ações reais.
+
+3. **Seletor de Janela Temporal:**
+   Abas rápidas: **\`7 Dias\`**, **\`14 Dias\`**, **\`30 Dias\`** e **\`Todo o Período\`**.
+
+4. **Tooltip Inteligente com Âncora Anti-Corte:**
+   O card flutuante ajusta sua posição horizontal automaticamente de acordo com o quadrante da tela:
+   * **Dias à direita (ex: 29/08):** Abre para a esquerda (\`translate(-108%, -15%)\`), garantindo 0 cortes.
+   * **Dias à esquerda:** Abre para a direita (\`translate(8%, -15%)\`).
+   * Exibe o ponto colorido, nome e valor formatado de todas as séries selecionadas.
+
+---
+
+### 7. Gestão de Carteira & Reembolso
+* **Recarga Instantânea:** Pix (QR Code) e Cartão via Mercado Pago.
+* **Devolução Automática:** Ao encerrar uma campanha antes do término, o saldo não consumido retorna imediatamente para \`saldo_disponivel\`.
+* **Garantia de Moderação:** Campanhas reprovadas não debitam saldo da carteira.
+* **Acesso Protegido à Documentação:** A rota \`/docs\` possui barreira de login para assegurar privacidade e controle institucional aos membros e parceiros.`,
+    },
+    {
+      id: "doc-pixel",
+      title: "FéConecta Pixel & Conversions API (CAPI)",
+      category: "FéAds",
+      categoryTag: "FéAds · Novo",
+      status: "atual",
+      statusText: "Oficial",
+      statusTone: "brand",
+      updated_at: "Hoje",
+      summary: "Manual completo de mensuração de vendas: Como o Pixel e a Conversions API (CAPI) avisam a Central do FéAds sobre compras, leads, receita gerada e cálculo automático de ROAS.",
+      content: `### 1. O que é o FéConecta Pixel?
+O **FéConecta Pixel** é a tecnologia oficial de mensuração e atribuição de eventos fora da plataforma FéConecta. Com ele instalado no seu site, loja virtual ou checkout, você rastreia o ciclo comercial completo:
+
+$$\\text{Anúncio no Feed} \\longrightarrow \\text{Clique com UTMs} \\longrightarrow \\text{Página de Vendas} \\longrightarrow \\text{Checkout} \\longrightarrow \\text{Compra (Purchase)} \\longrightarrow \\text{Central FéAds}$$
+
+---
+
+### 2. Como o Pixel Avisa a Central sobre a Venda (Passo a Passo)
+
+1. **No Clique (Passagem de Bastão):**
+   Ao clicar no anúncio patrocinado, o link direciona com parâmetros de campanha:
+   \`https://sualoja.com.br/produto?fc_cid=CAMP_123&fc_pid=FC-8F72A91&utm_source=feconecta&utm_medium=feads\`
+
+2. **Na Memória do Navegador (Cookie de 30 Dias):**
+   O script \`pixel.js\` captura o ID da campanha e salva em um first-party cookie seguro com validade de **30 dias**. Mesmo que o comprador finalize a compra dias depois, a venda é creditada à campanha.
+
+3. **Na Página de Obrigado / Confirmação (Disparo da Venda):**
+   Assim que o pagamento é aprovado, a página de obrigado executa:
+   \`\`\`javascript
+   feconectaPixel.track("Purchase", {
+     value: 149.90,        // Valor da compra em Reais
+     currency: "BRL",      // Moeda
+     order_id: "PED-12345" // ID do pedido
+   });
+   \`\`\`
+
+4. **Envio Silencioso para a Central:**
+   O \`pixel.js\` envia os dados assincronamente via \`navigator.sendBeacon\` para \`POST https://ads.feconecta.com.br/api/events\`.
+
+5. **Gravação Atômica:**
+   A API do FéAds grava o evento na tabela \`ad_conversions\` vinculando o ID da campanha, o valor transacionado e o pedido.
+
+6. **Atualização Instantânea no Painel:**
+   O painel da campanha atualiza em tempo real:
+   * 🎯 **Resultado:** +1 Compra Concluída
+   * 💵 **Receita:** +R$ 149,90
+   * 💰 **CPA:** Custo por aquisição
+   * 📈 **ROAS:** Retorno sobre o investimento
+
+---
+
+### 3. Código de Instalação no Site (<head>)
+Cole o código abaixo no cabeçalho (\`<head>\`) de todas as páginas da sua loja ou site:
+
+\`\`\`html
+<script
+  src="https://ads.feconecta.com.br/pixel.js"
+  data-pixel-id="SEU_PIXEL_ID">
+</script>
+\`\`\`
+
+---
+
+### 4. Conversions API (CAPI — Integração de Servidor / Webhook)
+Para plataformas como **Hotmart, Kiwify, Eduzz, Shopify e WooCommerce**, você pode enviar eventos diretamente via backend através de Webhooks sem depender do navegador:
+
+* **Endpoint:** \`POST https://ads.feconecta.com.br/api/events\`
+* **Headers:** \`Content-Type: application/json\`
+* **Payload:**
+\`\`\`json
+{
+  "pixel_id": "SEU_PIXEL_ID",
+  "campaign_id": "ID_DA_CAMPANHA",
+  "event_name": "Purchase",
+  "value": 149.90,
+  "currency": "BRL",
+  "order_id": "PED-12345"
+}
+\`\`\``,
     },
     {
       id: "doc-1",

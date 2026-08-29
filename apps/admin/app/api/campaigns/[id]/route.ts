@@ -65,6 +65,7 @@ export async function PATCH(
       criativo_tipo, 
       formato, 
       objetivo, 
+      acao_conversao,
       periodo_inicio, 
       periodo_fim, 
       publico 
@@ -78,6 +79,7 @@ export async function PATCH(
     if (criativo_tipo !== undefined) updateData.criativo_tipo = criativo_tipo;
     if (formato !== undefined) updateData.formato = formato;
     if (objetivo !== undefined) updateData.objetivo = objetivo;
+    if (acao_conversao !== undefined) updateData.acao_conversao = acao_conversao;
     if (periodo_inicio !== undefined) updateData.periodo_inicio = periodo_inicio;
     if (periodo_fim !== undefined) updateData.periodo_fim = periodo_fim;
     if (publico !== undefined) updateData.publico = publico;

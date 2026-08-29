@@ -6,14 +6,16 @@ import Link from "next/link";
 import { 
   ArrowLeft, Megaphone, AlertTriangle, Play, Pause, ExternalLink, Calendar, 
   Target, DollarSign, BarChart2, Edit3, Upload, Image as ImageIcon, Video, 
-  Sparkles, Check, X, Loader2, RefreshCw 
+  Sparkles, Check, X, Loader2, RefreshCw, Code2 
 } from "lucide-react";
 import { PartnerNavbar } from "@/components/ads/PartnerNavbar";
 import { StatusBadge } from "@/components/ads/StatusBadge";
 import { KpiCard } from "@/components/ads/KpiCard";
 import { BudgetProgress } from "@/components/ads/BudgetProgress";
-import { adsApiFetch, formatCurrency, formatDate } from "@/lib/ads-utils";
-import { Campaign, CampaignFormat, CampaignObjective, WalletBalanceDto } from "@/domain/ads/types";
+import { CampaignAnalyticsChart, CampaignAnalyticsData } from "@/components/ads/CampaignAnalyticsChart";
+import { PixelIntegrationModal } from "@/components/ads/PixelIntegrationModal";
+import { adsApiFetch, formatCurrency, formatDate, formatPercentage } from "@/lib/ads-utils";
+import { Campaign, CampaignFormat, CampaignObjective, ConversionAction, WalletBalanceDto } from "@/domain/ads/types";
 import { compressImage } from "@/lib/image-compression";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
@@ -25,10 +27,12 @@ export default function CampaignDetailPage() {
 
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [wallet, setWallet] = useState<WalletBalanceDto | null>(null);
+  const [analytics, setAnalytics] = useState<CampaignAnalyticsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Estados de Edição Completa da Campanha
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isPixelModalOpen, setIsPixelModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -40,7 +44,8 @@ export default function CampaignDetailPage() {
   const [editCriativoUrl, setEditCriativoUrl] = useState("");
   const [editCriativoTipo, setEditCriativoTipo] = useState<"imagem" | "video">("imagem");
   const [editFormato, setEditFormato] = useState<CampaignFormat>("feed");
-  const [editObjetivo, setEditObjetivo] = useState<CampaignObjective>("cliques");
+  const [editObjetivo, setEditObjetivo] = useState<CampaignObjective>("trafego");
+  const [editAcaoConversao, setEditAcaoConversao] = useState<ConversionAction>("whatsapp");
   const [editPeriodoInicio, setEditPeriodoInicio] = useState("");
   const [editPeriodoFim, setEditPeriodoFim] = useState("");
   const [editRegioes, setEditRegioes] = useState("Brasil (Todo o país)");
@@ -51,12 +56,14 @@ export default function CampaignDetailPage() {
     async function loadCampaign() {
       try {
         setIsLoading(true);
-        const [campRes, walletRes] = await Promise.all([
+        const [campRes, walletRes, analyticsRes] = await Promise.all([
           adsApiFetch<Campaign>(`/api/campaigns/${id}`),
           adsApiFetch<WalletBalanceDto>("/api/wallet").catch(() => null),
+          adsApiFetch<CampaignAnalyticsData>(`/api/campaigns/${id}/analytics`).catch(() => null),
         ]);
         setCampaign(campRes);
         if (walletRes) setWallet(walletRes);
+        if (analyticsRes) setAnalytics(analyticsRes);
       } catch (err: any) {
         toast.error("Erro ao carregar detalhes da campanha", { description: err.message });
       } finally {
@@ -74,7 +81,8 @@ export default function CampaignDetailPage() {
       setEditCriativoUrl(campaign.criativo_url || "");
       setEditCriativoTipo(campaign.criativo_tipo || "imagem");
       setEditFormato(campaign.formato || "feed");
-      setEditObjetivo(campaign.objetivo || "cliques");
+      setEditObjetivo((campaign.objetivo as CampaignObjective) || "trafego");
+      setEditAcaoConversao((campaign.acao_conversao as ConversionAction) || "whatsapp");
       setEditPeriodoInicio(campaign.periodo_inicio || "");
       setEditPeriodoFim(campaign.periodo_fim || "");
       setEditRegioes(campaign.publico?.regioes?.[0] || "Brasil (Todo o país)");
@@ -179,6 +187,7 @@ export default function CampaignDetailPage() {
         call_to_action: finalCta,
         formato: editFormato,
         objetivo: editObjetivo,
+        acao_conversao: editAcaoConversao,
         periodo_inicio: editPeriodoInicio,
         periodo_fim: editPeriodoFim,
         publico: {
@@ -251,6 +260,14 @@ export default function CampaignDetailPage() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setIsPixelModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-semibold transition-all shadow-md"
+            >
+              <Code2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Pixel & Rastreamento</span>
+            </button>
+
+            <button
               onClick={() => setIsEditModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition-all shadow-md shadow-emerald-950/20"
             >
@@ -259,6 +276,15 @@ export default function CampaignDetailPage() {
             </button>
           </div>
         </div>
+
+        {/* Modal de Integração do FéConecta Pixel & CAPI */}
+        <PixelIntegrationModal
+          isOpen={isPixelModalOpen}
+          onClose={() => setIsPixelModalOpen(false)}
+          campaignId={campaign.id}
+          partnerId={campaign.partner_id}
+          destinationUrl={campaign.call_to_action?.includes("|") ? campaign.call_to_action.split("|")[1] : campaign.call_to_action || undefined}
+        />
 
         {/* Modal de Edição Completa da Campanha */}
         {isEditModalOpen && (
@@ -445,8 +471,8 @@ export default function CampaignDetailPage() {
                   </div>
                 </div>
 
-                {/* 5. Formato & Objetivo */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* 5. Formato, Objetivo & Conversão */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
                     <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                       Formato de Mídia
@@ -464,16 +490,44 @@ export default function CampaignDetailPage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                      Objetivo da Campanha
+                      Objetivo Principal
                     </label>
                     <select
                       value={editObjetivo}
                       onChange={(e) => setEditObjetivo(e.target.value as CampaignObjective)}
                       className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
                     >
-                      <option value="cliques">Cliques / Conversões no Link</option>
-                      <option value="alcance">Alcance Máximo</option>
-                      <option value="conversoes">Vendas & Cadastros</option>
+                      <optgroup label="5 Objetivos Principais">
+                        <option value="reconhecimento">👁️ Reconhecimento (Alcance)</option>
+                        <option value="trafego">🔗 Tráfego (Site ou Link)</option>
+                        <option value="engajamento">❤️ Engajamento (Likes/Feed)</option>
+                        <option value="contatos">💬 Contatos (WhatsApp/Chat)</option>
+                        <option value="conversoes">🎯 Conversões (Ação Específica)</option>
+                      </optgroup>
+                      <optgroup label="Objetivos Específicos">
+                        <option value="instalacoes">📱 Instalações (App)</option>
+                        <option value="eventos">📅 Eventos (Inscrições)</option>
+                      </optgroup>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                      Ação de Conversão
+                    </label>
+                    <select
+                      value={editAcaoConversao}
+                      onChange={(e) => setEditAcaoConversao(e.target.value as ConversionAction)}
+                      className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-2.5 text-sm text-white focus:border-emerald-500 focus:outline-none"
+                    >
+                      <option value="whatsapp">📞 Contato no WhatsApp</option>
+                      <option value="compra">🛒 Compra realizada</option>
+                      <option value="cadastro">📝 Cadastro / Lead</option>
+                      <option value="link_externo">🔗 Visita à Página</option>
+                      <option value="inscricao_evento">📅 Inscrição no Evento</option>
+                      <option value="visita_igreja">⛪ Pedido de Visita / Info</option>
+                      <option value="instalacao_app">📱 Instalação do App</option>
+                      <option value="engajamento_social">❤️ Curtida / Comentário</option>
                     </select>
                   </div>
                 </div>
@@ -568,7 +622,7 @@ export default function CampaignDetailPage() {
           <KpiCard
             label="Gasto Consumido"
             value={formatCurrency(campaign.gasto)}
-            description={`${campaign.orcamento > 0 ? Math.round((campaign.gasto / campaign.orcamento) * 100) : 0}% do orçamento`}
+            description={`${formatPercentage(campaign.gasto, campaign.orcamento)} do orçamento`}
             icon={BarChart2}
             variant="primary"
           />
@@ -649,6 +703,9 @@ export default function CampaignDetailPage() {
             )}
           </div>
         </div>
+
+        {/* ─── MÉTRICAS DETALHADAS COM GRÁFICOS INTERATIVOS ─── */}
+        <CampaignAnalyticsChart analytics={analytics} isLoading={isLoading} />
       </main>
     </div>
   );

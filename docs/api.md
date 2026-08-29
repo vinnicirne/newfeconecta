@@ -77,3 +77,32 @@ Busca e catálogo de faixas, louvores e álbuns no serviço FéMusic.
 
 ### `POST /api/webhooks/kiwify`
 Webhook de integração com a Kiwify para ativação automática de planos e funcionalidades Premium do ecossistema.
+
+---
+
+## 5. Módulo FéAds, Tracking & Conversions API (`/api/ads`, `/api/events`, `/api/campaigns`)
+
+### `POST /api/events` (FéConecta Pixel & Conversions API)
+Recebe eventos de rastreamento disparados pelo `pixel.js` ou por Webhooks de servidores externos (Hotmart, Kiwify, Eduzz, Shopify).
+- **CORS:** Totalmente habilitado para requisições cross-origin (`*`).
+- **Payload:**
+  ```json
+  {
+    "pixel_id": "FC-8F72A91",
+    "campaign_id": "uuid",
+    "event_name": "Purchase",
+    "value": 149.90,
+    "currency": "BRL",
+    "order_id": "PED-12345"
+  }
+  ```
+
+### `POST /api/ads/track/impression`
+Registra a exibição atômica de anúncio no feed e debita CPM (R$ 0,01) para campanhas de reconhecimento/alcance.
+
+### `POST /api/ads/track/click`
+Registra o clique com validação anti-fraude (rate limit de 5 min) e debita CPC da campanha.
+
+### `GET /api/campaigns/[id]/analytics`
+Retorna as métricas consolidadas em tempo real: Impressões, Alcance, Cliques, CTR, CPC, CPM, Conversões, CPA, ROAS, Frequência, Engajamento social e Timeline diária.
+
