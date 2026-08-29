@@ -178,42 +178,12 @@ export function CampaignAnalyticsChart({ analytics, isLoading }: CampaignAnalyti
   const [period, setPeriod] = useState<"7d" | "14d" | "30d" | "all">("7d");
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
 
-  if (isLoading) {
-    return (
-      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 animate-pulse space-y-6">
-        <div className="h-6 w-48 bg-white/10 rounded-lg" />
-        <div className="h-20 bg-white/5 rounded-2xl" />
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="h-24 bg-white/5 rounded-xl" />
-          ))}
-        </div>
-        <div className="h-64 bg-white/5 rounded-xl" />
-      </div>
-    );
-  }
-
-  if (!analytics) return null;
-
-  const actionLabel = conversionActionLabels[analytics.acao_conversao || "whatsapp"] || "Conversões";
-
-  // Alternador de seleção do card
-  function toggleMetric(key: MetricKey) {
-    if (activeMetrics.includes(key)) {
-      if (activeMetrics.length > 1) {
-        setActiveMetrics(activeMetrics.filter((m) => m !== key));
-      }
-    } else {
-      setActiveMetrics([...activeMetrics, key]);
-    }
-  }
-
-  // Ajusta a timeline com base no período selecionado
-  const baseTimeline = analytics.timeline || [];
+  // Ajusta a timeline com base no período selecionado (declarado antes de qualquer early return)
+  const baseTimeline = analytics?.timeline || [];
   const timeline = useMemo(() => {
+    if (!analytics || baseTimeline.length === 0) return [];
     if (period === "7d") return baseTimeline.slice(-7);
     if (period === "14d") {
-      // Se tiver menos de 14, completa com dias anteriores zerados
       if (baseTimeline.length >= 14) return baseTimeline.slice(-14);
       const diff = 14 - baseTimeline.length;
       const pad: AnalyticsTimelineItem[] = Array.from({ length: diff }).map((_, idx) => {
@@ -250,7 +220,37 @@ export function CampaignAnalyticsChart({ analytics, isLoading }: CampaignAnalyti
       return [...pad, ...baseTimeline];
     }
     return baseTimeline;
-  }, [baseTimeline, period]);
+  }, [analytics, baseTimeline, period]);
+
+  // Alternador de seleção do card
+  function toggleMetric(key: MetricKey) {
+    if (activeMetrics.includes(key)) {
+      if (activeMetrics.length > 1) {
+        setActiveMetrics(activeMetrics.filter((m) => m !== key));
+      }
+    } else {
+      setActiveMetrics([...activeMetrics, key]);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-zinc-900/60 p-6 animate-pulse space-y-6">
+        <div className="h-6 w-48 bg-white/10 rounded-lg" />
+        <div className="h-20 bg-white/5 rounded-2xl" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-24 bg-white/5 rounded-xl" />
+          ))}
+        </div>
+        <div className="h-64 bg-white/5 rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!analytics) return null;
+
+  const actionLabel = conversionActionLabels[analytics.acao_conversao || "whatsapp"] || "Conversões";
 
   // Dimensões do Gráfico SVG
   const svgWidth = 800;
