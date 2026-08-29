@@ -15,6 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import ShareModal from "@/components/feed/ShareModal";
 import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 
 interface AdComment {
   id: string;
