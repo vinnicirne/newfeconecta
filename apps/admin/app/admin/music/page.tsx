@@ -17,6 +17,7 @@ import { READY_SESSIONS, ReadySession } from "@/modules/femusic/domain/sessions"
 import { YouTubeService } from "@/modules/femusic/infrastructure/services/YouTubeService";
 import { MusicTrack } from "@/modules/femusic/domain/entities/MusicTrack";
 import { fetchTopRankedTracks, RankedTrack } from "@/modules/femusic/domain/ranking";
+import { NotificationService } from "@/lib/notifications";
 
 interface FeMusicConfig {
   enable_femusic_feed: boolean;
@@ -454,20 +455,17 @@ export default function AdminFeMusicPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const adminSenderId = session?.user?.id || selectedTrackForAction.user.id;
 
-      await supabase.from("notifications").insert({
-        recipient_id: selectedTrackForAction.user.id,
-        sender_id: adminSenderId,
-        profile_id: selectedTrackForAction.user.id,
-        user_id: adminSenderId,
+      // 1. Envio via NotificationService com payload limpo e compatível com o banco
+      await NotificationService.notify({
+        recipientId: selectedTrackForAction.user.id,
+        senderId: adminSenderId,
         type: "mention",
         content: customNotifyMessage,
-        data: {
+        metadata: {
           action: "secular_music_warning",
           track_title: selectedTrackForAction.title,
           track_artist: selectedTrackForAction.artist,
         },
-        read: false,
-        created_at: new Date().toISOString(),
       });
 
       toast.success(`Advertência enviada com sucesso para @${selectedTrackForAction.user.username}! 📩`, { id: toastId });
@@ -498,15 +496,15 @@ export default function AdminFeMusicPage() {
       const { data: { session } } = await supabase.auth.getSession();
       const adminSenderId = session?.user?.id || selectedTrackForAction.user.id;
 
-      await supabase.from("notifications").insert({
-        recipient_id: selectedTrackForAction.user.id,
-        sender_id: adminSenderId,
-        profile_id: selectedTrackForAction.user.id,
-        user_id: adminSenderId,
+      await NotificationService.notify({
+        recipientId: selectedTrackForAction.user.id,
+        senderId: adminSenderId,
         type: "mention",
         content: `Sua conta foi suspensa temporariamente por ${suspendDurationDays} dias devido à reincidência de músicas seculares no FéConecta.`,
-        read: false,
-        created_at: new Date().toISOString(),
+        metadata: {
+          action: "account_suspended",
+          duration_days: suspendDurationDays,
+        },
       });
 
       toast.success(`Usuário @${selectedTrackForAction.user.username} suspenso por ${suspendDurationDays} dias! ⏱️`, { id: toastId });
