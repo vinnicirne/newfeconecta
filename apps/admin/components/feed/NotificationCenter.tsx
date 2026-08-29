@@ -243,8 +243,8 @@ export default function NotificationCenter({ open, onClose, userId }: any) {
                           {notif.type === 'broadcast' && (notif.content || 'enviou um aviso.')}
                         </span>
                       </p>
-                      {(notif.type === 'comment' || notif.type === 'message' || notif.type === 'broadcast' || notif.type === 'verse_day' || notif.type === 'dating_message') && notif.content && !notif.is_aggregated && (
-                        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-500 italic bg-gray-100 dark:bg-white/5 p-2 rounded-lg border-l-2 border-whatsapp-teal">
+                      {(notif.type === 'comment' || notif.type === 'message' || notif.type === 'broadcast' || notif.type === 'verse_day' || notif.type === 'dating_message' || notif.type === 'mention' || notif.type === 'system') && notif.content && !notif.is_aggregated && (
+                        <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400 italic bg-gray-100 dark:bg-white/5 p-2 rounded-lg border-l-2 border-whatsapp-teal">
                           "{notif.content}"
                         </p>
                       )}
