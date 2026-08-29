@@ -152,7 +152,8 @@ export function FeedComments({ postId, currentUser, autoFocus }: FeedCommentsPro
               {renderComments(comment.id, depth + 1)}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     );
   };

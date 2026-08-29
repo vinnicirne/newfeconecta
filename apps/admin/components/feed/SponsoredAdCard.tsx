@@ -62,12 +62,28 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
   const [isSendingComment, setIsSendingComment] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
+  const getAuthHeaders = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      return {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+    } catch {
+      return { "Content-Type": "application/json" };
+    }
+  };
+
   // 📡 Carrega Likes e Comentários do Banco de Dados
   useEffect(() => {
     let isMounted = true;
     async function loadInteractions() {
       try {
-        const res = await fetch(`/api/ads/interactions?campaign_id=${campaign.id}`);
+        const headers = await getAuthHeaders();
+        const res = await fetch(`/api/ads/interactions?campaign_id=${campaign.id}`, {
+          headers,
+        });
         if (!res.ok) return;
         const data = await res.json();
         if (isMounted && data) {
@@ -110,9 +126,10 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
     setLikesCount(previousLiked ? Math.max(0, previousCount - 1) : previousCount + 1);
 
     try {
+      const headers = await getAuthHeaders();
       const res = await fetch("/api/ads/interactions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           action: "toggle_like",
           campaign_id: campaign.id,
@@ -167,9 +184,10 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
     setNewCommentText("");
 
     try {
+      const headers = await getAuthHeaders();
       const res = await fetch("/api/ads/interactions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           action: "add_comment",
           campaign_id: campaign.id,
@@ -206,9 +224,10 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
     setCommentsCount((prev) => Math.max(0, prev - 1));
 
     try {
+      const headers = await getAuthHeaders();
       await fetch("/api/ads/interactions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify({
           action: "delete_comment",
           campaign_id: campaign.id,
