@@ -11,8 +11,13 @@ export default function MiniPlayer() {
     return null;
   }
 
-  const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
+  // durationMs da store já está em ms. currentTrack.duration vem em SEGUNDOS — converter.
+  const trackDurMs = currentTrack?.duration && currentTrack.duration > 0
+    ? (currentTrack.duration > 3600 ? currentTrack.duration : currentTrack.duration * 1000)
+    : 0;
+  const effectiveDuration = durationMs > 0 ? durationMs : trackDurMs;
   const currentPct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (progressMs / effectiveDuration) * 100)) : 0;
+
 
   return (
     <div 

@@ -14,10 +14,21 @@ const STORAGE_KEY = 'fc_continue_listening_session';
 
 /** Padrões de IDs fictícios que foram usados historicamente — devem ser descartados */
 const FAKE_ID_PATTERNS = [
+  // Geração 1 (IDs com underscores aleatórios)
   '_Q2g8M3',
   '_q9g_W7c8',
   'Z_Q2g8M3',
   'z_Q2g8M3',
+  // Geração 2 (IDs alfanuméricos que pareciam YouTube mas eram falsos — removidos em 29/08/2026)
+  'y3x9B92p10w',
+  'v4m3X89fL10',
+  'p7k9N21w8L0',
+  'g8H2k91LmP0',
+  'w4M9N10fL77',
+  't9K2m10w8Lp',
+  'n4X8p11fL22',
+  'i8L3k11w9Mp',
+  'a9K1m00w8Ff',
 ];
 
 const isFakeId = (id: string) =>
@@ -30,6 +41,14 @@ const isFakeId = (id: string) =>
 export function cleanupStaleSessions() {
   if (typeof window === 'undefined') return;
   try {
+    // Limpa todos os fc_audio_cache_ com IDs fictícios conhecidos (geração 1 e 2)
+    Object.keys(localStorage)
+      .filter(k => k.startsWith('fc_audio_cache_') && isFakeId(k.replace('fc_audio_cache_', '')))
+      .forEach(k => {
+        console.warn(`[FéMusic] Limpando cache de ID inválido: ${k}`);
+        localStorage.removeItem(k);
+      });
+
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
     const data = JSON.parse(raw) as ContinueSession;
@@ -39,13 +58,10 @@ export function cleanupStaleSessions() {
     if (hasFakeIds) {
       console.warn('[FéMusic] Sessão com IDs inválidos detectada — limpando localStorage.');
       localStorage.removeItem(STORAGE_KEY);
-      // Também limpa cache de áudio de IDs fictícios
-      Object.keys(localStorage)
-        .filter(k => k.startsWith('fc_audio_cache_') && isFakeId(k.replace('fc_audio_cache_', '')))
-        .forEach(k => localStorage.removeItem(k));
     }
   } catch (_) {}
 }
+
 
 export function saveContinueSession(session: ContinueSession) {
   if (typeof window === 'undefined') return;

@@ -16,74 +16,77 @@ import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 import { getStoredProfile } from '@/lib/profile-cache';
 
+// Seeds iniciais com IDs YouTube verificados via API em 29/08/2026
 const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
   {
-    id: 'trending-1',
+    id: 'YnrN0o0lubM',
     title: 'Lugar Secreto',
     artist: 'Gabriela Rocha',
     duration: 320,
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600',
     provider: 'youtube',
-    providerTrackId: 'y3x9B92p10w',
+    providerTrackId: 'YnrN0o0lubM',
   },
   {
-    id: 'trending-2',
+    id: '5QHF5OQeFOs',
     title: 'A Casa É Sua',
     artist: 'Casa Worship',
     duration: 480,
     cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
     provider: 'youtube',
-    providerTrackId: 'v4m3X89fL10',
+    providerTrackId: '5QHF5OQeFOs',
   },
   {
-    id: 'trending-3',
+    id: 'pAQeih7K5ZY',
     title: 'Bondade de Deus',
     artist: 'Isadora Pompeo',
     duration: 310,
     cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=600',
     provider: 'youtube',
-    providerTrackId: 'i8L3k11w9Mp',
+    providerTrackId: 'pAQeih7K5ZY',
   },
   {
-    id: 'trending-4',
+    id: 'n0fDvJAyrQ8',
     title: 'Pode Morar Aqui',
     artist: 'Theo Rubia',
     duration: 520,
     cover: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=600',
     provider: 'youtube',
-    providerTrackId: 't9K2m10w8Lp',
+    providerTrackId: 'n0fDvJAyrQ8',
   },
 ];
 
+
 const INITIAL_WORSHIP_SEEDS: MusicTrack[] = [
   {
-    id: 'worship-1',
+    id: '_DUSt0KGMsI',
     title: 'Para Que Entre o Rei',
     artist: 'Morada',
     duration: 410,
     cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
     provider: 'youtube',
-    providerTrackId: 'p7k9N21w8L0',
+    providerTrackId: '_DUSt0KGMsI',
   },
   {
-    id: 'worship-2',
+    id: 'Tqdi6BZUWr4',
     title: 'Raridade',
     artist: 'Anderson Freire',
     duration: 285,
     cover: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=600',
     provider: 'youtube',
-    providerTrackId: 'a9K1m00w8Ff',
+    providerTrackId: 'Tqdi6BZUWr4',
   },
   {
-    id: 'worship-3',
+    id: 'IxpWNuxGmzc',
     title: 'Em Teus Braços',
     artist: 'Laura Souguellis',
     duration: 430,
     cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600',
     provider: 'youtube',
-    providerTrackId: 'n4X8p11fL22',
+    providerTrackId: 'IxpWNuxGmzc',
   },
 ];
+
 
 export default function MusicFeedPage() {
   useWarmCache();

@@ -12,6 +12,7 @@ export interface ReadySession {
 }
 
 // Sessões prontas com catálogo semente de louvores reais + busca dinâmica no YouTube
+// IDs YouTube verificados via API em 29/08/2026
 export const READY_SESSIONS: ReadySession[] = [
   {
     id: 'adoracao-30',
@@ -29,32 +30,41 @@ export const READY_SESSIONS: ReadySession[] = [
     ],
     curatedTracks: [
       {
-        id: 'y3x9B92p10w',
+        id: 'YnrN0o0lubM',
         title: 'Lugar Secreto',
         artist: 'Gabriela Rocha',
         duration: 320,
         cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600',
         provider: 'youtube',
-        providerTrackId: 'y3x9B92p10w',
+        providerTrackId: 'YnrN0o0lubM',
       },
       {
-        id: 'v4m3X89fL10',
+        id: '5QHF5OQeFOs',
         title: 'A Casa É Sua',
         artist: 'Casa Worship',
         duration: 480,
         cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
         provider: 'youtube',
-        providerTrackId: 'v4m3X89fL10',
+        providerTrackId: '5QHF5OQeFOs',
       },
       {
-        id: 'p7k9N21w8L0',
+        id: '_DUSt0KGMsI',
         title: 'Para Que Entre o Rei',
         artist: 'Morada',
         duration: 410,
         cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
         provider: 'youtube',
-        providerTrackId: 'p7k9N21w8L0',
-      }
+        providerTrackId: '_DUSt0KGMsI',
+      },
+      {
+        id: 'bfJXu0Cm6Og',
+        title: 'Santo Espírito',
+        artist: 'Diante do Trono',
+        duration: 360,
+        cover: 'https://images.unsplash.com/photo-1445375011782-2384686778a0?w=600',
+        provider: 'youtube',
+        providerTrackId: 'bfJXu0Cm6Og',
+      },
     ],
   },
   {
@@ -73,23 +83,32 @@ export const READY_SESSIONS: ReadySession[] = [
     ],
     curatedTracks: [
       {
-        id: 'g8H2k91LmP0',
+        id: 'hD_pasYr5qA',
         title: 'O Hino',
         artist: 'Fernandinho',
         duration: 360,
         cover: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=600',
         provider: 'youtube',
-        providerTrackId: 'g8H2k91LmP0',
+        providerTrackId: 'hD_pasYr5qA',
       },
       {
-        id: 'w4M9N10fL77',
+        id: 'wyhJ157GF24',
         title: 'Advogado Fiel',
         artist: 'Bruna Karla',
         duration: 290,
         cover: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=600',
         provider: 'youtube',
-        providerTrackId: 'w4M9N10fL77',
-      }
+        providerTrackId: 'wyhJ157GF24',
+      },
+      {
+        id: 'rer4YETV6q8',
+        title: 'Aquieta Minh\'alma',
+        artist: 'Ministério Zoe',
+        duration: 320,
+        cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
+        provider: 'youtube',
+        providerTrackId: 'rer4YETV6q8',
+      },
     ],
   },
   {
@@ -108,23 +127,32 @@ export const READY_SESSIONS: ReadySession[] = [
     ],
     curatedTracks: [
       {
-        id: 't9K2m10w8Lp',
+        id: 'n0fDvJAyrQ8',
         title: 'Pode Morar Aqui',
         artist: 'Theo Rubia',
         duration: 520,
         cover: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=600',
         provider: 'youtube',
-        providerTrackId: 't9K2m10w8Lp',
+        providerTrackId: 'n0fDvJAyrQ8',
       },
       {
-        id: 'n4X8p11fL22',
+        id: 'IxpWNuxGmzc',
         title: 'Em Teus Braços',
         artist: 'Laura Souguellis',
         duration: 430,
         cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600',
         provider: 'youtube',
-        providerTrackId: 'n4X8p11fL22',
-      }
+        providerTrackId: 'IxpWNuxGmzc',
+      },
+      {
+        id: 'mscE0wOMDBA',
+        title: 'Gratidão',
+        artist: 'Midian Lima',
+        duration: 380,
+        cover: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=600',
+        provider: 'youtube',
+        providerTrackId: 'mscE0wOMDBA',
+      },
     ],
   },
   {
@@ -143,23 +171,32 @@ export const READY_SESSIONS: ReadySession[] = [
     ],
     curatedTracks: [
       {
-        id: 'i8L3k11w9Mp',
+        id: 'pAQeih7K5ZY',
         title: 'Bondade de Deus',
         artist: 'Isadora Pompeo',
         duration: 310,
         cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=600',
         provider: 'youtube',
-        providerTrackId: 'i8L3k11w9Mp',
+        providerTrackId: 'pAQeih7K5ZY',
       },
       {
-        id: 'a9K1m00w8Ff',
+        id: 'Tqdi6BZUWr4',
         title: 'Raridade',
         artist: 'Anderson Freire',
         duration: 285,
         cover: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=600',
         provider: 'youtube',
-        providerTrackId: 'a9K1m00w8Ff',
-      }
+        providerTrackId: 'Tqdi6BZUWr4',
+      },
+      {
+        id: 'dc6oADkbQSw',
+        title: 'Ressuscita-me',
+        artist: 'Aline Barros',
+        duration: 260,
+        cover: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600',
+        provider: 'youtube',
+        providerTrackId: 'dc6oADkbQSw',
+      },
     ],
   },
 ];

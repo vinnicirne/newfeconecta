@@ -15,10 +15,11 @@ export interface RankedTrack {
   lastPlayedAt: string;
 }
 
+// IDs YouTube verificados via API em 29/08/2026
 const DEFAULT_RANKED_SEEDS: RankedTrack[] = [
   {
-    id: 'y3x9B92p10w',
-    providerTrackId: 'y3x9B92p10w',
+    id: 'YnrN0o0lubM',
+    providerTrackId: 'YnrN0o0lubM',
     title: 'Lugar Secreto',
     artist: 'Gabriela Rocha',
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600',
@@ -30,8 +31,8 @@ const DEFAULT_RANKED_SEEDS: RankedTrack[] = [
     lastPlayedAt: new Date().toISOString(),
   },
   {
-    id: 'v4m3X89fL10',
-    providerTrackId: 'v4m3X89fL10',
+    id: '5QHF5OQeFOs',
+    providerTrackId: '5QHF5OQeFOs',
     title: 'A Casa É Sua',
     artist: 'Casa Worship',
     cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
@@ -43,8 +44,8 @@ const DEFAULT_RANKED_SEEDS: RankedTrack[] = [
     lastPlayedAt: new Date().toISOString(),
   },
   {
-    id: 'i8L3k11w9Mp',
-    providerTrackId: 'i8L3k11w9Mp',
+    id: 'pAQeih7K5ZY',
+    providerTrackId: 'pAQeih7K5ZY',
     title: 'Bondade de Deus',
     artist: 'Isadora Pompeo',
     cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=600',
@@ -56,8 +57,8 @@ const DEFAULT_RANKED_SEEDS: RankedTrack[] = [
     lastPlayedAt: new Date().toISOString(),
   },
   {
-    id: 't9K2m10w8Lp',
-    providerTrackId: 't9K2m10w8Lp',
+    id: 'n0fDvJAyrQ8',
+    providerTrackId: 'n0fDvJAyrQ8',
     title: 'Pode Morar Aqui',
     artist: 'Theo Rubia',
     cover: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=600',
@@ -69,8 +70,8 @@ const DEFAULT_RANKED_SEEDS: RankedTrack[] = [
     lastPlayedAt: new Date().toISOString(),
   },
   {
-    id: 'p7k9N21w8L0',
-    providerTrackId: 'p7k9N21w8L0',
+    id: '_DUSt0KGMsI',
+    providerTrackId: '_DUSt0KGMsI',
     title: 'Para Que Entre o Rei',
     artist: 'Morada',
     cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
@@ -82,8 +83,8 @@ const DEFAULT_RANKED_SEEDS: RankedTrack[] = [
     lastPlayedAt: new Date().toISOString(),
   },
   {
-    id: 'a9K1m00w8Ff',
-    providerTrackId: 'a9K1m00w8Ff',
+    id: 'Tqdi6BZUWr4',
+    providerTrackId: 'Tqdi6BZUWr4',
     title: 'Raridade',
     artist: 'Anderson Freire',
     cover: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=600',

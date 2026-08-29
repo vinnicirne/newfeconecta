@@ -204,7 +204,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     try {
       await provider.play(track);
-      set({ isPlaying: true, progressMs: 0, durationMs: track.duration || 0, consecutiveFailures: 0, isLoading: false });
+      // track.duration vem em SEGUNDOS do YouTubeService — converter para ms
+      const durationMs = track.duration && track.duration > 0
+        ? (track.duration > 3600 ? track.duration : track.duration * 1000)
+        : 0;
+      set({ isPlaying: true, progressMs: 0, durationMs, consecutiveFailures: 0, isLoading: false });
 
       // Atualiza o ranking oficial de músicas mais ouvidas
       import('../../domain/ranking').then(({ recordTrackPlay }) => {
@@ -318,15 +322,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
   // Guard contra loop infinito de auto-skip
   incrementFailures: () => {
-    const { consecutiveFailures, pause, queue, next } = get();
+    const { consecutiveFailures, pause, next } = get();
     const nextFails = consecutiveFailures + 1;
-    set({ consecutiveFailures: nextFails });
+    set({ consecutiveFailures: nextFails, isLoading: false });
 
     const MAX_FAILURES = 5;
     if (nextFails >= MAX_FAILURES) {
-      console.warn(`[PlayerStore] ${nextFails} falhas consecutivas. Parando o player para não sobrecarregar a VPS.`);
+      console.warn(`[PlayerStore] ${nextFails} falhas consecutivas. Parando o player.`);
       pause();
-      set({ isPlaying: false, queue: [], consecutiveFailures: 0 });
+      set({ isPlaying: false, queue: [], consecutiveFailures: 0, isLoading: false });
       import('sonner').then(({ toast }) => {
         toast.error('Playlist indisponível', {
           description: 'Todas as músicas nesta sessão estão indisponíveis no YouTube. Tente outra sessão.',
@@ -334,7 +338,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         });
       });
     } else {
-      next();
+      // Pequeno delay para não criar loop síncrono de chamadas ao provider
+      setTimeout(() => next(), 500);
     }
   },
 

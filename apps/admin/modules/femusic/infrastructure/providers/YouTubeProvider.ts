@@ -62,7 +62,12 @@ export class YouTubeProvider implements IMusicProvider {
         console.log(`[YouTubeProvider] Cache hit: ${track.title}`);
         currentPlayer.src = localCachedUrl;
         currentPlayer.currentTime = 0;
-        currentPlayer.play().catch((e: any) => console.error('Play failed:', e));
+        currentPlayer.play().catch((e: any) => {
+          console.error('[YouTubeProvider] Cache hit play failed:', e);
+          // URL do cache expirou ou corrompeu — remove e deixa o fluxo normal tratar
+          localStorage.removeItem(`fc_audio_cache_${track.providerTrackId}`);
+        });
+        // isLoading e isPlaying já são setados pelo evento onPlay/onPlaying do HiddenAudioElements
         return;
       }
     }

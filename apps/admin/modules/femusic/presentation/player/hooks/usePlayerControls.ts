@@ -20,8 +20,12 @@ export function usePlayerControls({
   useEffect(() => {
     if (!currentTrack) return;
     
+    // track.duration vem em SEGUNDOS do YouTubeService — converter para ms
     if (currentTrack.duration && currentTrack.duration > 0) {
-      setDuration(currentTrack.duration);
+      const durMs = currentTrack.duration > 3600
+        ? currentTrack.duration            // já está em ms (muito grande para segundos)
+        : currentTrack.duration * 1000;    // converte segundos → ms
+      setDuration(durMs);
     }
 
     const store = usePlayerStore.getState();

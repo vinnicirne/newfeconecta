@@ -74,7 +74,12 @@ export default function FullscreenPlayer() {
     };
   }, [ytId]);
 
-  const effectiveDuration = durationMs > 0 ? durationMs : (currentTrack?.duration && currentTrack.duration > 0 ? currentTrack.duration : 0);
+  // durationMs da store já está em ms. currentTrack.duration vem em SEGUNDOS — converter.
+  const trackDurMs = currentTrack?.duration && currentTrack.duration > 0
+    ? (currentTrack.duration > 3600 ? currentTrack.duration : currentTrack.duration * 1000)
+    : 0;
+  const effectiveDuration = durationMs > 0 ? durationMs : trackDurMs;
+
 
   const calculateProgressFromPointer = (clientX: number): number => {
     if (!timelineRef.current || effectiveDuration <= 0) return 0;
