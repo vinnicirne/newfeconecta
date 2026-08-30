@@ -343,7 +343,7 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
 
       {/* ─── CRIATIVO (IMAGEM OU VÍDEO) ─── */}
       {campaign.criativo_url && (
-        <div className="relative w-full bg-black/5 dark:bg-black/40 overflow-hidden group">
+        <div className="relative w-full bg-black/5 dark:bg-black/40 overflow-hidden">
           {isVideo ? (
             <video
               src={campaign.criativo_url}
@@ -362,9 +362,8 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
               <img
                 src={campaign.criativo_url}
                 alt={campaign.nome}
-                className="w-full max-h-[500px] object-cover transition-transform duration-300 group-hover:scale-[1.01]"
+                className="w-full max-h-[500px] object-cover block"
               />
-              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
             </a>
           )}
         </div>
