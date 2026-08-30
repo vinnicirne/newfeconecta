@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { supabase as supabaseClient } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
-import { NotificationEnforcer } from "@/components/NotificationEnforcer";
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
@@ -233,8 +232,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           <span className="text-[10px] font-black text-gray-500 dark:text-gray-400 uppercase tracking-[0.5em] animate-pulse">Sincronizando Fé...</span>
         </div>
       )}
-      {/* Não exibir enforcer de notificações em rotas públicas (guardian, login, register, posts) */}
-      {!isPublicRoute && <NotificationEnforcer userId={userId} />}
       {shouldRenderChildren ? children : null}
     </div>
   );
