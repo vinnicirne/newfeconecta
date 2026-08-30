@@ -60,21 +60,27 @@ export default function AddToPlaylistModal({ isOpen, onClose, track }: AddToPlay
             initial={{ y: '100%', opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: '100%', opacity: 0 }}
-            transition={{ type: 'spring', damping: 26, stiffness: 260 }}
-            className="relative w-full sm:max-w-md bg-[#181818] border border-white/10 rounded-t-3xl sm:rounded-3xl p-6 text-white shadow-2xl z-10 max-h-[85vh] flex flex-col overflow-hidden"
+            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+            className="relative w-full sm:max-w-md bg-[#161618] border border-white/10 rounded-t-[32px] sm:rounded-3xl p-5 sm:p-6 text-white shadow-2xl z-10 h-[72vh] sm:h-auto sm:max-h-[80vh] flex flex-col overflow-hidden"
+            style={{
+              paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)',
+            }}
           >
+            {/* Pull Bar (Indicador Mobile) */}
+            <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-3 shrink-0 sm:hidden" />
+
             {/* Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-white/10 shrink-0">
+            <div className="flex items-center justify-between pb-3.5 border-b border-white/10 shrink-0">
               <div className="flex items-center gap-3 min-w-0 flex-1 pr-2">
-                <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center">
+                <div className="w-11 h-11 rounded-xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center shadow-inner">
                   {track.cover ? (
                     <img src={track.cover} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <Music className="w-6 h-6 text-[#3FFF8B]" />
+                    <Music className="w-5 h-5 text-[#3FFF8B]" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm sm:text-base font-bold truncate leading-tight">{track.title}</h3>
+                  <h3 className="text-sm font-bold truncate leading-tight text-white">{track.title}</h3>
                   <p className="text-xs text-[#A8A8A8] truncate mt-0.5">
                     {track.artist || 'Escolha a playlist de destino'}
                   </p>
@@ -90,26 +96,26 @@ export default function AddToPlaylistModal({ isOpen, onClose, track }: AddToPlay
             </div>
 
             {/* Ação Criar Nova Playlist */}
-            <div className="pt-4 shrink-0">
+            <div className="pt-3 pb-1 shrink-0">
               <button
                 onClick={() => setIsCreateOpen(true)}
-                className="w-full p-3.5 rounded-2xl border border-dashed border-[#3FFF8B]/40 bg-[#3FFF8B]/5 hover:bg-[#3FFF8B]/15 text-[#3FFF8B] font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm"
+                className="w-full py-3 px-4 rounded-2xl border border-dashed border-[#3FFF8B]/50 bg-[#3FFF8B]/10 hover:bg-[#3FFF8B]/20 text-[#3FFF8B] font-bold text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 Criar Nova Playlist
               </button>
             </div>
 
-            {/* Lista de Playlists */}
-            <div className="flex-1 overflow-y-auto space-y-2 pt-3 pr-1 custom-scrollbar min-h-0 mt-1">
+            {/* Lista de Playlists com Scroll Suave e Padding Final */}
+            <div className="flex-1 overflow-y-auto space-y-2 pt-2 pb-6 pr-1 custom-scrollbar min-h-0">
               {playlists.length === 0 ? (
-                <div className="text-center py-8 px-4 space-y-2">
+                <div className="text-center py-10 px-4 space-y-2">
                   <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center mx-auto text-gray-400">
                     <ListMusic className="w-6 h-6" />
                   </div>
                   <p className="text-sm font-bold text-gray-200">Você ainda não tem playlists</p>
                   <p className="text-xs text-gray-400 max-w-xs mx-auto">
-                    Clique no botão acima para criar sua primeira playlist e adicionar este louvor.
+                    Clique no botão acima para criar sua primeira playlist e salvar este louvor.
                   </p>
                 </div>
               ) : (
@@ -127,12 +133,12 @@ export default function AddToPlaylistModal({ isOpen, onClose, track }: AddToPlay
                       className={`w-full p-3 rounded-2xl flex items-center justify-between gap-3 text-left transition-all border
                         ${isAlreadyIn 
                           ? 'bg-white/5 border-transparent opacity-60 cursor-default' 
-                          : 'bg-[#202020] border-white/5 hover:border-[#3FFF8B]/40 hover:bg-[#252525] active:scale-[0.98]'
+                          : 'bg-[#1f1f22] border-white/5 hover:border-[#3FFF8B]/40 hover:bg-[#252528] active:scale-[0.98]'
                         }
                       `}
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-[#3FFF8B]/10 text-[#3FFF8B] flex items-center justify-center shrink-0 overflow-hidden border border-white/5">
+                        <div className="w-10 h-10 rounded-xl bg-[#3FFF8B]/10 text-[#3FFF8B] flex items-center justify-center shrink-0 overflow-hidden border border-white/5 shadow-sm">
                           {playlist.coverUrl ? (
                             <img src={playlist.coverUrl} className="w-full h-full object-cover" alt="" />
                           ) : (
