@@ -137,9 +137,6 @@ export default function MiniPlayer() {
     <div 
       ref={playerRef}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onPointerCancel={handlePointerUp}
       onClick={handleClickPlayer}
       style={{
         position: 'fixed',
