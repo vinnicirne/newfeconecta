@@ -170,170 +170,193 @@ export default function AdminFeMusicPage() {
     try {
       const itemsMap = new Map<string, ModeratedTrackItem>();
 
-      // 1. Faixas de Playlists com dados do criador da playlist
-      const { data: playlistTracks, error: ptErr } = await supabase
-        .from("music_playlist_tracks")
-        .select(`
-          id,
-          track_id,
-          track_data,
-          added_at,
-          playlist:music_playlists (
+      // 1. Faixas de Playlists
+      try {
+        const { data: playlistTracks, error: ptErr } = await supabase
+          .from("music_playlist_tracks")
+          .select(`
             id,
-            title,
-            user_id,
-            user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
-          )
-        `)
-        .order("added_at", { ascending: false })
-        .limit(60);
+            track_id,
+            track_data,
+            added_at,
+            playlist:music_playlists (
+              id,
+              title,
+              user_id,
+              user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+            )
+          `)
+          .order("added_at", { ascending: false })
+          .limit(60);
 
-      if (!ptErr && playlistTracks) {
-        for (const item of playlistTracks) {
-          const tData = item.track_data || {};
-          const trackId = tData.providerTrackId || tData.id || item.track_id;
-          const title = tData.title || "Louvor";
-          const artist = tData.artist || "Artista";
-          const playlistUser = (item.playlist as any)?.user;
+        if (!ptErr && playlistTracks && Array.isArray(playlistTracks)) {
+          for (const item of playlistTracks) {
+            if (!item) continue;
+            const tData = item.track_data || {};
+            const trackId = tData.providerTrackId || tData.id || item.track_id || item.id;
+            const title = tData.title || "Louvor";
+            const artist = tData.artist || "Artista";
+            const playlistUser = (item.playlist as any)?.user;
 
-          itemsMap.set(`pt-${item.id}`, {
-            id: item.id,
-            provider_track_id: trackId,
-            title,
-            artist,
-            cover: tData.cover || null,
-            duration: tData.duration || null,
-            source_type: "playlist",
-            created_at: item.added_at || new Date().toISOString(),
-            user: playlistUser ? {
-              id: playlistUser.id,
-              full_name: playlistUser.full_name,
-              username: playlistUser.username,
-              avatar_url: playlistUser.avatar_url,
-              is_verified: playlistUser.is_verified,
-              verification_label: playlistUser.verification_label,
-            } : null,
-            isSecularSuspect: checkSecularSuspect(title, artist),
-          });
-        }
-      }
-
-      // 2. Posts de Louvor no Feed (com autor do post)
-      const { data: postTracks, error: postErr } = await supabase
-        .from("posts")
-        .select(`
-          id,
-          title,
-          content,
-          media_url,
-          media_data,
-          created_at,
-          user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
-        `)
-        .eq("post_type", "music")
-        .order("created_at", { ascending: false })
-        .limit(40);
-
-      if (!postErr && postTracks) {
-        for (const post of postTracks) {
-          const mData = post.media_data || {};
-          const title = mData.title || post.title || "Louvor no Feed";
-          const artist = mData.artist || "Comunidade FéConecta";
-          const postUser = (post as any).user;
-
-          itemsMap.set(`post-${post.id}`, {
-            id: post.id,
-            provider_track_id: mData.providerTrackId || mData.id || post.id,
-            title,
-            artist,
-            cover: mData.cover || post.media_url || null,
-            duration: mData.duration || null,
-            source_type: "feed_post",
-            created_at: post.created_at || new Date().toISOString(),
-            user: postUser ? {
-              id: postUser.id,
-              full_name: postUser.full_name,
-              username: postUser.username,
-              avatar_url: postUser.avatar_url,
-              is_verified: postUser.is_verified,
-              verification_label: postUser.verification_label,
-            } : null,
-            isSecularSuspect: checkSecularSuspect(title, artist),
-          });
-        }
-      }
-
-      // 3. Cache de Áudio Baixado no Servidor (femusic_cache) + Louvores Indexados (music_tracks)
-      const { data: cacheTracks, error: cacheErr } = await supabase
-        .from("femusic_cache")
-        .select("youtube_id, audio_url, created_at")
-        .order("created_at", { ascending: false })
-        .limit(100);
-
-      if (!cacheErr && cacheTracks && cacheTracks.length > 0) {
-        const ytIds = cacheTracks.map((c) => c.youtube_id).filter(Boolean);
-        
-        // Busca metadados correspondentes na tabela music_tracks
-        let trackDetailsMap = new Map<string, any>();
-        if (ytIds.length > 0) {
-          const { data: trackDetails } = await supabase
-            .from("music_tracks")
-            .select("provider_track_id, title, artist, cover, duration")
-            .in("provider_track_id", ytIds);
-          
-          if (trackDetails) {
-            trackDetails.forEach((td) => {
-              trackDetailsMap.set(td.provider_track_id, td);
+            itemsMap.set(`pt-${item.id}`, {
+              id: item.id,
+              provider_track_id: trackId,
+              title,
+              artist,
+              cover: tData.cover || null,
+              duration: tData.duration || null,
+              source_type: "playlist",
+              created_at: item.added_at || new Date().toISOString(),
+              user: playlistUser ? {
+                id: playlistUser.id,
+                full_name: playlistUser.full_name,
+                username: playlistUser.username,
+                avatar_url: playlistUser.avatar_url,
+                is_verified: playlistUser.is_verified,
+                verification_label: playlistUser.verification_label,
+              } : null,
+              isSecularSuspect: checkSecularSuspect(title, artist),
             });
           }
         }
+      } catch (e) {
+        console.warn("[FeMusic] Falha ao carregar playlist tracks:", e);
+      }
 
-        for (const cache of cacheTracks) {
-          const matchedTrack = trackDetailsMap.get(cache.youtube_id);
-          const title = matchedTrack?.title || `Louvor Extraído [${cache.youtube_id}]`;
-          const artist = matchedTrack?.artist || "Comunidade FéConecta (Download)";
-          const cover = matchedTrack?.cover || `https://i.ytimg.com/vi/${cache.youtube_id}/hqdefault.jpg`;
-
-          itemsMap.set(`cache-${cache.youtube_id}`, {
-            id: cache.youtube_id,
-            provider_track_id: cache.youtube_id,
+      // 2. Posts de Louvor no Feed
+      try {
+        const { data: postTracks, error: postErr } = await supabase
+          .from("posts")
+          .select(`
+            id,
             title,
-            artist,
-            cover,
-            duration: matchedTrack?.duration || null,
-            source_type: "audio_cache",
-            created_at: cache.created_at || new Date().toISOString(),
-            user: null,
-            isSecularSuspect: checkSecularSuspect(title, artist),
-          });
+            content,
+            media_url,
+            media_data,
+            created_at,
+            user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+          `)
+          .eq("post_type", "music")
+          .order("created_at", { ascending: false })
+          .limit(40);
+
+        if (!postErr && postTracks && Array.isArray(postTracks)) {
+          for (const post of postTracks) {
+            if (!post) continue;
+            const mData = post.media_data || {};
+            const title = mData.title || post.title || "Louvor no Feed";
+            const artist = mData.artist || "Comunidade FéConecta";
+            const postUser = (post as any).user;
+
+            itemsMap.set(`post-${post.id}`, {
+              id: post.id,
+              provider_track_id: mData.providerTrackId || mData.id || post.id,
+              title,
+              artist,
+              cover: mData.cover || post.media_url || null,
+              duration: mData.duration || null,
+              source_type: "feed_post",
+              created_at: post.created_at || new Date().toISOString(),
+              user: postUser ? {
+                id: postUser.id,
+                full_name: postUser.full_name,
+                username: postUser.username,
+                avatar_url: postUser.avatar_url,
+                is_verified: postUser.is_verified,
+                verification_label: postUser.verification_label,
+              } : null,
+              isSecularSuspect: checkSecularSuspect(title, artist),
+            });
+          }
         }
+      } catch (e) {
+        console.warn("[FeMusic] Falha ao carregar posts de música:", e);
+      }
+
+      // 3. Cache de Áudio (femusic_cache) + Louvores Indexados (music_tracks)
+      try {
+        const { data: cacheTracks, error: cacheErr } = await supabase
+          .from("femusic_cache")
+          .select("youtube_id, audio_url, created_at")
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (!cacheErr && cacheTracks && Array.isArray(cacheTracks) && cacheTracks.length > 0) {
+          const ytIds = cacheTracks.map((c) => c.youtube_id).filter(Boolean);
+          
+          let trackDetailsMap = new Map<string, any>();
+          if (ytIds.length > 0) {
+            try {
+              const { data: trackDetails } = await supabase
+                .from("music_tracks")
+                .select("provider_track_id, title, artist, cover, duration")
+                .in("provider_track_id", ytIds);
+              
+              if (trackDetails && Array.isArray(trackDetails)) {
+                trackDetails.forEach((td) => {
+                  if (td?.provider_track_id) {
+                    trackDetailsMap.set(td.provider_track_id, td);
+                  }
+                });
+              }
+            } catch {}
+          }
+
+          for (const cache of cacheTracks) {
+            if (!cache?.youtube_id) continue;
+            const matchedTrack = trackDetailsMap.get(cache.youtube_id);
+            const title = matchedTrack?.title || `Louvor Extraído [${cache.youtube_id}]`;
+            const artist = matchedTrack?.artist || "Comunidade FéConecta (Download)";
+            const cover = matchedTrack?.cover || `https://i.ytimg.com/vi/${cache.youtube_id}/hqdefault.jpg`;
+
+            itemsMap.set(`cache-${cache.youtube_id}`, {
+              id: cache.youtube_id,
+              provider_track_id: cache.youtube_id,
+              title,
+              artist,
+              cover,
+              duration: matchedTrack?.duration || null,
+              source_type: "audio_cache",
+              created_at: cache.created_at || new Date().toISOString(),
+              user: null,
+              isSecularSuspect: checkSecularSuspect(title, artist),
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[FeMusic] Falha ao carregar cache:", e);
       }
 
       // 4. Músicas Indexadas Diretamente (music_tracks)
-      const { data: indexedTracks, error: idxErr } = await supabase
-        .from("music_tracks")
-        .select("id, provider_track_id, title, artist, cover, duration, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
+      try {
+        const { data: indexedTracks, error: idxErr } = await supabase
+          .from("music_tracks")
+          .select("id, provider_track_id, title, artist, cover, duration, created_at")
+          .order("created_at", { ascending: false })
+          .limit(50);
 
-      if (!idxErr && indexedTracks) {
-        for (const track of indexedTracks) {
-          const key = `track-${track.provider_track_id || track.id}`;
-          if (!itemsMap.has(key) && !itemsMap.has(`cache-${track.provider_track_id}`)) {
-            itemsMap.set(key, {
-              id: track.id,
-              provider_track_id: track.provider_track_id || track.id,
-              title: track.title || "Louvor",
-              artist: track.artist || "Artista Cristão",
-              cover: track.cover || (track.provider_track_id ? `https://i.ytimg.com/vi/${track.provider_track_id}/hqdefault.jpg` : null),
-              duration: track.duration || null,
-              source_type: "track",
-              created_at: track.created_at || new Date().toISOString(),
-              user: null,
-              isSecularSuspect: checkSecularSuspect(track.title || "", track.artist || ""),
-            });
+        if (!idxErr && indexedTracks && Array.isArray(indexedTracks)) {
+          for (const track of indexedTracks) {
+            if (!track) continue;
+            const key = `track-${track.provider_track_id || track.id}`;
+            if (!itemsMap.has(key) && !itemsMap.has(`cache-${track.provider_track_id}`)) {
+              itemsMap.set(key, {
+                id: track.id,
+                provider_track_id: track.provider_track_id || track.id,
+                title: track.title || "Louvor",
+                artist: track.artist || "Artista Cristão",
+                cover: track.cover || (track.provider_track_id ? `https://i.ytimg.com/vi/${track.provider_track_id}/hqdefault.jpg` : null),
+                duration: track.duration || null,
+                source_type: "track",
+                created_at: track.created_at || new Date().toISOString(),
+                user: null,
+                isSecularSuspect: checkSecularSuspect(track.title || "", track.artist || ""),
+              });
+            }
           }
         }
+      } catch (e) {
+        console.warn("[FeMusic] Falha ao carregar music_tracks:", e);
       }
 
       setModeratedTracks(Array.from(itemsMap.values()));
