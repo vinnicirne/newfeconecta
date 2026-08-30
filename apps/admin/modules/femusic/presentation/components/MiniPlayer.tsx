@@ -62,10 +62,12 @@ export default function MiniPlayer() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Handlers de Drag (Pointer Events unificados: Mouse + Touch)
+  // Handlers de Drag Super Suaves (com tracking global no window)
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Não arrasta se o clique foi em um botão de controle
     if ((e.target as HTMLElement).closest('button')) return;
     if (!playerRef.current) return;
+    
     const rect = playerRef.current.getBoundingClientRect();
 
     dragRef.current = {
@@ -75,40 +77,44 @@ export default function MiniPlayer() {
       initialY: rect.top,
       hasMoved: false,
     };
+
     setIsDragging(true);
-    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+
+    // Handlers globais no window para não perder o arraste em movimentos rápidos
+    const onWindowPointerMove = (moveEvent: PointerEvent) => {
+      const deltaX = moveEvent.clientX - dragRef.current.startX;
+      const deltaY = moveEvent.clientY - dragRef.current.startY;
+
+      if (Math.hypot(deltaX, deltaY) > 4) {
+        dragRef.current.hasMoved = true;
+      }
+
+      if (!playerRef.current) return;
+      const rect = playerRef.current.getBoundingClientRect();
+      const maxX = Math.max(8, window.innerWidth - rect.width - 8);
+      const maxY = Math.max(8, window.innerHeight - rect.height - 12);
+
+      const nextX = Math.min(Math.max(8, dragRef.current.initialX + deltaX), maxX);
+      const nextY = Math.min(Math.max(8, dragRef.current.initialY + deltaY), maxY);
+
+      setPosition({ x: nextX, y: nextY });
+    };
+
+    const onWindowPointerUp = () => {
+      setIsDragging(false);
+      window.removeEventListener('pointermove', onWindowPointerMove);
+      window.removeEventListener('pointerup', onWindowPointerUp);
+      window.removeEventListener('pointercancel', onWindowPointerUp);
+    };
+
+    window.addEventListener('pointermove', onWindowPointerMove, { passive: true });
+    window.addEventListener('pointerup', onWindowPointerUp);
+    window.addEventListener('pointercancel', onWindowPointerUp);
   }, []);
 
-  const handlePointerMove = useCallback((e: React.PointerEvent) => {
-    if (!isDragging || !playerRef.current) return;
-
-    const deltaX = e.clientX - dragRef.current.startX;
-    const deltaY = e.clientY - dragRef.current.startY;
-
-    if (Math.hypot(deltaX, deltaY) > 6) {
-      dragRef.current.hasMoved = true;
-    }
-
-    const rect = playerRef.current.getBoundingClientRect();
-    const maxX = Math.max(10, window.innerWidth - rect.width - 10);
-    const maxY = Math.max(10, window.innerHeight - rect.height - 20);
-
-    const nextX = Math.min(Math.max(10, dragRef.current.initialX + deltaX), maxX);
-    const nextY = Math.min(Math.max(10, dragRef.current.initialY + deltaY), maxY);
-
-    setPosition({ x: nextX, y: nextY });
-  }, [isDragging]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    try {
-      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
-    } catch {}
-  }, [isDragging]);
-
-  const handleClickPlayer = () => {
-    if (!dragRef.current.hasMoved) {
+  const handleClickPlayer = (e: React.MouseEvent) => {
+    // Só abre fullscreen se não foi um movimento de arrastar e não foi clique em botão
+    if (!dragRef.current.hasMoved && !(e.target as HTMLElement).closest('button')) {
       setFullScreen(true);
     }
   };
