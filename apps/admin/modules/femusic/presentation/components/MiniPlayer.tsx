@@ -62,30 +62,33 @@ export default function MiniPlayer() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Handlers de Drag Super Suaves (com tracking global no window)
+  // Handlers de Drag Ultra-Rápido a 60 FPS (Hardware Accelerated)
+  const animFrameId = useRef<number | null>(null);
+
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // Não arrasta se o clique foi em um botão de controle
     if ((e.target as HTMLElement).closest('button')) return;
     if (!playerRef.current) return;
     
-    const rect = playerRef.current.getBoundingClientRect();
+    const currentPos = position || {
+      x: window.innerWidth < 768 ? (window.innerWidth - Math.min(window.innerWidth - 24, 400)) / 2 : window.innerWidth - 424,
+      y: window.innerHeight - 170,
+    };
 
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      initialX: rect.left,
-      initialY: rect.top,
+      initialX: currentPos.x,
+      initialY: currentPos.y,
       hasMoved: false,
     };
 
     setIsDragging(true);
 
-    // Handlers globais no window para não perder o arraste em movimentos rápidos
     const onWindowPointerMove = (moveEvent: PointerEvent) => {
       const deltaX = moveEvent.clientX - dragRef.current.startX;
       const deltaY = moveEvent.clientY - dragRef.current.startY;
 
-      if (Math.hypot(deltaX, deltaY) > 4) {
+      if (!dragRef.current.hasMoved && Math.hypot(deltaX, deltaY) > 3) {
         dragRef.current.hasMoved = true;
       }
 
@@ -97,11 +100,20 @@ export default function MiniPlayer() {
       const nextX = Math.min(Math.max(8, dragRef.current.initialX + deltaX), maxX);
       const nextY = Math.min(Math.max(8, dragRef.current.initialY + deltaY), maxY);
 
-      setPosition({ x: nextX, y: nextY });
+      if (animFrameId.current) {
+        cancelAnimationFrame(animFrameId.current);
+      }
+
+      animFrameId.current = requestAnimationFrame(() => {
+        setPosition({ x: nextX, y: nextY });
+      });
     };
 
     const onWindowPointerUp = () => {
       setIsDragging(false);
+      if (animFrameId.current) {
+        cancelAnimationFrame(animFrameId.current);
+      }
       window.removeEventListener('pointermove', onWindowPointerMove);
       window.removeEventListener('pointerup', onWindowPointerUp);
       window.removeEventListener('pointercancel', onWindowPointerUp);
@@ -110,10 +122,9 @@ export default function MiniPlayer() {
     window.addEventListener('pointermove', onWindowPointerMove, { passive: true });
     window.addEventListener('pointerup', onWindowPointerUp);
     window.addEventListener('pointercancel', onWindowPointerUp);
-  }, []);
+  }, [position]);
 
   const handleClickPlayer = (e: React.MouseEvent) => {
-    // Só abre fullscreen se não foi um movimento de arrastar e não foi clique em botão
     if (!dragRef.current.hasMoved && !(e.target as HTMLElement).closest('button')) {
       setFullScreen(true);
     }
@@ -140,17 +151,18 @@ export default function MiniPlayer() {
       onClick={handleClickPlayer}
       style={{
         position: 'fixed',
-        left: position ? `${position.x}px` : '12px',
-        top: position ? `${position.y}px` : 'auto',
-        bottom: position ? 'auto' : '96px',
+        left: 0,
+        top: 0,
+        transform: position ? `translate3d(${position.x}px, ${position.y}px, 0)` : 'translate3d(12px, calc(100vh - 170px), 0)',
+        willChange: isDragging ? 'transform' : 'auto',
         touchAction: 'none',
       }}
       className={cn(
-        "w-[calc(100vw-24px)] max-w-[400px] h-[72px] rounded-2xl p-2 z-[300] select-none text-white overflow-hidden group transition-all duration-200",
+        "w-[calc(100vw-24px)] max-w-[400px] h-[72px] rounded-2xl p-2 z-[300] select-none text-white overflow-hidden group",
         "bg-[#111113]/95 backdrop-blur-2xl border shadow-[0_16px_40px_rgba(0,0,0,0.8)]",
         isDragging 
-          ? "cursor-grabbing border-[#3FFF8B] shadow-[0_20px_50px_rgba(63,255,139,0.3)] scale-[1.03] ring-1 ring-[#3FFF8B]/50" 
-          : "cursor-grab border-white/10 hover:border-white/20 hover:shadow-[0_20px_45px_rgba(0,0,0,0.9)]"
+          ? "cursor-grabbing border-[#3FFF8B] shadow-[0_24px_60px_rgba(63,255,139,0.35)] scale-[1.02] ring-2 ring-[#3FFF8B]/50 transition-none" 
+          : "cursor-grab border-white/10 hover:border-white/20 hover:shadow-[0_20px_45px_rgba(0,0,0,0.9)] transition-shadow duration-200"
       )}
     >
       {/* Glow de fundo ambiental baseado na cor */}
