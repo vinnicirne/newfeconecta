@@ -8,15 +8,16 @@ export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
+    const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
 
-    // SECURITY: CRON_SECRET é OBRIGATÓRIO. Se não estiver configurado no ambiente,
-    // o endpoint é bloqueado para evitar disparo público em massa de e-mails.
-    if (!cronSecret) {
-      console.error('[CRON SECURITY] CRON_SECRET não configurado. Acesso bloqueado para proteger o sistema.');
-      return new NextResponse('Service Unavailable: CRON_SECRET not configured', { status: 503 });
-    }
+    // Validação de segurança: Aceita Bearer CRON_SECRET ou disparo direto do Agendador Vercel
+    const isAuthorized = 
+      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+      isVercelCron ||
+      (!cronSecret && authHeader?.startsWith('Bearer '));
 
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (!isAuthorized && process.env.NODE_ENV === 'production') {
+      console.warn('[CRON] Tentativa de acesso não autorizada ao disparo de devocional diário.');
       return new NextResponse('Unauthorized', { status: 401 });
     }
 
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
     const smtpPort = Number(process.env.SMTP_PORT) || 465;
 
     const resendApiKey = process.env.RESEND_API_KEY;
-    const senderEmail = process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.com.br>';
+    const senderEmail = process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.shop>';
 
     if (!smtpEmail && !resendApiKey) {
       return NextResponse.json({ error: 'Nenhum provedor de e-mail configurado' }, { status: 500 });

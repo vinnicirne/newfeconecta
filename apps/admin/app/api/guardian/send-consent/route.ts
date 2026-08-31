@@ -179,7 +179,7 @@ export async function POST(request: Request) {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.com.br>',
+          from: process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.shop>',
           to: [guardian_email],
           subject: `⚠️ Autorização necessária: ${minor_name} quer entrar no FéConecta`,
           html,
