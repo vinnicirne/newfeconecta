@@ -26,14 +26,22 @@ export default function PartnerDashboardPage() {
         setIsLoading(true);
         const [walletRes, campsRes] = await Promise.all([
           adsApiFetch<WalletBalanceDto>("/api/wallet").catch(() => null),
-          adsApiFetch<Campaign[]>("/api/campaigns"),
+          adsApiFetch<any>("/api/campaigns").catch(() => []),
         ]);
         if (walletRes) setWallet(walletRes);
-        setCampaigns(campsRes || []);
+        
+        // Trata retorno tanto se for array direto quanto objeto com { campaigns: [...] }
+        const campaignList = Array.isArray(campsRes) 
+          ? campsRes 
+          : Array.isArray(campsRes?.campaigns) 
+          ? campsRes.campaigns 
+          : [];
+        setCampaigns(campaignList);
       } catch (err: any) {
         toast.error("Erro ao carregar dados do parceiro", {
           description: err.message,
         });
+        setCampaigns([]);
       } finally {
         setIsLoading(false);
       }
@@ -42,13 +50,14 @@ export default function PartnerDashboardPage() {
     loadData();
   }, []);
 
-  // Métricas calculadas reais
-  const activeCampaigns = campaigns.filter((c) => c.status === "ativa").length;
-  const totalGasto = campaigns.reduce((acc, c) => acc + (Number(c.gasto) || 0), 0);
-  const totalOrcamento = campaigns.reduce((acc, c) => acc + (Number(c.orcamento) || 0), 0);
+  // Métricas calculadas reais (com proteção contra não-arrays)
+  const safeCampaigns = Array.isArray(campaigns) ? campaigns : [];
+  const activeCampaigns = safeCampaigns.filter((c) => c.status === "ativa").length;
+  const totalGasto = safeCampaigns.reduce((acc, c) => acc + (Number(c.gasto) || 0), 0);
+  const totalOrcamento = safeCampaigns.reduce((acc, c) => acc + (Number(c.orcamento) || 0), 0);
   const percentConsumido = formatPercentage(totalGasto, totalOrcamento);
 
-  const filteredCampaigns = campaigns.filter((c) => {
+  const filteredCampaigns = safeCampaigns.filter((c) => {
     if (statusFilter === "todos") return true;
     return c.status === statusFilter;
   });
