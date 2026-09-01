@@ -1,24 +1,36 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { generateDailyMessage } from '@/lib/gemini';
+import { requireAuth } from '@/lib/auth-server';
 import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
-export async function GET(request: Request) {
+
+async function handleDailyMessageDispatch(request: Request) {
   try {
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
     const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
 
-    // Validação de segurança: Aceita Bearer CRON_SECRET ou disparo direto do Agendador Vercel
-    const isAuthorized = 
-      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+    // 1. Verifica se é a Cron da Vercel ou Bearer CRON_SECRET
+    let isAuthorized = 
       isVercelCron ||
-      (!cronSecret && authHeader?.startsWith('Bearer '));
+      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+      (cronSecret && authHeader === cronSecret);
+
+    // 2. Se não for cron secret, tenta autenticar como Admin logado via token/cookies
+    if (!isAuthorized) {
+      try {
+        const user = await requireAuth(request);
+        if (user) {
+          isAuthorized = true;
+        }
+      } catch {}
+    }
 
     if (!isAuthorized && process.env.NODE_ENV === 'production') {
       console.warn('[CRON] Tentativa de acesso não autorizada ao disparo de devocional diário.');
-      return new NextResponse('Unauthorized', { status: 401 });
+      return NextResponse.json({ error: 'Não autorizado: É necessário privilégio de administrador ou token de cron' }, { status: 401 });
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -209,4 +221,12 @@ export async function GET(request: Request) {
     console.error('[CRON] Erro crítico:', error);
     return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
   }
+}
+
+export async function GET(request: Request) {
+  return handleDailyMessageDispatch(request);
+}
+
+export async function POST(request: Request) {
+  return handleDailyMessageDispatch(request);
 }

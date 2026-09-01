@@ -199,8 +199,18 @@ export default function SystemMonitoringPage() {
             onClick={async () => {
               const toastId = toast.loading("Disparando Devocional Diário do FéConecta...");
               try {
-                const res = await fetch("/api/cron/daily-message", { method: "GET" });
-                const data = await res.json();
+                const { data: { session } } = await supabase.auth.getSession();
+                const token = session?.access_token;
+                const headers: Record<string, string> = { "Content-Type": "application/json" };
+                if (token) {
+                  headers["Authorization"] = `Bearer ${token}`;
+                }
+
+                const res = await fetch("/api/cron/daily-message", { 
+                  method: "POST",
+                  headers
+                });
+                const data = await res.json().catch(() => ({ error: "Resposta não formatada em JSON" }));
                 if (res.ok && data.success) {
                   toast.success(`Devocional disparado com sucesso! (${data.sent} enviados, ${data.failed} falhas)`, { id: toastId });
                   checkHealth();
