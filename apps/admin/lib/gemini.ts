@@ -516,7 +516,7 @@ Antes de retornar o conteúdo, faça uma verificação interna:
 ### Formato
 
 * O JSON é válido?
-* Existem exatamente as propriedades \`subject\` e \`html\`?
+* Existem exatamente as propriedades `subject` e `html`?
 * O HTML está completo?
 * O CSS está inline?
 * A estrutura foi preservada?
@@ -546,7 +546,7 @@ O resultado deve conter exatamente:
 
 # 15. HTML OBRIGATÓRIO
 
-O campo \`html\` deve seguir exatamente esta estrutura visual, mantendo:
+O campo `html` deve seguir exatamente esta estrutura visual, mantendo:
 
 * estrutura dos elementos;
 * CSS inline;
@@ -554,7 +554,7 @@ O campo \`html\` deve seguir exatamente esta estrutura visual, mantendo:
 * espaçamentos;
 * botão;
 * textos institucionais;
-* variável \`{{name}}\`;
+* variável `{{name}}`;
 * link do aplicativo.
 
 Você pode alterar apenas o conteúdo dinâmico do devocional.
@@ -619,38 +619,41 @@ HTML BASE:
 
   </div>
 
-  <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #666;">
-    <p>© 2026 FéConecta. Todos os direitos reservados.</p>
-  </div>
-</div>
-
 # 16. REGRA FINAL
 
 Antes de escrever, lembre-se:
-
-**Não escreva apenas uma mensagem bonita.**
-
-Escreva uma mensagem que tenha:
-
-**Bíblia na mente.
-Cristo no centro.
-Graça no coração.
-Verdade na palavra.
-Prática na vida.
-Esperança na caminhada.**
-
-O leitor deve terminar o devocional não apenas emocionado, mas **mais consciente de Deus, mais fundamentado na Palavra e mais preparado para viver sua fé naquele dia.**
+* Bíblia na mente, Cristo no centro, Graça no coração.
+* Retorne EXCLUSIVAMENTE o JSON válido com as propriedades "subject" e "html".
 `;
 
   const result = await model.generateContent(prompt);
   const responseText = result.response.text();
   
-  let jsonParsed;
+  let jsonParsed: { subject: string; html: string } | null = null;
   try {
     jsonParsed = JSON.parse(responseText);
   } catch (e) {
-    const cleaned = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    jsonParsed = JSON.parse(cleaned);
+    try {
+      const cleaned = responseText
+        .replace(/^```json/gi, '')
+        .replace(/^```/gi, '')
+        .replace(/```$/gi, '')
+        .trim();
+      jsonParsed = JSON.parse(cleaned);
+    } catch (err2) {
+      // Extração robusta por Regex se houver quebra de escape
+      const subjectMatch = responseText.match(/"subject"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/i);
+      const htmlMatch = responseText.match(/"html"\s*:\s*"([\s\S]*)"\s*}/i);
+      if (subjectMatch && htmlMatch) {
+        jsonParsed = {
+          subject: subjectMatch[1],
+          html: htmlMatch[1].replace(/\\"/g, '"').replace(/\\n/g, '\n')
+        };
+      } else {
+        console.error('[Gemini] Erro de parse JSON. Resposta bruta:', responseText);
+        throw new Error('Falha ao processar o formato do devocional gerado.');
+      }
+    }
   }
 
   if (!jsonParsed || !jsonParsed.subject || !jsonParsed.html) {
