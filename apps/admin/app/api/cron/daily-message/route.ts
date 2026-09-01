@@ -122,6 +122,9 @@ export async function GET(request: Request) {
             finalHtml += `\n<img src="${trackingPixelUrl}" alt="" width="1" height="1" style="display:block; opacity:0.01; margin-top:20px;" />`;
           }
 
+          let sentSuccess = false;
+          let errorMessage: string | null = null;
+
           // 1. Tenta envio prioritário via Resend API (Fast HTTP / Domínio Verificado)
           if (resendApiKey) {
             try {
