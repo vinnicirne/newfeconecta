@@ -516,7 +516,7 @@ Antes de retornar o conteúdo, faça uma verificação interna:
 ### Formato
 
 * O JSON é válido?
-* Existem exatamente as propriedades `subject` e `html`?
+* Existem exatamente as propriedades \`subject\` e \`html\`?
 * O HTML está completo?
 * O CSS está inline?
 * A estrutura foi preservada?
@@ -546,7 +546,7 @@ O resultado deve conter exatamente:
 
 # 15. HTML OBRIGATÓRIO
 
-O campo `html` deve seguir exatamente esta estrutura visual, mantendo:
+O campo \`html\` deve seguir exatamente esta estrutura visual, mantendo:
 
 * estrutura dos elementos;
 * CSS inline;
@@ -554,7 +554,7 @@ O campo `html` deve seguir exatamente esta estrutura visual, mantendo:
 * espaçamentos;
 * botão;
 * textos institucionais;
-* variável `{{name}}`;
+* variável \`{{name}}\`;
 * link do aplicativo.
 
 Você pode alterar apenas o conteúdo dinâmico do devocional.
