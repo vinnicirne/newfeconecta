@@ -196,6 +196,29 @@ export default function SystemMonitoringPage() {
 
         <div className="flex items-center gap-2">
           <button
+            onClick={async () => {
+              const toastId = toast.loading("Disparando Devocional Diário do FéConecta...");
+              try {
+                const res = await fetch("/api/cron/daily-message", { method: "GET" });
+                const data = await res.json();
+                if (res.ok && data.success) {
+                  toast.success(`Devocional disparado com sucesso! (${data.sent} enviados, ${data.failed} falhas)`, { id: toastId });
+                  checkHealth();
+                } else {
+                  toast.error(`Falha no envio: ${data.error || "Erro desconhecido"}`, { id: toastId });
+                }
+              } catch (err: any) {
+                toast.error(`Erro ao disparar devocional: ${err.message}`, { id: toastId });
+              }
+            }}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold shadow-sm active:scale-95 transition-all"
+            title="Disparar Devocional Diário Imediatamente"
+          >
+            <Mail className="h-3.5 w-3.5" />
+            <span>Disparar Devocional Diário</span>
+          </button>
+          <button
             onClick={() => {
               checkHealth();
               toast.success("Telemetria de infraestrutura sincronizada! ⚡");

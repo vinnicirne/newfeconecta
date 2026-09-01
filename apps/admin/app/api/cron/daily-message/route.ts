@@ -122,28 +122,8 @@ export async function GET(request: Request) {
             finalHtml += `\n<img src="${trackingPixelUrl}" alt="" width="1" height="1" style="display:block; opacity:0.01; margin-top:20px;" />`;
           }
 
-          let sentSuccess = false;
-          let errorMessage = null;
-
-          if (transporter) {
-            try {
-              await transporter.sendMail({
-                from: `"FéConecta" <${smtpEmail}>`,
-                to: email,
-                replyTo: smtpEmail,
-                subject: generatedContent.subject,
-                text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-                html: finalHtml,
-                headers: {
-                  'List-Unsubscribe': `<mailto:${smtpEmail}?subject=unsubscribe>`,
-                  'Precedence': 'bulk'
-                }
-              });
-              sentSuccess = true;
-            } catch (e: any) {
-              errorMessage = e.message;
-            }
-          } else if (resendApiKey) {
+          // 1. Tenta envio prioritário via Resend API (Fast HTTP / Domínio Verificado)
+          if (resendApiKey) {
             try {
               const resendRes = await fetch('https://api.resend.com/emails', {
                 method: 'POST',
@@ -158,14 +138,40 @@ export async function GET(request: Request) {
                   html: finalHtml,
                 }),
               });
+
               if (resendRes.ok) {
                 sentSuccess = true;
               } else {
-                const d = await resendRes.json();
-                errorMessage = d.message || 'Erro no Resend';
+                const d = await resendRes.json().catch(() => ({}));
+                errorMessage = d.message || `Erro Resend HTTP ${resendRes.status}`;
+                console.warn(`[CRON] Resend falhou para ${email} (${errorMessage}). Tentando fallback SMTP...`);
               }
             } catch (e: any) {
               errorMessage = e.message;
+              console.warn(`[CRON] Exceção Resend para ${email}. Tentando fallback SMTP...`);
+            }
+          }
+
+          // 2. Fallback para SMTP caso Resend não esteja configurado ou tenha falhado
+          if (!sentSuccess && transporter && smtpEmail) {
+            try {
+              await transporter.sendMail({
+                from: `"FéConecta" <${smtpEmail}>`,
+                to: email,
+                replyTo: smtpEmail,
+                subject: generatedContent.subject,
+                text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+                html: finalHtml,
+                headers: {
+                  'List-Unsubscribe': `<mailto:${smtpEmail}?subject=unsubscribe>`,
+                  'Precedence': 'bulk'
+                }
+              });
+              sentSuccess = true;
+              errorMessage = null; // Limpa erro pois fallback teve sucesso
+            } catch (e: any) {
+              errorMessage = e.message;
+              console.error(`[CRON] Falha também no SMTP para ${email}:`, e);
             }
           }
 
