@@ -5,18 +5,24 @@ import { requireAuth } from '@/lib/auth-server';
 import nodemailer from 'nodemailer';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 async function handleDailyMessageDispatch(request: Request) {
   try {
+    const url = new URL(request.url);
+    const keyParam = url.searchParams.get('key');
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
     const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
 
-    // 1. Verifica se é a Cron da Vercel ou Bearer CRON_SECRET
+    // 1. Verifica se é a Cron da Vercel, Bearer CRON_SECRET ou param ?key=
     let isAuthorized = 
       isVercelCron ||
-      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
-      (cronSecret && authHeader === cronSecret);
+      (cronSecret && (
+        authHeader === `Bearer ${cronSecret}` ||
+        authHeader === cronSecret ||
+        keyParam === cronSecret
+      ));
 
     // 2. Se não for cron secret, tenta autenticar como Admin logado via token/cookies
     if (!isAuthorized) {
@@ -72,6 +78,36 @@ async function handleDailyMessageDispatch(request: Request) {
       return NextResponse.json({ error: 'Erro ao buscar usuários' }, { status: 500 });
     }
 
+    // 🔒 Proteção Anti-Spam / Anti-Duplicidade: Evita enviar mais de uma vez no mesmo dia para o mesmo usuário
+    const todayStart = new Date();
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const { data: alreadySentToday } = await supabase
+      .from('email_logs')
+      .select('email, user_id')
+      .eq('template_key', 'mensagem_do_dia')
+      .eq('status', 'success')
+      .gte('sent_at', todayStart.toISOString());
+
+    const alreadySentSet = new Set(
+      (alreadySentToday || []).map(l => l.email?.toLowerCase()).filter(Boolean)
+    );
+
+    const pendingProfiles = profiles.filter(p => {
+      const email = p.email?.trim().toLowerCase();
+      return email && !alreadySentSet.has(email);
+    });
+
+    if (pendingProfiles.length === 0) {
+      console.log('[CRON] Todos os usuários já receberam a mensagem de hoje.');
+      return NextResponse.json({
+        success: true,
+        message: 'Devocional de hoje já foi entregue a todos os membros.',
+        total_profiles: profiles.length,
+        already_sent: alreadySentSet.size,
+        sent_now: 0
+      }, { status: 200 });
+    }
+
     // 4. Configuração do Mailer
     const smtpEmail = process.env.SMTP_EMAIL;
     const smtpPassword = process.env.SMTP_PASSWORD;
@@ -104,16 +140,16 @@ async function handleDailyMessageDispatch(request: Request) {
     let successCount = 0;
     let errorCount = 0;
 
-    console.log(`[CRON] Iniciando envio em lote para ${profiles.length} usuários.`);
+    console.log(`[CRON] Iniciando envio em lote para ${pendingProfiles.length} usuários.`);
 
-    // 5. Disparo em lote com controle de Rate Limit (Evita erro 429 do Resend)
+    // 5. Disparo em lote com controle de Rate Limit (Evita erro 429 do Resend e protege reputação do domínio)
     const BATCH_SIZE = 5;
     
-    for (let i = 0; i < profiles.length; i += BATCH_SIZE) {
-      const batch = profiles.slice(i, i + BATCH_SIZE);
+    for (let i = 0; i < pendingProfiles.length; i += BATCH_SIZE) {
+      const batch = pendingProfiles.slice(i, i + BATCH_SIZE);
       
       const sendPromises = batch.map(async (user) => {
-        const email = user.email;
+        const email = user.email.trim();
         const name = user.full_name || user.username || 'Membro';
         const userId = user.id;
 
@@ -137,7 +173,7 @@ async function handleDailyMessageDispatch(request: Request) {
           let sentSuccess = false;
           let errorMessage: string | null = null;
 
-          // 1. Tenta envio prioritário via Resend API (Fast HTTP / Domínio Verificado)
+          // 1. Tenta envio prioritário via Resend API com cabeçalhos anti-spam
           if (resendApiKey) {
             try {
               const resendRes = await fetch('https://api.resend.com/emails', {
@@ -151,6 +187,11 @@ async function handleDailyMessageDispatch(request: Request) {
                   to: [email],
                   subject: generatedContent.subject,
                   html: finalHtml,
+                  headers: {
+                    'List-Unsubscribe': '<mailto:contato@feconecta.shop?subject=unsubscribe>',
+                    'Precedence': 'bulk',
+                    'X-Auto-Response-Suppress': 'OOF, AutoReply'
+                  }
                 }),
               });
 

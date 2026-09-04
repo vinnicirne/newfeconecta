@@ -253,9 +253,9 @@ export default function FullscreenPlayer() {
             className="relative z-10 shrink-0 px-6 pt-2 pb-6 space-y-4 max-w-xl mx-auto w-full"
             style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}
           >
-            {/* Informações da Faixa + Ações */}
+            {/* Informações da Faixa (Título e Artista) */}
             <div className="flex items-center justify-between gap-3 px-1">
-              <div className="flex-1 min-w-0 pr-2">
+              <div className="flex-1 min-w-0">
                 <h2 className="text-xl sm:text-2xl font-extrabold text-white truncate tracking-tight leading-tight">
                   {currentTrack.title}
                 </h2>
@@ -264,49 +264,14 @@ export default function FullscreenPlayer() {
                 </p>
               </div>
 
-              {/* Ações em Linha */}
-              <div className="flex items-center gap-1 shrink-0">
-                {/* Botão Curtir */}
-                <button
-                  onClick={() => toggleLike(currentTrack)}
-                  aria-label="Curtir música"
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/90"
-                >
-                  <Heart className={cn("w-6 h-6 transition-colors", isLiked ? "text-[#0095F6] fill-[#0095F6]" : "text-white/80")} />
-                </button>
-
-                {/* Botão Adicionar à Playlist */}
-                <button
-                  onClick={() => setIsAddToPlaylistOpen(true)}
-                  aria-label="Adicionar à playlist"
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/80 hover:text-white"
-                >
-                  <ListMusic className="w-6 h-6" />
-                </button>
-
-                {/* Botão Comentários */}
-                <button
-                  onClick={() => setIsCommentsOpen(true)}
-                  aria-label="Ver comentários"
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/80 hover:text-white relative"
-                >
-                  <MessageCircle className="w-5 h-5" />
-                  {commentsCount > 0 && (
-                    <span className="absolute top-1 right-0.5 min-w-[16px] h-4 px-1 bg-[#3FFF8B] text-black text-[9px] font-bold rounded-full flex items-center justify-center shadow-sm">
-                      {commentsCount > 99 ? '99+' : commentsCount}
-                    </span>
-                  )}
-                </button>
-
-                {/* Botão Compartilhar */}
-                <button
-                  onClick={() => setIsShareOpen(true)}
-                  aria-label="Compartilhar música"
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/80 hover:text-white"
-                >
-                  <Share2 className="w-5 h-5" />
-                </button>
-              </div>
+              {/* Botão Curtir Rápido ao lado do título */}
+              <button
+                onClick={() => toggleLike(currentTrack)}
+                aria-label="Curtir música"
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 active:scale-90 transition-all text-white/90 shrink-0"
+              >
+                <Heart className={cn("w-6 h-6 transition-colors", isLiked ? "text-[#3FFF8B] fill-[#3FFF8B]" : "text-white/80")} />
+              </button>
             </div>
 
             {/* Barra de Progresso com Neon Glow e Scrubbing */}
@@ -340,7 +305,7 @@ export default function FullscreenPlayer() {
               </div>
             </div>
 
-            {/* Controles de Reprodução (Playback Controls) */}
+            {/* Controles de Reprodução Principais (Shuffle, Prev, Play/Pause, Next, Repeat) */}
             <div className="flex items-center justify-between px-2 pt-1 h-20">
               {/* Shuffle (Aleatório) */}
               <button
@@ -407,6 +372,47 @@ export default function FullscreenPlayer() {
                 ) : (
                   <Repeat className="w-5 h-5" />
                 )}
+              </button>
+            </div>
+
+            {/* ─── LINHA DE AÇÕES ADICIONAIS (ABAIXO DOS BOTÕES) ─── */}
+            <div className="flex items-center justify-around pt-1 px-4 border-t border-white/10">
+              {/* Botão Adicionar à Playlist */}
+              <button
+                onClick={() => setIsAddToPlaylistOpen(true)}
+                aria-label="Adicionar à playlist"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+                title="Adicionar à Playlist"
+              >
+                <ListMusic className="w-5 h-5 text-[#3FFF8B]" />
+                <span className="text-xs font-bold">Playlist</span>
+              </button>
+
+              {/* Botão Comentários */}
+              <button
+                onClick={() => setIsCommentsOpen(true)}
+                aria-label="Ver comentários"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 active:scale-95 transition-all relative"
+                title="Comentários do Louvor"
+              >
+                <MessageCircle className="w-5 h-5 text-gray-300" />
+                <span className="text-xs font-bold">Comentários</span>
+                {commentsCount > 0 && (
+                  <span className="min-w-[16px] h-4 px-1 bg-[#3FFF8B] text-black text-[9px] font-bold rounded-full flex items-center justify-center shadow-sm">
+                    {commentsCount > 99 ? '99+' : commentsCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Botão Compartilhar */}
+              <button
+                onClick={() => setIsShareOpen(true)}
+                aria-label="Compartilhar música"
+                className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-300 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
+                title="Compartilhar Louvor"
+              >
+                <Share2 className="w-5 h-5 text-gray-300" />
+                <span className="text-xs font-bold">Compartilhar</span>
               </button>
             </div>
           </footer>

@@ -1,0 +1,17 @@
+name: Devocional Diário FéConecta (06:00 BRT)
+
+on:
+  schedule:
+    # 09:00 UTC = 06:00 Horário de Brasília
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger-daily-message:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar Devocional Diário FéConecta
+        run: |
+          curl -X GET "https://newfeconecta.vercel.app/api/cron/daily-message?key=16ffe6e06966858f937551ddcbb03153f279ec6d1a0479f860cb0e82cf6f8b2d" \
+            -H "User-Agent: github-actions-cron" \
+            --fail --show-error || true

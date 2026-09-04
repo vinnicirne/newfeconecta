@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * POST /api/emails/welcome
  * Endpoint transacional para disparo do e-mail de boas-vindas pós-cadastro.
@@ -18,46 +20,68 @@ export async function POST(request: Request) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const { email, name, user_id } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    let { email, name, user_id } = body;
 
-    if (!email || !name) {
-      return NextResponse.json({ error: 'Email e Nome são obrigatórios' }, { status: 400 });
-    }
-
-    // Validação de segurança: confirma se o perfil do usuário realmente existe no Supabase
-    if (user_id) {
+    // Se temos user_id mas não temos nome/email completos, buscar no profile
+    if (user_id && (!email || !name)) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('id, email')
+        .select('id, email, full_name, username')
         .eq('id', user_id)
         .maybeSingle();
 
-      if (!profile) {
-        console.warn(`[Welcome Email] Perfil não encontrado para ID ${user_id}.`);
+      if (profile) {
+        if (!email) email = profile.email;
+        if (!name) name = profile.full_name || profile.username || 'Membro';
       }
     }
 
+    if (!email) {
+      return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanName = (name || cleanEmail.split('@')[0] || 'Membro').trim();
+
+    // 🔒 Prevenção de duplicidade: se já foi enviado e-mail de boas-vindas com sucesso, não reenviar
+    const { data: existingLog } = await supabase
+      .from('email_logs')
+      .select('id, sent_at')
+      .eq('template_key', 'welcome')
+      .eq('status', 'success')
+      .eq('email', cleanEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingLog) {
+      return NextResponse.json({ 
+        success: true, 
+        already_sent: true,
+        message: `E-mail de boas-vindas já enviado anteriormente para ${cleanEmail}.` 
+      }, { status: 200 });
+    }
+
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const senderEmail = process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.shop>';
     const smtpEmail = process.env.SMTP_EMAIL;
     const smtpPassword = process.env.SMTP_PASSWORD;
     const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com';
     const smtpPort = Number(process.env.SMTP_PORT) || 465;
 
-    const resendApiKey = process.env.RESEND_API_KEY;
-    const senderEmail = process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.shop>';
-
-    if (!smtpEmail && !resendApiKey) {
-      console.warn('[Welcome Email] Nenhum provedor de e-mail (SMTP/Resend) configurado.');
+    if (!resendApiKey && !smtpEmail) {
+      console.warn('[Welcome Email] Nenhum provedor de e-mail (Resend/SMTP) configurado.');
       return NextResponse.json({ message: 'Nenhum provedor configurado' }, { status: 200 });
     }
 
     // 1. Puxar o template de boas-vindas do banco de dados
-    const { data: templateData, error: templateError } = await supabase
+    const { data: templateData } = await supabase
       .from('email_templates')
       .select('subject, html_content')
       .eq('key', 'welcome')
       .maybeSingle();
 
-    const subject = templateData?.subject || 'Bem-vindo ao FéConecta! 🙏';
+    const subject = templateData?.subject || 'Bem-vindo(a) à FéConecta! 👋';
     let finalHtml = templateData?.html_content || `
       <div style="font-family: Arial, sans-serif; background-color: #0f172a; color: #ffffff; padding: 40px 20px; text-align: center;">
         <h1 style="color: #00A676;">Olá, {{name}}!</h1>
@@ -68,14 +92,14 @@ export async function POST(request: Request) {
       </div>
     `;
 
-    finalHtml = finalHtml.replace(/{{name}}/g, name);
+    finalHtml = finalHtml.replace(/{{name}}/g, cleanName);
 
-    // 2. Registrar no Banco de Dados (Log)
+    // 2. Registrar no Banco de Dados (Log inicial)
     let logId = null;
     try {
       const { data: insertedLog } = await supabase.from('email_logs').insert({
         user_id: user_id || null,
-        email: email,
+        email: cleanEmail,
         template_key: 'welcome',
         status: 'sending'
       }).select('id').single();
@@ -87,13 +111,46 @@ export async function POST(request: Request) {
         const trackingPixelUrl = `${protocol}://${host}/api/emails/track?id=${logId}`;
         finalHtml += `\n<img src="${trackingPixelUrl}" alt="" width="1" height="1" style="display:block; opacity:0.01; margin-top:20px;" />`;
       }
-    } catch {}
+    } catch (e: any) {
+      console.warn('[Welcome Email] Aviso ao inserir log inicial:', e.message);
+    }
 
     let sentSuccess = false;
-    let errorMessage = null;
+    let errorMessage: string | null = null;
 
-    // 3. Disparo via SMTP ou Resend
-    if (smtpEmail && smtpPassword) {
+    // 3. Disparo prioritário via Resend API (Alta entregabilidade)
+    if (resendApiKey) {
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: senderEmail,
+            to: [cleanEmail],
+            subject: subject.replace(/{{name}}/g, cleanName),
+            html: finalHtml,
+          }),
+        });
+
+        if (response.ok) {
+          sentSuccess = true;
+          console.log(`[Welcome Email] Enviado com sucesso via Resend para: ${cleanEmail}`);
+        } else {
+          const data = await response.json().catch(() => ({}));
+          errorMessage = data.message || `Erro Resend HTTP ${response.status}`;
+          console.warn(`[Welcome Email] Resend falhou para ${cleanEmail} (${errorMessage}). Tentando SMTP...`);
+        }
+      } catch (err: any) {
+        errorMessage = err.message;
+        console.warn(`[Welcome Email] Exceção Resend para ${cleanEmail}:`, err.message);
+      }
+    }
+
+    // 4. Fallback para SMTP caso Resend não esteja configurado ou falhe
+    if (!sentSuccess && smtpEmail && smtpPassword) {
       try {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
@@ -104,59 +161,54 @@ export async function POST(request: Request) {
 
         await transporter.sendMail({
           from: `"FéConecta" <${smtpEmail}>`,
-          to: email,
+          to: cleanEmail,
           replyTo: smtpEmail,
-          subject: subject,
+          subject: subject.replace(/{{name}}/g, cleanName),
           text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: finalHtml
         });
         sentSuccess = true;
-        console.log(`[Welcome Email] Enviado com sucesso via SMTP para: ${email}`);
+        errorMessage = null;
+        console.log(`[Welcome Email] Enviado com sucesso via SMTP Fallback para: ${cleanEmail}`);
       } catch (err: any) {
         errorMessage = err.message;
-        console.error('[Welcome Email] Erro SMTP:', err);
-      }
-    } else if (resendApiKey) {
-      try {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: senderEmail,
-            to: [email],
-            subject: subject,
-            html: finalHtml,
-          }),
-        });
-
-        if (response.ok) {
-          sentSuccess = true;
-          console.log(`[Welcome Email] Enviado com sucesso via Resend para: ${email}`);
-        } else {
-          const data = await response.json();
-          errorMessage = data.message || JSON.stringify(data);
-          console.error('[Welcome Email] Erro Resend:', data);
-        }
-      } catch (err: any) {
-        errorMessage = err.message;
-        console.error('[Welcome Email] Erro Resend:', err);
+        console.error('[Welcome Email] Erro SMTP Fallback:', err);
       }
     }
 
+    // 5. Atualizar log no banco
     if (logId) {
       await supabase.from('email_logs').update({
         status: sentSuccess ? 'success' : 'error',
         error_message: errorMessage
       }).eq('id', logId);
+    } else {
+      // Se não havia logId anterior, grava o status final agora
+      await supabase.from('email_logs').insert({
+        user_id: user_id || null,
+        email: cleanEmail,
+        template_key: 'welcome',
+        status: sentSuccess ? 'success' : 'error',
+        error_message: errorMessage
+      }).catch(() => {});
     }
 
-    return NextResponse.json({ success: sentSuccess, error: errorMessage }, { status: sentSuccess ? 200 : 500 });
+    return NextResponse.json({ 
+      success: sentSuccess, 
+      error: errorMessage 
+    }, { status: sentSuccess ? 200 : 500 });
 
   } catch (error: any) {
     console.error('[Welcome Email] Erro no endpoint:', error);
     return NextResponse.json({ error: error.message || 'Erro ao processar e-mail' }, { status: 500 });
   }
 }
+
+export async function GET(request: Request) {
+  return NextResponse.json({
+    status: 'online',
+    endpoint: '/api/emails/welcome',
+    description: 'Endpoint transacional de boas-vindas do FéConecta'
+  });
+}
+

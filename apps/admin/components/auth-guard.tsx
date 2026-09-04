@@ -71,6 +71,18 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           router.replace(`/guardian/pending?email=${guardianEmail}`);
           return;
         }
+        // Disparo/Garantia de e-mail de boas-vindas em background (idempotente)
+        if (profile.email) {
+          fetch('/api/emails/welcome', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              user_id: profile.id,
+              email: profile.email,
+              name: profile.full_name || profile.username || 'Membro'
+            })
+          }).catch(() => {});
+        }
       } else if (profileError) {
         console.warn("[AuthGuard] Erro ao carregar perfil:", profileError.message);
       }
