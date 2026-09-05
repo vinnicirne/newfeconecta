@@ -180,6 +180,19 @@ export default function AdminFeMusicPage() {
     return !hasGospelKeyword; // Suspeita se não contiver nenhum termo cristão
   };
 
+  const getTimeAgo = (dateStr?: string) => {
+    if (!dateStr) return '';
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    if (diffMs < 0 || isNaN(diffMs)) return 'agora';
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return 'agora';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m atrás`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h atrás`;
+    return new Date(dateStr).toLocaleDateString('pt-BR');
+  };
+
   const loadModeratedTracks = async () => {
     setLoadingTracks(true);
     try {
@@ -1044,15 +1057,20 @@ export default function AdminFeMusicPage() {
                           <div className="min-w-0">
                             <p className="font-bold text-foreground truncate max-w-[170px] sm:max-w-[220px]">{item.title}</p>
                             <p className="text-[11px] text-muted-foreground truncate max-w-[170px] sm:max-w-[220px]">{item.artist}</p>
-                            <a
-                              href={`https://youtube.com/watch?v=${item.provider_track_id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5 mt-0.5"
-                            >
-                              <span>Ouvir</span>
-                              <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <a
+                                href={`https://youtube.com/watch?v=${item.provider_track_id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5"
+                              >
+                                <span>Ouvir</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </a>
+                              {item.created_at && (
+                                <span className="text-[10px] text-muted-foreground">• {getTimeAgo(item.created_at)}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -1084,7 +1102,16 @@ export default function AdminFeMusicPage() {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-muted-foreground text-[10px] italic">Sistema / Geral</span>
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            {item.source_type === "playback" ? (
+                              <>
+                                <Headphones className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                                <span className="text-[10px] font-medium text-indigo-400">Ouvinte Convidado</span>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground text-[10px] italic">Sistema / Geral</span>
+                            )}
+                          </div>
                         )}
                       </td>
 
