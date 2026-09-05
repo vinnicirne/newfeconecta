@@ -10,7 +10,7 @@ export const maxDuration = 60;
  * Cron/Job para reconciliar novos cadastros e garantir que todo usuário
  * receba o e-mail de boas-vindas mesmo se o cliente web/mobile não tiver chamado a rota.
  */
-export async function handleWelcomeSync(request: Request) {
+async function handleWelcomeSync(request: Request) {
   try {
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
