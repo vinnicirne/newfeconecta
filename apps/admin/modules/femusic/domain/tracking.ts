@@ -39,17 +39,20 @@ export async function recordUserPlayback(track: MusicTrack): Promise<void> {
     recordTrackPlay(track, userId).catch(() => {});
 
     // 3. Indexa a faixa em music_tracks para consulta global
-    await supabase
-      .from('music_tracks')
-      .upsert({
-        provider,
-        provider_track_id: trackId,
-        title,
-        artist,
-        cover,
-        duration,
-      }, { onConflict: 'provider,provider_track_id' })
-      .catch((e: any) => console.warn('[Tracking] Falha ao upsert music_tracks:', e));
+    try {
+      await supabase
+        .from('music_tracks')
+        .upsert({
+          provider,
+          provider_track_id: trackId,
+          title,
+          artist,
+          cover,
+          duration,
+        }, { onConflict: 'provider,provider_track_id' });
+    } catch (e: any) {
+      console.warn('[Tracking] Falha ao upsert music_tracks:', e);
+    }
 
     // 4. Registra no histórico de reproduções (music_history)
     const { error: histError } = await supabase

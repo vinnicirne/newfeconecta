@@ -62,17 +62,20 @@ export async function POST(request: Request) {
     }
 
     // 1. Indexa em music_tracks
-    await supabaseServer
-      .from('music_tracks')
-      .upsert({
-        provider,
-        provider_track_id: trackId,
-        title,
-        artist,
-        cover,
-        duration,
-      }, { onConflict: 'provider,provider_track_id' })
-      .catch((e) => console.warn('[API Playback] Erro ao indexar music_tracks:', e));
+    try {
+      await supabaseServer
+        .from('music_tracks')
+        .upsert({
+          provider,
+          provider_track_id: trackId,
+          title,
+          artist,
+          cover,
+          duration,
+        }, { onConflict: 'provider,provider_track_id' });
+    } catch (e) {
+      console.warn('[API Playback] Erro ao indexar music_tracks:', e);
+    }
 
     // 2. Insere no histórico de reprodução em tempo real (music_history)
     const { data: histData, error: histError } = await supabaseServer
