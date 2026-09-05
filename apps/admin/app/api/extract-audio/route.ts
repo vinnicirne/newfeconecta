@@ -113,21 +113,40 @@ export async function POST(request: Request) {
       const trackCover = track?.cover || body?.track?.cover || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
       const trackDuration = track?.duration || body?.track?.duration || null;
 
+      // INSERT first: tenta inserir como novo (primeiro download)
+      const firstDownloadAt = new Date().toISOString();
       const { error: insertError } = await supabase
         .from('femusic_cache')
-        .upsert([{ 
+        .insert([{ 
           youtube_id: videoId, 
           audio_url: data.url,
           user_id: currentUser?.id || null,
+          first_downloaded_by: currentUser?.id || null,
+          first_downloaded_at: firstDownloadAt,
           title: trackTitle,
           artist: trackArtist,
           cover: trackCover,
           duration: trackDuration,
-          created_at: new Date().toISOString()
-        }], { onConflict: 'youtube_id' });
-        
-      if (insertError) {
+          created_at: firstDownloadAt,
+        }]);
+
+      // Se já existia (conflito), apenas atualiza metadados SEM sobrescrever first_downloaded_by
+      if (insertError && insertError.code === '23505') {
+        await supabase
+          .from('femusic_cache')
+          .update({ 
+            audio_url: data.url,
+            user_id: currentUser?.id || null,
+            title: trackTitle,
+            artist: trackArtist,
+            cover: trackCover,
+            duration: trackDuration,
+          })
+          .eq('youtube_id', videoId);
+      } else if (insertError) {
         console.error('[AudioExtractor] Erro ao salvar cache:', insertError);
+      } else {
+        console.log(`[AudioExtractor] PRIMEIRO DOWNLOAD: ${trackTitle} por userId=${currentUser?.id || 'anon'}`);
       }
 
       // Registra evento de extração/download no histórico do usuário

@@ -52,6 +52,14 @@ export interface ModeratedTrackItem {
     is_verified?: boolean;
     verification_label?: string | null;
   } | null;
+  /** Quem primeiro fez o download/extração desta faixa (femusic_cache) */
+  first_downloaded_by?: {
+    id: string;
+    full_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  } | null;
+  first_downloaded_at?: string | null;
   isSecularSuspect: boolean;
 }
 
@@ -261,7 +269,9 @@ export default function AdminFeMusicPage() {
             artist,
             cover,
             duration,
-            user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+            first_downloaded_at,
+            user:profiles!femusic_cache_user_id_fkey (id, full_name, username, avatar_url, is_verified, verification_label),
+            first_downloader:profiles!femusic_cache_first_downloaded_by_fkey (id, full_name, username, avatar_url)
           `)
           .order("created_at", { ascending: false })
           .limit(100);
@@ -294,6 +304,7 @@ export default function AdminFeMusicPage() {
             const artist = cache.artist || matchedTrack?.artist || "Comunidade FéConecta (Download)";
             const cover = cache.cover || matchedTrack?.cover || `https://i.ytimg.com/vi/${cache.youtube_id}/hqdefault.jpg`;
             const cacheUser = (cache.user as any);
+            const firstDownloader = (cache.first_downloader as any);
 
             itemsMap.set(`cache-${cache.youtube_id}`, {
               id: cache.youtube_id,
@@ -312,6 +323,13 @@ export default function AdminFeMusicPage() {
                 is_verified: cacheUser.is_verified,
                 verification_label: cacheUser.verification_label,
               } : null,
+              first_downloaded_by: firstDownloader ? {
+                id: firstDownloader.id,
+                full_name: firstDownloader.full_name,
+                username: firstDownloader.username,
+                avatar_url: firstDownloader.avatar_url,
+              } : null,
+              first_downloaded_at: cache.first_downloaded_at || cache.created_at || null,
               isSecularSuspect: checkSecularSuspect(title, artist),
             });
           }
@@ -1101,12 +1119,39 @@ export default function AdminFeMusicPage() {
                               <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">@{item.user.username || 'membro'}</p>
                             </div>
                           </div>
+                        ) : item.source_type === "audio_cache" && item.first_downloaded_by ? (
+                          /* Cache: mostra quem fez o 1º download */
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full overflow-hidden bg-muted shrink-0 border border-emerald-500/30 flex items-center justify-center">
+                              {item.first_downloaded_by.avatar_url ? (
+                                <img src={item.first_downloaded_by.avatar_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="font-bold text-[9px] uppercase text-emerald-600">
+                                  {(item.first_downloaded_by.full_name || item.first_downloaded_by.username || 'U')[0]}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <p className="font-bold text-foreground truncate max-w-[90px]">{item.first_downloaded_by.full_name || item.first_downloaded_by.username}</p>
+                                <span className="text-[8px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-1 py-0.5 rounded">1º Download</span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">
+                                @{item.first_downloaded_by.username || 'membro'}
+                                {item.first_downloaded_at && <> · {getTimeAgo(item.first_downloaded_at)}</>}
+                              </p>
+                            </div>
+                          </div>
                         ) : (
                           <div className="flex items-center gap-1.5 text-muted-foreground">
                             {item.source_type === "playback" ? (
                               <>
                                 <Headphones className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
                                 <span className="text-[10px] font-medium text-indigo-400">Ouvinte Convidado</span>
+                              </>
+                            ) : item.source_type === "audio_cache" ? (
+                              <>
+                                <span className="text-[10px] italic text-blue-400/70">Auto Extraído</span>
                               </>
                             ) : (
                               <span className="text-muted-foreground text-[10px] italic">Sistema / Geral</span>
