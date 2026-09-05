@@ -204,7 +204,29 @@ export class YouTubeService {
         (track) => (track.duration ?? 0) >= 90 && (track.duration ?? 0) <= 2700 // 1:30 até 45 min
       );
 
-      const finalResults = filtered.slice(0, limit);
+      // ── Deduplicação por título normalizado ──────────────────────────────
+      // Remove sufixos comuns do YouTube e agrupa versões do mesmo louvor,
+      // mantendo apenas a faixa com maior duração (mais completa).
+      const normalizeTitle = (t: string) =>
+        t.toLowerCase()
+          .replace(/\(?(official\s*(video|audio|music\s*video|lyric|lyrics|clip|hd|4k)|lyric\s*video|ao vivo|live|legendado|versão|version|feat\.?|ft\.?|prod\.?|remix|cover|karaoke|playback|letra|tradução|completo|album completo|full album)\)?/gi, '')
+          .replace(/[\[\]()]/g, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
+      const seenTitles = new Map<string, MusicTrack>();
+      for (const track of filtered) {
+        const key = `${normalizeTitle(track.title)}|||${normalizeTitle(track.artist)}`;
+        const existing = seenTitles.get(key);
+        // Mantém a versão com maior duração (mais completa)
+        if (!existing || (track.duration ?? 0) > (existing.duration ?? 0)) {
+          seenTitles.set(key, track);
+        }
+      }
+      const dedupedResults = Array.from(seenTitles.values());
+      // ────────────────────────────────────────────────────────────────────
+
+      const finalResults = dedupedResults.slice(0, limit);
 
       this.cache.set(cacheKey, {
         data: finalResults,

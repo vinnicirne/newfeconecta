@@ -168,10 +168,40 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     }
     
     if (newQueue && newQueue.length > 0) {
-      const uniqueQueue = Array.from(
+      // 1. Deduplica por providerTrackId
+      const byId = Array.from(
         new Map(newQueue.filter(Boolean).map(t => [t.providerTrackId || t.id, t])).values()
       );
-      set({ queue: uniqueQueue });
+
+      // 2. Remove versões do mesmo louvor (títulos muito similares ao que está sendo tocado)
+      const normTitle = (s: string) =>
+        s.toLowerCase()
+          .replace(/\(?(official\s*(video|audio|music\s*video|lyric|lyrics|clip|hd|4k)|lyric\s*video|ao vivo|live|legendado|versão|version|feat\.?|ft\.?|prod\.?|remix|cover|karaoke|playback|letra|tradução|completo|album completo|full album)\)?/gi, '')
+          .replace(/[\[\]()]/g, '')
+          .replace(/\s{2,}/g, ' ')
+          .trim();
+
+      const trackNorm = normTitle(track.title || '');
+      const seenNorms = new Set<string>();
+      // Garante que a faixa selecionada entra primeiro
+      seenNorms.add(trackNorm);
+
+      const uniqueQueue = byId.filter(t => {
+        const n = normTitle(t.title || '');
+        if (seenNorms.has(n)) return false;
+        seenNorms.add(n);
+        return true;
+      });
+
+      // Reinsere a faixa atual no índice correto para manter a ordem
+      const currentInQueue = byId.find(t =>
+        (t.providerTrackId || t.id) === (track.providerTrackId || track.id)
+      );
+      const finalQueue = currentInQueue
+        ? [currentInQueue, ...uniqueQueue.filter(t => (t.providerTrackId || t.id) !== (track.providerTrackId || track.id))]
+        : uniqueQueue;
+
+      set({ queue: finalQueue });
     } else {
       const { queue } = get();
       const exists = queue.some(t => t.id === track.id || (t.providerTrackId && t.providerTrackId === track.providerTrackId));

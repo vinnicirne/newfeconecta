@@ -3,15 +3,35 @@ import { getStoredProfile } from '@/lib/profile-cache';
 import { MusicTrack } from './entities/MusicTrack';
 import { recordTrackPlay } from './ranking';
 
+/** Cooldown em memória: evita gravar a mesma faixa 2x em menos de 5 min */
+const recentlyPlayed = new Map<string, number>(); // trackId → timestamp
+const COOLDOWN_MS = 5 * 60 * 1000; // 5 minutos
+
 /**
  * Registra a reprodução da faixa no Supabase (music_history)
  * vinculando imediatamente ao perfil do usuário conectado e atualizando o ranking.
  * Suporta usuários autenticados, perfis em cache e ouvintes anônimos/convidados.
+ * Possui cooldown de 5 min por faixa para evitar duplicatas no BD.
  */
 export async function recordUserPlayback(track: MusicTrack): Promise<void> {
   if (!track || (!track.id && !track.providerTrackId)) return;
 
   const trackId = track.providerTrackId || track.id;
+
+  // ── Cooldown: mesma faixa não pode ser gravada 2x em menos de 5 min ──
+  const lastPlayed = recentlyPlayed.get(trackId);
+  const now = Date.now();
+  if (lastPlayed && now - lastPlayed < COOLDOWN_MS) {
+    console.log(`[Tracking] Cooldown ativo para "${track.title}" (${Math.round((COOLDOWN_MS - (now - lastPlayed)) / 1000)}s restantes) — gravação ignorada.`);
+    return;
+  }
+  recentlyPlayed.set(trackId, now);
+  // Limpa entradas antigas do mapa (evita vazamento de memória)
+  if (recentlyPlayed.size > 50) {
+    const cutoff = now - COOLDOWN_MS;
+    recentlyPlayed.forEach((ts, id) => { if (ts < cutoff) recentlyPlayed.delete(id); });
+  }
+
   const title = track.title || 'Louvor';
   const artist = track.artist || 'Artista';
   const cover = track.cover || (track.providerTrackId ? `https://i.ytimg.com/vi/${track.providerTrackId}/hqdefault.jpg` : null);
