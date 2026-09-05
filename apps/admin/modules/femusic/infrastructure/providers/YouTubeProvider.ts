@@ -55,21 +55,24 @@ export class YouTubeProvider implements IMusicProvider {
       currentPlayer.pause();
     }
 
-    // 1. Local cache (instant)
-    if (typeof window !== 'undefined') {
-      const localCachedUrl = localStorage.getItem(`fc_audio_cache_${track.providerTrackId}`);
-      if (localCachedUrl && currentPlayer) {
-        console.log(`[YouTubeProvider] Cache hit: ${track.title}`);
-        currentPlayer.src = localCachedUrl;
-        currentPlayer.currentTime = 0;
-        currentPlayer.play().catch((e: any) => {
-          console.error('[YouTubeProvider] Cache hit play failed:', e);
-          // URL do cache expirou ou corrompeu — remove e deixa o fluxo normal tratar
-          localStorage.removeItem(`fc_audio_cache_${track.providerTrackId}`);
-        });
-        // isLoading e isPlaying já são setados pelo evento onPlay/onPlaying do HiddenAudioElements
-        return;
+    // 1. Direct audioUrl from database or local cache (instant zero-delay)
+    const directUrl = track.audioUrl || (typeof window !== 'undefined' ? localStorage.getItem(`fc_audio_cache_${track.providerTrackId}`) : null);
+    if (directUrl && currentPlayer) {
+      console.log(`[YouTubeProvider] Direct audio hit: ${track.title}`);
+      currentPlayer.src = directUrl;
+      currentPlayer.currentTime = 0;
+      if (typeof window !== 'undefined' && track.audioUrl) {
+        try {
+          localStorage.setItem(`fc_audio_cache_${track.providerTrackId}`, track.audioUrl);
+        } catch (_) {}
       }
+      currentPlayer.play().catch((e: any) => {
+        console.error('[YouTubeProvider] Direct hit play failed:', e);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(`fc_audio_cache_${track.providerTrackId}`);
+        }
+      });
+      return;
     }
 
 

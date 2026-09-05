@@ -210,9 +210,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         : 0;
       set({ isPlaying: true, progressMs: 0, durationMs, consecutiveFailures: 0, isLoading: false });
 
-      // Atualiza o ranking oficial de músicas mais ouvidas
-      import('../../domain/ranking').then(({ recordTrackPlay }) => {
-        recordTrackPlay(track);
+      // Registra a reprodução no histórico do Supabase (music_history) e atualiza o ranking
+      import('../../domain/tracking').then(({ recordUserPlayback }) => {
+        recordUserPlayback(track);
       }).catch(() => {});
     } catch (e) {
       console.warn("Failed to play track:", e);

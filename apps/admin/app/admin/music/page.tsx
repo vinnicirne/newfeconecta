@@ -41,7 +41,7 @@ export interface ModeratedTrackItem {
   artist: string;
   cover?: string | null;
   duration?: number | null;
-  source_type: "playlist" | "feed_post" | "audio_cache" | "track";
+  source_type: "playback" | "playlist" | "feed_post" | "audio_cache" | "track";
   created_at: string;
   user?: {
     id: string;
@@ -118,6 +118,21 @@ export default function AdminFeMusicPage() {
     const channel = supabase.channel("admin_femusic_realtime")
       .on(
         "postgres_changes",
+        { event: "*", schema: "public", table: "music_history" },
+        () => loadModeratedTracks()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "femusic_cache" },
+        () => loadModeratedTracks()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "music_playlist_tracks" },
+        () => loadModeratedTracks()
+      )
+      .on(
+        "postgres_changes",
         { event: "*", schema: "public", table: "system_configs" },
         () => loadConfigsOnly()
       )
@@ -170,7 +185,129 @@ export default function AdminFeMusicPage() {
     try {
       const itemsMap = new Map<string, ModeratedTrackItem>();
 
-      // 1. Faixas de Playlists
+      // 1. Reproduções em tempo real dos usuários (music_history)
+      try {
+        const { data: historyTracks, error: histErr } = await supabase
+          .from("music_history")
+          .select(`
+            id,
+            provider_track_id,
+            track_title,
+            track_artist,
+            track_cover,
+            track_duration,
+            started_at,
+            user_id,
+            user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+          `)
+          .order("started_at", { ascending: false })
+          .limit(100);
+
+        if (!histErr && historyTracks && Array.isArray(historyTracks)) {
+          for (const item of historyTracks) {
+            if (!item) continue;
+            const title = item.track_title || "Louvor";
+            const artist = item.track_artist || "Artista";
+            const histUser = (item.user as any);
+
+            itemsMap.set(`hist-${item.id}`, {
+              id: item.id,
+              provider_track_id: item.provider_track_id || item.id,
+              title,
+              artist,
+              cover: item.track_cover || (item.provider_track_id ? `https://i.ytimg.com/vi/${item.provider_track_id}/hqdefault.jpg` : null),
+              duration: item.track_duration || null,
+              source_type: "playback",
+              created_at: item.started_at || new Date().toISOString(),
+              user: histUser ? {
+                id: histUser.id,
+                full_name: histUser.full_name,
+                username: histUser.username,
+                avatar_url: histUser.avatar_url,
+                is_verified: histUser.is_verified,
+                verification_label: histUser.verification_label,
+              } : null,
+              isSecularSuspect: checkSecularSuspect(title, artist),
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[FeMusic] Falha ao carregar reproduções:", e);
+      }
+
+      // 2. Cache de Áudio / Downloads no Servidor (femusic_cache)
+      try {
+        const { data: cacheTracks, error: cacheErr } = await supabase
+          .from("femusic_cache")
+          .select(`
+            youtube_id,
+            audio_url,
+            created_at,
+            user_id,
+            title,
+            artist,
+            cover,
+            duration,
+            user:profiles (id, full_name, username, avatar_url, is_verified, verification_label)
+          `)
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (!cacheErr && cacheTracks && Array.isArray(cacheTracks) && cacheTracks.length > 0) {
+          const ytIds = cacheTracks.map((c) => c.youtube_id).filter(Boolean);
+          
+          let trackDetailsMap = new Map<string, any>();
+          if (ytIds.length > 0) {
+            try {
+              const { data: trackDetails } = await supabase
+                .from("music_tracks")
+                .select("provider_track_id, title, artist, cover, duration")
+                .in("provider_track_id", ytIds);
+              
+              if (trackDetails && Array.isArray(trackDetails)) {
+                trackDetails.forEach((td) => {
+                  if (td?.provider_track_id) {
+                    trackDetailsMap.set(td.provider_track_id, td);
+                  }
+                });
+              }
+            } catch {}
+          }
+
+          for (const cache of cacheTracks) {
+            if (!cache?.youtube_id) continue;
+            const matchedTrack = trackDetailsMap.get(cache.youtube_id);
+            const title = cache.title || matchedTrack?.title || `Louvor Extraído [${cache.youtube_id}]`;
+            const artist = cache.artist || matchedTrack?.artist || "Comunidade FéConecta (Download)";
+            const cover = cache.cover || matchedTrack?.cover || `https://i.ytimg.com/vi/${cache.youtube_id}/hqdefault.jpg`;
+            const cacheUser = (cache.user as any);
+
+            itemsMap.set(`cache-${cache.youtube_id}`, {
+              id: cache.youtube_id,
+              provider_track_id: cache.youtube_id,
+              title,
+              artist,
+              cover,
+              duration: cache.duration || matchedTrack?.duration || null,
+              source_type: "audio_cache",
+              created_at: cache.created_at || new Date().toISOString(),
+              user: cacheUser ? {
+                id: cacheUser.id,
+                full_name: cacheUser.full_name,
+                username: cacheUser.username,
+                avatar_url: cacheUser.avatar_url,
+                is_verified: cacheUser.is_verified,
+                verification_label: cacheUser.verification_label,
+              } : null,
+              isSecularSuspect: checkSecularSuspect(title, artist),
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[FeMusic] Falha ao carregar cache:", e);
+      }
+
+      // 3. Faixas de Playlists
       try {
         const { data: playlistTracks, error: ptErr } = await supabase
           .from("music_playlist_tracks")
@@ -223,7 +360,7 @@ export default function AdminFeMusicPage() {
         console.warn("[FeMusic] Falha ao carregar playlist tracks:", e);
       }
 
-      // 2. Posts de Louvor no Feed
+      // 4. Posts de Louvor no Feed
       try {
         const { data: postTracks, error: postErr } = await supabase
           .from("posts")
@@ -273,61 +410,7 @@ export default function AdminFeMusicPage() {
         console.warn("[FeMusic] Falha ao carregar posts de música:", e);
       }
 
-      // 3. Cache de Áudio (femusic_cache) + Louvores Indexados (music_tracks)
-      try {
-        const { data: cacheTracks, error: cacheErr } = await supabase
-          .from("femusic_cache")
-          .select("youtube_id, audio_url, created_at")
-          .order("created_at", { ascending: false })
-          .limit(100);
-
-        if (!cacheErr && cacheTracks && Array.isArray(cacheTracks) && cacheTracks.length > 0) {
-          const ytIds = cacheTracks.map((c) => c.youtube_id).filter(Boolean);
-          
-          let trackDetailsMap = new Map<string, any>();
-          if (ytIds.length > 0) {
-            try {
-              const { data: trackDetails } = await supabase
-                .from("music_tracks")
-                .select("provider_track_id, title, artist, cover, duration")
-                .in("provider_track_id", ytIds);
-              
-              if (trackDetails && Array.isArray(trackDetails)) {
-                trackDetails.forEach((td) => {
-                  if (td?.provider_track_id) {
-                    trackDetailsMap.set(td.provider_track_id, td);
-                  }
-                });
-              }
-            } catch {}
-          }
-
-          for (const cache of cacheTracks) {
-            if (!cache?.youtube_id) continue;
-            const matchedTrack = trackDetailsMap.get(cache.youtube_id);
-            const title = matchedTrack?.title || `Louvor Extraído [${cache.youtube_id}]`;
-            const artist = matchedTrack?.artist || "Comunidade FéConecta (Download)";
-            const cover = matchedTrack?.cover || `https://i.ytimg.com/vi/${cache.youtube_id}/hqdefault.jpg`;
-
-            itemsMap.set(`cache-${cache.youtube_id}`, {
-              id: cache.youtube_id,
-              provider_track_id: cache.youtube_id,
-              title,
-              artist,
-              cover,
-              duration: matchedTrack?.duration || null,
-              source_type: "audio_cache",
-              created_at: cache.created_at || new Date().toISOString(),
-              user: null,
-              isSecularSuspect: checkSecularSuspect(title, artist),
-            });
-          }
-        }
-      } catch (e) {
-        console.warn("[FeMusic] Falha ao carregar cache:", e);
-      }
-
-      // 4. Músicas Indexadas Diretamente (music_tracks)
+      // 5. Músicas Indexadas Diretamente (music_tracks)
       try {
         const { data: indexedTracks, error: idxErr } = await supabase
           .from("music_tracks")
@@ -359,7 +442,12 @@ export default function AdminFeMusicPage() {
         console.warn("[FeMusic] Falha ao carregar music_tracks:", e);
       }
 
-      setModeratedTracks(Array.from(itemsMap.values()));
+      // Ordena por data mais recente no topo
+      const sortedTracks = Array.from(itemsMap.values()).sort((a, b) => {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+
+      setModeratedTracks(sortedTracks);
     } catch (err) {
       console.error("[FeMusic] Erro ao carregar faixas para moderação:", err);
     } finally {
@@ -568,7 +656,10 @@ export default function AdminFeMusicPage() {
 
     const toastId = toast.loading(`Removendo "${item.title}" da plataforma...`);
     try {
-      // 1. Deleta do cache de áudio
+      // 1. Deleta do histórico de reproduções
+      await supabase.from("music_history").delete().eq("provider_track_id", item.provider_track_id);
+
+      // 2. Deleta do cache de áudio
       await supabase.from("femusic_cache").delete().eq("youtube_id", item.provider_track_id);
       
       // 2. Deleta das faixas indexadas
@@ -838,408 +929,429 @@ export default function AdminFeMusicPage() {
         </div>
       </div>
 
-      {/* ─── 🛡️ CENTRAL DE AUDITORIA & MODERAÇÃO DE MÚSICAS BAIXADAS E USUÁRIOS ─── */}
-      <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
-        <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <ShieldAlert className="h-5 w-5 text-amber-500" />
-              <h3 className="text-sm font-bold text-foreground">Auditoria & Moderação de Músicas no App</h3>
+      {/* ─── GRID LADO A LADO: AUDITORIA DE MÚSICAS & RANKING OFICIAL (TOP PLAYS) ─── */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+        
+        {/* ─── LADO ESQUERDO: AUDITORIA & MODERAÇÃO DE MÚSICAS NO APP (7 colunas no xl, 8 no 2xl) ─── */}
+        <div className="xl:col-span-7 2xl:col-span-8 rounded-xl border border-border bg-card shadow-sm p-4 sm:p-5 space-y-4">
+          <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="h-5 w-5 text-amber-500" />
+                <h3 className="text-sm font-bold text-foreground">Auditoria & Moderação de Músicas no App</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Audite reproduções, downloads e aplique advertências seculares ou purga imediata.
+              </p>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Monitore todas as músicas baixadas, playlists salvas e posts de áudio. Aplique advertências, bloqueio temporário ou banimento a usuários com músicas seculares.
-            </p>
-          </div>
-          <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded">
-            {filteredModeratedTracks.length} registros auditados
-          </span>
-        </div>
-
-        {/* Filtros e Busca de Moderação */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar por música, cantor, nome de usuário ou @username..."
-              value={trackSearchFilter}
-              onChange={(e) => setTrackSearchFilter(e.target.value)}
-              className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setTrackStatusFilter(prev => prev === 'suspect' ? 'all' : 'suspect')}
+                className={cn(
+                  "text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5",
+                  trackStatusFilter === 'suspect'
+                    ? "bg-amber-500 text-black border-amber-500 font-bold shadow-sm"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
+                )}
+                title="Filtrar faixas suspeitas de serem seculares"
+              >
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>{moderatedTracks.filter(t => t.isSecularSuspect).length} Suspeitas Seculares</span>
+              </button>
+              <span className="text-xs font-semibold text-muted-foreground bg-muted px-2.5 py-1 rounded-lg">
+                {filteredModeratedTracks.length} faixas
+              </span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            <select
-              value={trackSourceFilter}
-              onChange={(e) => setTrackSourceFilter(e.target.value)}
-              className="h-9 rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
-            >
-              <option value="all">Origem: Todas</option>
-              <option value="playlist">Em Playlists</option>
-              <option value="feed_post">No Feed</option>
-              <option value="audio_cache">Cache do Servidor</option>
-              <option value="track">Louvores Indexados</option>
-            </select>
+          {/* Filtros e Busca de Moderação */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Buscar música, cantor, usuário..."
+                value={trackSearchFilter}
+                onChange={(e) => setTrackSearchFilter(e.target.value)}
+                className="h-9 w-full rounded-lg border border-border bg-muted/30 pl-9 pr-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+              />
+            </div>
 
-            <select
-              value={trackStatusFilter}
-              onChange={(e) => setTrackStatusFilter(e.target.value as any)}
-              className="h-9 rounded-lg border border-border bg-muted/30 px-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
-            >
-              <option value="all">Status: Todos</option>
-              <option value="suspect">⚠️ Suspeita Secular</option>
-              <option value="banned">🚫 Usuários Banidos</option>
-            </select>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <select
+                value={trackSourceFilter}
+                onChange={(e) => setTrackSourceFilter(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-muted/30 px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+              >
+                <option value="all">Origem: Todas</option>
+                <option value="playback">🎧 Reprodução (Ouvindo)</option>
+                <option value="audio_cache">⬇️ Cache / Downloads</option>
+                <option value="playlist">🎵 Em Playlists</option>
+                <option value="feed_post">💬 No Feed</option>
+                <option value="track">Louvores Indexados</option>
+              </select>
+
+              <select
+                value={trackStatusFilter}
+                onChange={(e) => setTrackStatusFilter(e.target.value as any)}
+                className="h-9 rounded-lg border border-border bg-muted/30 px-2.5 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+              >
+                <option value="all">Status: Todos</option>
+                <option value="suspect">⚠️ Suspeita Secular</option>
+                <option value="banned">🚫 Usuários Banidos</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        {/* Tabela de Moderação */}
-        <div className="overflow-x-auto border border-border rounded-xl">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
-              <tr>
-                <th className="p-3">Música / Faixa</th>
-                <th className="p-3">Usuário Responsável</th>
-                <th className="p-3">Origem</th>
-                <th className="p-3">Classificação</th>
-                <th className="p-3 text-right">Ações Disciplinares</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {loadingTracks ? (
+          {/* Tabela de Moderação com rolagem interna compacta */}
+          <div className="overflow-x-auto border border-border rounded-xl max-h-[640px] overflow-y-auto no-scrollbar">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border sticky top-0 z-10 backdrop-blur-sm">
                 <tr>
-                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                    Carregando faixas para moderação...
-                  </td>
+                  <th className="p-3">Música / Faixa</th>
+                  <th className="p-3">Usuário</th>
+                  <th className="p-3">Origem</th>
+                  <th className="p-3">Classificação</th>
+                  <th className="p-3 text-right">Moderação</th>
                 </tr>
-              ) : filteredModeratedTracks.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                    Nenhuma música encontrada com os filtros selecionados.
-                  </td>
-                </tr>
-              ) : (
-                filteredModeratedTracks.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/20 transition-colors">
-                    {/* Coluna 1: Faixa */}
-                    <td className="p-3">
-                      <div className="flex items-center gap-3">
-                        <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black">
-                          {item.cover ? (
-                            <img src={item.cover} alt="" className="w-full h-full object-cover" />
-                          ) : (
-                            <Music className="w-5 h-5 text-white/50 m-2.5" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-foreground truncate max-w-[200px]">{item.title}</p>
-                          <p className="text-[11px] text-muted-foreground truncate">{item.artist}</p>
-                          <a
-                            href={`https://youtube.com/watch?v=${item.provider_track_id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5 mt-0.5"
-                          >
-                            <span>Ouvir</span>
-                            <ExternalLink className="w-2.5 h-2.5" />
-                          </a>
-                        </div>
-                      </div>
-                    </td>
-
-                    {/* Coluna 2: Usuário Responsável */}
-                    <td className="p-3">
-                      {item.user ? (
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full overflow-hidden bg-muted shrink-0 border border-border flex items-center justify-center">
-                            {item.user.avatar_url ? (
-                              <img src={item.user.avatar_url} alt="" className="w-full h-full object-cover" />
-                            ) : (
-                              <span className="font-bold text-[10px] uppercase">
-                                {(item.user.full_name || item.user.username || 'U')[0]}
-                              </span>
-                            )}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1">
-                              <p className="font-bold text-foreground truncate">{item.user.full_name || item.user.username}</p>
-                              {item.user.verification_label === "BANIDO" && (
-                                <span className="text-[9px] font-bold bg-red-500/20 text-red-500 px-1 rounded">BANIDO</span>
-                              )}
-                              {item.user.verification_label?.startsWith("SUSPENSO") && (
-                                <span className="text-[9px] font-bold bg-amber-500/20 text-amber-500 px-1 rounded">SUSPENSO</span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-muted-foreground">@{item.user.username || 'membro'}</p>
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-[11px]">Sistema / Cache Geral</span>
-                      )}
-                    </td>
-
-                    {/* Coluna 3: Origem */}
-                    <td className="p-3">
-                      <span className={cn(
-                        "text-[10px] font-bold px-2 py-0.5 rounded-full",
-                        item.source_type === "playlist" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
-                        item.source_type === "feed_post" && "bg-purple-500/10 text-purple-600 dark:text-purple-400",
-                        item.source_type === "audio_cache" && "bg-blue-500/10 text-blue-600 dark:text-blue-400",
-                        item.source_type === "track" && "bg-amber-500/10 text-amber-600 dark:text-amber-400",
-                      )}>
-                        {item.source_type === "playlist" 
-                          ? "Playlist" 
-                          : item.source_type === "feed_post" 
-                          ? "Feed Post" 
-                          : item.source_type === "audio_cache" 
-                          ? "Cache Servidor" 
-                          : "Indexado"}
-                      </span>
-                    </td>
-
-                    {/* Coluna 4: Classificação */}
-                    <td className="p-3">
-                      {item.isSecularSuspect ? (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md">
-                          <AlertTriangle className="w-3 h-3" />
-                          Suspeita Secular
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md">
-                          <CheckCircle className="w-3 h-3" />
-                          Louvor Cristão
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Coluna 5: Ações Disciplinares */}
-                    <td className="p-3 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {item.user && (
-                          <>
-                            {/* Notificar / Advertir */}
-                            <button
-                              onClick={() => {
-                                setSelectedTrackForAction(item);
-                                setNotifyModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg bg-muted hover:bg-amber-500/20 hover:text-amber-500 text-muted-foreground transition-colors"
-                              title="Enviar Notificação de Advertência"
-                            >
-                              <BellRing className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Bloquear Temporário */}
-                            <button
-                              onClick={() => {
-                                setSelectedTrackForAction(item);
-                                setSuspendModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg bg-muted hover:bg-orange-500/20 hover:text-orange-500 text-muted-foreground transition-colors"
-                              title="Bloquear Usuário por Tempo (24h / 7d / 30d)"
-                            >
-                              <Clock className="w-3.5 h-3.5" />
-                            </button>
-
-                            {/* Banir Usuário */}
-                            <button
-                              onClick={() => {
-                                setSelectedTrackForAction(item);
-                                setBanModalOpen(true);
-                              }}
-                              className="p-1.5 rounded-lg bg-muted hover:bg-red-500/20 hover:text-red-500 text-muted-foreground transition-colors"
-                              title="Banir Usuário Permanentemente"
-                            >
-                              <Ban className="w-3.5 h-3.5" />
-                            </button>
-                          </>
-                        )}
-
-                        {/* Purgar Música */}
-                        <button
-                          onClick={() => handlePurgeTrack(item)}
-                          className="p-1.5 rounded-lg bg-muted hover:bg-red-500/20 hover:text-red-500 text-muted-foreground transition-colors"
-                          title="Purgar Música da Plataforma"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {loadingTracks ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                      Carregando faixas para moderação...
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* ─── 🏆 RANKING OFICIAL DE LOUVORES MAIS OUVIDOS NO APP ─── */}
-      <div className="rounded-xl border border-border bg-card shadow-sm p-5 space-y-4">
-        <div className="border-b border-border pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-amber-500 fill-amber-500" />
-              <h3 className="text-sm font-bold text-foreground">Ranking Oficial de Louvores Mais Ouvidos (Top Plays)</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Classificação em tempo real das músicas mais reproduzidas, salvas em playlists e compartilhadas no feed pela comunidade.
-            </p>
-          </div>
-          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded">
-            Atualizado em Tempo Real
-          </span>
-        </div>
-
-        {/* Tabela do Ranking */}
-        <div className="overflow-x-auto border border-border rounded-xl">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border">
-              <tr>
-                <th className="p-3">Posição</th>
-                <th className="p-3">Louvor / Faixa</th>
-                <th className="p-3 text-center">Plays Reais</th>
-                <th className="p-3 text-center">Em Playlists</th>
-                <th className="p-3 text-center">No Feed</th>
-                <th className="p-3 text-center">Pontuação</th>
-                <th className="p-3 text-right">Ações Rápidas</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {loadingRanking ? (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                    Carregando ranking oficial...
-                  </td>
-                </tr>
-              ) : ranking.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="p-6 text-center text-muted-foreground">
-                    Nenhum play registrado ainda.
-                  </td>
-                </tr>
-              ) : (
-                ranking.map((item, index) => {
-                  const trackForAction: MusicTrack = {
-                    id: item.providerTrackId || item.id,
-                    providerTrackId: item.providerTrackId || item.id,
-                    title: item.title,
-                    artist: item.artist,
-                    cover: item.cover,
-                    duration: item.duration || 240,
-                    provider: 'youtube',
-                  };
-
-                  return (
-                    <tr key={item.id || index} className="hover:bg-muted/20 transition-colors">
-                      {/* Posição com Medalhas */}
+                ) : filteredModeratedTracks.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                      Nenhuma música encontrada com os filtros selecionados.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredModeratedTracks.map((item) => (
+                    <tr key={item.id} className="hover:bg-muted/20 transition-colors">
+                      {/* Coluna 1: Faixa */}
                       <td className="p-3">
-                        <div className="flex items-center gap-2">
-                          {index === 0 ? (
-                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-black font-black text-[11px] flex items-center justify-center shadow-sm">
-                              🥇
-                            </span>
-                          ) : index === 1 ? (
-                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-slate-300 to-gray-400 text-black font-black text-[11px] flex items-center justify-center shadow-sm">
-                              🥈
-                            </span>
-                          ) : index === 2 ? (
-                            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-amber-700 to-amber-900 text-white font-black text-[11px] flex items-center justify-center shadow-sm">
-                              🥉
-                            </span>
-                          ) : (
-                            <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground font-bold text-[10px] flex items-center justify-center">
-                              #{index + 1}
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* Louvor / Capa / Cantor */}
-                      <td className="p-3">
-                        <div className="flex items-center gap-3">
-                          <div className="relative w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-black">
+                        <div className="flex items-center gap-2.5">
+                          <div className="relative w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-black">
                             {item.cover ? (
                               <img src={item.cover} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <Music className="w-5 h-5 text-white/50 m-2.5" />
+                              <Music className="w-4 h-4 text-white/50 m-2.5" />
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-bold text-foreground truncate max-w-[200px]">{item.title}</p>
-                            <p className="text-[11px] text-muted-foreground truncate">{item.artist}</p>
+                            <p className="font-bold text-foreground truncate max-w-[170px] sm:max-w-[220px]">{item.title}</p>
+                            <p className="text-[11px] text-muted-foreground truncate max-w-[170px] sm:max-w-[220px]">{item.artist}</p>
+                            <a
+                              href={`https://youtube.com/watch?v=${item.provider_track_id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-whatsapp-teal hover:underline flex items-center gap-0.5 mt-0.5"
+                            >
+                              <span>Ouvir</span>
+                              <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
                           </div>
                         </div>
                       </td>
 
-                      {/* Total de Plays */}
-                      <td className="p-3 text-center">
-                        <span className="font-bold font-mono text-foreground">
-                          {item.playCount.toLocaleString('pt-BR')}
+                      {/* Coluna 2: Usuário Responsável */}
+                      <td className="p-3">
+                        {item.user ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full overflow-hidden bg-muted shrink-0 border border-border flex items-center justify-center">
+                              {item.user.avatar_url ? (
+                                <img src={item.user.avatar_url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="font-bold text-[9px] uppercase">
+                                  {(item.user.full_name || item.user.username || 'U')[0]}
+                                </span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1">
+                                <p className="font-bold text-foreground truncate max-w-[100px]">{item.user.full_name || item.user.username}</p>
+                                {item.user.verification_label === "BANIDO" && (
+                                  <span className="text-[8px] font-bold bg-red-500/20 text-red-500 px-1 rounded">BAN</span>
+                                )}
+                                {item.user.verification_label?.startsWith("SUSPENSO") && (
+                                  <span className="text-[8px] font-bold bg-amber-500/20 text-amber-500 px-1 rounded">SUSP</span>
+                                )}
+                              </div>
+                              <p className="text-[10px] text-muted-foreground truncate max-w-[100px]">@{item.user.username || 'membro'}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-[10px] italic">Sistema / Geral</span>
+                        )}
+                      </td>
+
+                      {/* Coluna 3: Origem */}
+                      <td className="p-3">
+                        <span className={cn(
+                          "text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap",
+                          item.source_type === "playback" && "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20",
+                          item.source_type === "playlist" && "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+                          item.source_type === "feed_post" && "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20",
+                          item.source_type === "audio_cache" && "bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20",
+                          item.source_type === "track" && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
+                        )}>
+                          {item.source_type === "playback"
+                            ? "🎧 Reprodução"
+                            : item.source_type === "playlist" 
+                            ? "Playlist" 
+                            : item.source_type === "feed_post" 
+                            ? "Feed Post" 
+                            : item.source_type === "audio_cache" 
+                            ? "⬇️ Cache" 
+                            : "Indexado"}
                         </span>
                       </td>
 
-                      {/* Em Playlists */}
-                      <td className="p-3 text-center">
-                        <span className="text-muted-foreground font-mono">
-                          {item.playlistCount}
-                        </span>
+                      {/* Coluna 4: Classificação (clique para abrir moderação) */}
+                      <td className="p-3">
+                        <button
+                          onClick={() => {
+                            setSelectedTrackForAction(item);
+                            setNotifyModalOpen(true);
+                          }}
+                          className="text-left"
+                          title="Clique para abrir opções de moderação desta música"
+                        >
+                          {item.isSecularSuspect ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-md hover:bg-amber-500/25 transition-colors cursor-pointer">
+                              <AlertTriangle className="w-3 h-3 text-amber-500" />
+                              Suspeita Secular
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                              <CheckCircle className="w-3 h-3" />
+                              Louvor Cristão
+                            </span>
+                          )}
+                        </button>
                       </td>
 
-                      {/* No Feed */}
-                      <td className="p-3 text-center">
-                        <span className="text-muted-foreground font-mono">
-                          {item.feedShareCount}
-                        </span>
-                      </td>
-
-                      {/* Pontuação */}
-                      <td className="p-3 text-center">
-                        <span className="inline-flex items-center gap-1 font-bold text-whatsapp-teal dark:text-whatsapp-green bg-whatsapp-teal/10 px-2 py-0.5 rounded-full text-[10px]">
-                          <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
-                          {item.score} pts
-                        </span>
-                      </td>
-
-                      {/* Ações Rápidas */}
+                      {/* Coluna 5: Ações Disciplinares */}
                       <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Botão de Advertência / Moderação de Música Secular: SEMPRE VISÍVEL */}
                           <button
                             onClick={() => {
-                              if (currentPlayingTrack?.id === trackForAction.id) {
-                                setIsPlaying(!isPlaying);
-                              } else {
-                                setCurrentPlayingTrack(trackForAction);
-                                setIsPlaying(true);
-                              }
+                              setSelectedTrackForAction(item);
+                              setNotifyModalOpen(true);
                             }}
-                            className="p-1.5 rounded-lg bg-muted hover:bg-whatsapp-teal hover:text-white transition-colors"
-                            title="Pré-escutar no Estúdio"
-                          >
-                            {currentPlayingTrack?.id === trackForAction.id && isPlaying ? (
-                              <Pause className="w-3.5 h-3.5 fill-current" />
-                            ) : (
-                              <Play className="w-3.5 h-3.5 fill-current" />
+                            className={cn(
+                              "p-1.5 rounded-lg transition-colors",
+                              item.isSecularSuspect 
+                                ? "bg-amber-500/20 text-amber-600 dark:text-amber-400 hover:bg-amber-500/30" 
+                                : "bg-muted text-muted-foreground hover:bg-amber-500/20 hover:text-amber-500"
                             )}
+                            title={item.user ? "Enviar Advertência de Música Secular ao Usuário" : "Moderar Música Secular no Servidor"}
+                          >
+                            <BellRing className="w-3.5 h-3.5" />
                           </button>
 
-                          <a
-                            href={`https://youtube.com/watch?v=${item.providerTrackId || item.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="p-1.5 rounded-lg bg-muted hover:bg-red-600 hover:text-white transition-colors"
-                            title="Abrir no YouTube"
+                          {/* Ações específicas quando há usuário vinculado */}
+                          {item.user && (
+                            <>
+                              {/* Bloquear Temporário */}
+                              <button
+                                onClick={() => {
+                                  setSelectedTrackForAction(item);
+                                  setSuspendModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-muted hover:bg-orange-500/20 hover:text-orange-500 text-muted-foreground transition-colors"
+                                title="Bloquear Usuário por Tempo (24h / 7d / 30d)"
+                              >
+                                <Clock className="w-3.5 h-3.5" />
+                              </button>
+
+                              {/* Banir Usuário */}
+                              <button
+                                onClick={() => {
+                                  setSelectedTrackForAction(item);
+                                  setBanModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-muted hover:bg-red-500/20 hover:text-red-500 text-muted-foreground transition-colors"
+                                title="Banir Usuário Permanentemente"
+                              >
+                                <Ban className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+
+                          {/* Purgar Música */}
+                          <button
+                            onClick={() => handlePurgeTrack(item)}
+                            className="p-1.5 rounded-lg bg-muted hover:bg-red-500/20 hover:text-red-500 text-muted-foreground transition-colors"
+                            title="Purgar Música da Plataforma"
                           >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                          </a>
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
+        {/* ─── LADO DIREITO: RANKING OFICIAL (TOP PLAYS) - MAIS COMPACTO (5 colunas no xl, 4 no 2xl) ─── */}
+        <div className="xl:col-span-5 2xl:col-span-4 rounded-xl border border-border bg-card shadow-sm p-4 sm:p-5 space-y-4">
+          <div className="border-b border-border pb-3 flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Trophy className="h-5 w-5 text-amber-500 fill-amber-500 shrink-0" />
+                <h3 className="text-sm font-bold text-foreground">Ranking Oficial (Top Plays)</h3>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Mais tocados pela comunidade FéConecta.
+              </p>
+            </div>
+            <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded shrink-0">
+              Tempo Real
+            </span>
+          </div>
+
+          {/* Tabela do Ranking compacta */}
+          <div className="overflow-x-auto border border-border rounded-xl max-h-[640px] overflow-y-auto no-scrollbar">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted/40 text-muted-foreground font-semibold border-b border-border sticky top-0 z-10 backdrop-blur-sm">
+                <tr>
+                  <th className="p-2.5 w-10 text-center">#</th>
+                  <th className="p-2.5">Louvor</th>
+                  <th className="p-2.5 text-center">Plays</th>
+                  <th className="p-2.5 text-center">Pts</th>
+                  <th className="p-2.5 text-right w-16">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {loadingRanking ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                      Carregando ranking...
+                    </td>
+                  </tr>
+                ) : ranking.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
+                      Nenhum play registrado ainda.
+                    </td>
+                  </tr>
+                ) : (
+                  ranking.map((item, index) => {
+                    const trackForAction: MusicTrack = {
+                      id: item.providerTrackId || item.id,
+                      providerTrackId: item.providerTrackId || item.id,
+                      title: item.title,
+                      artist: item.artist,
+                      cover: item.cover,
+                      duration: item.duration || 240,
+                      provider: 'youtube',
+                    };
+
+                    return (
+                      <tr key={item.id || index} className="hover:bg-muted/20 transition-colors">
+                        {/* Posição com Medalhas */}
+                        <td className="p-2.5 text-center">
+                          {index === 0 ? (
+                            <span className="w-5 h-5 mx-auto rounded-full bg-gradient-to-br from-amber-400 to-yellow-600 text-black font-black text-[10px] flex items-center justify-center shadow-sm">
+                              🥇
+                            </span>
+                          ) : index === 1 ? (
+                            <span className="w-5 h-5 mx-auto rounded-full bg-gradient-to-br from-slate-300 to-gray-400 text-black font-black text-[10px] flex items-center justify-center shadow-sm">
+                              🥈
+                            </span>
+                          ) : index === 2 ? (
+                            <span className="w-5 h-5 mx-auto rounded-full bg-gradient-to-br from-amber-700 to-amber-900 text-white font-black text-[10px] flex items-center justify-center shadow-sm">
+                              🥉
+                            </span>
+                          ) : (
+                            <span className="w-5 h-5 mx-auto rounded-full bg-muted text-muted-foreground font-bold text-[9px] flex items-center justify-center">
+                              #{index + 1}
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Louvor / Capa / Cantor */}
+                        <td className="p-2.5">
+                          <div className="flex items-center gap-2">
+                            <div className="relative w-8 h-8 rounded-md overflow-hidden shrink-0 bg-black">
+                              {item.cover ? (
+                                <img src={item.cover} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                <Music className="w-3.5 h-3.5 text-white/50 m-2" />
+                              )}
+                            </div>
+                            <div className="min-w-0 max-w-[120px] sm:max-w-[150px]">
+                              <p className="font-bold text-foreground truncate text-[11px]">{item.title}</p>
+                              <p className="text-[10px] text-muted-foreground truncate">{item.artist}</p>
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Total de Plays */}
+                        <td className="p-2.5 text-center">
+                          <span className="font-bold font-mono text-foreground text-[11px]">
+                            {item.playCount.toLocaleString('pt-BR')}
+                          </span>
+                        </td>
+
+                        {/* Pontuação */}
+                        <td className="p-2.5 text-center">
+                          <span className="inline-flex items-center gap-0.5 font-bold text-whatsapp-teal dark:text-whatsapp-green bg-whatsapp-teal/10 px-1.5 py-0.5 rounded-full text-[9px]">
+                            <Flame className="w-2.5 h-2.5 text-orange-500 fill-orange-500" />
+                            {item.score}
+                          </span>
+                        </td>
+
+                        {/* Ações Rápidas */}
+                        <td className="p-2.5 text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <button
+                              onClick={() => {
+                                if (currentPlayingTrack?.id === trackForAction.id) {
+                                  setIsPlaying(!isPlaying);
+                                } else {
+                                  setCurrentPlayingTrack(trackForAction);
+                                  setIsPlaying(true);
+                                }
+                              }}
+                              className="p-1 rounded-md bg-muted hover:bg-whatsapp-teal hover:text-white transition-colors"
+                              title="Pré-escutar"
+                            >
+                              {currentPlayingTrack?.id === trackForAction.id && isPlaying ? (
+                                <Pause className="w-3 h-3 fill-current" />
+                              ) : (
+                                <Play className="w-3 h-3 fill-current" />
+                              )}
+                            </button>
+
+                            <a
+                              href={`https://youtube.com/watch?v=${item.providerTrackId || item.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1 rounded-md bg-muted hover:bg-red-600 hover:text-white transition-colors"
+                              title="Abrir no YouTube"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
       </div>
 
       {/* ─── CONTROLES DE RECURSOS DO FÉMUSIC (TOGGLES EM TEMPO REAL) ─── */}
@@ -1609,46 +1721,81 @@ export default function AdminFeMusicPage() {
       </div>
 
       {/* ─── MODAL 1: NOTIFICAR / ADVERTIR USUÁRIO (MÚSICA SECULAR) ─── */}
-      {notifyModalOpen && selectedTrackForAction?.user && (
+      {notifyModalOpen && selectedTrackForAction && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="border-b border-border pb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BellRing className="w-5 h-5 text-amber-500" />
-                <h3 className="text-base font-bold text-foreground">Enviar Advertência ao Usuário</h3>
+                <h3 className="text-base font-bold text-foreground">
+                  {selectedTrackForAction.user ? "Enviar Advertência ao Usuário (Música Secular)" : "Moderar Faixa Secular no Servidor"}
+                </h3>
               </div>
               <button onClick={() => setNotifyModalOpen(false)} className="text-muted-foreground hover:text-foreground">✕</button>
             </div>
 
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs space-y-1">
-              <p className="font-bold text-foreground">Usuário: @{selectedTrackForAction.user.username}</p>
+              {selectedTrackForAction.user ? (
+                <p className="font-bold text-foreground">Usuário Responsável: @{selectedTrackForAction.user.username || selectedTrackForAction.user.id}</p>
+              ) : (
+                <p className="font-bold text-amber-600 dark:text-amber-400">Origem: Cache / Servidor (Sem Usuário Direto)</p>
+              )}
               <p className="text-muted-foreground">Música auditada: <span className="font-semibold text-foreground">"{selectedTrackForAction.title}"</span> ({selectedTrackForAction.artist})</p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1">Mensagem de Notificação</label>
-              <textarea
-                value={customNotifyMessage}
-                onChange={(e) => setCustomNotifyMessage(e.target.value)}
-                rows={4}
-                className="w-full rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
-              />
-            </div>
+            {selectedTrackForAction.user ? (
+              <>
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">Mensagem de Notificação / Advertência</label>
+                  <textarea
+                    value={customNotifyMessage}
+                    onChange={(e) => setCustomNotifyMessage(e.target.value)}
+                    rows={4}
+                    className="w-full rounded-lg border border-border bg-muted/30 p-3 text-xs text-foreground outline-none focus:ring-1 focus:ring-whatsapp-green"
+                  />
+                </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2">
-              <button
-                onClick={() => setNotifyModalOpen(false)}
-                className="h-9 px-4 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSendWarningNotification}
-                className="h-9 px-5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 shadow-sm"
-              >
-                Enviar Advertência
-              </button>
-            </div>
+                <div className="pt-2 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setNotifyModalOpen(false)}
+                    className="h-9 px-4 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSendWarningNotification}
+                    className="h-9 px-5 rounded-lg bg-amber-600 text-white text-xs font-bold hover:bg-amber-700 shadow-sm flex items-center gap-1.5"
+                  >
+                    <BellRing className="w-3.5 h-3.5" />
+                    <span>Enviar Advertência</span>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Esta faixa foi classificada como <strong>suspeita secular</strong> e está armazenada no servidor sem um usuário específico registrado. Você pode removê-la permanentemente para manter o catálogo do FéMusic 100% cristão.
+                </p>
+                <div className="pt-2 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => setNotifyModalOpen(false)}
+                    className="h-9 px-4 rounded-lg border border-border text-xs font-semibold text-foreground hover:bg-muted"
+                  >
+                    Fechar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNotifyModalOpen(false);
+                      handlePurgeTrack(selectedTrackForAction);
+                    }}
+                    className="h-9 px-5 rounded-lg bg-red-600 text-white text-xs font-bold hover:bg-red-700 shadow-sm flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Purgar Música do App</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

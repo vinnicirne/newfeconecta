@@ -36,17 +36,40 @@ export async function POST(request: Request) {
         .limit(1);
 
       if (cacheRows && cacheRows.length > 0 && cacheRows[0].audio_url) {
-        // Se já existe no cache, atualiza o último usuário que ouviu/baixou caso não tenha
-        if (currentUser?.id && !cacheRows[0].user_id) {
-          await supabase
-            .from('femusic_cache')
-            .update({ 
+        const trackTitle = track?.title || cacheRows[0].title || 'Louvor';
+        const trackArtist = track?.artist || cacheRows[0].artist || 'Artista';
+        const trackCover = track?.cover || cacheRows[0].cover || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+        const trackDuration = track?.duration || cacheRows[0].duration || null;
+
+        // Atualiza o último usuário que ouviu/baixou caso aplicável
+        if (currentUser?.id) {
+          try {
+            await supabase
+              .from('femusic_cache')
+              .update({ 
+                user_id: currentUser.id,
+                title: trackTitle,
+                artist: trackArtist,
+                cover: trackCover,
+                duration: trackDuration
+              })
+              .eq('youtube_id', videoId);
+
+            // Registra a reprodução no histórico de atividades
+            await supabase.from('music_history').insert({
               user_id: currentUser.id,
-              title: track?.title || cacheRows[0].title,
-              artist: track?.artist || cacheRows[0].artist,
-              cover: track?.cover || cacheRows[0].cover
-            })
-            .eq('youtube_id', videoId);
+              provider: 'youtube',
+              provider_track_id: videoId,
+              track_title: trackTitle,
+              track_artist: trackArtist,
+              track_cover: trackCover,
+              track_duration: trackDuration,
+              started_at: new Date().toISOString(),
+              completed: false,
+            });
+          } catch (e) {
+            console.warn('[AudioExtractor] Erro ao sincronizar histórico/cache existente:', e);
+          }
         }
         return NextResponse.json({ success: true, url: cacheRows[0].audio_url });
       }
@@ -85,15 +108,21 @@ export async function POST(request: Request) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       );
       
+      const trackTitle = track?.title || body?.track?.title || 'Louvor';
+      const trackArtist = track?.artist || body?.track?.artist || 'Artista';
+      const trackCover = track?.cover || body?.track?.cover || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+      const trackDuration = track?.duration || body?.track?.duration || null;
+
       const { error: insertError } = await supabase
         .from('femusic_cache')
         .upsert([{ 
           youtube_id: videoId, 
           audio_url: data.url,
           user_id: currentUser?.id || null,
-          title: track?.title || null,
-          artist: track?.artist || null,
-          cover: track?.cover || null,
+          title: trackTitle,
+          artist: trackArtist,
+          cover: trackCover,
+          duration: trackDuration,
           created_at: new Date().toISOString()
         }], { onConflict: 'youtube_id' });
         
@@ -101,16 +130,35 @@ export async function POST(request: Request) {
         console.error('[AudioExtractor] Erro ao salvar cache:', insertError);
       }
 
-      if (body.track) {
+      // Registra evento de extração/download no histórico do usuário
+      if (currentUser?.id) {
+        try {
+          await supabase.from('music_history').insert({
+            user_id: currentUser.id,
+            provider: 'youtube',
+            provider_track_id: videoId,
+            track_title: trackTitle,
+            track_artist: trackArtist,
+            track_cover: trackCover,
+            track_duration: trackDuration,
+            started_at: new Date().toISOString(),
+            completed: false,
+          });
+        } catch (hErr) {
+          console.warn('[AudioExtractor] Erro ao registrar music_history:', hErr);
+        }
+      }
+
+      if (body.track || videoId) {
         const { error: trackError } = await supabase
           .from('music_tracks')
           .upsert([{
             provider: 'youtube',
             provider_track_id: videoId,
-            title: body.track.title || 'Unknown Title',
-            artist: body.track.artist || 'Unknown Artist',
-            duration: body.track.duration || 0,
-            cover: body.track.cover || null
+            title: trackTitle,
+            artist: trackArtist,
+            duration: trackDuration || 0,
+            cover: trackCover
           }], { onConflict: 'provider,provider_track_id' });
           
         if (trackError) {

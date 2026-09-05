@@ -947,6 +947,49 @@
   - ✅ **Integração Social Nativa:** Publicação direta de conquistas no feed social e compartilhamento no WhatsApp e Stories.
 - **Impacto:** Aumento exponencial do engajamento e retenção diária de usuários com zero impacto de performance no restante do ecossistema FéConecta.
 
+## 98. Integração de Jogos & Quiz na Navegação Web Desktop & Painel Admin (`/jogos`)
+- **Arquivos:** `app/RootClient.tsx`, `components/sidebar.tsx`
+- **Inconsistência Encontrada:** 
+  - O link para `/jogos` estava presente apenas no menu hamburguer mobile, ficando inacessível pela barra de navegação lateral (desktop web sidebar) e pelo menu lateral do painel admin.
+- **Ações Executadas:** 
+  - ✅ **Menu Web Desktop (`RootClient.tsx`):** Adicionado atalho direto `Jogos & Quiz` com ícone `Gamepad2` na barra de navegação lateral principal (`<nav>`).
+  - ✅ **Header Rápido Desktop (`RootClient.tsx`):** Adicionado botão de atalho direto para `/jogos` na barra de ações rápidas superior.
+  - ✅ **Responsividade Tablet (`RootClient.tsx`):** Ajustado breakpoint do menu para `lg:hidden`, permitindo abertura de menu em tablets intermediários.
+  - ✅ **Sidebar Admin (`sidebar.tsx`):** Adicionado `Jogos & Quiz` em *Moderação & Conteúdo* para fácil acesso a partir da área administrativa.
+- **Impacto:** Acesso total e intuitivo aos jogos em qualquer dispositivo (Web, Desktop, Tablet e Mobile).
+
+## 99. Correção Nuclear de Telemetria e Moderação em Tempo Real do FéMusic (`/admin/music`)
+- **Arquivos:** `app/admin/music/page.tsx`, `modules/femusic/domain/tracking.ts`, `modules/femusic/infrastructure/state/usePlayerStore.ts`, `app/api/extract-audio/route.ts`
+- **Inconsistências Encontradas:**
+  - **Histórico Invisível:** O `usePlayerStore.play()` gravava as faixas apenas no `localStorage` do navegador do usuário e em um JSON estatístico (`system_configs`), nunca persistindo eventos na tabela `music_history` no PostgreSQL.
+  - **Schema Incompatível em `femusic_cache`:** A API `/api/extract-audio` tentava salvar `user_id`, `title`, `artist`, `cover`, mas a tabela no banco não possuía tais colunas, gerando erro silencioso e atribuindo as faixas como "Sistema / Cache Geral".
+  - **RLS Restritiva:** A política `music_history_select_policy` continha apenas `USING (uid() = user_id)`, impedindo que administradores visualizassem o histórico de outros membros.
+  - **Ausência de Realtime:** As tabelas `music_history`, `femusic_cache` e `music_playlist_tracks` não estavam na publicação `supabase_realtime`, mantendo a tela `/admin/music` estática e "travada".
+- **Ações Executadas:**
+  - ✅ **Migração de Banco de Dados:** Adicionadas colunas `user_id`, `title`, `artist`, `cover`, `duration` em `femusic_cache` e `provider_track_id`, `track_title`, `track_artist`, `track_cover`, `track_duration` em `music_history`.
+  - ✅ **Políticas RLS Atualizadas:** Concedida permissão total de consulta (`SELECT`) e purga (`DELETE`) para administradores e moderadores em `music_history`.
+  - ✅ **Publicação Realtime Ativada:** Adicionadas as tabelas `music_history`, `femusic_cache` e `music_playlist_tracks` à publicação `supabase_realtime` do PostgreSQL.
+  - ✅ **Rastreamento de Reprodução Ativo (`usePlayerStore` / `tracking.ts`):** Toda execução no player agora registra instantaneamente no `music_history` vinculado ao perfil do usuário autenticado e indexa em `music_tracks`.
+  - ✅ **Extração de Áudio com Responsável:** A rota `/api/extract-audio` agora vincula perfeitamente o `user_id` e metadata da música ao salvar no cache e no histórico.
+  - ✅ **Painel de Moderação em Tempo Real (`/admin/music`):** A tabela agora exibe reproduções ativas (`🎧 Reprodução`) com perfil completo do usuário (foto, nome, @username, selo) e atualiza via WebSocket instantaneamente sem F5.
+- **Impacto:** Visibilidade total e transparente em tempo real sobre quais usuários estão ouvindo ou baixando cada louvor ou música na plataforma.
+
+## 100. FéMusic — Moderação Lado a Lado & Exposição do Acervo no App
+- **Arquivos:** `app/admin/music/page.tsx`, `app/music/page.tsx`, `app/music/library/page.tsx`, `app/music/search/page.tsx`, `modules/femusic/presentation/components/DatabaseCatalogSection.tsx`, `modules/femusic/presentation/components/CommunityListeningSection.tsx`, `modules/femusic/infrastructure/providers/YouTubeProvider.ts`, `modules/femusic/domain/entities/MusicTrack.ts`
+- **Problema:** 
+  - Na tela `/admin/music`, a tabela de auditoria empurrava o Ranking Oficial para o final da página e o botão de advertência de música secular ficava oculto quando a faixa não tinha usuário vinculado.
+  - No app do usuário (`/music`), as centenas de músicas armazenadas no banco de dados (`femusic_cache` com arquivos `.m4a` e `music_tracks`) e as reproduções em tempo real da comunidade não estavam visíveis para os membros.
+- **Ações:** 
+  - ✅ **Grid Lado a Lado (`xl:grid-cols-12`):** Central de Auditoria & Moderação (7/8 cols) e Ranking Oficial Top Plays (5/4 cols) posicionados lado a lado com rolagem interna sincronizada (`max-h-[640px]`).
+  - ✅ **Moderação Secular Sem Falhas:** Botão de advertência (🔔) sempre visível. Se há usuário, envia advertência direta via `NotificationService`; se não há, permite a purga imediata do app. Filtro rápido `[⚠️ N Suspeitas Seculares]` no topo.
+  - ✅ **Enriquecimento do Banco:** 176 faixas em `femusic_cache` com metadados completos e 227 faixas indexadas em `music_tracks`.
+  - ✅ **Acervo FéConecta na Home (`/music`):** Nova seção com badge *"⚡ Sem Espera"* permitindo reprodução instantânea com zero latência utilizando o áudio `.m4a` salvo no Supabase Storage.
+  - ✅ **Ouvidas na Comunidade (`/music`):** Feed dinâmico em tempo real exibindo as faixas tocadas pelos membros com foto e `@username`.
+  - ✅ **Aba Acervo Oficial na Biblioteca (`/music/library`):** Catálogo completo com pesquisa em tempo real, curtir e adicionar a playlists.
+  - ✅ **Destaques na Busca (`/music/search`):** Carrossel de destaques antes da digitação e priorização do catálogo local nos resultados.
+  - ✅ **Zero Latência no Player (`YouTubeProvider`):** Executa `track.audioUrl` imediatamente sem esperar extração do YouTube.
+- **Impacto:** Visibilidade total e instantânea de todo o acervo de louvores da plataforma para os usuários e controle disciplinar rigoroso e ergonômico para os administradores.
+
 
 
 

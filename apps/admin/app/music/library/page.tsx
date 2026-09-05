@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Heart, Clock, ListMusic, Users, PlayCircle, Loader2, Sparkles, Plus, Play, ChevronRight, ListPlus, Share2 } from 'lucide-react';
+import { Heart, Clock, ListMusic, Users, PlayCircle, Loader2, Sparkles, Plus, Play, ChevronRight, ListPlus, Share2, Zap, Search as SearchIcon } from 'lucide-react';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { usePlaylistStore } from '@/modules/femusic/infrastructure/state/usePlaylistStore';
 import { MusicPlaylist } from '@/modules/femusic/domain/entities/MusicPlaylist';
@@ -13,13 +13,17 @@ import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToP
 import SharePlaylistModal from '@/modules/femusic/presentation/components/SharePlaylistModal';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/lib/supabase';
 
-type TabId = 'playlists' | 'likes' | 'history' | 'shared';
+type TabId = 'playlists' | 'catalog' | 'likes' | 'history' | 'shared';
 
 export default function LibraryPage() {
   const [historyTracks, setHistoryTracks] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [activeTab, setActiveTab] = useState<TabId>('playlists');
+  const [catalogTracks, setCatalogTracks] = useState<MusicTrack[]>([]);
+  const [catalogFilter, setCatalogFilter] = useState('');
+  const [loadingCatalog, setLoadingCatalog] = useState(false);
   
   // Modais
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -50,17 +54,77 @@ export default function LibraryPage() {
     setLoadingHistory(false);
   }, [loadLikes, loadPlaylists]);
 
+  useEffect(() => {
+    async function fetchCatalog() {
+      setLoadingCatalog(true);
+      try {
+        const { data: cacheData } = await supabase
+          .from('femusic_cache')
+          .select('youtube_id, audio_url, title, artist, cover, duration')
+          .not('title', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(150);
+
+        const { data: tracksData } = await supabase
+          .from('music_tracks')
+          .select('provider_track_id, title, artist, cover, duration')
+          .order('created_at', { ascending: false })
+          .limit(150);
+
+        const map = new Map<string, MusicTrack>();
+        if (cacheData) {
+          for (const c of cacheData) {
+            if (!c.youtube_id || !c.title) continue;
+            map.set(c.youtube_id, {
+              id: c.youtube_id,
+              providerTrackId: c.youtube_id,
+              title: c.title,
+              artist: c.artist || 'FéConecta Music',
+              cover: c.cover || `https://i.ytimg.com/vi/${c.youtube_id}/hqdefault.jpg`,
+              duration: c.duration || 260,
+              audioUrl: c.audio_url || null,
+              provider: 'youtube',
+            });
+          }
+        }
+        if (tracksData) {
+          for (const t of tracksData) {
+            if (!t.provider_track_id || !t.title) continue;
+            if (!map.has(t.provider_track_id)) {
+              map.set(t.provider_track_id, {
+                id: t.provider_track_id,
+                providerTrackId: t.provider_track_id,
+                title: t.title,
+                artist: t.artist || 'FéConecta Music',
+                cover: t.cover || `https://i.ytimg.com/vi/${t.provider_track_id}/hqdefault.jpg`,
+                duration: t.duration || 260,
+                provider: 'youtube',
+              });
+            }
+          }
+        }
+        setCatalogTracks(Array.from(map.values()));
+      } catch (e) {
+        console.warn('Erro ao carregar acervo na biblioteca:', e);
+      } finally {
+        setLoadingCatalog(false);
+      }
+    }
+    fetchCatalog();
+  }, []);
+
   const totalPlaylistItems = playlists.length + READY_SESSIONS.length;
 
   const menuItems = [
     { id: 'playlists', icon: ListMusic, label: 'Sessões & Playlists', count: `${totalPlaylistItems}`, color: 'text-whatsapp-teal', bg: 'bg-whatsapp-teal/10' },
+    { id: 'catalog', icon: Zap, label: 'Acervo FéConecta', count: catalogTracks.length > 0 ? `${catalogTracks.length} faixas` : '180+ faixas', color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
     { id: 'likes', icon: Heart, label: 'Músicas Curtidas', count: likedTracks.length.toString(), color: 'text-red-500', bg: 'bg-red-500/10' },
     { id: 'history', icon: Clock, label: 'Histórico', count: historyTracks.length.toString(), color: 'text-blue-500', bg: 'bg-blue-500/10' },
-    { id: 'shared', icon: Users, label: 'Recomendados', count: 'FéConecta', color: 'text-purple-500', bg: 'bg-purple-500/10' },
   ];
 
   const getDisplayData = () => {
     switch (activeTab) {
+      case 'catalog': return { title: 'Acervo Oficial FéConecta', icon: Zap, list: catalogTracks };
       case 'likes': return { title: 'Músicas Curtidas', icon: Heart, list: likedTracks };
       case 'history': return { title: 'Tocadas Recentemente', icon: Clock, list: historyTracks.slice(0, 20) };
       case 'playlists': return { title: 'Playlists & Sessões', icon: ListMusic, list: [] };

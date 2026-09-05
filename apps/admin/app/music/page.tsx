@@ -11,6 +11,8 @@ import { YouTubeService } from '@/modules/femusic/infrastructure/services/YouTub
 import ReadySessions from '@/modules/femusic/presentation/components/ReadySessions';
 import ContinueListening from '@/modules/femusic/presentation/components/ContinueListening';
 import MusicRankingSection from '@/modules/femusic/presentation/components/MusicRankingSection';
+import DatabaseCatalogSection from '@/modules/femusic/presentation/components/DatabaseCatalogSection';
+import CommunityListeningSection from '@/modules/femusic/presentation/components/CommunityListeningSection';
 import { useWarmCache } from '@/modules/femusic/application/useWarmCache';
 import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
@@ -223,6 +225,11 @@ export default function MusicFeedPage() {
         </div>
       )}
 
+      {/* ⚡ Acervo FéConecta • Áudios Rápidos (Músicas no Banco de Dados) */}
+      <div className="px-4">
+        <DatabaseCatalogSection />
+      </div>
+
       {/* Sessões Prontas Oficiais */}
       <div className="px-4">
         <ReadySessions />
@@ -231,6 +238,11 @@ export default function MusicFeedPage() {
       {/* 🏆 Top 10 Louvores Mais Tocados (Ranking da Comunidade) */}
       <div className="px-4">
         <MusicRankingSection />
+      </div>
+
+      {/* 🔥 Ouvidas na Comunidade (Tempo Real dos Usuários) */}
+      <div className="px-4">
+        <CommunityListeningSection />
       </div>
 
       {/* Carrossel: Em alta */}

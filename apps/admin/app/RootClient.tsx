@@ -809,11 +809,11 @@ export default function RootPage() {
           
           {/* LOGO — esquerda, largura igual ao sidebar no desktop */}
           <div className="flex items-center gap-2.5 xl:w-[280px]">
-            {/* Hamburguer mobile only */}
+            {/* Hamburguer mobile and tablet */}
             {isMounted && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="md:hidden p-2 -ml-1 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all outline-none active:scale-95">
+                  <button className="lg:hidden p-2 -ml-1 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all outline-none active:scale-95">
                     <Menu className="w-5 h-5" />
                   </button>
                 </DropdownMenuTrigger>
@@ -1026,6 +1026,10 @@ export default function RootPage() {
                 <Link href="/bible" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-emerald-500 transition-all" title="Bíblia Sagrada">
                   <BookOpen className="w-5 h-5" />
                 </Link>
+
+                <Link href="/jogos" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-indigo-500 transition-all" title="Jogos & Quiz">
+                  <Gamepad2 className="w-5 h-5" />
+                </Link>
               </>
             )}
           </div>
@@ -1065,6 +1069,7 @@ export default function RootPage() {
           <nav className="space-y-0.5">
             <Link href="/" className="w-full flex items-center gap-3 px-4 py-3 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</Link>
             <Link href="/bible" className="w-full flex items-center gap-3 px-4 py-3 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Bíblia Sagrada</Link>
+            <Link href="/jogos" className="w-full flex items-center gap-3 px-4 py-3 text-indigo-500 hover:bg-indigo-500/5 rounded-2xl transition-all font-bold"><Gamepad2 className="w-5 h-5" /> Jogos & Quiz</Link>
             <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><FileText className="w-5 h-5" /> Notas</Link>
             <Link href="/music" className="w-full flex items-center gap-3 px-4 py-3 text-purple-500 hover:bg-purple-500/5 rounded-2xl transition-all font-bold"><Music className="w-5 h-5" /> Música</Link>
             <Link href="/messages" className="w-full flex items-center justify-between px-4 py-3 text-whatsapp-teal dark:text-whatsapp-green hover:bg-whatsapp-teal/5 rounded-2xl transition-all font-bold">

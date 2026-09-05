@@ -8,5 +8,6 @@ export interface MusicTrack {
   duration?: number | null; // em segundos ou milissegundos
   cover?: string | null;
   previewUrl?: string | null;
+  audioUrl?: string | null;
   createdAt?: string | null;
 }
