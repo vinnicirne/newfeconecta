@@ -50,7 +50,7 @@
     },
     {
       "path": "/api/cron/welcome-sync",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 10 * * *"
     }
   ]
 }
