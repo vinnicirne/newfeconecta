@@ -99,25 +99,64 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [router]);
 
-  // 3. Motor de Sessão
+  // 3. Motor de Sessão com Fallback Resiliente e Timeout Nuclear
   useEffect(() => {
+    let isMounted = true;
+    let fallbackTimeout: NodeJS.Timeout | null = null;
+
     const initSession = async () => {
+      // 🛡️ Safe Timeout: NUNCA deixa o usuário preso no loading por mais de 3.5 segundos em redes lentas ou WebViews travadas
+      fallbackTimeout = setTimeout(() => {
+        if (isMounted) {
+          console.warn("[AuthGuard] Timeout de rede atingido na inicialização. Liberando interface.");
+          setLoading(false);
+          // Se já tiver perfil em cache, autoriza para não travar a experiência
+          const cached = getStoredProfile();
+          if (cached?.id) {
+            setAuthorized(true);
+            setUserId(cached.id);
+          }
+        }
+      }, 3500);
+
       try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
+        // Checagem imediata de perfil em cache para destravar instantaneamente a UI
+        const cached = getStoredProfile();
+        if (cached?.id) {
+          setAuthorized(true);
+          setUserId(cached.id);
+          if (cached.role) setUserRole(cached.role);
+          setIsProfileComplete(true);
+        }
+
+        // Busca a sessão com race de tempo de 3s
+        const sessionPromise = supabaseClient.auth.getSession();
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Supabase getSession timeout")), 3000)
+        );
+
+        const sessionResult: any = await Promise.race([sessionPromise, timeoutPromise]).catch(err => {
+          console.warn("[AuthGuard] getSession demorou ou falhou:", err?.message || err);
+          return null;
+        });
+
+        const session = sessionResult?.data?.session;
 
         if (session?.user) {
-          setAuthorized(true);
-          setUserId(session.user.id);
-          activateServices(session.user.id).catch(() => {
-            setIsSyncingProfile(false);
-          });
-        } else {
+          if (isMounted) {
+            setAuthorized(true);
+            setUserId(session.user.id);
+            activateServices(session.user.id).catch(() => {
+              setIsSyncingProfile(false);
+            });
+          }
+        } else if (!session && !cached?.id) {
           const isPostRoute = pathname.startsWith("/post/");
           const isGuardianRoute = pathname.startsWith("/guardian/");
           const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
           const isPublic = isEntryRoute || isPostRoute || isGuardianRoute;
 
-          if (!isPublic) {
+          if (!isPublic && isMounted) {
             router.replace('/login');
           }
         }
@@ -125,7 +164,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       } catch (err: any) {
         console.error("Auth Guard Failure:", err);
       } finally {
-        setLoading(false);
+        if (fallbackTimeout) clearTimeout(fallbackTimeout);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -134,6 +176,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     let subscription: any = null;
     try {
       const { data } = supabaseClient.auth.onAuthStateChange((event, session) => {
+        if (!isMounted) return;
         setAuthorized(!!session?.user);
         
         if ((event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && session?.user) {
@@ -156,6 +199,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
 
     return () => {
+      isMounted = false;
+      if (fallbackTimeout) clearTimeout(fallbackTimeout);
       subscription?.unsubscribe();
     };
   }, [router, activateServices, pathname]);

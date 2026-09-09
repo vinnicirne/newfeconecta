@@ -207,8 +207,13 @@ export default function RootPage() {
       setPage(0);
     }
 
+    // Safety timeout: destrava o loading do feed se a rede demorar mais de 6 segundos
+    const feedTimeout = setTimeout(() => {
+      setLoading(false);
+    }, 6000);
+
     try {
-      const [postsRes, repostsRes, adServerRes] = await Promise.all([
+      const fetchPostsPromise = Promise.all([
         supabase
           .from('posts')
           .select('*')
@@ -221,6 +226,8 @@ export default function RootPage() {
           .limit(10),
         fetch('/api/ads/serve?format=feed', { cache: 'no-store' }).catch(() => null)
       ]);
+
+      const [postsRes, repostsRes, adServerRes]: any = await fetchPostsPromise;
 
       if (adServerRes && adServerRes.ok && adServerRes.status === 200) {
         const adData = await adServerRes.json().catch(() => null);
@@ -374,6 +381,7 @@ export default function RootPage() {
       console.error("❌ Erro inesperado:", err);
       setPosts([]);
     } finally {
+      clearTimeout(feedTimeout);
       setLoading(false);
     }
   };
