@@ -142,6 +142,12 @@ export default function UsersPage() {
       if (statusFilter === "online") {
         const activeCutoff = moment().subtract(5, "minutes").toISOString();
         query = query.gt("updated_at", activeCutoff);
+      } else if (statusFilter === "offline_7d") {
+        const sevenDaysAgo = moment().subtract(7, "days").toISOString();
+        query = query.lt("last_seen", sevenDaysAgo);
+      } else if (statusFilter === "offline_30d") {
+        const thirtyDaysAgo = moment().subtract(30, "days").toISOString();
+        query = query.lt("last_seen", thirtyDaysAgo);
       } else if (statusFilter === "verified") {
         query = query.eq("is_verified", true);
       } else if (statusFilter === "banned") {
@@ -331,17 +337,42 @@ export default function UsersPage() {
       toast.error("Nenhum usuário para exportar.");
       return;
     }
-    const headers = ["ID", "Nome", "Username", "Email", "Igreja", "Cargo", "Status", "Criado Em"];
-    const csvRows = users.map(u => [
-      u.id,
-      `"${(u.full_name || "").replace(/"/g, '""')}"`,
-      `"${(u.username || "").replace(/"/g, '""')}"`,
-      `"${(u.email || "").replace(/"/g, '""')}"`,
-      `"${(u.church || "").replace(/"/g, '""')}"`,
-      u.role || "user",
-      u.verification_label === "BANIDO" ? "Suspenso" : u.is_verified ? "Verificado" : "Normal",
-      u.created_at || "",
-    ]);
+    const headers = [
+      "ID", 
+      "Nome", 
+      "Username", 
+      "Email", 
+      "Telefone",
+      "Cidade",
+      "Igreja", 
+      "Cargo", 
+      "Status Conexão", 
+      "Último Acesso",
+      "Dias Sem Acesso",
+      "Página Navegada",
+      "Criado Em"
+    ];
+    const csvRows = users.map(u => {
+      const isOnline = onlineUsers.some(ou => ou.id === u.id) || (u.updated_at && moment().diff(moment(u.updated_at), 'minutes') < 5);
+      const lastAccess = u.last_seen || u.updated_at || u.created_at;
+      const daysOff = lastAccess ? moment().diff(moment(lastAccess), 'days') : "";
+
+      return [
+        u.id,
+        `"${(u.full_name || "").replace(/"/g, '""')}"`,
+        `"${(u.username || "").replace(/"/g, '""')}"`,
+        `"${(u.email || "").replace(/"/g, '""')}"`,
+        `"${(u.phone || "").replace(/"/g, '""')}"`,
+        `"${(u.city || "").replace(/"/g, '""')}"`,
+        `"${(u.church || "").replace(/"/g, '""')}"`,
+        u.role || "user",
+        isOnline ? "Online Agora" : u.verification_label === "BANIDO" ? "Suspenso" : "Offline",
+        lastAccess ? moment(lastAccess).format("YYYY-MM-DD HH:mm:ss") : "",
+        daysOff,
+        `"${(u.page_title || u.current_page || "").replace(/"/g, '""')}"`,
+        u.created_at ? moment(u.created_at).format("YYYY-MM-DD HH:mm:ss") : "",
+      ];
+    });
     
     // Inclusão do BOM UTF-8 para Excel e caracteres especiais em português
     const csvContent = "\uFEFF" + [headers.join(","), ...csvRows.map(r => r.join(","))].join("\n");
@@ -524,10 +555,12 @@ export default function UsersPage() {
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-muted-foreground focus:outline-none"
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-muted-foreground focus:outline-none font-medium"
             >
               <option value="all">Status: Todos</option>
-              <option value="online">Status: Online</option>
+              <option value="online">Status: Online Agora</option>
+              <option value="offline_7d">Inativos (+7 dias sem acesso)</option>
+              <option value="offline_30d">Inativos (+30 dias sem acesso)</option>
               <option value="verified">Status: Verificados</option>
               <option value="banned">Status: Suspensos</option>
             </select>
@@ -560,28 +593,40 @@ export default function UsersPage() {
                 <th className="px-5 py-3">Usuário</th>
                 <th className="px-5 py-3 hidden md:table-cell">Igreja</th>
                 <th className="px-5 py-3">Papel</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3 hidden lg:table-cell">Cadastro</th>
+                <th className="px-5 py-3">Status / Conexão</th>
+                <th className="px-5 py-3 hidden lg:table-cell">Último Acesso & Telemetria</th>
+                <th className="px-5 py-3 hidden xl:table-cell">Cadastro</th>
                 <th className="px-5 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
                     Carregando usuários...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
                     Nenhum usuário encontrado com os filtros selecionados.
                   </td>
                 </tr>
               ) : (
                 users.map((user) => {
-                  const isOnline = onlineUsers.some(ou => ou.id === user.id);
+                  const onlineUser = onlineUsers.find(ou => ou.id === user.id);
+                  const isOnline = !!onlineUser || (user.updated_at && moment().diff(moment(user.updated_at), 'minutes') < 5);
                   const isBanned = user.verification_label === "BANIDO";
+
+                  // Cálculo do tempo de sessão online (se online)
+                  const enteredAt = onlineUser?.page_entered_at || user.page_entered_at || user.updated_at;
+                  const onlineDurationMinutes = enteredAt ? moment().diff(moment(enteredAt), 'minutes') : 0;
+                  const formattedOnlineDuration = onlineDurationMinutes < 1 ? "Agora mesmo" : onlineDurationMinutes < 60 ? `${onlineDurationMinutes}m online` : `${Math.floor(onlineDurationMinutes / 60)}h ${onlineDurationMinutes % 60}m online`;
+
+                  // Cálculo do último acesso / inatividade
+                  const lastAccessDate = user.last_seen || user.updated_at || user.created_at;
+                  const daysInactive = lastAccessDate ? moment().diff(moment(lastAccessDate), 'days') : null;
+                  const isLongInactive = daysInactive !== null && daysInactive >= 7;
 
                   return (
                     <tr key={user.id} className="hover:bg-muted/30 transition-colors">
@@ -640,18 +685,58 @@ export default function UsersPage() {
                             Suspenso
                           </span>
                         ) : isOnline ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Online
-                          </span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 w-fit">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Online Agora
+                            </span>
+                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono pl-0.5">
+                              {formattedOnlineDuration}
+                            </span>
+                          </div>
+                        ) : isLongInactive ? (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 w-fit">
+                              <Clock className="h-3 w-3" />
+                              Inativo ({daysInactive}d)
+                            </span>
+                          </div>
                         ) : (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border">
-                            Ativo
+                            Offline
                           </span>
                         )}
                       </td>
 
-                      <td className="px-5 py-3.5 hidden lg:table-cell text-muted-foreground whitespace-nowrap">
+                      <td className="px-5 py-3.5 hidden lg:table-cell text-muted-foreground">
+                        <div className="flex flex-col gap-0.5">
+                          {isOnline ? (
+                            <>
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] flex items-center gap-1">
+                                <Radio className="h-3 w-3 animate-pulse" />
+                                {user.page_title || user.current_page || "Navegando no Feed"}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                Entrou {moment(enteredAt).fromNow()} ({moment(enteredAt).format("HH:mm:ss")})
+                              </span>
+                            </>
+                          ) : lastAccessDate ? (
+                            <>
+                              <span className="text-foreground font-medium text-[11px] flex items-center gap-1">
+                                <Clock className="h-3 w-3 text-muted-foreground" />
+                                {moment(lastAccessDate).fromNow()}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {moment(lastAccessDate).format("DD/MM/YYYY [às] HH:mm")}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground italic">Nunca acessou</span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-5 py-3.5 hidden xl:table-cell text-muted-foreground whitespace-nowrap">
                         {user.created_at ? moment(user.created_at).format("DD/MM/YYYY") : "—"}
                       </td>
 
@@ -659,7 +744,7 @@ export default function UsersPage() {
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => setSelectedUser(user)}
-                            title="Inspecionar perfil"
+                            title="Inspecionar perfil e telemetria"
                             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           >
                             <Eye className="h-4 w-4" />
@@ -765,6 +850,69 @@ export default function UsersPage() {
                   <DialogPrimitive.Close className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors">
                     <X className="h-4 w-4" />
                   </DialogPrimitive.Close>
+                </div>
+
+                {/* ─── PAINEL DE TELEMETRIA E TEMPO ONLINE (REMARKETING) ─── */}
+                <div className="p-3 bg-muted/60 rounded-xl border border-border space-y-2">
+                  <span className="text-[10px] uppercase font-bold text-whatsapp-teal dark:text-whatsapp-green tracking-wider flex items-center gap-1">
+                    <Radio className="h-3 w-3 animate-pulse" /> Telemetria & Conexão em Tempo Real
+                  </span>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="p-2 bg-card rounded-lg border border-border/80">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Status Atual</span>
+                      <div className="mt-1 flex items-center gap-1.5">
+                        {onlineUsers.some(ou => ou.id === selectedUser.id) ? (
+                          <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Online Agora
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-muted-foreground font-semibold text-xs">
+                            <span className="h-2 w-2 rounded-full bg-gray-400" />
+                            Offline
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="p-2 bg-card rounded-lg border border-border/80">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Tempo de Sessão</span>
+                      <span className="font-semibold text-foreground block mt-1">
+                        {(() => {
+                          const onlineUser = onlineUsers.find(ou => ou.id === selectedUser.id);
+                          const enteredAt = onlineUser?.page_entered_at || selectedUser.page_entered_at || selectedUser.updated_at;
+                          if (!onlineUser && !selectedUser.updated_at) return "Offline";
+                          const mins = enteredAt ? moment().diff(moment(enteredAt), 'minutes') : 0;
+                          if (onlineUser) {
+                            return mins < 1 ? "Iniciou agora" : `${mins} min online`;
+                          }
+                          return `Última sessão: ${moment(selectedUser.updated_at).fromNow()}`;
+                        })()}
+                      </span>
+                    </div>
+
+                    <div className="p-2 bg-card rounded-lg border border-border/80">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Último Login / Acesso</span>
+                      <span className="font-semibold text-foreground block mt-1">
+                        {selectedUser.last_seen || selectedUser.updated_at ? (
+                          moment(selectedUser.last_seen || selectedUser.updated_at).format("DD/MM/YYYY [às] HH:mm")
+                        ) : (
+                          "Nunca acessou"
+                        )}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground block">
+                        {selectedUser.last_seen || selectedUser.updated_at ? `(${moment(selectedUser.last_seen || selectedUser.updated_at).fromNow()})` : ""}
+                      </span>
+                    </div>
+
+                    <div className="p-2 bg-card rounded-lg border border-border/80">
+                      <span className="text-muted-foreground block text-[10px] uppercase font-semibold">Página / Local Atual</span>
+                      <span className="font-semibold text-foreground truncate block mt-1" title={selectedUser.page_title || selectedUser.current_page || "Feed"}>
+                        {selectedUser.page_title || selectedUser.current_page || "Feed Principal"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5 text-xs">
