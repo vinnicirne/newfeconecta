@@ -689,22 +689,15 @@ export default function UsersPage() {
                             Suspenso
                           </span>
                         ) : isOnline ? (
-                          <div className="flex flex-col gap-1 items-start">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
-                              Online Agora
-                            </span>
-                            <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-medium pl-1 whitespace-nowrap">
-                              {formattedOnlineDuration}
-                            </span>
-                          </div>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                            Online Agora
+                          </span>
                         ) : isLongInactive ? (
-                          <div className="flex flex-col gap-1 items-start">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 whitespace-nowrap">
-                              <Clock className="h-3 w-3 shrink-0" />
-                              Inativo ({daysInactive}d)
-                            </span>
-                          </div>
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 whitespace-nowrap">
+                            <Clock className="h-3 w-3 shrink-0" />
+                            Inativo (+{daysInactive}d)
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border whitespace-nowrap">
                             <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
@@ -714,7 +707,7 @@ export default function UsersPage() {
                       </td>
 
                       <td className="px-4 py-3.5 hidden lg:table-cell text-muted-foreground">
-                        <div className="flex flex-col gap-0.5 max-w-[220px]">
+                        <div className="flex flex-col gap-0.5 max-w-[240px]">
                           {isOnline ? (
                             <>
                               <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] flex items-center gap-1 truncate">
@@ -722,14 +715,14 @@ export default function UsersPage() {
                                 <span className="truncate">{user.page_title || user.current_page || "Painel Admin"}</span>
                               </span>
                               <span className="text-[10px] text-muted-foreground truncate">
-                                Entrou {moment(enteredAt).fromNow()} ({moment(enteredAt).format("HH:mm:ss")})
+                                Sessão iniciada {moment(enteredAt).fromNow()} ({moment(enteredAt).format("HH:mm")})
                               </span>
                             </>
                           ) : lastAccessDate ? (
                             <>
                               <span className="text-foreground font-medium text-[11px] flex items-center gap-1 truncate">
                                 <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
-                                <span>{moment(lastAccessDate).fromNow()}</span>
+                                <span>Visto {moment(lastAccessDate).fromNow()}</span>
                               </span>
                               <span className="text-[10px] text-muted-foreground truncate">
                                 {moment(lastAccessDate).format("DD/MM/YYYY [às] HH:mm")}

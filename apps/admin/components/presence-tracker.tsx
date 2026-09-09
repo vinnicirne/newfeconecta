@@ -54,16 +54,20 @@ export function PresenceTracker() {
   const isFullScreen = usePlayerStore((s) => s.isFullScreen);
   const currentTrack = usePlayerStore((s) => s.currentTrack);
   const lastBeatRef = useRef<number>(0);
-  const pageEnteredAtRef = useRef<string>(new Date().toISOString());
+  const pageEnteredAtRef = useRef<string>((() => {
+    if (typeof window !== "undefined") {
+      const storedSessionStart = sessionStorage.getItem("fc_session_start_time");
+      if (storedSessionStart) return storedSessionStart;
+      const now = new Date().toISOString();
+      sessionStorage.setItem("fc_session_start_time", now);
+      return now;
+    }
+    return new Date().toISOString();
+  })());
   const activeChannelRef = useRef<any>(null);
 
   // Informações da página atual considerando rotas ou player do FéMusic
   const currentFriendly = getFriendlyPageName(pathname, isFullScreen, currentTrack?.title);
-
-  // Reset do tempo ao mudar de rota ou ao abrir/fechar o player fullscreen do FéMusic
-  useEffect(() => {
-    pageEnteredAtRef.current = new Date().toISOString();
-  }, [pathname, isFullScreen]);
 
   // Enviar pulso de presença atômico no banco de dados com a página atual
   const sendHeartbeat = async (userId: string) => {
