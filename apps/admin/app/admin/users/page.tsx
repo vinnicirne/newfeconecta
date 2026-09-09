@@ -514,12 +514,12 @@ export default function UsersPage() {
       {/* ─── TABELA PRINCIPAL DE USUÁRIOS ─── */}
       <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden space-y-0">
         {/* Barra Superior com Abas e Filtros */}
-        <div className="p-4 border-b border-border flex flex-col md:flex-row md:items-center justify-between gap-3 bg-muted/20">
-          <div className="flex items-center p-1 rounded-lg bg-muted border border-border w-fit">
+        <div className="p-3.5 border-b border-border flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-muted/20">
+          <div className="flex items-center p-1 rounded-lg bg-muted border border-border w-fit shrink-0">
             <button
               onClick={() => { setActiveTab("feconecta"); setPage(0); }}
               className={cn(
-                "px-3.5 py-1 rounded-md text-xs font-semibold transition-all",
+                "px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 activeTab === "feconecta"
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -530,7 +530,7 @@ export default function UsersPage() {
             <button
               onClick={() => { setActiveTab("fenamoro"); setPage(0); }}
               className={cn(
-                "px-3.5 py-1 rounded-md text-xs font-semibold transition-all",
+                "px-3 py-1 rounded-md text-xs font-semibold transition-all",
                 activeTab === "fenamoro"
                   ? "bg-card text-pink-500 shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
@@ -540,14 +540,14 @@ export default function UsersPage() {
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 flex-1 md:justify-end">
-            <div className="relative w-full sm:w-60">
+          <div className="flex flex-wrap items-center gap-2 flex-1 lg:justify-end">
+            <div className="relative min-w-[200px] flex-1 sm:max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-                placeholder="Buscar por nome, @user ou e-mail..."
+                placeholder="Buscar por nome, @user..."
                 className="w-full h-8 pl-8 pr-3 rounded-lg border border-border bg-muted/60 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
               />
             </div>
@@ -555,30 +555,30 @@ export default function UsersPage() {
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-muted-foreground focus:outline-none font-medium"
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-foreground focus:outline-none font-medium shrink-0 cursor-pointer hover:bg-muted/50 transition-colors"
             >
               <option value="all">Status: Todos</option>
-              <option value="online">Status: Online Agora</option>
-              <option value="offline_7d">Inativos (+7 dias sem acesso)</option>
-              <option value="offline_30d">Inativos (+30 dias sem acesso)</option>
-              <option value="verified">Status: Verificados</option>
-              <option value="banned">Status: Suspensos</option>
+              <option value="online">Online Agora</option>
+              <option value="offline_7d">Inativos (+7 dias)</option>
+              <option value="offline_30d">Inativos (+30 dias)</option>
+              <option value="verified">Verificados</option>
+              <option value="banned">Suspensos</option>
             </select>
 
             <select
               value={roleFilter}
               onChange={(e) => { setRoleFilter(e.target.value); setPage(0); }}
-              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-muted-foreground focus:outline-none"
+              className="h-8 px-2.5 rounded-lg border border-border bg-card text-xs text-foreground focus:outline-none shrink-0 cursor-pointer hover:bg-muted/50 transition-colors"
             >
               <option value="all">Papel: Todos</option>
               <option value="user">Membro</option>
-              <option value="admin">Administrador</option>
+              <option value="admin">Admin</option>
             </select>
 
             <button
               onClick={() => { setPage(0); fetchUsers(); fetchOnlineUsers(); }}
               title="Recarregar tabela"
-              className="h-8 w-8 grid place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted transition-colors"
+              className="h-8 w-8 grid place-items-center rounded-lg border border-border bg-card text-muted-foreground hover:bg-muted transition-colors shrink-0"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin text-whatsapp-green")} />
             </button>
@@ -587,16 +587,16 @@ export default function UsersPage() {
 
         {/* Tabela de Usuários */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+          <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-muted/50 border-b border-border uppercase tracking-wider text-[10px] text-muted-foreground font-semibold">
               <tr>
-                <th className="px-5 py-3">Usuário</th>
-                <th className="px-5 py-3 hidden md:table-cell">Igreja</th>
-                <th className="px-5 py-3">Papel</th>
-                <th className="px-5 py-3">Status / Conexão</th>
-                <th className="px-5 py-3 hidden lg:table-cell">Último Acesso & Telemetria</th>
-                <th className="px-5 py-3 hidden xl:table-cell">Cadastro</th>
-                <th className="px-5 py-3 text-right">Ações</th>
+                <th className="px-4 py-3 min-w-[200px]">Usuário</th>
+                <th className="px-4 py-3 hidden md:table-cell">Igreja</th>
+                <th className="px-4 py-3">Papel</th>
+                <th className="px-4 py-3 min-w-[140px]">Conexão</th>
+                <th className="px-4 py-3 hidden lg:table-cell min-w-[180px]">Último Acesso / Telemetria</th>
+                <th className="px-4 py-3 hidden xl:table-cell">Cadastro</th>
+                <th className="px-4 py-3 text-right">Ações</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
@@ -618,20 +618,24 @@ export default function UsersPage() {
                   const isOnline = !!onlineUser || (user.updated_at && moment().diff(moment(user.updated_at), 'minutes') < 5);
                   const isBanned = user.verification_label === "BANIDO";
 
-                  // Cálculo do tempo de sessão online (se online)
+                  // Cálculo do tempo de sessão online
                   const enteredAt = onlineUser?.page_entered_at || user.page_entered_at || user.updated_at;
                   const onlineDurationMinutes = enteredAt ? moment().diff(moment(enteredAt), 'minutes') : 0;
-                  const formattedOnlineDuration = onlineDurationMinutes < 1 ? "Agora mesmo" : onlineDurationMinutes < 60 ? `${onlineDurationMinutes}m online` : `${Math.floor(onlineDurationMinutes / 60)}h ${onlineDurationMinutes % 60}m online`;
+                  const formattedOnlineDuration = onlineDurationMinutes < 1 
+                    ? "agora mesmo" 
+                    : onlineDurationMinutes < 60 
+                    ? `há ${onlineDurationMinutes}m` 
+                    : `há ${Math.floor(onlineDurationMinutes / 60)}h ${onlineDurationMinutes % 60}m`;
 
-                  // Cálculo do último acesso / inatividade
+                  // Cálculo do último acesso
                   const lastAccessDate = user.last_seen || user.updated_at || user.created_at;
                   const daysInactive = lastAccessDate ? moment().diff(moment(lastAccessDate), 'days') : null;
                   const isLongInactive = daysInactive !== null && daysInactive >= 7;
 
                   return (
                     <tr key={user.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3 min-w-[180px]">
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-3">
                           <div className="relative shrink-0">
                             <div className="h-8 w-8 rounded-full bg-whatsapp-teal/20 text-whatsapp-teal dark:text-whatsapp-green flex items-center justify-center font-bold text-xs overflow-hidden border border-border">
                               {user.avatar_url ? (
@@ -653,80 +657,81 @@ export default function UsersPage() {
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-foreground truncate flex items-center gap-1.5">
-                              <span>{user.full_name || "Sem nome"}</span>
+                              <span className="truncate max-w-[140px] sm:max-w-[200px]">{user.full_name || "Sem nome"}</span>
                               {user.is_verified && <VerificationBadge role={user.verification_label} size="xs" />}
                             </div>
-                            <div className="text-[11px] text-muted-foreground truncate">
+                            <div className="text-[11px] text-muted-foreground truncate max-w-[180px] sm:max-w-[240px]">
                               @{user.username || "usuario"} · {user.email || "sem email"}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="px-5 py-3.5 hidden md:table-cell text-muted-foreground truncate max-w-[180px]">
+                      <td className="px-4 py-3.5 hidden md:table-cell text-muted-foreground truncate max-w-[140px]">
                         {user.church || "Não informada"}
                       </td>
 
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-3.5 whitespace-nowrap">
                         <span className={cn(
-                          "px-2 py-0.5 rounded text-[10px] font-semibold uppercase",
+                          "px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-tight",
                           user.role === "admin"
                             ? "bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20"
                             : "bg-muted text-muted-foreground border border-border"
                         )}>
-                          {user.role === "admin" ? "Administrador" : "Membro"}
+                          {user.role === "admin" ? "Admin" : "Membro"}
                         </span>
                       </td>
 
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-3.5">
                         {isBanned ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
-                            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 whitespace-nowrap">
+                            <span className="h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
                             Suspenso
                           </span>
                         ) : isOnline ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 w-fit">
-                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                               Online Agora
                             </span>
-                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-mono pl-0.5">
+                            <span className="text-[10px] text-emerald-600/80 dark:text-emerald-400/80 font-medium pl-1 whitespace-nowrap">
                               {formattedOnlineDuration}
                             </span>
                           </div>
                         ) : isLongInactive ? (
-                          <div className="flex flex-col gap-0.5">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 w-fit">
-                              <Clock className="h-3 w-3" />
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 whitespace-nowrap">
+                              <Clock className="h-3 w-3 shrink-0" />
                               Inativo ({daysInactive}d)
                             </span>
                           </div>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-muted text-muted-foreground border border-border whitespace-nowrap">
+                            <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
                             Offline
                           </span>
                         )}
                       </td>
 
-                      <td className="px-5 py-3.5 hidden lg:table-cell text-muted-foreground">
-                        <div className="flex flex-col gap-0.5">
+                      <td className="px-4 py-3.5 hidden lg:table-cell text-muted-foreground">
+                        <div className="flex flex-col gap-0.5 max-w-[220px]">
                           {isOnline ? (
                             <>
-                              <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] flex items-center gap-1">
-                                <Radio className="h-3 w-3 animate-pulse" />
-                                {user.page_title || user.current_page || "Navegando no Feed"}
+                              <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] flex items-center gap-1 truncate">
+                                <Radio className="h-3 w-3 animate-pulse shrink-0" />
+                                <span className="truncate">{user.page_title || user.current_page || "Painel Admin"}</span>
                               </span>
-                              <span className="text-[10px] text-muted-foreground">
+                              <span className="text-[10px] text-muted-foreground truncate">
                                 Entrou {moment(enteredAt).fromNow()} ({moment(enteredAt).format("HH:mm:ss")})
                               </span>
                             </>
                           ) : lastAccessDate ? (
                             <>
-                              <span className="text-foreground font-medium text-[11px] flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-muted-foreground" />
-                                {moment(lastAccessDate).fromNow()}
+                              <span className="text-foreground font-medium text-[11px] flex items-center gap-1 truncate">
+                                <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <span>{moment(lastAccessDate).fromNow()}</span>
                               </span>
-                              <span className="text-[10px] text-muted-foreground">
+                              <span className="text-[10px] text-muted-foreground truncate">
                                 {moment(lastAccessDate).format("DD/MM/YYYY [às] HH:mm")}
                               </span>
                             </>
@@ -736,16 +741,16 @@ export default function UsersPage() {
                         </div>
                       </td>
 
-                      <td className="px-5 py-3.5 hidden xl:table-cell text-muted-foreground whitespace-nowrap">
+                      <td className="px-4 py-3.5 hidden xl:table-cell text-muted-foreground whitespace-nowrap">
                         {user.created_at ? moment(user.created_at).format("DD/MM/YYYY") : "—"}
                       </td>
 
-                      <td className="px-5 py-3.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
+                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
+                        <div className="flex items-center justify-end gap-1.5">
                           <button
                             onClick={() => setSelectedUser(user)}
                             title="Inspecionar perfil e telemetria"
-                            className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                           >
                             <Eye className="h-4 w-4" />
                           </button>
