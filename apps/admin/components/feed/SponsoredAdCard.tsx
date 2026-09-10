@@ -107,10 +107,14 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
   useEffect(() => {
     if (campaign.tracking_url_impression) {
       try {
-        fetch(campaign.tracking_url_impression, { method: "POST" }).catch(() => {});
+        fetch(campaign.tracking_url_impression, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: currentUser?.id || null })
+        }).catch(() => {});
       } catch {}
     }
-  }, [campaign.tracking_url_impression]);
+  }, [campaign.tracking_url_impression, currentUser?.id]);
 
   // ❤️ Curtir / Descurtir no Banco de Dados
   const handleLike = async () => {
@@ -280,7 +284,11 @@ export default function SponsoredAdCard({ campaign, currentUser }: SponsoredAdCa
   const handleCtaClick = () => {
     if (campaign.tracking_url_click) {
       try {
-        fetch(campaign.tracking_url_click, { method: "POST" }).catch(() => {});
+        fetch(campaign.tracking_url_click, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: currentUser?.id || null })
+        }).catch(() => {});
       } catch {}
     }
   };
