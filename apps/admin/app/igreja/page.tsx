@@ -95,7 +95,13 @@ export default function ChurchesPage() {
         <div className="max-w-4xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
-              <div className="flex items-center gap-2.5 mb-2">
+              <div className="flex items-center gap-3 mb-4">
+                <Link 
+                  href="/"
+                  className="w-9 h-9 flex items-center justify-center rounded-2xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
+                >
+                  <ArrowRight className="w-5 h-5 rotate-180" />
+                </Link>
                 <div className="w-9 h-9 rounded-2xl bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal border border-whatsapp-teal/20">
                   <Church className="w-5 h-5" />
                 </div>

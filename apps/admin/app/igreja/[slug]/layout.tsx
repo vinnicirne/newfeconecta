@@ -190,9 +190,9 @@ export default function ChurchLayout({
           className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20"
           style={{ paddingTop: 'max(env(safe-area-inset-top), 48px)' }}
         >
-          <button onClick={() => router.back()} className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          <Link href="/" className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10 flex items-center gap-1.5 pr-3 text-xs font-semibold">
+            <ArrowLeft className="w-4 h-4" /> Feed
+          </Link>
           
           <div className="flex gap-2">
             <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10">

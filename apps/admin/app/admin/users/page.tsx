@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 import moment from "moment";
 import "moment/locale/pt-br";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
@@ -32,6 +33,7 @@ import { ForceNotificationModal } from "@/components/admin/ForceNotificationModa
 moment.locale("pt-br");
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,6 +58,8 @@ export default function UsersPage() {
   const [isForceNotifOpen, setIsForceNotifOpen] = useState(false);
   const [forceNotifUser, setForceNotifUser] = useState<any | null>(null);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+  const [isSendEmailModalOpen, setIsSendEmailModalOpen] = useState(false);
+  const [emailUserTarget, setEmailUserTarget] = useState<any | null>(null);
 
   const PAGE_SIZE = 12;
 
@@ -764,6 +768,15 @@ export default function UsersPage() {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => { setForceNotifUser(user); setIsForceNotifOpen(true); }}>
                                 <Bell className="h-3.5 w-3.5 mr-2 text-amber-500" /> Disparar Push Direto
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => { 
+                                if (!user.email) {
+                                  toast.error("Usuário não possui e-mail cadastrado.");
+                                  return;
+                                }
+                                router.push(`/admin/emails?sendToEmail=${encodeURIComponent(user.email)}&sendToName=${encodeURIComponent(user.full_name || "Usuário")}`); 
+                              }}>
+                                <Mail className="h-3.5 w-3.5 mr-2 text-purple-500" /> Enviar E-mail Direto
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => handleToggleVerification(user)}>
                                 <ShieldCheck className="h-3.5 w-3.5 mr-2 text-emerald-500" />

@@ -55,8 +55,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Template não encontrado' }, { status: 500 });
     }
 
-    // 2. Substituir as variáveis do HTML
-    let finalHtml = templateData.html_content.replace(/{{name}}/g, name);
+    // 2. Substituir as variáveis do HTML e do Assunto
+    const safeName = name || 'Usuário';
+    let finalHtml = templateData.html_content.replace(/{{name}}/gi, safeName);
+    let finalSubject = templateData.subject.replace(/{{name}}/gi, safeName);
+
+    // Substituir links diretos da Play Store pelo Smart Link (Deep Link + Fallback)
+    const host = request.headers.get('host') || 'newfeconecta.vercel.app';
+    const protocol = host.includes('localhost') ? 'http' : 'https';
+    const smartAppLink = `${protocol}://${host}/app`;
+    
+    // Substitui qualquer link da playstore pelo nosso link inteligente
+    finalHtml = finalHtml.replace(/https:\/\/play\.google\.com\/store\/apps\/[^\s"']+/gi, smartAppLink);
 
     // 3. Registrar no Banco de Dados (Log) primeiro para gerar um ID
     let logId = null;
@@ -82,9 +92,78 @@ export async function POST(request: Request) {
     let responseOk = false;
     let responseStatus = 200;
 
-    // 4. Disparar o email
-    if (smtpEmail && smtpPassword) {
-      // Disparo via SMTP (Gmail)
+    // 4. Disparar o email - PRIORIZANDO A API DO RESEND (Domínio Autenticado evita Spam)
+    if (resendApiKey) {
+      try {
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            from: senderEmail,
+            to: [email],
+            subject: finalSubject,
+            html: finalHtml,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          logStatus = 'error';
+          logErrorMessage = data.message || JSON.stringify(data);
+          responseStatus = response.status;
+          console.error('[Welcome Email] Erro do Resend:', data);
+          
+          // Se o Resend falhar e houver SMTP configurado, tenta fallback
+          if (smtpEmail && smtpPassword) {
+            console.log('[Welcome Email] Tentando Fallback para SMTP...');
+            throw new Error("Fallback para SMTP"); // Força o catch cair pro fallback, ou lidamos diferente
+          }
+        } else {
+          responseOk = true;
+          providerData = data;
+          console.log(`[Welcome Email] Enviado com sucesso via Resend (template: ${tKey})`);
+        }
+      } catch (err: any) {
+        // Fallback real para SMTP se a API do Resend estiver fora do ar
+        if (smtpEmail && smtpPassword) {
+          try {
+            const transporter = nodemailer.createTransport({
+              host: smtpHost,
+              port: smtpPort,
+              secure: smtpPort === 465,
+              auth: { user: smtpEmail, pass: smtpPassword }
+            });
+            const info = await transporter.sendMail({
+              from: `"FéConecta" <${smtpEmail}>`,
+              to: email,
+              replyTo: smtpEmail,
+              subject: finalSubject,
+              text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+              html: finalHtml,
+              headers: { 'List-Unsubscribe': `<mailto:${smtpEmail}?subject=unsubscribe>`, 'Precedence': 'bulk' }
+            });
+            responseOk = true;
+            logStatus = 'success';
+            logErrorMessage = null;
+            providerData = info;
+            console.log(`[Welcome Email] Enviado com sucesso via SMTP Fallback (template: ${tKey})`);
+          } catch (smtpErr: any) {
+            logStatus = 'error';
+            logErrorMessage = "Resend e SMTP falharam: " + smtpErr.message;
+            responseStatus = 500;
+          }
+        } else {
+          logStatus = 'error';
+          logErrorMessage = err.message;
+          responseStatus = 500;
+          console.error('[Welcome Email] Erro Resend (Sem fallback):', err);
+        }
+      }
+    } else if (smtpEmail && smtpPassword) {
+      // Disparo apenas via SMTP (se não tiver Resend configurado)
       try {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
@@ -100,7 +179,7 @@ export async function POST(request: Request) {
           from: `"FéConecta" <${smtpEmail}>`,
           to: email,
           replyTo: smtpEmail,
-          subject: templateData.subject,
+          subject: finalSubject,
           text: finalHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
           html: finalHtml,
           headers: {
@@ -117,40 +196,6 @@ export async function POST(request: Request) {
         logErrorMessage = err.message;
         responseStatus = 500;
         console.error('[Welcome Email] Erro SMTP:', err);
-      }
-    } else {
-      // Fallback para Resend
-      try {
-        const response = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: senderEmail,
-            to: [email],
-            subject: templateData.subject,
-            html: finalHtml,
-          }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          logStatus = 'error';
-          logErrorMessage = data.message || JSON.stringify(data);
-          responseStatus = response.status;
-          console.error('[Welcome Email] Erro do Resend:', data);
-        } else {
-          responseOk = true;
-          providerData = data;
-          console.log(`[Welcome Email] Enviado com sucesso via Resend (template: ${tKey})`);
-        }
-      } catch (err: any) {
-        logStatus = 'error';
-        logErrorMessage = err.message;
-        responseStatus = 500;
-        console.error('[Welcome Email] Erro Resend:', err);
       }
     }
 

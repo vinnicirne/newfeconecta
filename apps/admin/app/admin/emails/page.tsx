@@ -11,6 +11,7 @@ import {
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
+import { useSearchParams, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 import "moment/locale/pt-br";
@@ -32,14 +33,21 @@ interface EmailTemplate {
 
 interface EmailLog {
   id: string;
-  recipient: string;
-  subject: string;
-  status: "sent" | "delivered" | "failed";
-  sent_at: string;
+  recipient?: string;
+  email?: string;
+  subject?: string;
+  template_key?: string;
+  status: "sent" | "delivered" | "failed" | "success" | "error" | "sending";
+  sent_at?: string;
+  created_at?: string;
   error?: string;
+  error_message?: string;
 }
 
 export default function EmailsAdminPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [logs, setLogs] = useState<EmailLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +68,18 @@ export default function EmailsAdminPage() {
     html_content: "<h1>Olá, {name}!</h1><p>Bem-vindo à comunidade FéConecta.</p>",
   });
 
+  // Envio de E-mail
+  const [isSendModalOpen, setIsSendModalOpen] = useState(false);
+  const [sendingTemplate, setSendingTemplate] = useState<EmailTemplate | null>(null);
+  const [sendTargetType, setSendTargetType] = useState<"specific" | "mass">("specific");
+  const [massTarget, setMassTarget] = useState<"feconecta" | "fenamoro" | "all">("feconecta");
+  const [massSegment, setMassSegment] = useState<"all" | "new_users" | "inactive_8d" | "inactive_30d">("all");
+  const [selectedUsers, setSelectedUsers] = useState<{email: string, name: string, user_id?: string}[]>([]);
+  const [isSending, setIsSending] = useState(false);
+  const [sendProgress, setSendProgress] = useState({ current: 0, total: 0, show: false });
+  const [searchUserQuery, setSearchUserQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<{id: string, name: string, email: string}[]>([]);
+
   // Estatísticas Reais
   const [stats, setStats] = useState({
     sent30d: 184320,
@@ -70,7 +90,47 @@ export default function EmailsAdminPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+    
+    // Suporte para redirecionamento da página de usuários
+    const sendToEmail = searchParams.get("sendToEmail");
+    const sendToName = searchParams.get("sendToName");
+    if (sendToEmail) {
+      setSendTargetType("specific");
+      setSelectedUsers([{ email: sendToEmail, name: sendToName || "Usuário" }]);
+      setIsSendModalOpen(true);
+      // Clean up URL so it doesn't trigger again on refresh
+      router.replace("/admin/emails");
+    }
+  }, [searchParams, router]);
+
+  useEffect(() => {
+    if (isSendModalOpen && sendTargetType === "specific") {
+      const fetchUsers = async () => {
+        // Busca na tabela principal
+        let q = supabase.from("profiles").select("id, full_name, email").not("email", "is", null).limit(25);
+        if (searchUserQuery.trim()) {
+          q = q.or(`full_name.ilike.%${searchUserQuery}%,email.ilike.%${searchUserQuery}%`);
+        }
+        const { data: feData } = await q;
+
+        // Busca na tabela secundária (FéNamoro)
+        let q2 = supabase.from("dating_profiles").select("id, full_name, email").not("email", "is", null).limit(25);
+        if (searchUserQuery.trim()) {
+          q2 = q2.or(`full_name.ilike.%${searchUserQuery}%,email.ilike.%${searchUserQuery}%`);
+        }
+        const { data: datingData } = await q2;
+
+        const allUsers = [...(feData || []), ...(datingData || [])];
+        
+        // Remove duplicados por email
+        const uniqueUsers = Array.from(new Map(allUsers.map(item => [item.email, item])).values());
+        
+        setSearchResults(uniqueUsers.map(u => ({ id: u.id, name: u.full_name || "Sem nome", email: u.email })));
+      };
+      const timeout = setTimeout(fetchUsers, 400);
+      return () => clearTimeout(timeout);
+    }
+  }, [searchUserQuery, isSendModalOpen, sendTargetType]);
 
   const loadData = async () => {
     setLoading(true);
@@ -286,6 +346,125 @@ export default function EmailsAdminPage() {
     }
   };
 
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sendingTemplate) return;
+
+    setIsSending(true);
+    setSendProgress({ current: 0, total: 0, show: false });
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (session?.access_token) {
+        headers["Authorization"] = `Bearer ${session.access_token}`;
+      }
+
+      const tKey = (sendingTemplate as any).key || sendingTemplate.slug || sendingTemplate.id;
+      let targets: { email: string, name: string, user_id?: string }[] = [];
+
+      if (sendTargetType === "specific") {
+        if (selectedUsers.length === 0) {
+          toast.error("Selecione pelo menos um destinatário.");
+          setIsSending(false);
+          return;
+        }
+        targets.push(...selectedUsers);
+      } else {
+        toast.info("Carregando lista de usuários...");
+        
+        const buildQuery = (table: string) => {
+          let q = supabase.from(table).select('id, email, full_name').not('email', 'is', null);
+          
+          if (massSegment === "new_users") {
+            q = q.gte('created_at', moment().subtract(7, 'days').toISOString());
+          } else if (massSegment === "inactive_8d") {
+            q = q.lte('updated_at', moment().subtract(8, 'days').toISOString());
+          } else if (massSegment === "inactive_30d") {
+            q = q.lte('updated_at', moment().subtract(30, 'days').toISOString());
+          }
+          return q;
+        };
+        
+        if (massTarget === "feconecta" || massTarget === "all") {
+          const { data: feProfiles } = await buildQuery('profiles');
+          if (feProfiles) {
+            feProfiles.forEach(p => {
+              if (p.email) targets.push({ email: p.email.trim(), name: p.full_name || 'Usuário FéConecta', user_id: p.id });
+            });
+          }
+        }
+        
+        if (massTarget === "fenamoro" || massTarget === "all") {
+          const { data: namoroProfiles } = await buildQuery('dating_profiles');
+          if (namoroProfiles) {
+            namoroProfiles.forEach(p => {
+              if (p.email && !targets.some(t => t.email === p.email.trim())) {
+                targets.push({ email: p.email.trim(), name: p.full_name || 'Usuário FéNamoro', user_id: p.id });
+              }
+            });
+          }
+        }
+
+        if (targets.length === 0) {
+          toast.error("Nenhum usuário com e-mail encontrado para o grupo selecionado.");
+          setIsSending(false);
+          return;
+        }
+      }
+
+      setSendProgress({ current: 0, total: targets.length, show: targets.length > 1 });
+
+      let successCount = 0;
+      let errorCount = 0;
+      const BATCH_SIZE = 5; // Disparo em lotes pequenos
+
+      for (let i = 0; i < targets.length; i += BATCH_SIZE) {
+        const batch = targets.slice(i, i + BATCH_SIZE);
+        const promises = batch.map(async (target) => {
+          try {
+             const res = await fetch("/api/emails/send", {
+              method: "POST",
+              headers,
+              body: JSON.stringify({
+                email: target.email,
+                name: target.name,
+                user_id: target.user_id,
+                template_key: tKey
+              })
+            });
+            if (res.ok) successCount++;
+            else errorCount++;
+          } catch {
+            errorCount++;
+          }
+        });
+
+        await Promise.all(promises);
+        setSendProgress(prev => ({ ...prev, current: Math.min(i + BATCH_SIZE, targets.length) }));
+        if (i + BATCH_SIZE < targets.length) {
+          await new Promise(r => setTimeout(r, 500)); // pequeno throttle
+        }
+      }
+
+      if (targets.length === 1) {
+        if (successCount === 1) toast.success("E-mail enviado com sucesso! 🚀");
+        else toast.error("Falha ao enviar e-mail.");
+      } else {
+        toast.success(`Disparo concluído! ${successCount} enviados, ${errorCount} erros.`);
+      }
+
+      setIsSendModalOpen(false);
+      setSelectedUsers([]);
+      loadData();
+    } catch (err: any) {
+      toast.error("Falha no disparo: " + err.message);
+    } finally {
+      setIsSending(false);
+      setSendProgress(prev => ({ ...prev, show: false }));
+    }
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-10">
       {/* ─── HEADER PRINCIPAL ─── */}
@@ -444,7 +623,7 @@ export default function EmailsAdminPage() {
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-4 shrink-0 mt-2 sm:mt-0">
                   {tpl.status === "active" ? (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Ativo
@@ -459,15 +638,27 @@ export default function EmailsAdminPage() {
                     </span>
                   )}
 
-                  <button
-                    onClick={() => {
-                      setEditingTemplate(tpl);
-                      setIsEditorOpen(true);
-                    }}
-                    className="text-[11px] font-semibold text-whatsapp-teal dark:text-whatsapp-green hover:underline cursor-pointer"
-                  >
-                    Editar
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => {
+                        setEditingTemplate(tpl);
+                        setIsEditorOpen(true);
+                      }}
+                      className="text-[12px] font-bold text-whatsapp-teal dark:text-whatsapp-green hover:underline cursor-pointer"
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setSendingTemplate(tpl);
+                        setIsSendModalOpen(true);
+                      }}
+                      className="text-[12px] font-bold text-purple-600 dark:text-purple-400 hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Send className="w-3 h-3" /> Disparar
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -479,22 +670,33 @@ export default function EmailsAdminPage() {
                 Nenhum log de disparo recente registrado.
               </div>
             ) : (
-              logs.map((log) => (
-                <div key={log.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs">
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-foreground truncate">{log.subject}</p>
-                    <p className="text-[11px] text-muted-foreground truncate">{log.recipient} · {moment(log.sent_at).format("DD/MM/YYYY HH:mm")}</p>
+              logs.map((log) => {
+                const isSuccess = log.status === "sent" || log.status === "delivered" || log.status === "success";
+                const templateRef = templates.find(t => t.id === log.template_key || t.key === log.template_key || t.slug === log.template_key);
+                return (
+                  <div key={log.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs hover:bg-muted/30 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-foreground truncate">
+                        {log.subject || templateRef?.name || templateRef?.subject || log.template_key || "E-mail"}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {log.email || log.recipient || "Destinatário desconhecido"} · {moment(log.sent_at || log.created_at).format("DD/MM/YYYY HH:mm")}
+                      </p>
+                      {!isSuccess && log.error_message && (
+                        <p className="text-[10px] text-red-500 truncate mt-0.5" title={log.error_message}>Erro: {log.error_message}</p>
+                      )}
+                    </div>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-semibold uppercase",
+                      isSuccess
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                        : "bg-red-500/10 text-red-600 dark:text-red-400"
+                    )}>
+                      {isSuccess ? "Entregue" : "Falhou"}
+                    </span>
                   </div>
-                  <span className={cn(
-                    "px-2 py-0.5 rounded text-[10px] font-semibold uppercase",
-                    log.status === "sent" || log.status === "delivered"
-                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                      : "bg-red-500/10 text-red-600 dark:text-red-400"
-                  )}>
-                    {log.status === "sent" || log.status === "delivered" ? "Entregue" : "Falhou"}
-                  </span>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
@@ -658,6 +860,220 @@ export default function EmailsAdminPage() {
                   className="px-4 py-2 rounded-lg bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-semibold transition-colors"
                 >
                   Criar Template
+                </button>
+              </div>
+            </form>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+
+      {/* ─── MODAL DE ENVIO / DISPARO DE TESTE ─── */}
+      <DialogPrimitive.Root open={isSendModalOpen} onOpenChange={setIsSendModalOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
+          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-card p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                  <Send className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-foreground">Disparar E-mail</h3>
+                  <p className="text-[11px] text-muted-foreground">Envie um teste ou mensagem direta</p>
+                </div>
+              </div>
+              <DialogPrimitive.Close className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors">
+                <X className="h-4 w-4" />
+              </DialogPrimitive.Close>
+            </div>
+
+            <form onSubmit={handleSendEmail} className="space-y-4 pt-4 text-xs">
+              <div className="flex gap-2 p-1 bg-muted/40 rounded-lg border border-border">
+                <button
+                  type="button"
+                  onClick={() => setSendTargetType("specific")}
+                  className={cn("flex-1 py-1.5 rounded-md font-medium transition-colors", sendTargetType === "specific" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground")}
+                >
+                  Usuário Específico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSendTargetType("mass")}
+                  className={cn("flex-1 py-1.5 rounded-md font-medium transition-colors", sendTargetType === "mass" ? "bg-card shadow text-foreground" : "text-muted-foreground hover:text-foreground")}
+                >
+                  Disparo em Massa
+                </button>
+              </div>
+
+              {sendTargetType === "specific" ? (
+                <div className="space-y-3">
+                  <div className="relative">
+                    <label className="block text-muted-foreground font-medium mb-1">Buscar Usuários *</label>
+                    <div className="min-h-[38px] max-h-[120px] overflow-y-auto w-full p-1.5 rounded-lg border border-border bg-muted/50 flex flex-wrap gap-1.5 items-start content-start focus-within:ring-1 focus-within:ring-whatsapp-green transition-all">
+                      {selectedUsers.map((su, idx) => (
+                        <span key={idx} className="flex items-center gap-1 bg-whatsapp-teal/10 text-whatsapp-teal dark:text-whatsapp-green border border-whatsapp-teal/20 px-2 py-1 rounded text-[11px] font-semibold">
+                          <span className="truncate max-w-[120px]">{su.name}</span>
+                          <button
+                            type="button"
+                            onClick={() => setSelectedUsers(selectedUsers.filter((_, i) => i !== idx))}
+                            className="hover:text-red-500 transition-colors ml-0.5"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        type="text"
+                        value={searchUserQuery}
+                        onChange={(e) => setSearchUserQuery(e.target.value)}
+                        onFocus={() => {
+                          if (!searchUserQuery && searchResults.length === 0) {
+                            setSearchUserQuery(" ");
+                            setTimeout(() => setSearchUserQuery(""), 10);
+                          }
+                        }}
+                        onBlur={() => {
+                          // Aguarda um pouco para dar tempo de o clique no item registrar antes de fechar a lista
+                          setTimeout(() => setSearchResults([]), 200);
+                        }}
+                        placeholder={selectedUsers.length === 0 ? "Digite o nome ou e-mail para buscar..." : "Adicionar mais..."}
+                        className="flex-1 min-w-[140px] bg-transparent text-foreground focus:outline-none text-xs px-1 h-6 placeholder:text-muted-foreground/70"
+                      />
+                    </div>
+                    {searchResults.length > 0 && (
+                      <div className="absolute z-30 w-full mt-1 bg-card border border-border rounded-lg shadow-lg overflow-hidden flex flex-col">
+                        <div className="max-h-48 overflow-y-auto">
+                          {searchResults.map((user) => {
+                            const isAlreadySelected = selectedUsers.some(u => u.email === user.email);
+                            return (
+                              <button
+                                key={user.id}
+                                type="button"
+                                onClick={() => {
+                                  if (!isAlreadySelected) {
+                                    setSelectedUsers([...selectedUsers, { email: user.email, name: user.name, user_id: user.id }]);
+                                  }
+                                  setSearchUserQuery("");
+                                  setSearchResults([]);
+                                }}
+                                className={cn(
+                                  "w-full text-left px-3 py-2 transition-colors border-b border-border/50 last:border-0 flex flex-col items-start",
+                                  isAlreadySelected ? "bg-muted/30 opacity-60 hover:bg-muted/50" : "hover:bg-muted cursor-pointer"
+                                )}
+                              >
+                                <span className="font-semibold text-foreground text-[12px] leading-tight">
+                                  {user.name} {isAlreadySelected && <span className="text-[9px] font-normal text-muted-foreground ml-1">(Já adicionado - Clique para fechar)</span>}
+                                </span>
+                                <span className="text-muted-foreground text-[10px] truncate w-full">{user.email}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <div className="p-1 bg-muted/50 border-t border-border">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSearchUserQuery("");
+                              setSearchResults([]);
+                            }}
+                            className="w-full py-1.5 text-center text-[11px] font-bold text-muted-foreground hover:text-foreground transition-colors rounded hover:bg-muted"
+                          >
+                            Recolher Lista
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {searchUserQuery && searchUserQuery.trim() !== "" && searchResults.length === 0 && (
+                      <div className="absolute z-20 w-full mt-1 bg-card border border-border rounded-lg shadow-lg p-3 text-center text-[11px] text-muted-foreground">
+                        Nenhum usuário encontrado.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-muted-foreground font-medium mb-1">Público Alvo *</label>
+                    <select
+                      value={massTarget}
+                      onChange={(e) => setMassTarget(e.target.value as any)}
+                      className="w-full h-9 px-3 rounded-lg border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+                    >
+                      <option value="feconecta">Apenas FéConecta</option>
+                      <option value="fenamoro">Apenas FéNamoro</option>
+                      <option value="all">Todos (FéConecta + FéNamoro)</option>
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-muted-foreground font-medium mb-1">Segmentação (Tags) *</label>
+                    <select
+                      value={massSegment}
+                      onChange={(e) => setMassSegment(e.target.value as any)}
+                      className="w-full h-9 px-3 rounded-lg border border-border bg-muted/50 text-foreground focus:outline-none focus:ring-1 focus:ring-whatsapp-green"
+                    >
+                      <option value="all">Sem tag (Enviar para a base inteira)</option>
+                      <option value="new_users">Usuários Novos (Cadastrados há menos de 7 dias)</option>
+                      <option value="inactive_8d">Inativos (+8 dias sem acessar)</option>
+                      <option value="inactive_30d">Risco de Churn (+30 dias sem acessar)</option>
+                    </select>
+                  </div>
+
+                  <p className="text-[10px] text-muted-foreground mt-2">
+                    Aviso: O sistema fará a varredura aplicando os filtros selecionados e enviará em lotes. Permaneça na página até a conclusão.
+                  </p>
+                </div>
+              )}
+              
+              <div className="p-3 bg-muted/30 rounded-lg border border-border/50 text-[11px] space-y-1.5">
+                <span className="font-semibold block mb-1">Template Selecionado:</span>
+                {sendingTemplate ? (
+                  <span className="text-muted-foreground">{sendingTemplate.name || sendingTemplate.subject}</span>
+                ) : (
+                  <select
+                    className="w-full h-8 px-2 rounded border border-border bg-card text-foreground focus:outline-none"
+                    onChange={(e) => setSendingTemplate(templates.find(t => t.id === e.target.value) || null)}
+                    required
+                  >
+                    <option value="">-- Escolha um template --</option>
+                    {templates.filter(t => t.status === 'active' || t.status === 'scheduled').map(t => (
+                      <option key={t.id} value={t.id}>{t.name || t.subject}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {sendProgress.show && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[10px] font-medium">
+                    <span>Progresso:</span>
+                    <span>{sendProgress.current} / {sendProgress.total}</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-purple-600 transition-all duration-300"
+                      style={{ width: `${Math.max(5, (sendProgress.current / sendProgress.total) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-border">
+                <DialogPrimitive.Close asChild>
+                  <button
+                    type="button"
+                    disabled={isSending}
+                    className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted transition-colors font-medium disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                </DialogPrimitive.Close>
+                <button
+                  type="submit"
+                  disabled={isSending}
+                  className="px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold transition-colors disabled:opacity-50"
+                >
+                  {isSending ? "Enviando..." : "Enviar Agora"}
                 </button>
               </div>
             </form>

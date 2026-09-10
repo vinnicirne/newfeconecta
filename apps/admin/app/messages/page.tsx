@@ -125,10 +125,17 @@ function MessagesContent() {
   } : null);
 
   return (
-    <div className="fixed inset-0 z-[40] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 overflow-hidden w-full pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div 
+      className="fixed inset-0 z-[110] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 w-full"
+      style={{
+        height: '100dvh', // Usar dvh garante que o teclado e barras do navegador não cortem a tela
+        paddingTop: 'max(env(safe-area-inset-top), 24px)', // Fallback para status bar (bateria/relógio)
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
+    >
       {/* Sidebar - Lista de Conversas */}
       <div className={cn(
-        "w-full md:w-[350px] lg:w-[400px] border-r border-gray-200 dark:border-white/5 flex flex-col transition-all bg-white dark:bg-[#111b21]",
+        "w-full md:w-[350px] lg:w-[400px] border-r border-gray-200 dark:border-white/5 flex flex-col transition-all bg-white dark:bg-[#111b21] h-full",
         selectedId ? "hidden md:flex" : "flex"
       )}>
         {/* Header Sidebar */}
@@ -254,8 +261,8 @@ function MessagesContent() {
 
       {/* Main Chat Area */}
       <div className={cn(
-        "flex-1 flex flex-col bg-gray-50 dark:bg-[#0b141a] relative transition-colors",
-        !selectedId ? "hidden md:flex items-center justify-center italic text-gray-500" : "fixed inset-0 md:relative md:inset-auto z-[105] flex"
+        "flex-1 flex flex-col bg-gray-50 dark:bg-[#0b141a] relative transition-colors h-full overflow-hidden",
+        !selectedId ? "hidden md:flex items-center justify-center italic text-gray-500" : "flex w-full"
       )}>
         {!selectedId ? (
           <div className="text-center">
@@ -340,7 +347,7 @@ function MessagesContent() {
             </div>
 
             {/* Input Area */}
-            <div className="p-3 sm:p-4 bg-gray-50 dark:bg-[#202c33] border-t border-gray-200 dark:border-white/5 pb-6">
+            <div className="p-3 sm:p-4 bg-white dark:bg-[#202c33] border-t border-gray-200 dark:border-transparent mt-auto z-20">
                <input 
                  type="file" 
                  ref={fileInputRef} 
