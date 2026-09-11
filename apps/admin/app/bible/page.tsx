@@ -89,6 +89,8 @@ function BibleContent() {
     favoritesMap: favorites, 
     highlightsMap: highlights, 
     commentsMap: interactions, 
+    isChapterRead,
+    markChapterAsRead,
     updateInteraction 
   } = useBibleInteractions(authUser?.id || null, selectedBook, selectedChapter);
 
@@ -454,7 +456,33 @@ function BibleContent() {
               </div>
             );
           })}
+
+          {/* Botão de Marcar Capítulo como Lido */}
+          {!loading && verses.length > 0 && (
+            <div className="mt-12 flex justify-center pb-8">
+              <button
+                onClick={async () => {
+                  try {
+                    await markChapterAsRead();
+                    toast.success(isChapterRead ? "Leitura desmarcada" : "Capítulo marcado como lido! 🎉");
+                  } catch (e: any) {
+                    toast.error("Erro ao marcar leitura: " + e.message);
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-2 px-6 py-3 rounded-2xl font-bold transition-all shadow-sm active:scale-95",
+                  isChapterRead
+                    ? "bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-900/20 dark:border-emerald-800"
+                    : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 dark:bg-[#111] dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5"
+                )}
+              >
+                <CheckSquare className={cn("w-5 h-5", isChapterRead && "text-emerald-500 fill-emerald-100 dark:fill-emerald-900")} />
+                {isChapterRead ? "Capítulo Concluído" : "Marcar como Lido"}
+              </button>
+            </div>
+          )}
         </div>
+
 
         {/* Reprodutor de Áudio e Navegação de Capítulo Inferior */}
         {!loading && verses.length > 0 && (

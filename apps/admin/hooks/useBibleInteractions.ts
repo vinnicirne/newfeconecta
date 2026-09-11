@@ -65,12 +65,21 @@ export function useBibleInteractions(userId: string | null, book: string, chapte
     }
   };
 
+  const isChapterRead = interactions.some((i: any) => i.verse_number === 0 && i.comment === 'CHAPTER_READ');
+  
+  const markChapterAsRead = async () => {
+    const willRead = !isChapterRead;
+    await updateInteraction({ number: 0, text: 'Capítulo Concluído' }, { comment: willRead ? 'CHAPTER_READ' : null });
+  };
+
   return {
     favoritesMap,
     highlightsMap,
     commentsMap,
+    isChapterRead,
     isLoading: !data && !error,
     updateInteraction,
+    markChapterAsRead,
     refresh: mutate
   };
 }
