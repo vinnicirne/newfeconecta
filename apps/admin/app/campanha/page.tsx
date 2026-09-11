@@ -273,6 +273,7 @@ export default function PartnerDashboardPage() {
             columns={columns}
             data={filteredCampaigns}
             isLoading={isLoading}
+            getRowKey={(c) => c.id}
             emptyMessage={
               statusFilter === "todos"
                 ? "Você ainda não possui campanhas. Clique em 'Nova Campanha' para criar a primeira."

@@ -13,6 +13,7 @@ interface DataTableProps<T> {
   data: T[];
   isLoading?: boolean;
   emptyMessage?: string;
+  getRowKey?: (row: T, index: number) => string | number;
   pagination?: {
     currentPage: number;
     totalPages: number;
@@ -25,6 +26,7 @@ export function DataTable<T>({
   data,
   isLoading = false,
   emptyMessage = "Nenhum registro encontrado.",
+  getRowKey,
   pagination,
 }: DataTableProps<T>) {
   if (isLoading) {
@@ -67,7 +69,7 @@ export function DataTable<T>({
             ) : (
               data.map((row, rowIdx) => (
                 <tr
-                  key={rowIdx}
+                  key={getRowKey ? getRowKey(row, rowIdx) : rowIdx}
                   className="hover:bg-white/[0.02] transition-colors"
                 >
                   {columns.map((col, colIdx) => (
