@@ -191,11 +191,11 @@ export const NotificationService = {
       }
 
       // 1. Conta o total de usuários na rede
-      const { count, error: countErr } = await supabase
+      const { count: rawCount, error: countErr } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true });
 
-      if (countErr || count === null) return;
+      const count = rawCount || 0;
 
       let recipients: string[] = [];
 

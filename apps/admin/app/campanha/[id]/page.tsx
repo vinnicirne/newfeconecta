@@ -35,6 +35,7 @@ export default function CampaignDetailPage() {
   const [isPixelModalOpen, setIsPixelModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [isChangingStatus, setIsChangingStatus] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [editNome, setEditNome] = useState("");
@@ -167,6 +168,41 @@ export default function CampaignDetailPage() {
     }
   }
 
+  // Alterar status da campanha (pausar / reativar / encerrar)
+  async function handleStatusChange(newStatus: "pausado" | "ativa" | "encerrado") {
+    if (!campaign) return;
+
+    const labels: Record<string, string> = {
+      pausado: "pausar",
+      ativa: "reativar",
+      encerrado: "encerrar",
+    };
+    const confirmed = window.confirm(
+      `Deseja realmente ${labels[newStatus]} a campanha "${campaign.nome}"?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsChangingStatus(true);
+      const updated = await adsApiFetch<Campaign>(`/api/campaigns/${campaign.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setCampaign(updated);
+      toast.success(
+        newStatus === "pausado"
+          ? "Campanha pausada com sucesso."
+          : newStatus === "encerrado"
+          ? "Campanha encerrada com sucesso."
+          : "Campanha reativada com sucesso."
+      );
+    } catch (err: any) {
+      toast.error("Erro ao alterar status da campanha", { description: err.message });
+    } finally {
+      setIsChangingStatus(false);
+    }
+  }
+
   // Salvar todas as alterações da campanha
   async function handleSaveCampaign() {
     if (!campaign) return;
@@ -258,7 +294,7 @@ export default function CampaignDetailPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => setIsPixelModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 text-zinc-200 text-xs font-semibold transition-all shadow-md"
@@ -267,12 +303,48 @@ export default function CampaignDetailPage() {
               <span>Pixel & Rastreamento</span>
             </button>
 
+            {/* Pausar – visível somente quando ativa */}
+            {campaign.status === "ativa" && (
+              <button
+                onClick={() => handleStatusChange("pausado")}
+                disabled={isChangingStatus}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 text-xs font-bold transition-all shadow-md disabled:opacity-50"
+              >
+                <Pause className="w-3.5 h-3.5" />
+                <span>{isChangingStatus ? "Aguarde..." : "Pausar"}</span>
+              </button>
+            )}
+
+            {/* Reativar – visível somente quando pausada */}
+            {campaign.status === "pausado" && (
+              <button
+                onClick={() => handleStatusChange("ativa")}
+                disabled={isChangingStatus}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition-all shadow-md disabled:opacity-50"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>{isChangingStatus ? "Aguarde..." : "Reativar"}</span>
+              </button>
+            )}
+
+            {/* Encerrar – visível quando ativa ou pausada */}
+            {(campaign.status === "ativa" || campaign.status === "pausado") && (
+              <button
+                onClick={() => handleStatusChange("encerrado")}
+                disabled={isChangingStatus}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold transition-all shadow-md disabled:opacity-50"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>{isChangingStatus ? "Aguarde..." : "Encerrar"}</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsEditModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold transition-all shadow-md shadow-emerald-950/20"
             >
               <Edit3 className="w-3.5 h-3.5" />
-              <span>Editar Campanha Completa</span>
+              <span>Editar Campanha</span>
             </button>
           </div>
         </div>

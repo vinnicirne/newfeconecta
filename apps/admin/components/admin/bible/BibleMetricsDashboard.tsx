@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { BookOpen, Users, MessageSquare, Heart, Highlighter, Activity, Trophy, Clock, Search, Book } from "lucide-react";
+import { BookOpen, Users, MessageSquare, Heart, Highlighter, Activity, Trophy, Clock, Search, Book, Check } from "lucide-react";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
 import { cn } from "@/lib/utils";
 import moment from "moment";
@@ -199,7 +199,7 @@ export default function BibleMetricsDashboard() {
                   <div className="h-2 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
                     <div 
                       className="h-full bg-whatsapp-teal rounded-full" 
-                      style={{ width: \`\${Math.max(10, (book.count / (metrics.topBooks[0]?.count || 1)) * 100)}%\` }}
+                      style={{ width: `${Math.max(10, (book.count / (metrics.topBooks[0]?.count || 1)) * 100)}%` }}
                     />
                   </div>
                 </div>
@@ -275,7 +275,7 @@ export default function BibleMetricsDashboard() {
                   <td className="py-3 pl-2">
                     <div className="flex items-center gap-3">
                       <img 
-                        src={item.user?.avatar_url || \`https://ui-avatars.com/api/?name=\${item.user?.full_name || 'U'}&background=random\`}
+                        src={item.user?.avatar_url || `https://ui-avatars.com/api/?name=${item.user?.full_name || 'U'}&background=random`}
                         className="w-8 h-8 rounded-full border border-border object-cover"
                         alt=""
                       />

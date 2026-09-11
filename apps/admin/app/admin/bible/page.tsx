@@ -5,7 +5,7 @@ import Link from "next/link";
 import { 
   BookOpen, Sparkles, Search, RefreshCw, Check, 
   Share2, Heart, Highlighter, FileText, ArrowUpRight,
-  MessageSquare, Send, CheckCircle2, Wand2, Eye, EyeOff, Flame
+  MessageSquare, Send, CheckCircle2, Wand2, Eye, EyeOff, Flame, Activity
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";

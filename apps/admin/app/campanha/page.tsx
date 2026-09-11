@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { PlusCircle, Wallet, TrendingUp, Megaphone, Eye, ArrowUpRight } from "lucide-react";
+import { PlusCircle, Wallet, TrendingUp, Megaphone, Eye, ArrowUpRight, Pause, Play, X } from "lucide-react";
 import { PartnerNavbar } from "@/components/ads/PartnerNavbar";
 import { KpiCard } from "@/components/ads/KpiCard";
 import { StatusBadge } from "@/components/ads/StatusBadge";
@@ -19,6 +19,7 @@ export default function PartnerDashboardPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
+  const [changingStatusId, setChangingStatusId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -62,6 +63,31 @@ export default function PartnerDashboardPage() {
     return c.status === statusFilter;
   });
 
+  async function handleStatusChange(campaignId: string, nome: string, newStatus: "pausado" | "ativa" | "encerrado") {
+    const labels: Record<string, string> = { pausado: "pausar", ativa: "reativar", encerrado: "encerrar" };
+    const confirmed = window.confirm(`Deseja realmente ${labels[newStatus]} a campanha "${nome}"?`);
+    if (!confirmed) return;
+
+    try {
+      setChangingStatusId(campaignId);
+      await adsApiFetch<Campaign>(`/api/campaigns/${campaignId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setCampaigns((prev) =>
+        prev.map((c) => (c.id === campaignId ? { ...c, status: newStatus as any } : c))
+      );
+      toast.success(
+        newStatus === "pausado" ? "Campanha pausada." :
+        newStatus === "encerrado" ? "Campanha encerrada." : "Campanha reativada."
+      );
+    } catch (err: any) {
+      toast.error("Erro ao alterar status", { description: err.message });
+    } finally {
+      setChangingStatusId(null);
+    }
+  }
+
   const columns: Column<Campaign>[] = [
     {
       header: "Campanha",
@@ -96,15 +122,56 @@ export default function PartnerDashboardPage() {
     {
       header: "Ações",
       className: "text-right",
-      cell: (c) => (
-        <Link
-          href={`/campanha/${c.id}`}
-          className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
-        >
-          <span>Ver Detalhes</span>
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </Link>
-      ),
+      cell: (c) => {
+        const isChanging = changingStatusId === c.id;
+        return (
+          <div className="flex items-center justify-end gap-1.5">
+            {/* Pausar – apenas ativa */}
+            {c.status === "ativa" && (
+              <button
+                onClick={() => handleStatusChange(c.id, c.nome, "pausado")}
+                disabled={isChanging}
+                title="Pausar campanha"
+                className="p-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 transition-colors disabled:opacity-40"
+              >
+                <Pause className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {/* Reativar – apenas pausada */}
+            {c.status === "pausado" && (
+              <button
+                onClick={() => handleStatusChange(c.id, c.nome, "ativa")}
+                disabled={isChanging}
+                title="Reativar campanha"
+                className="p-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 transition-colors disabled:opacity-40"
+              >
+                <Play className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            {/* Encerrar – apenas ativa ou pausada */}
+            {(c.status === "ativa" || c.status === "pausado") && (
+              <button
+                onClick={() => handleStatusChange(c.id, c.nome, "encerrado")}
+                disabled={isChanging}
+                title="Encerrar campanha"
+                className="p-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors disabled:opacity-40"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+
+            <Link
+              href={`/campanha/${c.id}`}
+              className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/5 hover:text-white transition-colors"
+            >
+              <span>Ver</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        );
+      },
     },
   ];
 

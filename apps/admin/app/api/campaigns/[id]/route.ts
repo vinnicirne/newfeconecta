@@ -57,6 +57,17 @@ export async function PATCH(
       return NextResponse.json({ error: "Campanha não encontrada" }, { status: 404 });
     }
 
+    // ── Mudança de status (pausar / reativar / encerrar) ──
+    if (body.status !== undefined) {
+      const updated = await service.updateStatus(
+        params.id,
+        campaign.status,
+        body.status
+      );
+      return NextResponse.json(updated);
+    }
+
+    // ── Edição de campos da campanha ──
     const { 
       nome, 
       texto, 
