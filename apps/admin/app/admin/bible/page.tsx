@@ -384,6 +384,7 @@ export default function AdminBiblePage() {
         <BibleMetricsDashboard />
       ) : (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
+
       {/* ─── CONTROLES DE EXIBIÇÃO NO FEED (ATIVAR / DESATIVAR PALAVRA DO DIA & FÉNAMORO) ─── */}
       <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
         <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
@@ -877,7 +878,8 @@ export default function AdminBiblePage() {
             </div>
           </div>
         </div>
-        </div>
+      </div>
+      </div>
       )}
     </div>
   );
