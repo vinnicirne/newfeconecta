@@ -246,7 +246,8 @@ export default function RoomsListPage() {
           currentUser.id, 
           'new_room', 
           data.id, 
-          `${authorName} abriu uma nova Sala de Guerra: ${newRoomName}`
+          `${authorName} abriu uma nova Sala de Guerra: ${newRoomName}`,
+          true // FORCE BROADCAST: Salas públicas devem notificar toda a rede independentemente do número de usuários
         ).catch(console.error);
       }
 
