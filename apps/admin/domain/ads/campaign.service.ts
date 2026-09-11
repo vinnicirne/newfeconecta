@@ -348,6 +348,13 @@ export class CampaignService {
       throw new Error(`[CampaignService] Erro ao atualizar status: ${error?.message}`);
     }
 
+    // Invalida o cache de serving sempre que o status mudar
+    // (garante que campanhas pausadas/encerradas param de ser servidas imediatamente)
+    try {
+      const { AdServingService } = await import("./ad-serving.service");
+      AdServingService.clearCache();
+    } catch {}
+
     return data as Campaign;
   }
 }

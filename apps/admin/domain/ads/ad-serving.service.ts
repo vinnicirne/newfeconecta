@@ -79,10 +79,10 @@ export class AdServingService {
       return formatMatch && budgetOk && dateOk;
     });
 
-    // Salva no cache por 10s
+    // Cache simples em memória (TTL: 5s)
     servingCache.set(cacheKey, {
       data: eligible,
-      expiresAt: now + 10 * 1000,
+      expiresAt: now + 5 * 1000,
     });
 
     return eligible;
