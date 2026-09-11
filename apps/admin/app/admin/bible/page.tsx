@@ -384,8 +384,99 @@ export default function AdminBiblePage() {
         <BibleMetricsDashboard />
       ) : (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-          {/* ─── 4 CARDS DE MÉTRICAS REAIS DO SUPABASE (ZERO MOCKS) ─── */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* ─── CONTROLES DE EXIBIÇÃO NO FEED (ATIVAR / DESATIVAR PALAVRA DO DIA & FÉNAMORO) ─── */}
+      <div className="rounded-xl border border-border bg-card shadow-sm p-4 space-y-3">
+        <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+          <div>
+            <h2 className="text-xs font-bold uppercase tracking-wider text-foreground">
+              Controles de Visibilidade no Feed da Comunidade
+            </h2>
+            <p className="text-[11px] text-muted-foreground">
+              Ative ou desative os cards no topo do feed dos membros em tempo real.
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-whatsapp-teal dark:text-whatsapp-green bg-whatsapp-teal/10 px-2 py-0.5 rounded">
+            Tempo Real (WebSocket)
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+          {/* Toggle: Palavra do Dia no Feed */}
+          <div
+            onClick={() => handleToggleFeedControl("show_daily_verse")}
+            className={cn(
+              "flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none",
+              feedControls.show_daily_verse 
+                ? "bg-amber-500/5 border-amber-500/30 hover:bg-amber-500/10" 
+                : "bg-muted/20 border-border opacity-70 hover:opacity-100"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-lg",
+                feedControls.show_daily_verse ? "bg-amber-500/10 text-amber-500" : "bg-muted text-muted-foreground"
+              )}>
+                {feedControls.show_daily_verse ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Palavra do Dia no Feed</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {feedControls.show_daily_verse ? "Visível no topo do feed dos membros" : "Ocultado do feed de todos os usuários"}
+                </p>
+              </div>
+            </div>
+
+            <span className={cn(
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
+              feedControls.show_daily_verse ? "bg-amber-500" : "bg-muted-foreground/30"
+            )}>
+              <span className={cn(
+                "inline-block size-3.5 rounded-full bg-white transition-transform",
+                feedControls.show_daily_verse ? "translate-x-4" : "translate-x-1"
+              )} />
+            </span>
+          </div>
+
+          {/* Toggle: Card FéNamoro no Feed */}
+          <div
+            onClick={() => handleToggleFeedControl("show_fenamoro_banner")}
+            className={cn(
+              "flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer select-none",
+              feedControls.show_fenamoro_banner 
+                ? "bg-pink-500/5 border-pink-500/30 hover:bg-pink-500/10" 
+                : "bg-muted/20 border-border opacity-70 hover:opacity-100"
+            )}
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "p-2 rounded-lg",
+                feedControls.show_fenamoro_banner ? "bg-pink-500/10 text-pink-500" : "bg-muted text-muted-foreground"
+              )}>
+                <Heart className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-foreground">Card Promocional FéNamoro</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {feedControls.show_fenamoro_banner ? "Banner ativo no feed e no menu" : "Card e link ocultados de toda a rede"}
+                </p>
+              </div>
+            </div>
+
+            <span className={cn(
+              "relative inline-flex h-5 w-9 items-center rounded-full transition-colors shrink-0",
+              feedControls.show_fenamoro_banner ? "bg-pink-500" : "bg-muted-foreground/30"
+            )}>
+              <span className={cn(
+                "inline-block size-3.5 rounded-full bg-white transition-transform",
+                feedControls.show_fenamoro_banner ? "translate-x-4" : "translate-x-1"
+              )} />
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 4 CARDS DE MÉTRICAS REAIS DO SUPABASE (ZERO MOCKS) ─── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Favoritados */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm relative overflow-hidden group hover:border-amber-500/40 transition-all">
           <div className="flex items-center justify-between">
@@ -786,7 +877,7 @@ export default function AdminBiblePage() {
             </div>
           </div>
         </div>
-      </div>
+        </div>
       )}
     </div>
   );
