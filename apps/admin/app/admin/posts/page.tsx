@@ -203,22 +203,28 @@ export default function AdminPostsPage() {
     try {
       const targetPost = posts.find((p) => p.id === id) || previewPost;
 
-      // Se houver media_url do Supabase Storage, tenta apagar o arquivo fisicamente no Bucket
+      // Se houver media_url do Supabase Storage, remove o arquivo fisicamente do Bucket
       if (targetPost?.media_url) {
         try {
           const urlObj = new URL(targetPost.media_url);
           const pathParts = urlObj.pathname.split("/object/public/");
           if (pathParts.length > 1) {
-            const fullPath = pathParts[1];
+            const fullPath = pathParts[1]; // ex: "posts/videos/user_123.mp4"
             const firstSlashIdx = fullPath.indexOf("/");
             if (firstSlashIdx !== -1) {
               const bucketName = fullPath.substring(0, firstSlashIdx);
-              const filePath = fullPath.substring(firstSlashIdx + 1);
-              await supabase.storage.from(bucketName).remove([filePath]);
+              const filePath = decodeURIComponent(fullPath.substring(firstSlashIdx + 1));
+              
+              if (bucketName && filePath) {
+                const { error: storageRemoveErr } = await supabase.storage.from(bucketName).remove([filePath]);
+                if (storageRemoveErr) {
+                  console.warn("[deletePost] Erro ao remover mídia do storage:", storageRemoveErr.message);
+                }
+              }
             }
           }
         } catch (storageErr) {
-          console.warn("[deletePost] Erro ao remover mídia do storage:", storageErr);
+          console.warn("[deletePost] Falha ao processar URL de mídia:", storageErr);
         }
       }
 
