@@ -1,10 +1,10 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
-import { CalendarDays, Plus, List, Calendar, User } from "lucide-react";
+import { CalendarDays, Plus, List, Calendar, User, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 import moment from "moment";
 import "moment/locale/pt-br";
@@ -117,11 +117,20 @@ export default function EventosPage() {
         {/* Header */}
         <div className="relative mb-8 p-8 rounded-[32px] bg-gradient-to-br from-whatsapp-teal to-emerald-600 overflow-hidden shadow-2xl shadow-whatsapp-teal/20">
           <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-black text-white mb-1 flex items-center gap-3">
-                <CalendarDays className="w-8 h-8" /> Eventos
-              </h1>
-              <p className="text-white/80 font-medium text-sm">Encontros, cultos e confraternizacoes</p>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/"
+                className="p-2.5 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white transition-all active:scale-95 border border-white/20"
+                title="Voltar para o Feed"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Link>
+              <div>
+                <h1 className="text-3xl font-black text-white mb-1 flex items-center gap-3">
+                  <CalendarDays className="w-8 h-8" /> Eventos
+                </h1>
+                <p className="text-white/80 font-medium text-sm">Encontros, cultos e confraternizacoes</p>
+              </div>
             </div>
             <Link
               href="/eventos/criar"
