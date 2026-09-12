@@ -750,8 +750,8 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
     { id: 'gallery', icon: ImageIcon, label: 'Galeria' },
   ];
 
-  // isMediaMode only applies to photo/video (full-screen camera UI), NOT audio
-  const isMediaMode = (mode === 'photo' || mode === 'video') && !captured;
+  // isMediaMode applies to photo/video camera mode AND when photo/video media has been captured (full-screen preview)
+  const isMediaMode = ((mode === 'photo' || mode === 'video') && !captured) || (captured && (captured.type === 'photo' || captured.type === 'video'));
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
