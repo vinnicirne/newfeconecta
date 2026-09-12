@@ -54,6 +54,7 @@ export default function AdminPostsPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [page, setPage] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  const [mediaSizes, setMediaSizes] = useState<Record<string, string>>({});
   const PAGE_SIZE = 12;
 
   // Modal de Detalhes do Post
@@ -167,6 +168,24 @@ export default function AdminPostsPage() {
       });
 
       setPosts(formattedPosts as any);
+
+      // Fetch file sizes for posts with media in background
+      formattedPosts.forEach(async (p) => {
+        if (p.media_url) {
+          try {
+            const res = await fetch(p.media_url, { method: "HEAD" });
+            const len = res.headers.get("content-length");
+            if (len) {
+              const bytes = parseInt(len, 10);
+              const mb = (bytes / (1024 * 1024)).toFixed(2);
+              const formattedSize = bytes > 1024 * 1024 ? `${mb} MB` : `${(bytes / 1024).toFixed(1)} KB`;
+              setMediaSizes((prev) => ({ ...prev, [p.id]: formattedSize }));
+            }
+          } catch {
+            // Ignora erro de cors ou network no HEAD
+          }
+        }
+      });
     } catch (err: any) {
       console.error("[Posts] Erro ao buscar publicações:", err);
       toast.error("Erro ao carregar publicações: " + (err.message || "Erro de conexão"));
@@ -176,12 +195,33 @@ export default function AdminPostsPage() {
   };
 
   const deletePost = async (id: string) => {
-    if (!confirm("TEM CERTEZA? Deseja excluir permanentemente este post? Esta ação removerá a publicação e suas curtidas.")) {
+    if (!confirm("TEM CERTEZA? Deseja excluir permanentemente este post? Esta ação removerá a publicação, o arquivo do Storage e suas curtidas.")) {
       return;
     }
 
-    const toastId = toast.loading("Excluindo publicação...");
+    const toastId = toast.loading("Excluindo publicação e arquivo de mídia...");
     try {
+      const targetPost = posts.find((p) => p.id === id) || previewPost;
+
+      // Se houver media_url do Supabase Storage, tenta apagar o arquivo fisicamente no Bucket
+      if (targetPost?.media_url) {
+        try {
+          const urlObj = new URL(targetPost.media_url);
+          const pathParts = urlObj.pathname.split("/object/public/");
+          if (pathParts.length > 1) {
+            const fullPath = pathParts[1];
+            const firstSlashIdx = fullPath.indexOf("/");
+            if (firstSlashIdx !== -1) {
+              const bucketName = fullPath.substring(0, firstSlashIdx);
+              const filePath = fullPath.substring(firstSlashIdx + 1);
+              await supabase.storage.from(bucketName).remove([filePath]);
+            }
+          }
+        } catch (storageErr) {
+          console.warn("[deletePost] Erro ao remover mídia do storage:", storageErr);
+        }
+      }
+
       const { error } = await supabase
         .from("posts")
         .delete()
@@ -192,7 +232,7 @@ export default function AdminPostsPage() {
       setPosts((prev) => prev.filter((p) => p.id !== id));
       setTotalCount((prev) => Math.max(0, prev - 1));
       if (previewPost?.id === id) setPreviewPost(null);
-      toast.success("Publicação removida com sucesso!", { id: toastId });
+      toast.success("Publicação e arquivo de mídia removidos com sucesso!", { id: toastId });
       fetchStats();
     } catch (err: any) {
       toast.error("Erro ao deletar post: " + err.message, { id: toastId });
@@ -439,21 +479,28 @@ export default function AdminPostsPage() {
                         </div>
                       </td>
 
-                      {/* Tipo */}
+                      {/* Tipo e Tamanho */}
                       <td className="px-5 py-3.5 text-center">
-                        {post.post_type === "video" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                            <Play className="h-2.5 w-2.5 fill-current" /> Vídeo
-                          </span>
-                        ) : post.post_type === "image" ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
-                            <ImageIcon className="h-2.5 w-2.5" /> Imagem
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-muted text-muted-foreground border border-border">
-                            <Type className="h-2.5 w-2.5" /> Texto
-                          </span>
-                        )}
+                        <div className="flex flex-col items-center gap-1">
+                          {post.post_type === "video" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                              <Play className="h-2.5 w-2.5 fill-current" /> Vídeo
+                            </span>
+                          ) : post.post_type === "image" ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20">
+                              <ImageIcon className="h-2.5 w-2.5" /> Imagem
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              <Type className="h-2.5 w-2.5" /> Texto
+                            </span>
+                          )}
+                          {post.media_url && (
+                            <span className="text-[10px] font-mono font-medium text-muted-foreground">
+                              {mediaSizes[post.id] || "Buscando..."}
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Data */}
@@ -631,6 +678,15 @@ export default function AdminPostsPage() {
                         {Array.isArray(previewPost.likes) ? previewPost.likes.length : (previewPost.likes || 0)} likes
                       </span>
                     </div>
+
+                    {previewPost.media_url && (
+                      <div className="flex items-center justify-between text-[11px] font-mono bg-muted/50 p-2 rounded-lg border border-border">
+                        <span className="text-muted-foreground">Tamanho do Arquivo:</span>
+                        <span className="font-bold text-foreground">
+                          {mediaSizes[previewPost.id] || "Calculando..."}
+                        </span>
+                      </div>
+                    )}
 
                     <button
                       onClick={() => deletePost(previewPost.id)}
