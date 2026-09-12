@@ -1,9 +1,9 @@
-﻿"use client";
+"use client";
 
-import { useState, useRef, ChangeEvent, FormEvent } from "react";
+import { useState, useEffect, useRef, ChangeEvent, FormEvent } from "react";
 import { supabase } from "@/lib/supabase";
 import { compressImage } from "@/lib/image-compression";
-import { Globe, Lock, ImagePlus, Loader2 } from "lucide-react";
+import { Globe, Lock, ImagePlus, Loader2, Church, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import type { CreateEventDto } from "@/domain/events/types";
@@ -17,6 +17,9 @@ interface EventFormProps {
 export default function EventForm({ initialData, onSubmit, isSaving }: EventFormProps) {
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
+  const [churchId, setChurchId] = useState<string>(initialData?.church_id ?? "");
+  const [userChurches, setUserChurches] = useState<any[]>([]);
+  const [loadingChurches, setLoadingChurches] = useState(true);
   const [startsAt, setStartsAt] = useState(initialData?.starts_at ?? "");
   const [endsAt, setEndsAt] = useState(initialData?.ends_at ?? "");
   const [location, setLocation] = useState(initialData?.location ?? "");
@@ -26,6 +29,30 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
   const [coverPreview, setCoverPreview] = useState(initialData?.cover_url ?? "");
   const [uploadingCover, setUploadingCover] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    async function loadUserChurches() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: memberEntries } = await supabase
+          .from("church_members")
+          .select("church_id, churches:church_id(id, name, slug, logo_url)")
+          .eq("user_id", user.id);
+
+        if (memberEntries) {
+          const churches = memberEntries.map((m: any) => m.churches).filter(Boolean);
+          setUserChurches(churches);
+        }
+      } catch (err) {
+        console.error("Erro ao carregar igrejas do usuario:", err);
+      } finally {
+        setLoadingChurches(false);
+      }
+    }
+    loadUserChurches();
+  }, []);
 
   async function handleCoverChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -57,6 +84,7 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
+      church_id: churchId || undefined,
       cover_url: coverUrl || undefined,
       location: location.trim() || undefined,
       online_link: onlineLink.trim() || undefined,
@@ -107,6 +135,29 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
           className="hidden"
           onChange={handleCoverChange}
         />
+      </div>
+
+      {/* Promovido por (Igreja / Perfil Pessoal) */}
+      <div>
+        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
+          <Church className="w-3.5 h-3.5 text-indigo-400" /> Promovido por
+        </label>
+        <select
+          value={churchId}
+          onChange={(e) => setChurchId(e.target.value)}
+          className={inputClass}
+          disabled={loadingChurches}
+        >
+          <option value="">👤 Perfil Pessoal</option>
+          {userChurches.map((c) => (
+            <option key={c.id} value={c.id}>
+              ⛪ {c.name}
+            </option>
+          ))}
+        </select>
+        <p className="text-[11px] text-gray-400 mt-1">
+          Ao marcar uma Igreja, o evento será publicado automaticamente no feed da comunidade.
+        </p>
       </div>
 
       {/* Visibilidade */}

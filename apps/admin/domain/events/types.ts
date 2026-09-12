@@ -1,8 +1,9 @@
-﻿export type RSVPStatus = 'going' | 'maybe' | 'not_going';
+export type RSVPStatus = 'going' | 'maybe' | 'not_going';
 
 export interface FeEvent {
   id: string;
   author_id: string;
+  church_id?: string | null;
   title: string;
   description: string | null;
   cover_url: string | null;
@@ -15,6 +16,7 @@ export interface FeEvent {
   updated_at: string;
   // joins opcionais
   profiles?: { full_name: string; avatar_url: string | null; username: string };
+  churches?: { id: string; name: string; slug: string; logo_url: string | null } | null;
   attendees_count?: number;
   my_rsvp?: RSVPStatus | null;
 }
@@ -31,6 +33,7 @@ export interface EventAttendee {
 export interface CreateEventDto {
   title: string;
   description?: string;
+  church_id?: string | null;
   cover_url?: string;
   location?: string;
   online_link?: string;
@@ -42,6 +45,7 @@ export interface CreateEventDto {
 export interface UpdateEventDto {
   title?: string;
   description?: string;
+  church_id?: string | null;
   cover_url?: string;
   location?: string;
   online_link?: string;

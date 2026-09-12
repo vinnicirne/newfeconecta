@@ -1,4 +1,4 @@
-﻿// =============================================================================
+// =============================================================================
 // FeConecta - Dominio Eventos
 // EventService - CRUD de eventos + RSVP
 //
@@ -96,6 +96,7 @@ export class EventService {
       .from("events")
       .insert({
         author_id: authorId,
+        church_id: dto.church_id ?? null,
         title: dto.title,
         description: dto.description ?? null,
         cover_url: dto.cover_url ?? null,
@@ -105,20 +106,46 @@ export class EventService {
         ends_at: dto.ends_at ?? null,
         is_public: dto.is_public,
       })
-      .select("*")
+      .select("*, profiles:author_id ( full_name, avatar_url, username ), churches:church_id ( id, name, slug, logo_url )")
       .single();
 
     if (error) throw new Error(error.message);
-    return data as FeEvent;
+
+    // Se promovido por uma Igreja, publica automaticamente no feed da Igreja
+    if (dto.church_id) {
+      try {
+        await this.db.from("church_posts").insert({
+          church_id: dto.church_id,
+          author_id: authorId,
+          content: `📅 **Novo Evento Anunciado!**\n\n**${dto.title}**\n${dto.description || ""}`,
+          media_url: dto.cover_url || null,
+        });
+      } catch (postErr) {
+        console.error("Erro ao criar post automatico da igreja para o evento:", postErr);
+      }
+    }
+
+    // Processa menções de usuários (@username) na descrição do evento
+    if (dto.description) {
+      try {
+        const { NotificationService } = await import("@/lib/notifications");
+        await NotificationService.parseMentions(dto.description, authorId);
+      } catch (mentionErr) {
+        console.error("Erro ao notificar mencoes de evento:", mentionErr);
+      }
+    }
+
+    return data as unknown as FeEvent;
   }
 
   async listEvents(filters?: {
     is_public?: boolean;
     author_id?: string;
+    church_id?: string;
   }): Promise<FeEvent[]> {
     let query = this.db
       .from("events")
-      .select("*, profiles:author_id ( full_name, avatar_url, username )")
+      .select("*, profiles:author_id ( full_name, avatar_url, username ), churches:church_id ( id, name, slug, logo_url )")
       .order("starts_at", { ascending: true });
 
     if (filters?.is_public !== undefined) {
@@ -126,6 +153,9 @@ export class EventService {
     }
     if (filters?.author_id) {
       query = query.eq("author_id", filters.author_id);
+    }
+    if (filters?.church_id) {
+      query = query.eq("church_id", filters.church_id);
     }
 
     const { data, error } = await query;
@@ -136,7 +166,7 @@ export class EventService {
   async getEventById(id: string): Promise<FeEvent | null> {
     const { data, error } = await this.db
       .from("events")
-      .select("*, profiles:author_id ( full_name, avatar_url, username )")
+      .select("*, profiles:author_id ( full_name, avatar_url, username ), churches:church_id ( id, name, slug, logo_url )")
       .eq("id", id)
       .maybeSingle();
 

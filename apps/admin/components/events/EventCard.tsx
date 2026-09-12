@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import moment from "moment";
@@ -88,6 +88,17 @@ export default function EventCard({ event, currentUserId, onRSVP }: EventCardPro
 
       {/* Conteúdo */}
       <div className="p-4 flex flex-col gap-2 flex-1">
+        {/* Promotor / Criador */}
+        {event.churches ? (
+          <span className="text-[10px] font-bold text-indigo-500 flex items-center gap-1">
+            ⛪ {event.churches.name}
+          </span>
+        ) : (
+          <span className="text-[10px] font-bold text-gray-400 flex items-center gap-1">
+            👤 Por @{event.profiles?.username || "usuario"}
+          </span>
+        )}
+
         <h3 className="font-bold text-sm text-gray-900 dark:text-white line-clamp-2 leading-snug">
           {event.title}
         </h3>

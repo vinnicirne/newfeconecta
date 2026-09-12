@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -210,6 +210,45 @@ export default function EventDetailPage() {
               <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold border border-amber-200 dark:border-amber-500/20 whitespace-nowrap">
                 <Lock className="w-3 h-3" /> Privado
               </span>
+            )}
+          </div>
+
+          {/* Promotor / Criador */}
+          <div className="flex items-center gap-3 p-3 bg-white dark:bg-whatsapp-darkLighter rounded-2xl border border-gray-100 dark:border-white/10">
+            {event.churches ? (
+              <Link href={`/igreja/${event.churches.slug}`} className="flex items-center gap-2 group">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 font-bold overflow-hidden shrink-0">
+                  {event.churches.logo_url ? (
+                    <img src={event.churches.logo_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    "⛪"
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:underline truncate">
+                    Promovido por {event.churches.name}
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Criado por @{event.profiles?.username || "usuario"}
+                  </span>
+                </div>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-whatsapp-teal/10 flex items-center justify-center text-whatsapp-teal font-bold overflow-hidden shrink-0">
+                  {event.profiles?.avatar_url ? (
+                    <img src={event.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    "👤"
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+                    Organizado por {event.profiles?.full_name || `@${event.profiles?.username}`}
+                  </span>
+                  <span className="text-[10px] text-gray-400">Evento Pessoal</span>
+                </div>
+              </div>
             )}
           </div>
 

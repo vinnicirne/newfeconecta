@@ -34,6 +34,7 @@ export async function POST(request: Request) {
     const newEvent = await service.createEvent(user.id, {
       title: body.title,
       description: body.description,
+      church_id: body.church_id,
       cover_url: body.cover_url,
       location: body.location,
       online_link: body.online_link,

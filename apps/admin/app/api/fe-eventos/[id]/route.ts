@@ -10,10 +10,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = await requireAuth(request).catch(() => null);
     const service = new EventService();
 
-    const event = await service.getEventById(params.id, user?.id);
+    const event = await service.getEventById(params.id);
     return NextResponse.json(event);
   } catch (error) {
     return handleApiError(error, `GET /api/fe-eventos/${params.id}`);
@@ -32,6 +31,9 @@ export async function PATCH(
 
     const service = new EventService();
     const existing = await service.getEventById(params.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
+    }
 
     if (existing.author_id !== user.id) {
       return NextResponse.json(
@@ -61,6 +63,9 @@ export async function DELETE(
 
     const service = new EventService();
     const existing = await service.getEventById(params.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
+    }
 
     if (existing.author_id !== user.id) {
       return NextResponse.json(
