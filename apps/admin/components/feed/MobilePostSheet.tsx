@@ -105,8 +105,9 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
     if (!file) return;
 
     // Engatilha o composer já com o arquivo
+    const isVideo = file.type.startsWith('video/');
     setSelectedFile(file);
-    setInitialMode('photo');
+    setInitialMode(isVideo ? 'video' : 'photo');
     setComposerOpen(true);
   };
 
@@ -153,6 +154,7 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
             type="file" 
             ref={fileInputRef} 
             className="hidden" 
+            accept="image/*,video/*"
             onChange={(e) => handleFileChange(e, 'gallery')}
           />
           <input 
