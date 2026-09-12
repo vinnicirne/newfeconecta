@@ -46,7 +46,6 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
         // Fallback: imagem ainda não carregou — aguarda
         await new Promise<void>((res) => {
           const tmpImg = new Image();
-          tmpImg.crossOrigin = 'anonymous';
           tmpImg.onload = () => res();
           tmpImg.onerror = () => res();
           tmpImg.src = captured.url;
@@ -116,7 +115,6 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
             alt="Captura" 
             className="absolute inset-0 w-full h-full object-cover"
             style={{ filter: FILTERS.find(f => f.id === filter)?.css }}
-            crossOrigin="anonymous"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
         </>
