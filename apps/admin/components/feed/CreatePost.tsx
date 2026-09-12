@@ -133,7 +133,10 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
           }
         }
         
-        const finalFile = data.blob instanceof File ? data.blob : new File([data.blob], `media.${data.post_type === 'audio' ? 'webm' : 'jpg'}`, { type: data.blob.type });
+        const isAudio = data.post_type === 'audio';
+        const isVideo = data.post_type === 'video';
+        const ext = isAudio ? 'webm' : (isVideo ? (data.blob.type.includes('mp4') ? 'mp4' : 'webm') : 'jpg');
+        const finalFile = data.blob instanceof File ? data.blob : new File([data.blob], `media_${Date.now()}.${ext}`, { type: data.blob.type || (isVideo ? 'video/mp4' : 'image/jpeg') });
         finalMediaUrl = await uploadMedia(finalFile, { 
            bucket: 'posts', 
            folder,

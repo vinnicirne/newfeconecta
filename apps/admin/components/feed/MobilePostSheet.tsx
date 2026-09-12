@@ -39,9 +39,12 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
 
       let mediaUrl = data.media_url;
       if (data.blob) {
-         const path = data.post_type === 'audio' ? 'audio' : (data.post_type === 'video' ? 'videos' : 'images');
-         const finalFile = data.blob instanceof File ? data.blob : new File([data.blob], `media.${data.post_type === 'audio' ? 'webm' : 'jpg'}`, { type: data.blob.type });
-         mediaUrl = await uploadMedia(finalFile, { bucket: 'posts', folder: path });
+         const isAudio = data.post_type === 'audio';
+         const isVideo = data.post_type === 'video';
+         const folder = isAudio ? 'audio' : (isVideo ? 'videos' : 'images');
+         const ext = isAudio ? 'webm' : (isVideo ? (data.blob.type.includes('mp4') ? 'mp4' : 'webm') : 'jpg');
+         const finalFile = data.blob instanceof File ? data.blob : new File([data.blob], `media_${Date.now()}.${ext}`, { type: data.blob.type || (isVideo ? 'video/mp4' : 'image/jpeg') });
+         mediaUrl = await uploadMedia(finalFile, { bucket: 'posts', folder });
       }
 
       const response = await supabase.from('posts').insert({
@@ -49,6 +52,7 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
         user_id: user.id,
         content: data.content || data.caption || "",
         media_url: mediaUrl,
+        thumbnail_url: data.thumbnail_url || null,
         post_type: data.post_type,
         background: data.background
       }).select().single();
