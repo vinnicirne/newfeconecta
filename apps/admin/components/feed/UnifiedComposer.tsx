@@ -695,7 +695,6 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
       )}
     </div>
   );
-}
 
   const renderAudioRecorder = () => (
     <div className="flex flex-col items-center justify-center gap-8 py-12 animate-in fade-in duration-500">
