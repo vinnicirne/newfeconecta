@@ -319,7 +319,6 @@ function TriboContent() {
               key={reel.id}
               data-index={idx}
               className="relative w-full h-[100dvh] snap-start snap-always overflow-hidden reel-container"
-              onClick={togglePlay}
             >
               {(() => {
                 const isLiked = reel.is_liked;
@@ -344,13 +343,16 @@ function TriboContent() {
                           autoPlay={isActive}
                           loop
                           playsInline
+                          webkit-playsinline="true"
                           muted={muted}
+                          onCanPlay={() => { if (isActive) setIsPlaying(true); }}
                           onPlay={() => { if (isActive) setIsPlaying(true); }}
                           onPause={() => { if (isActive) setIsPlaying(false); }}
-                          preload={isActive || Math.abs(current - idx) <= 1 ? "auto" : "none"}
+                          onClick={togglePlay}
+                          preload={isActive || Math.abs(current - idx) <= 1 ? "auto" : "metadata"}
                           poster={reel.thumbnail_url || undefined}
                           crossOrigin="anonymous"
-                          className="absolute inset-0 w-full h-full object-cover"
+                          className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                         />
                       ) : (
                         <div 
