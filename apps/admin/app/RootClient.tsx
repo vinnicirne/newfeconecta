@@ -35,7 +35,8 @@ import {
   Music,
   HelpCircle,
   Gamepad2,
-  Wallet
+  Wallet,
+  BarChart2
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import Link from "next/link";
@@ -861,7 +862,15 @@ export default function RootPage() {
                       <Music className="w-6 h-6 mb-1 text-pink-500" />
                       <span className="text-[11px] font-bold text-gray-600 dark:text-gray-300">Música</span>
                     </Link>
-                    <Link href="/santuario" className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors border border-amber-500/20">
+                    <Link href="/eventos" className="flex flex-col items-center justify-center p-3 rounded-xl bg-teal-500/10 dark:bg-teal-500/20 hover:bg-teal-500/20 transition-colors border border-teal-500/20">
+                      <Calendar className="w-6 h-6 mb-1 text-teal-500" />
+                      <span className="text-[11px] font-bold text-teal-700 dark:text-teal-300">Eventos</span>
+                    </Link>
+                    <Link href="/enquetes" className="flex flex-col items-center justify-center p-3 rounded-xl bg-cyan-500/10 dark:bg-cyan-500/20 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20">
+                      <BarChart2 className="w-6 h-6 mb-1 text-cyan-500" />
+                      <span className="text-[11px] font-bold text-cyan-700 dark:text-cyan-300">Enquetes</span>
+                    </Link>
+                    <Link href="/santuario" className="flex flex-col items-center justify-center p-3 rounded-xl bg-amber-500/10 dark:bg-amber-500/20 hover:bg-amber-500/20 dark:hover:bg-amber-500/30 transition-colors border border-amber-500/20 col-span-2">
                       <Flame className="w-6 h-6 mb-1 text-amber-600 dark:text-amber-500 fill-amber-500/20" />
                       <span className="text-[11px] font-bold text-amber-700 dark:text-amber-400">Lugar Secreto</span>
                     </Link>
@@ -1077,6 +1086,8 @@ export default function RootPage() {
           <nav className="space-y-0.5">
             <Link href="/" className="w-full flex items-center gap-3 px-4 py-3 text-whatsapp-green bg-whatsapp-green/5 rounded-2xl font-bold transition-all"><Flame className="w-5 h-5 fill-current" /> Feed Principal</Link>
             <Link href="/bible" className="w-full flex items-center gap-3 px-4 py-3 text-emerald-500 hover:bg-emerald-500/5 rounded-2xl transition-all font-bold"><BookOpen className="w-5 h-5" /> Bíblia Sagrada</Link>
+            <Link href="/eventos" className="w-full flex items-center gap-3 px-4 py-3 text-teal-500 hover:bg-teal-500/5 rounded-2xl transition-all font-bold"><Calendar className="w-5 h-5" /> Eventos</Link>
+            <Link href="/enquetes" className="w-full flex items-center gap-3 px-4 py-3 text-cyan-500 hover:bg-cyan-500/5 rounded-2xl transition-all font-bold"><BarChart2 className="w-5 h-5" /> Enquetes</Link>
             <Link href="/jogos" className="w-full flex items-center gap-3 px-4 py-3 text-indigo-500 hover:bg-indigo-500/5 rounded-2xl transition-all font-bold"><Gamepad2 className="w-5 h-5" /> Jogos & Quiz</Link>
             <Link href="/notes" className="w-full flex items-center gap-3 px-4 py-3 text-amber-500 hover:bg-amber-500/5 rounded-2xl transition-all font-bold"><FileText className="w-5 h-5" /> Notas</Link>
             <Link href="/music" className="w-full flex items-center gap-3 px-4 py-3 text-purple-500 hover:bg-purple-500/5 rounded-2xl transition-all font-bold"><Music className="w-5 h-5" /> Música</Link>
