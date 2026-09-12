@@ -695,6 +695,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
       )}
     </div>
   );
+};
 
   const renderAudioRecorder = () => (
     <div className="flex flex-col items-center justify-center gap-8 py-12 animate-in fade-in duration-500">
@@ -741,7 +742,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
   ];
 
   // isMediaMode applies to photo/video camera mode AND when photo/video media has been captured (full-screen preview)
-  const isMediaMode = ((mode === 'photo' || mode === 'video') && !captured) || (captured && (captured.type === 'photo' || captured.type === 'video'));
+  const isMediaMode = ((mode === 'photo' || mode === 'video') && !captured) || Boolean(captured && (captured?.type === 'photo' || captured?.type === 'video'));
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
