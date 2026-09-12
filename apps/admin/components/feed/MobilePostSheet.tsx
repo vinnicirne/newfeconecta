@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Type, Image, Camera, Mic, X, CheckCircle2, Music, Flame, Gamepad2, BookOpen, FileText, Calendar, BarChart2, MessageSquare } from 'lucide-react';
+import { Type, Image, Camera, Mic, X, CheckCircle2, Music } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UnifiedComposer from './UnifiedComposer';
 import MusicComposerModal from './MusicComposerModal';
@@ -100,14 +100,10 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
   if (!open) return null;
 
   const actions = [
-    { icon: Type, label: 'Mensagens', color: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20', onClick: () => openComposer('text') },
-    { icon: Gamepad2, label: 'Jogos & Quiz', color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20', onClick: () => { onClose(); router.push('/jogos'); } },
-    { icon: BookOpen, label: 'Bíblia', color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20', onClick: () => { onClose(); router.push('/bible'); } },
-    { icon: FileText, label: 'Notas', color: 'bg-amber-500/10 text-amber-500 border-amber-500/20', onClick: () => { onClose(); router.push('/notes'); } },
-    { icon: Music, label: 'Música', color: 'bg-pink-500/10 text-pink-500 border-pink-500/20', onClick: () => { onClose(); router.push('/music'); } },
-    { icon: Calendar, label: 'Eventos', color: 'bg-teal-500/10 text-teal-400 border-teal-500/20', onClick: () => { onClose(); router.push('/eventos'); } },
-    { icon: BarChart2, label: 'Enquetes', color: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20', onClick: () => { onClose(); router.push('/enquetes'); } },
-    { icon: Flame, label: 'Lugar Secreto', color: 'bg-amber-500/10 text-amber-400 border-amber-500/20', onClick: () => { onClose(); router.push('/santuario'); } },
+    { icon: Type, label: 'Texto', color: 'bg-violet-100 text-violet-600 dark:bg-violet-500/20', onClick: () => openComposer('text') },
+    { icon: Image, label: 'Galeria', color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20', onClick: () => fileInputRef.current?.click() },
+    { icon: Camera, label: 'Câmera', color: 'bg-green-100 text-green-600 dark:bg-green-500/20', onClick: () => openComposer('photo') },
+    { icon: Mic, label: 'Áudio', color: 'bg-orange-100 text-orange-600 dark:bg-orange-500/20', onClick: () => openComposer('audio') },
   ];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, mode: 'gallery' | 'photo') => {
@@ -147,21 +143,16 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
                   <p className="text-sm font-black uppercase tracking-widest dark:text-white">Sucesso!</p>
                </div>
              ) : (
-                <div className="grid grid-cols-2 gap-3 py-2">
-                   {actions.map(({ icon: Icon, label, color, onClick }) => (
-                     <button 
-                       key={label} 
-                       onClick={onClick} 
-                       className={cn(
-                         "flex flex-col items-center justify-center gap-2.5 p-5 rounded-2xl border transition-all text-center active:scale-[0.97] bg-[#12141a] border-white/5 hover:bg-white/10",
-                         color
-                       )}
-                     >
-                       <Icon className="w-7 h-7 mb-0.5" />
-                       <span className="text-sm font-extrabold tracking-tight">{label}</span>
-                     </button>
-                   ))}
-                </div>
+               <div className="flex flex-wrap justify-center items-center gap-4 py-4">
+                  {actions.map(({ icon: Icon, label, color, onClick }) => (
+                    <button key={label} onClick={onClick} className="flex-1 min-w-[60px] flex flex-col items-center gap-2 group active:scale-95 transition-transform">
+                      <div className={cn("w-16 h-16 rounded-[24px] flex items-center justify-center", color)}>
+                        <Icon className="w-8 h-8" />
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-tight text-gray-500">{label}</span>
+                    </button>
+                  ))}
+               </div>
              )}
           </div>
 
