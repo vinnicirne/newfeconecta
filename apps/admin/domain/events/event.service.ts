@@ -111,6 +111,22 @@ export class EventService {
 
     if (error) throw new Error(error.message);
 
+    // Salva itens da lista de contribuição se fornecidos
+    if (dto.items && dto.items.length > 0) {
+      try {
+        const itemsToInsert = dto.items.map((i) => ({
+          event_id: data.id,
+          category: i.category || "Geral",
+          name: i.name,
+          needed_quantity: i.needed_quantity || 1,
+          unit: i.unit || "unidade",
+        }));
+        await this.db.from("event_items").insert(itemsToInsert);
+      } catch (itemErr) {
+        console.error("Erro ao salvar itens do evento:", itemErr);
+      }
+    }
+
     // Se promovido por uma Igreja, publica automaticamente no feed da Igreja
     if (dto.church_id) {
       try {
@@ -163,7 +179,7 @@ export class EventService {
     return (data ?? []) as unknown as FeEvent[];
   }
 
-  async getEventById(id: string): Promise<FeEvent | null> {
+  async getEventById(id: string, userId?: string): Promise<FeEvent | null> {
     const { data, error } = await this.db
       .from("events")
       .select("*, profiles:author_id ( full_name, avatar_url, username ), churches:church_id ( id, name, slug, logo_url )")
@@ -179,7 +195,42 @@ export class EventService {
       .eq("event_id", id)
       .in("status", ["going", "maybe"]);
 
-    return { ...data, attendees_count: attendeesCount ?? 0 } as unknown as FeEvent;
+    // Carrega itens de contribuição com compromissos
+    const { data: rawItems } = await this.db
+      .from("event_items")
+      .select("*, commitments:event_item_commitments(*, profiles:user_id(full_name, username, avatar_url))")
+      .eq("event_id", id);
+
+    const items = (rawItems || []).map((item: any) => {
+      const commitments = item.commitments || [];
+      const totalCommitted = commitments.reduce((sum: number, c: any) => sum + (c.quantity || 0), 0);
+      const myCommitment = userId ? commitments.find((c: any) => c.user_id === userId)?.quantity || 0 : 0;
+      return {
+        ...item,
+        commitments,
+        total_committed: totalCommitted,
+        my_commitment: myCommitment,
+      };
+    });
+
+    return { ...data, attendees_count: attendeesCount ?? 0, items } as unknown as FeEvent;
+  }
+
+  async setItemCommitment(itemId: string, userId: string, quantity: number): Promise<void> {
+    if (quantity <= 0) {
+      await this.db
+        .from("event_item_commitments")
+        .delete()
+        .eq("item_id", itemId)
+        .eq("user_id", userId);
+    } else {
+      await this.db
+        .from("event_item_commitments")
+        .upsert(
+          { item_id: itemId, user_id: userId, quantity },
+          { onConflict: "item_id,user_id" }
+        );
+    }
   }
 
   async updateEvent(id: string, updates: UpdateEventDto): Promise<FeEvent> {

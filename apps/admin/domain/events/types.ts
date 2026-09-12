@@ -1,4 +1,31 @@
-export type RSVPStatus = 'going' | 'maybe' | 'not_going';
+export interface EventItemCommitment {
+  id: string;
+  item_id: string;
+  user_id: string;
+  quantity: number;
+  created_at: string;
+  profiles?: { full_name: string; username: string; avatar_url: string | null };
+}
+
+export interface EventItem {
+  id: string;
+  event_id: string;
+  category: string;
+  name: string;
+  needed_quantity: number;
+  unit: string;
+  created_at: string;
+  commitments?: EventItemCommitment[];
+  total_committed?: number;
+  my_commitment?: number;
+}
+
+export interface EventItemDto {
+  category: string;
+  name: string;
+  needed_quantity: number;
+  unit?: string;
+}
 
 export interface FeEvent {
   id: string;
@@ -19,6 +46,7 @@ export interface FeEvent {
   churches?: { id: string; name: string; slug: string; logo_url: string | null } | null;
   attendees_count?: number;
   my_rsvp?: RSVPStatus | null;
+  items?: EventItem[];
 }
 
 export interface EventAttendee {
@@ -40,6 +68,7 @@ export interface CreateEventDto {
   starts_at: string;
   ends_at?: string;
   is_public: boolean;
+  items?: EventItemDto[];
 }
 
 export interface UpdateEventDto {

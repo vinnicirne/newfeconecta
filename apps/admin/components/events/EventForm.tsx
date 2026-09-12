@@ -77,10 +77,32 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
     }
   }
 
+  const [enableItems, setEnableItems] = useState(false);
+  const [items, setItems] = useState<{ category: string; name: string; needed_quantity: number; unit: string }[]>([
+    { category: "Cantina", name: "", needed_quantity: 1, unit: "unidade" },
+  ]);
+
+  function addItem() {
+    setItems((prev) => [...prev, { category: "Cantina", name: "", needed_quantity: 1, unit: "unidade" }]);
+  }
+
+  function updateItem(index: number, field: string, value: any) {
+    setItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
+    );
+  }
+
+  function removeItem(index: number) {
+    setItems((prev) => prev.filter((_, i) => i !== index));
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!title.trim()) { toast.error("Informe o titulo do evento"); return; }
     if (!startsAt) { toast.error("Informe a data de inicio"); return; }
+
+    const validItems = enableItems ? items.filter((i) => i.name.trim().length > 0) : undefined;
+
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
@@ -91,6 +113,7 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
       starts_at: startsAt,
       ends_at: endsAt || undefined,
       is_public: isPublic,
+      items: validItems,
     });
   }
 
@@ -247,6 +270,71 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
         className={inputClass}
         type="url"
       />
+
+      {/* Lista de Contribuição Opcional */}
+      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200/60 dark:border-white/10 space-y-4">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={enableItems}
+              onChange={(e) => setEnableItems(e.target.checked)}
+              className="w-4 h-4 rounded text-whatsapp-teal focus:ring-whatsapp-teal"
+            />
+            <span className="text-xs font-bold text-gray-800 dark:text-gray-200">
+              Criar Lista de Contribuição / Mantimentos
+            </span>
+          </label>
+        </div>
+
+        {enableItems && (
+          <div className="space-y-3 pt-2">
+            <p className="text-[11px] text-gray-400">
+              Adicione itens que os participantes podem se comprometer a levar (ex: Cantina, Alimentos):
+            </p>
+
+            {items.map((item, index) => (
+              <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
+                <input
+                  placeholder="Categoria (ex: Cantina)"
+                  value={item.category}
+                  onChange={(e) => updateItem(index, "category", e.target.value)}
+                  className="w-full sm:w-1/3 bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-white"
+                />
+                <input
+                  placeholder="Nome do Item (ex: Massa de Pastel)"
+                  value={item.name}
+                  onChange={(e) => updateItem(index, "name", e.target.value)}
+                  className="w-full sm:flex-1 bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-white"
+                />
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Qtd"
+                  value={item.needed_quantity}
+                  onChange={(e) => updateItem(index, "needed_quantity", parseInt(e.target.value) || 1)}
+                  className="w-20 bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-white"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeItem(index)}
+                  className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg text-xs"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              onClick={addItem}
+              className="text-xs font-bold text-whatsapp-teal hover:underline flex items-center gap-1 pt-1"
+            >
+              + Adicionar Item à Lista
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Botao salvar */}
       <button

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import EventForm from "@/components/events/EventForm";
+import EventItemsList from "@/components/events/EventItemsList";
 import type { FeEvent, EventAttendee, RSVPStatus, UpdateEventDto } from "@/domain/events/types";
 
 moment.locale("pt-br");
@@ -287,6 +288,16 @@ export default function EventDetailPage() {
               </a>
             )}
           </div>
+
+          {/* Lista de Contribuição Opcional */}
+          {event.items && event.items.length > 0 && (
+            <EventItemsList
+              eventId={event.id}
+              items={event.items}
+              currentUserId={currentUserId}
+              onCommitmentChange={fetchEvent}
+            />
+          )}
 
           {/* Contagem */}
           <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">

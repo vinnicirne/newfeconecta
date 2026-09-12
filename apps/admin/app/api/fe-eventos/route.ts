@@ -41,6 +41,7 @@ export async function POST(request: Request) {
       starts_at: body.starts_at,
       ends_at: body.ends_at,
       is_public: body.is_public ?? true,
+      items: body.items,
     });
 
     return NextResponse.json({ event: newEvent, id: newEvent.id }, { status: 201 });
