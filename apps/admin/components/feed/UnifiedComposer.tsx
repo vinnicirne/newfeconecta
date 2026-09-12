@@ -93,11 +93,9 @@ export function useComposerState(open: boolean, initialMode: ComposerMode = 'tex
 
   // Draft Resilience: Load draft on open
   useEffect(() => {
-    let initialFileUrl: string | null = null;
-    
     if (open) {
       if (initialFile) {
-        initialFileUrl = URL.createObjectURL(initialFile);
+        const initialFileUrl = URL.createObjectURL(initialFile);
         const type = initialFile.type.startsWith('video/') ? 'video' : 'photo';
         dispatch({ type: 'SET_CAPTURED', payload: { type, url: initialFileUrl, blob: initialFile } });
         dispatch({ type: 'SET_MODE', payload: type });
@@ -122,13 +120,6 @@ export function useComposerState(open: boolean, initialMode: ComposerMode = 'tex
       // Clean up captured URL when closed
       dispatch({ type: 'SET_CAPTURED', payload: null });
     }
-    
-    // Cleanup: revoke initialFile URL on unmount or when effect reruns
-    return () => {
-      if (initialFileUrl) {
-        URL.revokeObjectURL(initialFileUrl);
-      }
-    };
   }, [open, initialFile, initialMode]);
 
   // Draft Resilience: Save draft when typing (only if not captured media)
@@ -152,7 +143,7 @@ export function useComposerState(open: boolean, initialMode: ComposerMode = 'tex
   useEffect(() => {
     const url = state.captured?.url;
     return () => {
-      if (url) {
+      if (url && url.startsWith('blob:')) {
         URL.revokeObjectURL(url);
       }
     };

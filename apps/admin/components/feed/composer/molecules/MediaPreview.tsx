@@ -110,6 +110,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
       {captured.type === 'photo' && (
         <>
           <img 
+            key={captured.url}
             ref={imgRef}
             src={captured.url} 
             alt="Captura" 
@@ -123,6 +124,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
       {captured.type === 'video' && (
         <>
           <video 
+            key={captured.url}
             src={captured.url} 
             autoPlay
             loop
