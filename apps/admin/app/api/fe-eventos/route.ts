@@ -43,7 +43,7 @@ export async function POST(request: Request) {
       is_public: body.is_public ?? true,
     });
 
-    return NextResponse.json(newEvent, { status: 201 });
+    return NextResponse.json({ event: newEvent, id: newEvent.id }, { status: 201 });
   } catch (error) {
     return handleApiError(error, "POST /api/fe-eventos");
   }

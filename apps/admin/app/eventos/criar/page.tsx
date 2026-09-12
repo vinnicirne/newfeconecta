@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -32,7 +32,9 @@ export default function CriarEventoPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Erro ao criar evento");
       toast.success("Evento criado com sucesso!");
-      router.push(`/eventos/${json.event.id}`);
+      const eventId = json.id || json.event?.id;
+      if (!eventId) throw new Error("ID do evento não retornado");
+      router.push(`/eventos/${eventId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro ao criar evento");
     } finally {
