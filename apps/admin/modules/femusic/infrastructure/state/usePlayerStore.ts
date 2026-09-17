@@ -173,7 +173,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         new Map(newQueue.filter(Boolean).map(t => [t.providerTrackId || t.id, t])).values()
       );
 
-      // 2. Remove versões do mesmo louvor (títulos muito similares ao que está sendo tocado)
+      // 2. Remove versões do mesmo louvor (títulos muito similares)
       const normTitle = (s: string) =>
         s.toLowerCase()
           .replace(/\(?(official\s*(video|audio|music\s*video|lyric|lyrics|clip|hd|4k)|lyric\s*video|ao vivo|live|legendado|versão|version|feat\.?|ft\.?|prod\.?|remix|cover|karaoke|playback|letra|tradução|completo|album completo|full album)\)?/gi, '')
@@ -181,10 +181,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
           .replace(/\s{2,}/g, ' ')
           .trim();
 
-      const trackNorm = normTitle(track.title || '');
       const seenNorms = new Set<string>();
-      // Garante que a faixa selecionada entra primeiro
-      seenNorms.add(trackNorm);
 
       const uniqueQueue = byId.filter(t => {
         const n = normTitle(t.title || '');
@@ -193,20 +190,41 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         return true;
       });
 
-      // Reinsere a faixa atual no índice correto para manter a ordem
-      const currentInQueue = byId.find(t =>
-        (t.providerTrackId || t.id) === (track.providerTrackId || track.id)
-      );
-      const finalQueue = currentInQueue
-        ? [currentInQueue, ...uniqueQueue.filter(t => (t.providerTrackId || t.id) !== (track.providerTrackId || track.id))]
-        : uniqueQueue;
+      // Garante que a faixa clicada está na fila (caso o filtro tenha removido)
+      const trackInQueue = uniqueQueue.some(t => (t.providerTrackId || t.id) === (track.providerTrackId || track.id));
+      if (!trackInQueue) {
+        // Se a faixa exata foi removida pelo filtro de similaridade, a gente substitui a similar por ela
+        const tNorm = normTitle(track.title || '');
+        const similarIdx = uniqueQueue.findIndex(t => normTitle(t.title || '') === tNorm);
+        if (similarIdx !== -1) {
+          uniqueQueue[similarIdx] = track;
+        } else {
+          // Fallback seguro
+          uniqueQueue.unshift(track);
+        }
+      }
 
-      set({ queue: finalQueue });
+      set({ queue: uniqueQueue });
     } else {
-      const { queue } = get();
-      const exists = queue.some(t => t.id === track.id || (t.providerTrackId && t.providerTrackId === track.providerTrackId));
-      if (!exists || queue.length === 0) {
-        set({ queue: [track] });
+      const { queue, currentTrack } = get();
+      const existsIdx = queue.findIndex(t => t.id === track.id || (t.providerTrackId && t.providerTrackId === track.providerTrackId));
+      if (existsIdx === -1) {
+        if (queue.length === 0) {
+          set({ queue: [track] });
+        } else {
+          // Insere a música logo após a atual para continuar a fila original
+          const currentIdx = currentTrack ? queue.findIndex(
+            t => t.id === currentTrack.id || (t.providerTrackId && t.providerTrackId === currentTrack.providerTrackId)
+          ) : -1;
+          
+          if (currentIdx !== -1) {
+             const newQueue = [...queue];
+             newQueue.splice(currentIdx + 1, 0, track);
+             set({ queue: newQueue });
+          } else {
+             set({ queue: [...queue, track] });
+          }
+        }
       }
     }
     
@@ -271,7 +289,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       // Repeat One: reinicia a mesma faixa apenas se for automático
       if (repeatMode === 'one' && !isManual) {
         console.log('[PlayerStore] NEXT: Repeat One automático - repetindo');
-        await play(currentTrack, queue);
+        await play(currentTrack);
         return;
       }
 
@@ -283,20 +301,20 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       if (isShuffled && queue.length > 1) {
         let randomIdx = Math.floor(Math.random() * queue.length);
         while (randomIdx === idx) randomIdx = Math.floor(Math.random() * queue.length);
-        await play(queue[randomIdx], queue);
+        await play(queue[randomIdx]);
         return;
       }
 
       if (idx !== -1 && idx < queue.length - 1) {
         console.log(`[PlayerStore] NEXT: Avançando para próximo índice (${idx + 1})`);
-        await play(queue[idx + 1], queue);
+        await play(queue[idx + 1]);
       } else if (repeatMode === 'all' || repeatMode === 'one') {
         console.log('[PlayerStore] NEXT: Fim da fila com repeatMode - voltando ao início');
         // Se for repeat all (ou repeat one pulado manualmente no fim da fila), volta para o início
-        await play(queue[0], queue);
+        await play(queue[0]);
       } else if (idx === -1 && queue.length > 0) {
         console.log('[PlayerStore] NEXT: Índice -1 com fila maior que 0 - voltando ao início');
-        await play(queue[0], queue);
+        await play(queue[0]);
       } else {
         console.log('[PlayerStore] NEXT: Fim da fila sem repeat - pausando player');
         await pause();
@@ -322,19 +340,19 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
       );
       if (idx > 0) {
         console.log(`[PlayerStore] PREVIOUS: Voltando para índice (${idx - 1})`);
-        await play(queue[idx - 1], queue);
+        await play(queue[idx - 1]);
       } else if (idx === -1 && queue.length > 0) {
         console.log('[PlayerStore] PREVIOUS: Índice -1 com fila - tocando última');
-        await play(queue[queue.length - 1], queue);
+        await play(queue[queue.length - 1]);
       } else if (queue.length > 1 && (repeatMode === 'all' || repeatMode === 'one')) {
         console.log('[PlayerStore] PREVIOUS: Início da fila com repeat - tocando última');
-        await play(queue[queue.length - 1], queue);
+        await play(queue[queue.length - 1]);
       } else {
         console.log('[PlayerStore] PREVIOUS: Início da fila sem repeat - reiniciando');
         // Se é a primeira da fila e não tem repeat, reinicia ela mesma
         const { seek } = get();
         await seek(0);
-        await play(currentTrack, queue);
+        await play(currentTrack);
       }
     }
   },

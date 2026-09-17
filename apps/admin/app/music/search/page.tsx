@@ -153,7 +153,7 @@ export default function SearchPage() {
                 return (
                   <div 
                     key={track.id} 
-                    onClick={() => play(track, results)}
+                    onClick={() => play(track)}
                     className="flex items-center justify-between p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors cursor-pointer group"
                   >
                     <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -219,7 +219,7 @@ export default function SearchPage() {
                 {catalogHighlights.map((track) => (
                   <div
                     key={track.id}
-                    onClick={() => play(track, catalogHighlights)}
+                    onClick={() => play(track)}
                     className="snap-start shrink-0 w-32 sm:w-36 flex flex-col gap-1.5 cursor-pointer group"
                   >
                     <div className="w-32 sm:w-36 h-24 rounded-xl overflow-hidden relative shadow-sm bg-gray-200 dark:bg-white/5 border border-white/5 group-hover:border-emerald-500/40 transition-all">
