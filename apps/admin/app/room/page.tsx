@@ -232,8 +232,7 @@ export default function RoomsListPage() {
           type: 'room_invite',
           title: 'Convite para Intercessão 🙏',
           content: `${currentUser.full_name} convidou você para a Sala de Guerra: ${newRoomName}`,
-          link: `/room/${data.id}`,
-          metadata: { room_id: data.id }
+          metadata: { room_id: data.id, link: `/room/${data.id}` }
         }));
         await supabase.from('notifications').insert(notifications);
       }

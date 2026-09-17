@@ -62,12 +62,12 @@ export const NotificationService = {
         post_id: postId,
         story_id: storyId,
         content,
-        link,
         is_read: false,
         priority: 'high',
         metadata: {
           push_banner: true,
           sound: 'default',
+          link,
           ...metadata
         }
       });
