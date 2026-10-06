@@ -124,7 +124,12 @@ function TriboContent() {
         v.muted = muted;
         const playPromise = v.play();
         if (playPromise !== undefined) {
-          playPromise.catch(() => setIsPlaying(false));
+          playPromise.catch(() => {
+            // Fallback mobile: se o navegador bloqueou áudio, toca mutado
+            v.muted = true;
+            setMuted(true);
+            v.play().catch(() => setIsPlaying(false));
+          });
         }
       } else {
         v.pause();
@@ -340,7 +345,11 @@ function TriboContent() {
                             if (el) videoRefs.current[idx] = el;
                             else delete videoRefs.current[idx];
                           }}
-                          src={reel.media_url}
+                          src={(() => {
+                            if (!reel.media_url) return '';
+                            const base = reel.media_url.includes('?') ? `${reel.media_url}&sw=bypass` : `${reel.media_url}?sw=bypass`;
+                            return base.includes('#t=') ? base : `${base}#t=0.001`;
+                          })()}
                           autoPlay={isActive}
                           loop
                           playsInline
@@ -351,7 +360,6 @@ function TriboContent() {
                           onPause={() => { if (isActive) setIsPlaying(false); }}
                           onClick={() => togglePlay(idx)}
                           preload={isActive || Math.abs(current - idx) <= 1 ? "auto" : "metadata"}
-                          poster={reel.thumbnail_url || undefined}
                           className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                         />
                       ) : (
