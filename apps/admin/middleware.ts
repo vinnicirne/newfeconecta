@@ -39,12 +39,16 @@ function applySecurityHeaders(response: NextResponse): NextResponse {
 }
 
 export function middleware(request: NextRequest) {
+  if (request.headers.get('upgrade') === 'websocket') {
+    return NextResponse.next();
+  }
+
   const response = NextResponse.next();
   return applySecurityHeaders(response);
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|icons/|manifest.json).*)',
+    '/((?!_next|favicon.ico|icons/|manifest.json).*)',
   ],
 };

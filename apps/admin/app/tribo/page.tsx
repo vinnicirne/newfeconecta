@@ -133,8 +133,9 @@ function TriboContent() {
     });
   }, [current, muted]); // 'reels' não precisa engatilhar autoplay, apenas a mudança de índice.
 
-  const togglePlay = () => {
-    const v = videoRefs.current[current];
+  const togglePlay = (index?: number) => {
+    const targetIdx = typeof index === 'number' ? index : current;
+    const v = videoRefs.current[targetIdx];
     if (!v) return;
     if (v.paused) {
       v.play().catch(() => {});
@@ -348,10 +349,9 @@ function TriboContent() {
                           onCanPlay={() => { if (isActive) setIsPlaying(true); }}
                           onPlay={() => { if (isActive) setIsPlaying(true); }}
                           onPause={() => { if (isActive) setIsPlaying(false); }}
-                          onClick={togglePlay}
+                          onClick={() => togglePlay(idx)}
                           preload={isActive || Math.abs(current - idx) <= 1 ? "auto" : "metadata"}
                           poster={reel.thumbnail_url || undefined}
-                          crossOrigin="anonymous"
                           className="absolute inset-0 w-full h-full object-cover cursor-pointer"
                         />
                       ) : (
