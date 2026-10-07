@@ -24,31 +24,34 @@ function MessagesContent() {
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
   const [viewportHeight, setViewportHeight] = useState<string>('100dvh');
+  const [viewportTop, setViewportTop] = useState<number>(0);
 
   useEffect(() => {
-    const updateHeight = () => {
+    const updateViewport = () => {
       if (window.visualViewport) {
         setViewportHeight(`${window.visualViewport.height}px`);
+        setViewportTop(window.visualViewport.offsetTop);
       } else {
         setViewportHeight(`${window.innerHeight}px`);
+        setViewportTop(0);
       }
     };
 
-    updateHeight();
+    updateViewport();
 
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', updateHeight);
-      window.visualViewport.addEventListener('scroll', updateHeight);
+      window.visualViewport.addEventListener('resize', updateViewport);
+      window.visualViewport.addEventListener('scroll', updateViewport);
     } else {
-      window.addEventListener('resize', updateHeight);
+      window.addEventListener('resize', updateViewport);
     }
 
     return () => {
       if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', updateHeight);
-        window.visualViewport.removeEventListener('scroll', updateHeight);
+        window.visualViewport.removeEventListener('resize', updateViewport);
+        window.visualViewport.removeEventListener('scroll', updateViewport);
       } else {
-        window.removeEventListener('resize', updateHeight);
+        window.removeEventListener('resize', updateViewport);
       }
     };
   }, []);
@@ -156,12 +159,10 @@ function MessagesContent() {
 
   return (
     <div 
-      className="fixed inset-0 z-[110] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 w-full"
+      className="fixed left-0 w-full z-[110] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 overflow-hidden"
       style={{
+        top: viewportTop,
         height: viewportHeight,
-        maxHeight: viewportHeight,
-        paddingTop: 'max(env(safe-area-inset-top), 24px)', // Fallback para status bar (bateria/relógio)
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
     >
       {/* Sidebar - Lista de Conversas */}
