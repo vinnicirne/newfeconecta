@@ -72,48 +72,48 @@ export default function ShareModal({ isOpen, onClose, url, title, postContent }:
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="fixed bottom-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:max-w-md rounded-t-[40px] sm:rounded-4xl p-0 overflow-hidden border-none shadow-2xl dark:bg-[#0c0c0c] animate-in slide-in-from-bottom duration-500">
-        <div className="flex justify-center pt-3 sm:hidden">
-          <div className="w-12 h-1.5 rounded-full bg-gray-200 dark:bg-white/10" />
+      <DialogContent className="fixed bottom-0 left-0 right-0 sm:bottom-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 w-full sm:max-w-md rounded-t-[36px] sm:rounded-3xl p-0 overflow-hidden border border-black/5 dark:border-white/10 shadow-2xl bg-white dark:bg-[#111b21] z-[120] animate-in slide-in-from-bottom duration-300">
+        <div className="flex justify-center pt-3.5 sm:hidden">
+          <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-white/20" />
         </div>
 
-        <div className="px-8 pt-6 pb-4">
-          <DialogTitle className="text-xl font-black uppercase tracking-widest text-gray-900 dark:text-white">
+        <div className="px-6 pt-4 pb-2">
+          <DialogTitle className="text-lg font-black uppercase tracking-wider text-gray-900 dark:text-white">
             Compartilhar Fé
           </DialogTitle>
-          <DialogDescription className="text-xs text-gray-500 font-bold uppercase mt-1 opacity-50">
-            Espalhe a palavra com um clique
+          <DialogDescription className="text-xs text-gray-500 font-semibold tracking-wide mt-0.5">
+            Espalhe a palavra com um toque
           </DialogDescription>
         </div>
         
-        <div className="px-8 pb-10">
+        <div className="px-6 pb-6 pt-2" style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 24px)' }}>
           {/* Preview Card para Identificação */}
-          <div className="mb-8 p-5 rounded-[32px] bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-whatsapp-teal/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                <Share2 className="w-7 h-7 text-whatsapp-teal" />
+          <div className="mb-6 p-4 rounded-2xl bg-gray-50 dark:bg-[#202c33] border border-gray-100 dark:border-white/5 shadow-sm">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-whatsapp-teal/15 flex items-center justify-center flex-shrink-0">
+                <Share2 className="w-6 h-6 text-whatsapp-teal" />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="text-sm font-black truncate dark:text-white uppercase tracking-tight">{title}</h4>
-                <p className="text-[11px] text-gray-500 font-bold line-clamp-2 mt-0.5 leading-tight">{postContent || "Confira este conteúdo exclusivo no FéConecta."}</p>
+                <h4 className="text-xs font-black truncate text-gray-900 dark:text-white uppercase tracking-tight">{title}</h4>
+                <p className="text-[11px] text-gray-500 dark:text-gray-300 line-clamp-2 mt-0.5 leading-snug">{postContent || "Confira este conteúdo exclusivo no FéConecta."}</p>
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 mb-8">
+          <div className="grid grid-cols-3 gap-3 mb-6">
             {shareOptions.map((option) => (
               <button
                 key={option.name}
                 onClick={option.action}
-                className="flex flex-col items-center gap-2.5 group"
+                className="flex flex-col items-center gap-2 group p-2 rounded-2xl hover:bg-black/5 dark:hover:bg-white/5 transition-all"
               >
                 <div className={cn(
-                  "w-16 h-16 rounded-[24px] flex items-center justify-center transition-all group-active:scale-90 shadow-sm",
+                  "w-14 h-14 rounded-2xl flex items-center justify-center transition-all group-active:scale-95 shadow-sm",
                   option.color
                 )}>
                   {option.icon}
                 </div>
-                <span className="text-[9px] font-black uppercase tracking-tight text-gray-400 group-hover:text-whatsapp-teal transition-colors">
+                <span className="text-[10px] font-bold text-gray-600 dark:text-gray-300 group-hover:text-whatsapp-teal transition-colors">
                   {option.name}
                 </span>
               </button>
@@ -123,7 +123,7 @@ export default function ShareModal({ isOpen, onClose, url, title, postContent }:
           {canShare && (
             <Button 
               onClick={handleNativeShare}
-              className="w-full h-14 rounded-3xl bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-black uppercase tracking-[0.2em] text-[10px] flex items-center justify-center gap-3 shadow-xl shadow-whatsapp-teal/20 active:scale-[0.98] transition-all"
+              className="w-full h-12 rounded-2xl bg-whatsapp-teal hover:bg-whatsapp-tealLight text-white font-bold uppercase tracking-wider text-xs flex items-center justify-center gap-2 shadow-lg shadow-whatsapp-teal/20 active:scale-[0.98] transition-all"
             >
               <Share2 className="w-4 h-4" /> Mais Opções
             </Button>

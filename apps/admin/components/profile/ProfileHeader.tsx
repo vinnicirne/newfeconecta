@@ -99,6 +99,14 @@ export function ProfileHeader({
               <Plus className="w-6 h-6" />
             </button>
 
+            <Link
+              href="/messages"
+              className="p-1 hover:bg-white/10 rounded-lg transition-all"
+              title="Mensagens / Chat"
+            >
+              <MessageSquare className="w-6 h-6" />
+            </Link>
+
             <button
               onClick={() => {
                 if(onSetView) onSetView('settings');
@@ -231,6 +239,14 @@ export function ProfileHeader({
               >
                 Editar Perfil
               </button>
+              <Link
+                href="/messages"
+                className="flex-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold transition-all border border-black/5 dark:border-white/5 active:scale-95 uppercase tracking-wide text-gray-900 dark:text-white"
+                title="Mensagens"
+              >
+                <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-300" />
+                Chat
+              </Link>
               <Link
                 href="/santuario"
                 className="flex-1 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold transition-all shadow-[0_4px_14px_0_rgb(245,158,11,0.39)] active:scale-95 uppercase tracking-wide [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]"

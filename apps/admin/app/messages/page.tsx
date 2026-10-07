@@ -23,6 +23,36 @@ function MessagesContent() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
+  const [viewportHeight, setViewportHeight] = useState<string>('100dvh');
+
+  useEffect(() => {
+    const updateHeight = () => {
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+      } else {
+        setViewportHeight(`${window.innerHeight}px`);
+      }
+    };
+
+    updateHeight();
+
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', updateHeight);
+      window.visualViewport.addEventListener('scroll', updateHeight);
+    } else {
+      window.addEventListener('resize', updateHeight);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', updateHeight);
+        window.visualViewport.removeEventListener('scroll', updateHeight);
+      } else {
+        window.removeEventListener('resize', updateHeight);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     const initAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -128,7 +158,8 @@ function MessagesContent() {
     <div 
       className="fixed inset-0 z-[110] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 w-full"
       style={{
-        height: '100dvh', // Usar dvh garante que o teclado e barras do navegador não cortem a tela
+        height: viewportHeight,
+        maxHeight: viewportHeight,
         paddingTop: 'max(env(safe-area-inset-top), 24px)', // Fallback para status bar (bateria/relógio)
         paddingBottom: 'env(safe-area-inset-bottom, 0px)'
       }}
@@ -314,18 +345,29 @@ function MessagesContent() {
                         : "self-start bg-white dark:bg-[#202c33] text-gray-900 dark:text-gray-200 rounded-tl-none border-gray-100 dark:border-white/5"
                     )}
                   >
-                     {m.content.match(/\.(jpeg|jpg|gif|png|webp)/i) || m.content.startsWith('https://') && m.content.includes('supabase') ? (
-                        <div className="mb-1 rounded-lg overflow-hidden border border-black/10">
-                           <img 
-                             src={m.content} 
-                             alt="Imagem enviada" 
-                             className="max-w-full h-auto max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                             onClick={() => window.open(m.content, '_blank')}
-                           />
-                        </div>
-                     ) : (
-                        m.content
-                     )}
+                     {(() => {
+                        const isImg = m.content.match(/\.(jpeg|jpg|gif|png|webp)/i) || (m.content.startsWith('https://') && (m.content.includes('/storage/v1/object/public/') || m.content.includes('supabase')));
+                        if (!isImg) return m.content;
+
+                        let imgSrc = m.content;
+                        if (imgSrc.includes('dfqgmrhgwgozjqhhbblp.supabase.co') && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+                          imgSrc = imgSrc.replace('https://dfqgmrhgwgozjqhhbblp.supabase.co', process.env.NEXT_PUBLIC_SUPABASE_URL);
+                        }
+
+                        return (
+                          <div className="mb-1 rounded-lg overflow-hidden border border-black/10">
+                            <img 
+                              src={imgSrc} 
+                              alt="Imagem enviada" 
+                              className="max-w-full h-auto max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                              onClick={() => window.open(imgSrc, '_blank')}
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        );
+                     })()}
                      <div className={cn(
                        "text-[9px] text-right mt-1 opacity-60 font-medium flex items-center justify-end gap-1",
                        m.sender_id === currentUser?.id ? "text-whatsapp-green" : "text-gray-500"
@@ -391,6 +433,13 @@ function MessagesContent() {
                        value={message}
                        disabled={isUploading}
                        onChange={(e) => setMessage(e.target.value)}
+                       onFocus={() => {
+                         setTimeout(() => {
+                           if (scrollRef.current) {
+                             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                           }
+                         }, 300);
+                       }}
                        className="w-full bg-white dark:bg-[#2a3942] rounded-xl py-3 px-5 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900 dark:text-white border border-gray-200 dark:border-transparent focus:border-whatsapp-green/30 transition-all shadow-sm"
                      />
                   </div>
