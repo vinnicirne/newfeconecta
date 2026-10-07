@@ -53,7 +53,7 @@ export default function FullscreenPlayer() {
     async function loadCommentsCount() {
       try {
         const { count } = await supabase
-          .from('music_comments')
+          .from('music_track_comments')
           .select('*', { count: 'exact', head: true })
           .eq('track_id', ytId);
 
@@ -74,9 +74,9 @@ export default function FullscreenPlayer() {
     };
   }, [ytId]);
 
-  // durationMs da store já está em ms. currentTrack.duration vem em SEGUNDOS — converter.
+  // durationMs da store já está em ms. currentTrack.duration vem em SEGUNDOS — converter sempre.
   const trackDurMs = currentTrack?.duration && currentTrack.duration > 0
-    ? (currentTrack.duration > 3600 ? currentTrack.duration : currentTrack.duration * 1000)
+    ? currentTrack.duration * 1000
     : 0;
   const effectiveDuration = durationMs > 0 ? durationMs : trackDurMs;
 
@@ -180,8 +180,9 @@ export default function FullscreenPlayer() {
               backgroundImage: `url(${currentTrack.cover || ''})`,
               backgroundSize: 'cover',
               backgroundPosition: 'center',
-              filter: 'blur(70px)',
-              transform: 'scale(1.4)',
+              filter: 'blur(40px)',
+              transform: 'scale(1.1)',
+              willChange: 'transform, filter',
             }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/10 to-black/80 pointer-events-none" />

@@ -49,14 +49,25 @@ export default function ReadySessions() {
         new Map(apiTracks.map((t) => [t.providerTrackId || t.id, t])).values()
       );
 
-      // Embaralha
-      const shuffled = uniqueTracks.sort(() => Math.random() - 0.5);
+      let finalTracks = uniqueTracks;
 
-      if (shuffled.length === 0) {
-        toast.dismiss(toastId);
-        toast.error('Nenhum louvor encontrado. Verifique sua conexão.');
-        return;
+      if (finalTracks.length === 0) {
+        if (session.curatedTracks && session.curatedTracks.length > 0) {
+          finalTracks = [...session.curatedTracks];
+        } else {
+          toast.dismiss(toastId);
+          toast.error('Nenhum louvor encontrado. Verifique sua conexão.');
+          return;
+        }
       }
+
+      // Embaralha (Fisher-Yates)
+      for (let i = finalTracks.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [finalTracks[i], finalTracks[j]] = [finalTracks[j], finalTracks[i]];
+      }
+
+      const shuffled = finalTracks;
 
       toast.dismiss(toastId);
       toast.success(`Sessão "${session.title}" com ${shuffled.length} louvores! 🙏`);

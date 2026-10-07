@@ -45,7 +45,6 @@ export default function MusicShareModal({
         author_id: user.id,
         user_id: user.id,
         content: `🎵 Estou sendo abençoado por esse louvor!\n\n**${trackTitle}** — ${trackArtist}\n\n${youtubeUrl}`,
-        media_url: youtubeUrl,
         post_type: 'text',
       }]);
       toast.success('Compartilhado no Feed FéConecta! 🙏');

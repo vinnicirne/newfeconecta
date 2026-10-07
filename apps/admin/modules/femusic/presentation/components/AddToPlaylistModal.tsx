@@ -7,6 +7,7 @@ import { usePlaylistStore } from '../../infrastructure/state/usePlaylistStore';
 import { MusicTrack } from '../../domain/entities/MusicTrack';
 import { Plus, Check, Loader2, Music, ListMusic, X } from 'lucide-react';
 import CreatePlaylistModal from './CreatePlaylistModal';
+import { toast } from 'sonner';
 
 interface AddToPlaylistModalProps {
   isOpen: boolean;
@@ -30,16 +31,27 @@ export default function AddToPlaylistModal({ isOpen, onClose, track }: AddToPlay
   const trackId = track.providerTrackId || track.id;
 
   const handleAdd = async (playlistId: string) => {
-    setAddingId(playlistId);
-    await addTrackToPlaylist(playlistId, track);
-    setAddingId(null);
-    onClose();
+    try {
+      setAddingId(playlistId);
+      await addTrackToPlaylist(playlistId, track);
+      toast.success('Louvor adicionado à playlist!');
+      onClose();
+    } catch (e) {
+      toast.error('Erro ao adicionar à playlist.');
+    } finally {
+      setAddingId(null);
+    }
   };
 
   const handleCreated = async (newPlaylistId: string) => {
-    await addTrackToPlaylist(newPlaylistId, track);
-    setIsCreateOpen(false);
-    onClose();
+    try {
+      await addTrackToPlaylist(newPlaylistId, track);
+      toast.success('Playlist criada e louvor adicionado!');
+      setIsCreateOpen(false);
+      onClose();
+    } catch (e) {
+      toast.error('Erro ao adicionar na nova playlist.');
+    }
   };
 
   const modalContent = (

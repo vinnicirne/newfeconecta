@@ -12,8 +12,8 @@ export default function MiniPlayer() {
     likedTracks, toggleLike 
   } = usePlayerStore();
   
-  // Posição arrastável do MiniPlayer
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  // Posição arrastável do MiniPlayer otimizada com Ref
+  const posRef = useRef<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const dragRef = useRef<{ startX: number; startY: number; initialX: number; initialY: number; hasMoved: boolean }>({
     startX: 0,
@@ -24,6 +24,15 @@ export default function MiniPlayer() {
   });
   const playerRef = useRef<HTMLDivElement>(null);
 
+  // Força render inicial ou resize
+  const [, forceRender] = useState({});
+
+  const applyTransform = (x: number, y: number) => {
+    if (playerRef.current) {
+      playerRef.current.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+    }
+  };
+
   // Inicializa a posição padrão segura
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -33,52 +42,57 @@ export default function MiniPlayer() {
       const playerHeight = 74;
       const x = isMobile ? (window.innerWidth - playerWidth) / 2 : window.innerWidth - playerWidth - 24;
       const y = window.innerHeight - playerHeight - 96; // Acima da bottom nav
-      setPosition({ x, y });
+      posRef.current = { x, y };
+      applyTransform(x, y);
+      forceRender({}); // renderiza para assumir inicialização
     };
 
-    if (!position) {
+    if (!posRef.current) {
       updateDefaultPos();
     }
-  }, [position]);
+  }, []);
 
   // Listener para ajuste em resize da tela
   useEffect(() => {
     const handleResize = () => {
-      if (!playerRef.current) return;
+      if (!playerRef.current || !posRef.current) return;
       const rect = playerRef.current.getBoundingClientRect();
       const maxX = Math.max(10, window.innerWidth - rect.width - 10);
       const maxY = Math.max(10, window.innerHeight - rect.height - 20);
 
-      setPosition((prev) => {
-        if (!prev) return prev;
-        return {
-          x: Math.min(Math.max(10, prev.x), maxX),
-          y: Math.min(Math.max(10, prev.y), maxY),
-        };
-      });
+      const newX = Math.min(Math.max(10, posRef.current.x), maxX);
+      const newY = Math.min(Math.max(10, posRef.current.y), maxY);
+      
+      posRef.current = { x: newX, y: newY };
+      applyTransform(newX, newY);
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Handlers de Drag Ultra-Rápido a 60 FPS (Hardware Accelerated)
+  // Handlers de Drag Ultra-Rápido a 60 FPS (Hardware Accelerated via DOM direto)
   const animFrameId = useRef<number | null>(null);
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
     if (!playerRef.current) return;
     
-    const currentPos = position || {
-      x: window.innerWidth < 768 ? (window.innerWidth - Math.min(window.innerWidth - 24, 400)) / 2 : window.innerWidth - 424,
-      y: window.innerHeight - 170,
-    };
+    // Fallback se por algum motivo posRef ainda for nulo
+    if (!posRef.current) {
+      const isMobile = window.innerWidth < 768;
+      const playerWidth = isMobile ? Math.min(window.innerWidth - 24, 400) : 400;
+      posRef.current = {
+        x: isMobile ? (window.innerWidth - playerWidth) / 2 : window.innerWidth - playerWidth - 24,
+        y: window.innerHeight - 170,
+      };
+    }
 
     dragRef.current = {
       startX: e.clientX,
       startY: e.clientY,
-      initialX: currentPos.x,
-      initialY: currentPos.y,
+      initialX: posRef.current.x,
+      initialY: posRef.current.y,
       hasMoved: false,
     };
 
@@ -105,7 +119,8 @@ export default function MiniPlayer() {
       }
 
       animFrameId.current = requestAnimationFrame(() => {
-        setPosition({ x: nextX, y: nextY });
+        posRef.current = { x: nextX, y: nextY };
+        applyTransform(nextX, nextY);
       });
     };
 
@@ -122,7 +137,7 @@ export default function MiniPlayer() {
     window.addEventListener('pointermove', onWindowPointerMove, { passive: true });
     window.addEventListener('pointerup', onWindowPointerUp);
     window.addEventListener('pointercancel', onWindowPointerUp);
-  }, [position]);
+  }, []);
 
   const handleClickPlayer = (e: React.MouseEvent) => {
     if (!dragRef.current.hasMoved && !(e.target as HTMLElement).closest('button')) {
@@ -139,7 +154,7 @@ export default function MiniPlayer() {
 
   // Duração e Progresso
   const trackDurMs = currentTrack?.duration && currentTrack.duration > 0
-    ? (currentTrack.duration > 3600 ? currentTrack.duration : currentTrack.duration * 1000)
+    ? currentTrack.duration * 1000
     : 0;
   const effectiveDuration = durationMs > 0 ? durationMs : trackDurMs;
   const currentPct = effectiveDuration > 0 ? Math.min(100, Math.max(0, (progressMs / effectiveDuration) * 100)) : 0;
@@ -153,7 +168,7 @@ export default function MiniPlayer() {
         position: 'fixed',
         left: 0,
         top: 0,
-        transform: position ? `translate3d(${position.x}px, ${position.y}px, 0)` : 'translate3d(12px, calc(100vh - 170px), 0)',
+        transform: posRef.current ? `translate3d(${posRef.current.x}px, ${posRef.current.y}px, 0)` : 'translate3d(12px, calc(100vh - 170px), 0)',
         willChange: isDragging ? 'transform' : 'auto',
         touchAction: 'none',
       }}

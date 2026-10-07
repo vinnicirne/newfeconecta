@@ -117,7 +117,23 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
             if (payload.eventType === 'INSERT') {
               setComments(prev => {
                 if (prev.some(c => c.id === payload.new.id)) return prev;
-                return [...prev, mapRow(payload.new)];
+                // Busca o JOIN do perfil assincronamente sem travar a thread
+                setTimeout(async () => {
+                  try {
+                    const { data } = await supabase
+                      .from('music_track_comments')
+                      .select(SELECT_FRAGMENT)
+                      .eq('id', payload.new.id)
+                      .single();
+                    if (data) {
+                      setComments(current => {
+                        if (current.some(c => c.id === data.id)) return current;
+                        return [...current, mapRow(data)];
+                      });
+                    }
+                  } catch (e) {}
+                }, 0);
+                return prev; // ignora o payload cru que não tem perfil
               });
             } else if (payload.eventType === 'UPDATE') {
               setComments(prev => prev.map(c => c.id === payload.new.id ? { ...c, ...mapRow(payload.new, c.author_name) } : c));
@@ -127,7 +143,7 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
           })
         .subscribe();
     } catch { /* realtime not available */ }
-    return () => { if (channel) { try { supabase.removeChannel(channel); } catch {} } };
+    return () => { if (channel) { supabase.removeChannel(channel); } };
   }, [isOpen, trackId]);
 
   // Focus input on open
@@ -207,8 +223,13 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
   };
 
   // ─── Delete comment ───────────────────────────────────────────────────────
-  const handleDelete = async (commentId: string) => {
-    if (!confirm('Deseja apagar este comentario?')) return;
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+
+  const confirmDelete = async () => {
+    if (!commentToDelete) return;
+    const commentId = commentToDelete;
+    setCommentToDelete(null);
+
     const previous = comments;
     setComments(prev => prev.filter(c => c.id !== commentId && c.parent_id !== commentId));
     toast.success('Comentario removido.');
@@ -269,7 +290,7 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
           </button>
         )}
         {currentUser?.id === comment.user_id && (
-          <button onClick={() => handleDelete(comment.id)} className="text-[11px] text-gray-500 hover:text-red-400 transition-colors">
+          <button onClick={() => setCommentToDelete(comment.id)} className="text-[11px] text-gray-500 hover:text-red-400 transition-colors">
             Apagar
           </button>
         )}
@@ -350,7 +371,7 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
             </div>
 
             {/* Input */}
-            <div className="p-3 border-t border-white/10 shrink-0" style={{ backgroundColor: '#0f0f0f' }}>
+            <div className="px-3 pt-3 border-t border-white/10 shrink-0" style={{ backgroundColor: '#0f0f0f', paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom, 0px))' }}>
               {replyingTo && (
                 <div className="flex items-center justify-between bg-white/5 px-3 py-1.5 rounded-lg mb-2 text-xs text-gray-300">
                   <span className="flex items-center gap-1.5">
@@ -384,6 +405,34 @@ export default function TrackCommentsModal({ isOpen, onClose, trackId, trackTitl
                   }
                 </button>
               </form>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {commentToDelete && (
+        <div className="fixed inset-0 z-[100000] flex items-center justify-center bg-black/60 px-4">
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-[#1a1a1a] p-5 rounded-2xl shadow-xl w-full max-w-[300px] border border-white/10"
+          >
+            <h4 className="text-white font-bold mb-2 text-center text-sm">Apagar Comentário</h4>
+            <p className="text-gray-400 text-xs text-center mb-5">Tem certeza que deseja apagar este comentário? A ação não pode ser desfeita.</p>
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setCommentToDelete(null)}
+                className="flex-1 py-2 rounded-xl bg-white/10 text-white font-semibold text-xs active:scale-95 transition-all"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmDelete}
+                className="flex-1 py-2 rounded-xl bg-red-500/20 text-red-400 font-semibold text-xs border border-red-500/30 hover:bg-red-500 hover:text-white active:scale-95 transition-all"
+              >
+                Apagar
+              </button>
             </div>
           </motion.div>
         </div>

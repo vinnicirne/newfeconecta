@@ -32,9 +32,7 @@ export default function MusicRankingSection() {
 
     return () => {
       window.removeEventListener('femusic-ranking-updated', handleCustomUpdate);
-      try {
-        supabase.removeChannel(channel);
-      } catch (_) {}
+      supabase.removeChannel(channel);
     };
   }, []);
 

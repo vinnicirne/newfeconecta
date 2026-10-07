@@ -8,12 +8,14 @@ import { MusicTrack } from '@/modules/femusic/domain/entities/MusicTrack';
 import { supabase } from '@/lib/supabase';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { YouTubeService } from '@/modules/femusic/infrastructure/services/YouTubeService';
-import ReadySessions from '@/modules/femusic/presentation/components/ReadySessions';
-import ContinueListening from '@/modules/femusic/presentation/components/ContinueListening';
-import MusicRankingSection from '@/modules/femusic/presentation/components/MusicRankingSection';
-import DatabaseCatalogSection from '@/modules/femusic/presentation/components/DatabaseCatalogSection';
-import CommunityListeningSection from '@/modules/femusic/presentation/components/CommunityListeningSection';
+import dynamic from 'next/dynamic';
 import { useWarmCache } from '@/modules/femusic/application/useWarmCache';
+import ContinueListening from '@/modules/femusic/presentation/components/ContinueListening';
+
+const ReadySessions = dynamic(() => import('@/modules/femusic/presentation/components/ReadySessions'), { ssr: false });
+const MusicRankingSection = dynamic(() => import('@/modules/femusic/presentation/components/MusicRankingSection'), { ssr: false });
+const DatabaseCatalogSection = dynamic(() => import('@/modules/femusic/presentation/components/DatabaseCatalogSection'), { ssr: false });
+const CommunityListeningSection = dynamic(() => import('@/modules/femusic/presentation/components/CommunityListeningSection'), { ssr: false });
 import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 import { getStoredProfile } from '@/lib/profile-cache';
@@ -163,7 +165,10 @@ export default function MusicFeedPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-black/95 text-gray-900 dark:text-gray-100 pb-28">
+    <div 
+      className="min-h-screen bg-gray-50 dark:bg-black/95 text-gray-900 dark:text-gray-100"
+      style={{ paddingBottom: 'calc(7rem + env(safe-area-inset-bottom, 0px))' }}
+    >
       {/* Header do FéMusic */}
       <div className="px-4 py-6 flex items-center justify-between">
         <div>
@@ -174,6 +179,7 @@ export default function MusicFeedPage() {
         </div>
         <button
           onClick={() => setIsComposerOpen(true)}
+          aria-label="Compartilhar Louvor"
           className="w-11 h-11 rounded-full bg-whatsapp-teal text-white flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 hover:scale-105 active:scale-95 transition-all"
           title="Compartilhar Louvor"
         >
@@ -257,38 +263,49 @@ export default function MusicFeedPage() {
           </span>
         </div>
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-3 snap-x">
-          {trending.map((track, i) => (
-            <div 
-              key={track.id || i} 
-              className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2 cursor-pointer group" 
-              onClick={() => play(track, trending)}
-            >
-              <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
-                {track.cover ? (
-                  <img src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
-                ) : (
-                  <Music className="w-8 h-8 text-gray-400" />
-                )}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <PlayCircle className="w-8 h-8 text-white drop-shadow-md" />
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2">
+                <div className="w-36 sm:w-40 h-28 rounded-2xl bg-gray-200 dark:bg-white/5 animate-pulse" />
+                <div className="w-24 h-3 bg-gray-200 dark:bg-white/5 rounded animate-pulse" />
+                <div className="w-16 h-2 bg-gray-200 dark:bg-white/5 rounded animate-pulse" />
+              </div>
+            ))
+          ) : (
+            trending.slice(0, 12).map((track, i) => (
+              <div 
+                key={track.id || i} 
+                className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2 cursor-pointer group" 
+                onClick={() => play(track, trending)}
+              >
+                <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
+                  {track.cover ? (
+                    <img loading="lazy" src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
+                  ) : (
+                    <Music className="w-8 h-8 text-gray-400" />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <PlayCircle className="w-8 h-8 text-white drop-shadow-md" />
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTrackForPlaylist(track);
+                    }}
+                    aria-label="Adicionar à Playlist"
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
+                    title="Adicionar à Playlist"
+                  >
+                    <ListPlus className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedTrackForPlaylist(track);
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
-                  title="Adicionar à Playlist"
-                >
-                  <ListPlus className="w-3.5 h-3.5" />
-                </button>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-xs sm:text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
+                  <p className="text-[11px] text-gray-500 truncate">{track.artist || 'FéConecta Music'}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h3 className="font-bold text-xs sm:text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
-                <p className="text-[11px] text-gray-500 truncate">{track.artist || 'FéConecta Music'}</p>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 
@@ -304,38 +321,49 @@ export default function MusicFeedPage() {
           </span>
         </div>
         <div className="flex gap-4 overflow-x-auto no-scrollbar pb-3 snap-x">
-          {worship.map((track, i) => (
-            <div 
-              key={track.id || i} 
-              className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2 cursor-pointer group" 
-              onClick={() => play(track, worship)}
-            >
-              <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
-                {track.cover ? (
-                  <img src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
-                ) : (
-                  <Radio className="w-8 h-8 text-gray-400" />
-                )}
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <PlayCircle className="w-8 h-8 text-white drop-shadow-md" />
+          {loading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2">
+                <div className="w-36 sm:w-40 h-28 rounded-2xl bg-gray-200 dark:bg-white/5 animate-pulse" />
+                <div className="w-24 h-3 bg-gray-200 dark:bg-white/5 rounded animate-pulse" />
+                <div className="w-16 h-2 bg-gray-200 dark:bg-white/5 rounded animate-pulse" />
+              </div>
+            ))
+          ) : (
+            worship.slice(0, 12).map((track, i) => (
+              <div 
+                key={track.id || i} 
+                className="snap-start shrink-0 w-36 sm:w-40 flex flex-col gap-2 cursor-pointer group" 
+                onClick={() => play(track, worship)}
+              >
+                <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
+                  {track.cover ? (
+                    <img loading="lazy" src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
+                  ) : (
+                    <Radio className="w-8 h-8 text-gray-400" />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <PlayCircle className="w-8 h-8 text-white drop-shadow-md" />
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedTrackForPlaylist(track);
+                    }}
+                    aria-label="Adicionar à Playlist"
+                    className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
+                    title="Adicionar à Playlist"
+                  >
+                    <ListPlus className="w-3.5 h-3.5" />
+                  </button>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedTrackForPlaylist(track);
-                  }}
-                  className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-whatsapp-teal transition-all shadow-md active:scale-90 opacity-90 hover:opacity-100"
-                  title="Adicionar à Playlist"
-                >
-                  <ListPlus className="w-3.5 h-3.5" />
-                </button>
+                <div className="min-w-0">
+                  <h3 className="font-bold text-xs sm:text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
+                  <p className="text-[11px] text-gray-500 truncate">{track.artist || 'FéConecta Music'}</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h3 className="font-bold text-xs sm:text-sm truncate group-hover:text-whatsapp-teal transition-colors">{track.title || 'Faixa Desconhecida'}</h3>
-                <p className="text-[11px] text-gray-500 truncate">{track.artist || 'FéConecta Music'}</p>
-              </div>
-            </div>
-          ))}
+            ))
+          )}
         </div>
       </div>
 

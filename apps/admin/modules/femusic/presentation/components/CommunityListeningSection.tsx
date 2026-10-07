@@ -42,9 +42,7 @@ export default function CommunityListeningSection() {
       .subscribe();
 
     return () => {
-      try {
-        supabase.removeChannel(channel);
-      } catch (_) {}
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -66,10 +64,12 @@ export default function CommunityListeningSection() {
         .limit(15);
 
       if (!error && data && Array.isArray(data)) {
-        // Remove duplicatas consecutivas da mesma faixa
-        const unique = data.filter((item, index, self) => 
-          index === self.findIndex((t) => t.provider_track_id === item.provider_track_id)
-        );
+        // Remove duplicatas consecutivas da mesma faixa pelo mesmo usuário
+        const unique = data.filter((item, index, self) => {
+          if (index === 0) return true;
+          const prev = self[index - 1];
+          return !(prev.provider_track_id === item.provider_track_id && prev.user?.id === item.user?.id);
+        });
         setItems(unique as any);
       }
     } catch (e) {

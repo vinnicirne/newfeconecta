@@ -39,7 +39,10 @@ export default function PlaylistViewModal({ isOpen, onClose, playlist }: Playlis
 
     let queue = [...activePlaylistTracks];
     if (shuffle) {
-      queue = queue.sort(() => Math.random() - 0.5);
+      for (let i = queue.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [queue[i], queue[j]] = [queue[j], queue[i]];
+      }
     }
 
     play(queue[0], queue);
