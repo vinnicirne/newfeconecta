@@ -163,6 +163,8 @@ function MessagesContent() {
       style={{
         top: viewportTop,
         height: viewportHeight,
+        paddingTop: 'env(safe-area-inset-top)',
+        paddingBottom: 'env(safe-area-inset-bottom)',
       }}
     >
       {/* Sidebar - Lista de Conversas */}
@@ -171,10 +173,7 @@ function MessagesContent() {
         selectedId ? "hidden md:flex" : "flex"
       )}>
         {/* Header Sidebar */}
-        <div
-          className="p-4 bg-gray-50 dark:bg-[#202c33] flex items-center justify-between border-b border-gray-200 dark:border-transparent"
-          style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}
-        >
+        <div className="p-4 bg-gray-50 dark:bg-[#202c33] flex items-center justify-between border-b border-gray-200 dark:border-transparent">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/profile')}
@@ -309,10 +308,7 @@ function MessagesContent() {
         ) : (
           <>
             {/* Header Chat */}
-            <div
-              className="sticky top-0 z-20 p-4 bg-white/95 dark:bg-[#202c33]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 flex items-center justify-between shadow-sm dark:shadow-lg"
-              style={{ paddingTop: 'max(env(safe-area-inset-top, 0px), 16px)' }}
-            >
+            <div className="sticky top-0 z-20 p-4 bg-white/95 dark:bg-[#202c33]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 flex items-center justify-between shadow-sm dark:shadow-lg">
               <div className="flex items-center gap-3">
                 <button onClick={() => setSelectedId(null)} className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-full">
                   <ArrowLeft className="w-5 h-5 text-gray-400" />
@@ -396,10 +392,7 @@ function MessagesContent() {
             </div>
 
             {/* Input Area */}
-            <div
-              className="p-3 sm:p-4 bg-white dark:bg-[#202c33] border-t border-gray-200 dark:border-transparent mt-auto z-20"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 25px)' }}
-            >
+            <div className="p-3 sm:p-4 bg-white dark:bg-[#202c33] border-t border-gray-200 dark:border-transparent mt-auto z-20">
               <input
                 type="file"
                 ref={fileInputRef}
