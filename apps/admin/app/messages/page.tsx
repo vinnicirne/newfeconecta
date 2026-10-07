@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Send, MessageSquare, ArrowLeft, Check, CheckCheck, Camera, Image, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -66,6 +66,7 @@ function MessagesContent() {
 
   const {
     conversations,
+    isLoading,
     messages,
     sendMessage,
     scrollRef,
@@ -142,20 +143,24 @@ function MessagesContent() {
     }
   }, [selectedId, conversations]);
 
-  const filteredConversations = (conversations || []).filter((c: any) => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    const nameMatch = c.name?.toLowerCase().includes(query);
-    const lastMsgMatch = c.lastMessage?.toLowerCase().includes(query);
-    return nameMatch || lastMsgMatch;
-  });
+  const filteredConversations = useMemo(() => {
+    return (conversations || []).filter((c: any) => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      const nameMatch = c.name?.toLowerCase().includes(query);
+      const lastMsgMatch = c.lastMessage?.toLowerCase().includes(query);
+      return nameMatch || lastMsgMatch;
+    });
+  }, [conversations, searchQuery]);
 
-  const selectedChat = conversations.find((c: any) => c.id === selectedId) || (targetUserProfile ? {
-    id: targetUserProfile.id,
-    name: targetUserProfile.full_name || targetUserProfile.username || 'Irmão(ã) FéConecta',
-    avatar: targetUserProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
-    is_online: false
-  } : null);
+  const selectedChat = useMemo(() => {
+    return conversations.find((c: any) => c.id === selectedId) || (targetUserProfile ? {
+      id: targetUserProfile.id,
+      name: targetUserProfile.full_name || targetUserProfile.username || 'Irmão(ã) FéConecta',
+      avatar: targetUserProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100',
+      is_online: false
+    } : null);
+  }, [conversations, selectedId, targetUserProfile]);
 
   return (
     <div
@@ -219,7 +224,7 @@ function MessagesContent() {
                       ? "border-whatsapp-green shadow-[0_0_10px_rgba(37,211,102,0.4)] animate-pulse"
                       : "border-gray-300 dark:border-white/10 grayscale opacity-60"
                   )}>
-                    <img src={chat.avatar} className="w-full h-full object-cover rounded-[14px]" alt="" />
+                    <img src={chat.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover rounded-[14px]" alt="" />
                   </div>
                   {chat.is_online && (
                     <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-whatsapp-green border-2 border-white dark:border-[#111b21] rounded-full" />
@@ -238,7 +243,19 @@ function MessagesContent() {
 
         {/* Lista */}
         <div className="flex-1 overflow-y-auto custom-scrollbar pb-24 md:pb-0">
-          {filteredConversations.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-4 border-b border-gray-50 dark:border-white/5 animate-pulse">
+                  <div className="w-12 h-12 rounded-full bg-gray-200 dark:bg-white/10 flex-shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 dark:bg-white/10 rounded w-1/3" />
+                    <div className="h-3 bg-gray-200 dark:bg-white/10 rounded w-2/3" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredConversations.length === 0 ? (
             <div className="p-8 text-center text-gray-400 text-xs flex flex-col items-center justify-center h-full">
               <MessageSquare className="w-8 h-8 opacity-20 mb-2" />
               {searchQuery ? "Nenhuma conversa encontrada." : "Nenhuma conversa iniciada ainda."}
@@ -258,7 +275,7 @@ function MessagesContent() {
                     "w-full h-full rounded-full overflow-hidden border border-black/5 dark:border-white/5 transition-all duration-500",
                     chat.is_online ? "ring-2 ring-whatsapp-green ring-offset-2 dark:ring-offset-[#111b21]" : "grayscale opacity-70"
                   )}>
-                    <img src={chat.avatar} className="w-full h-full object-cover" alt="" />
+                    <img src={chat.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
                   </div>
                   {chat.is_online && (
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-[#111b21] rounded-full shadow-sm" />
@@ -315,7 +332,7 @@ function MessagesContent() {
                 </button>
                 <div className="relative w-10 h-10 flex-shrink-0">
                   <div className="w-full h-full rounded-full border border-black/5 dark:border-white/10 overflow-hidden">
-                    <img src={selectedChat?.avatar} className="w-full h-full object-cover" alt="" />
+                    <img src={selectedChat?.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
                   </div>
                 </div>
                 <div>
@@ -330,12 +347,8 @@ function MessagesContent() {
             {/* Messages Area */}
             <div
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3 relative"
+              className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-3 relative bg-[#e5ddd5] dark:bg-transparent"
               style={{
-                backgroundImage: `url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')`,
-                backgroundSize: '400px',
-                backgroundBlendMode: 'overlay',
-                backgroundColor: 'transparent'
               }}
             >
               {messages.map((m: any) => (
@@ -361,6 +374,8 @@ function MessagesContent() {
                       <div className="mb-1 rounded-lg overflow-hidden border border-black/10">
                         <img
                           src={imgSrc}
+                          loading="lazy"
+                          decoding="async"
                           alt="Imagem enviada"
                           className="max-w-full h-auto max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
                           onClick={() => window.open(imgSrc, '_blank')}

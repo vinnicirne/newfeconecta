@@ -213,6 +213,7 @@ export function useChat(currentUserId: string | null, selectedId: string | null)
 
   return {
     conversations: conversations || [],
+    isLoading: conversations === undefined,
     messages,
     sendMessage,
     scrollRef,
