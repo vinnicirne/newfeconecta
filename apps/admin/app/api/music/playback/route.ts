@@ -58,7 +58,6 @@ export async function POST(request: Request) {
           if (user?.id) finalUserId = user.id;
         }
       } catch (_) {}
-    }
 
     // 1. Indexa em music_tracks
     try {
