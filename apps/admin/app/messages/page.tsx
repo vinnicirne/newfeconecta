@@ -398,7 +398,7 @@ function MessagesContent() {
             {/* Input Area */}
             <div 
               className="p-3 sm:p-4 bg-white dark:bg-[#202c33] border-t border-gray-200 dark:border-transparent mt-auto z-20"
-              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 12px)' }}
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 20px)' }}
             >
                <input 
                  type="file" 
