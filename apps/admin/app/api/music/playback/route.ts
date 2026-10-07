@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { track, userId } = body;
+    const { track } = body;
 
     if (!track || (!track.id && !track.providerTrackId)) {
       return NextResponse.json({ error: 'Faixa inválida' }, { status: 400 });
@@ -29,12 +29,11 @@ export async function POST(request: Request) {
     const duration = track.duration ? Math.round(track.duration) : null;
     const provider = track.provider || 'youtube';
 
-    let finalUserId: string | null = userId || null;
+    let finalUserId: string | null = null;
 
-    // Se não veio userId no body, tenta extrair dos Cookies ou Header
-    if (!finalUserId) {
-      try {
-        const authHeader = request.headers.get('authorization');
+    // SECURITY CHECK [SEC-003]: Extrair userId EXCLUSIVAMENTE do Auth Header/Cookie
+    try {
+      const authHeader = request.headers.get('authorization');
         let token: string | null = null;
         if (authHeader?.startsWith('Bearer ')) {
           token = authHeader.replace('Bearer ', '').trim();

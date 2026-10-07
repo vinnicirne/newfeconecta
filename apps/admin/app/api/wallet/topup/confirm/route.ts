@@ -74,6 +74,20 @@ export async function POST(request: Request) {
       });
     }
 
+    // SECURITY CHECK [SEC-001]: Validar se o pagamento pertence de fato a esta carteira
+    const externalRef: string = payment.external_reference ?? "";
+    if (!externalRef.startsWith("topup:")) {
+      return NextResponse.json({ error: "Pagamento inválido (referência incorreta)" }, { status: 400 });
+    }
+
+    const refParts = externalRef.split(":");
+    const paymentWalletId = refParts[1];
+
+    if (paymentWalletId !== wallet.id) {
+      console.error(`[SEC-001] CRITICAL: Tentativa de IDOR! Payment=${payment_id}, ReqWallet=${wallet.id}, MPWallet=${paymentWalletId}`);
+      return NextResponse.json({ error: "Transação inválida ou pertencente a outra carteira." }, { status: 403 });
+    }
+
     const valorCentavos = Math.round(payment.transaction_amount * 100);
 
     // 3. Credita saldo na carteira
