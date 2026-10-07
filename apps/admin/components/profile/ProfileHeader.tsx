@@ -165,26 +165,44 @@ export function ProfileHeader({
             )}
           </div>
 
-          <div className="flex-1 flex justify-around text-center pt-8">
-            <div className="flex flex-col cursor-default">
-              <span className="font-bold text-lg leading-none text-black dark:text-white">{user?.posts_count || 0}</span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">Publicações</span>
+          <div className="flex-1 flex justify-around items-start text-center pt-8">
+            <div className="flex flex-col min-w-[72px] cursor-default select-none">
+              <span className="font-bold text-lg leading-none text-black dark:text-white tabular-nums">
+                {(user?.posts_count ?? 0).toLocaleString()}
+              </span>
+              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">
+                Publicações
+              </span>
             </div>
             {user?.show_counters !== false && (
               <>
                 <button
-                  onClick={() => onFetchConnections('followers', user.id)}
-                  className="flex flex-col hover:opacity-70 active:scale-95 transition-all"
+                  type="button"
+                  onClick={() => user?.id && onFetchConnections('followers', user.id)}
+                  disabled={!user?.id}
+                  className="flex flex-col min-w-[72px] hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label={`${(user?.followers_count ?? 0).toLocaleString()} seguidores`}
                 >
-                  <span className="font-bold text-lg leading-none text-black dark:text-white">{user?.followers_count?.toLocaleString() || 0}</span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">Seguidores</span>
+                  <span className="font-bold text-lg leading-none text-black dark:text-white tabular-nums">
+                    {(user?.followers_count ?? 0).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">
+                    Seguidores
+                  </span>
                 </button>
                 <button
-                  onClick={() => onFetchConnections('following', user.id)}
-                  className="flex flex-col hover:opacity-70 active:scale-95 transition-all"
+                  type="button"
+                  onClick={() => user?.id && onFetchConnections('following', user.id)}
+                  disabled={!user?.id}
+                  className="flex flex-col min-w-[72px] hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label={`${(user?.following_count ?? 0).toLocaleString()} seguindo`}
                 >
-                  <span className="font-bold text-lg leading-none text-black dark:text-white">{user?.following_count?.toLocaleString() || 0}</span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">Seguindo</span>
+                  <span className="font-bold text-lg leading-none text-black dark:text-white tabular-nums">
+                    {(user?.following_count ?? 0).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">
+                    Seguindo
+                  </span>
                 </button>
               </>
             )}

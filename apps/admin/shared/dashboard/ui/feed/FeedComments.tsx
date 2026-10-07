@@ -35,11 +35,16 @@ export function FeedComments({ postId, currentUser, autoFocus }: FeedCommentsPro
       .order('created_at', { ascending: true });
 
     if (commentsData) {
-      // Manual profile mapping since relation might not be defined
-      const mapped = await Promise.all(commentsData.map(async (c) => {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', c.user_id).single();
-        return { ...c, profile };
-      }));
+      const userIds = Array.from(new Set(commentsData.map(c => c.user_id).filter(Boolean)));
+      let profilesMap: Record<string, any> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('*').in('id', userIds);
+        profilesMap = (profiles || []).reduce((acc: any, p: any) => {
+          acc[p.id] = p;
+          return acc;
+        }, {});
+      }
+      const mapped = commentsData.map((c) => ({ ...c, profile: profilesMap[c.user_id] || null }));
       setComments(mapped);
     }
     setLoading(false);

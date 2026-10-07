@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
   Grid, ChevronDown, Globe, Instagram, MessageCircle, MessageSquare,
@@ -24,12 +24,9 @@ export default function PublicProfilePage() {
   const router = useRouter();
   const username = params.username as string;
 
-  const [user, setUser] = useState<any>(null);
   const [currentUser, setCurrentUser] = useState<any>(() => getStoredProfile());
-  const [isFollowing, setIsFollowing] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [view, setView] = useState<'grid' | 'lumes' | 'likes'>('grid');
-  const [userPosts, setUserPosts] = useState<any[]>([]);
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
   const [connectionsType, setConnectionsType] = useState<'followers' | 'following'>('followers');
   const [connectionsData, setConnectionsData] = useState<any[]>([]);
@@ -40,9 +37,6 @@ export default function PublicProfilePage() {
       const cached = getStoredProfile();
       if (cached) {
         setCurrentUser(cached);
-        if (cached.username === username) {
-          setUser(cached);
-        }
       }
 
       const { data: { user: authUser } } = await supabase.auth.getUser();
@@ -51,58 +45,11 @@ export default function PublicProfilePage() {
         if (profile) {
           setStoredProfile(profile);
           setCurrentUser(profile);
-          if (profile.username === username) {
-            setUser(profile);
-          }
         }
       }
     };
     initAuth();
   }, [username]);
-
-  // 2. Subscrição Realtime do Perfil Visitado (Apenas quando o user.id estiver disponível)
-  useEffect(() => {
-    if (!user?.id) return;
-
-    // Sincronização Global de Seguidores
-    const handleGlobalSync = (e: any) => {
-      if (e.detail.userId === user.id) {
-        setIsFollowing(e.detail.isFollowing);
-      }
-    };
-    window.addEventListener('user-follow-changed', handleGlobalSync);
-
-    const followChannel = supabase
-      .channel(`profile-sync-${user.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'follows',
-        filter: `following_id=eq.${user.id}`
-      }, (payload) => {
-        setUser((prev: any) => {
-          const increment = payload.eventType === 'INSERT' ? 1 : payload.eventType === 'DELETE' ? -1 : 0;
-          return { ...prev, followerCount: Math.max(0, (prev.followerCount || 0) + increment) };
-        });
-      })
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'follows',
-        filter: `follower_id=eq.${user.id}`
-      }, (payload) => {
-        setUser((prev: any) => {
-          const increment = payload.eventType === 'INSERT' ? 1 : payload.eventType === 'DELETE' ? -1 : 0;
-          return { ...prev, followingCount: Math.max(0, (prev.followingCount || 0) + increment) };
-        });
-      })
-      .subscribe();
-
-    return () => {
-      window.removeEventListener('user-follow-changed', handleGlobalSync);
-      supabase.removeChannel(followChannel);
-    };
-  }, [user?.id]);
 
   // 1. Motor de Perfil Unificado via SWR (Cache & One-Request)
   const fetcher = async (key: string) => {
@@ -114,9 +61,8 @@ export default function PublicProfilePage() {
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const pViewerId = isUUID(viewerId) ? viewerId : null;
 
-    let rpcData = null;
     try {
-      const { data, error, status } = await supabase.rpc('get_profile_with_state', {
+      const { data, error } = await supabase.rpc('get_profile_with_state', {
         p_username: username,
         p_viewer_id: pViewerId
       });
@@ -157,39 +103,101 @@ export default function PublicProfilePage() {
     }
   };
 
-  const { data, error, mutate, isValidating } = useSWR(
+  const { data, error, mutate } = useSWR(
     username ? `profile:${username}:${currentUser?.id || 'null'}` : null,
     fetcher,
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
-      dedupingInterval: 300000, // 🛡️ 5 minutos de cache (Gabarito #8 - Zero Spam)
+      dedupingInterval: 300000, // 🛡️ 5 minutos de cache
     }
   );
 
-  // Sincronização de Estados Locais
+  const user = data?.profile ? {
+    ...data.profile,
+    followerCount: data.profile.followerCount ?? data.profile.followers_count ?? 0,
+    followingCount: data.profile.followingCount ?? data.profile.following_count ?? 0,
+    postCount: data.profile.postCount ?? data.profile.posts_count ?? Math.max(data?.posts?.length || 0, 0)
+  } : null;
+
+  const isFollowing = data?.viewer_state?.is_following || false;
+  const userPosts = data?.posts || [];
+  const likedPosts = data?.liked_posts || [];
+  
+  // Memoização das listas baseadas em post_type em vez de regex pesado na renderização
+  const filteredPosts = useMemo(() => {
+    const list = view === 'likes' ? likedPosts : userPosts;
+    return list.filter((post: any) => {
+      if (view === 'lumes') return post.post_type === 'video';
+      return true;
+    }).map((post: any) => ({
+      ...post,
+      isVideo: post.post_type === 'video',
+      isAudio: post.post_type === 'audio'
+    }));
+  }, [view, userPosts, likedPosts]);
+
+  // 2. Subscrição Realtime Mutando SWR (Em vez de estado local)
   useEffect(() => {
-    if (data?.profile) {
-      // Normalização de dados (Snake Case para Camel Case)
-      const normalizedProfile = {
-        ...data.profile,
-        followerCount: data.profile.followerCount ?? data.profile.followers_count ?? 0,
-        followingCount: data.profile.followingCount ?? data.profile.following_count ?? 0,
-        postCount: data.profile.postCount ?? data.profile.posts_count ?? 0
-      };
-      setUser(normalizedProfile);
-      setIsFollowing(data.viewer_state.is_following);
-      setUserPosts(data.posts || []);
-      setLikedPosts(data.liked_posts || []);
-    }
-  }, [data]);
+    if (!user?.id) return;
+
+    const handleGlobalSync = (e: any) => {
+      if (e.detail.userId === user.id) {
+        mutate((prev: any) => {
+          if (!prev) return prev;
+          return { ...prev, viewer_state: { ...prev.viewer_state, is_following: e.detail.isFollowing } };
+        }, false);
+      }
+    };
+    window.addEventListener('user-follow-changed', handleGlobalSync);
+
+    const followChannel = supabase
+      .channel(`profile-sync-${user.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'follows',
+        filter: `following_id=eq.${user.id}`
+      }, (payload) => {
+        mutate((prev: any) => {
+          if (!prev) return prev;
+          const increment = payload.eventType === 'INSERT' ? 1 : payload.eventType === 'DELETE' ? -1 : 0;
+          return {
+            ...prev,
+            profile: {
+              ...prev.profile,
+              followers_count: Math.max(0, (prev.profile.followers_count || 0) + increment)
+            }
+          };
+        }, false);
+      })
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'follows',
+        filter: `follower_id=eq.${user.id}`
+      }, (payload) => {
+        mutate((prev: any) => {
+          if (!prev) return prev;
+          const increment = payload.eventType === 'INSERT' ? 1 : payload.eventType === 'DELETE' ? -1 : 0;
+          return {
+            ...prev,
+            profile: {
+              ...prev.profile,
+              following_count: Math.max(0, (prev.profile.following_count || 0) + increment)
+            }
+          };
+        }, false);
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('user-follow-changed', handleGlobalSync);
+      supabase.removeChannel(followChannel);
+    };
+  }, [user?.id, mutate]);
 
   const loading = !data && !error;
-
-  const fetchData = async () => {
-    // Agora o fetchData apenas dispara uma revalidação do SWR se necessário
-    await mutate();
-  };
 
   const fetchConnections = async (type: 'followers' | 'following', profileId: string) => {
     setConnectionsType(type);
@@ -236,8 +244,6 @@ export default function PublicProfilePage() {
     }
   };
 
-  const [likedPosts, setLikedPosts] = useState<any[]>([]);
-
   const toggleFollow = async () => {
     if (!currentUser || !user || !data) return;
     if (currentUser.id === user.id) return;
@@ -256,7 +262,6 @@ export default function PublicProfilePage() {
     };
 
     mutate(optimisticData, false);
-    setIsFollowing(newFollowing);
 
     try {
       const { data: newStatus, error } = await supabase.rpc('toggle_follow', {
@@ -264,8 +269,6 @@ export default function PublicProfilePage() {
         p_following_id: user.id
       });
       if (error) throw error;
-
-      setIsFollowing(newStatus);
 
       if (newStatus) {
         await NotificationService.notify({
@@ -281,7 +284,6 @@ export default function PublicProfilePage() {
       }));
     } catch (err) {
       mutate(data, false);
-      setIsFollowing(oldFollowing);
       toast.error("Erro ao processar seguimento");
     }
   };
@@ -325,26 +327,44 @@ export default function PublicProfilePage() {
              </div>
           </div>
 
-          <div className="flex-1 flex justify-around text-center pt-8">
-            <div className="flex flex-col">
-              <span className="font-bold text-lg leading-none">{user?.postCount || 0}</span>
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Posts</span>
+          <div className="flex-1 flex justify-around items-start text-center pt-8">
+            <div className="flex flex-col min-w-[72px] cursor-default select-none">
+              <span className="font-bold text-lg leading-none tabular-nums">
+                {(user?.postCount ?? 0).toLocaleString()}
+              </span>
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                Publicações
+              </span>
             </div>
             {user?.show_counters !== false && (
               <>
-                <button 
+                <button
+                  type="button"
                   onClick={() => user?.id && fetchConnections('followers', user.id)}
-                  className="flex flex-col hover:opacity-70 active:scale-95 transition-all"
+                  disabled={!user?.id}
+                  className="flex flex-col min-w-[72px] hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label={`${(user?.followerCount ?? 0).toLocaleString()} seguidores`}
                 >
-                  <span className="font-bold text-lg leading-none">{user?.followerCount || 0}</span>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Seguidores</span>
+                  <span className="font-bold text-lg leading-none tabular-nums">
+                    {(user?.followerCount ?? 0).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                    Seguidores
+                  </span>
                 </button>
-                <button 
+                <button
+                  type="button"
                   onClick={() => user?.id && fetchConnections('following', user.id)}
-                  className="flex flex-col hover:opacity-70 active:scale-95 transition-all"
+                  disabled={!user?.id}
+                  className="flex flex-col min-w-[72px] hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                  aria-label={`${(user?.followingCount ?? 0).toLocaleString()} seguindo`}
                 >
-                  <span className="font-bold text-lg leading-none">{user?.followingCount || 0}</span>
-                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">Seguindo</span>
+                  <span className="font-bold text-lg leading-none tabular-nums">
+                    {(user?.followingCount ?? 0).toLocaleString()}
+                  </span>
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">
+                    Seguindo
+                  </span>
                 </button>
               </>
             )}
@@ -458,56 +478,50 @@ export default function PublicProfilePage() {
       </div>
 
       <div className="grid grid-cols-3 gap-[2px]">
-        {(view === 'likes' ? likedPosts : userPosts)
-          .filter((post) => {
-            if (view === 'lumes') return post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i);
-            return true;
-          })
-          .map((post) => {
-            const isVideo = (post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i)) && !post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
-            const isAudio = post.post_type === 'audio' || post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
-
-            return (
-              <div 
-                key={post.id} 
-                onClick={() => setSelectedPost(post)}
-                className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
-              >
-                {post.media_url ? (
-                  isAudio ? (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
-                       <div className="w-10 h-10 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
-                          <Mic className="w-5 h-5 text-whatsapp-teal" />
-                       </div>
-                    </div>
-                  ) : isVideo ? (
-                    <video 
-                      src={post.media_url} 
-                      crossOrigin="anonymous"
-                      className="absolute inset-0 w-full h-full object-cover" 
-                      muted 
-                      playsInline 
-                    />
-                  ) : (
-                    <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" />
-                  )
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
-                )}
-                {isVideo && (
-                  <div className="absolute top-2 right-2 z-10">
-                    <PlaySquare className="w-4 h-4 text-white drop-shadow-md" />
+        {filteredPosts.map((post: any) => {
+          return (
+            <div 
+              key={post.id} 
+              onClick={() => setSelectedPost(post)}
+              className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
+            >
+              {post.media_url ? (
+                post.isAudio ? (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
+                     <div className="w-10 h-10 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
+                        <Mic className="w-5 h-5 text-whatsapp-teal" />
+                     </div>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        {userPosts.length === 0 && (
+                ) : post.isVideo ? (
+                  <video 
+                    src={`${post.media_url}#t=0.001`} 
+                    preload="metadata"
+                    crossOrigin="anonymous"
+                    className="absolute inset-0 w-full h-full object-cover" 
+                    muted 
+                    playsInline 
+                  />
+                ) : (
+                  <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" loading="lazy" />
+                )
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
+              )}
+              {post.isVideo && (
+                <div className="absolute top-2 right-2 z-10">
+                  <PlaySquare className="w-4 h-4 text-white drop-shadow-md" />
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {filteredPosts.length === 0 && (
           <div className="col-span-3 py-20 text-center opacity-20">
             <p className="text-xs font-bold uppercase tracking-widest">Nenhuma publicação</p>
           </div>
         )}
       </div>
+      
       {selectedPost && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm transition-all" onClick={() => setSelectedPost(null)}>
            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>

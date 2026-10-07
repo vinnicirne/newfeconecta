@@ -134,29 +134,31 @@ export default function ProfilePage() {
     if (!modals.cropperConfig || !user?.id) return;
 
     const type = modals.cropperConfig.type;
-    const fileName = `${type}_${user.id}_${Date.now()}.jpg`;
+    const fileName = `${type}_${user.id}.jpg`;
 
     try {
       const { data, error } = await supabase.storage
         .from('avatars')
-        .upload(fileName, blob, { contentType: 'image/jpeg' });
+        .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
 
       if (error) throw error;
 
       const { data: { publicUrl } } = supabase.storage
         .from('avatars')
         .getPublicUrl(data.path);
+        
+      const publicUrlWithCacheBuster = `${publicUrl}?t=${Date.now()}`;
 
       const field = type === 'avatar' ? 'avatar_url' : 'banner_url';
 
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ [field]: publicUrl })
+        .update({ [field]: publicUrlWithCacheBuster })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
 
-      setUser((prev: any) => ({ ...prev, [field]: publicUrl }));
+      setUser((prev: any) => ({ ...prev, [field]: publicUrlWithCacheBuster }));
       modals.closeCropper();
 
     } catch (err: any) {

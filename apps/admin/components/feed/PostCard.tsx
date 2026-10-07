@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import PostCardHeader from "./PostCardHeader";
-import { PostCardContext } from "./PostCardContext";
+import { PostCardMediaContext, PostCardActionContext, PostCardContentContext } from "./PostCardContext";
 import PostCardMedia from "./PostCardMedia";
 import PostCardText from "./PostCardText";
 import PostCardActions from "./PostCardActions";
@@ -11,6 +11,7 @@ import { useRouter } from "next/navigation";
 import { usePostActions } from "@/hooks/feed/usePostActions";
 import { usePostMedia } from "@/hooks/feed/usePostMedia";
 import { renderContent } from "@/utils/feed-formatter";
+import { getPostMediaInfo, isLegacyMediaCheck } from "@/utils/post-media";
 import { Flame } from "lucide-react";
 
 const PostCard = React.memo(function PostCard({
@@ -28,33 +29,9 @@ const PostCard = React.memo(function PostCard({
   const [retryCount, setRetryCount] = useState(0);
   const router = useRouter();
 
-  // Higienização Atômica e Definições de Base
-  const mediaUrl = post.media_url === "null" || !post.media_url ? null : post.media_url;
-  const postType = post.post_type === "null" ? "text" : post.post_type;
+  const { mediaUrl, postType, isAudio, isVideo, isShortText, isMediaPost, isVerseRepost, isDFCH, isDevotional } = useMemo(() => getPostMediaInfo(post), [post]);
 
-  const { isAudio, isVideo, isShortText, isMediaPost, isVerseRepost, isDFCH, isDevotional } = useMemo(() => {
-    const isVideoBucket = mediaUrl?.includes('/posts/videos/');
-    const isAudioBucket = mediaUrl?.includes('/posts/audio/');
-    
-    const audio = postType === "audio" || post.media_type === "audio" || !!mediaUrl?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i) || isAudioBucket;
-    const video = !audio && (postType === "video" || post.media_type === "video" || !!mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i) || isVideoBucket) && postType !== "external_media" && !mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i);
-    
-    const short = post.content && post.content.length < 90 && !post.content.includes("\n") && !mediaUrl;
-    const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
-    const hasExternal = !!urlMatch;
-    const media = !!(mediaUrl || video || audio || hasExternal);
-    const verse = post.type === "repost_verse" || !!post.content?.startsWith("📖 Recomendo a Palavra");
-    const isDevotional = !!post.content?.startsWith("📖 Devocional");
-    const dfch = !!(post.is_testimony) || verse;
-    return { isAudio: audio, isVideo: video, isShortText: short, isMediaPost: media, isVerseRepost: verse, isDFCH: dfch, isDevotional };
-  }, [postType, post.media_type, mediaUrl, post.content, post.type, post.is_testimony]);
-
-  const isLegacyMedia = useMemo(() => {
-    if (!mediaUrl || postType === "external_media") return false;
-    if (mediaUrl.includes("supabase.co/storage") || mediaUrl.includes("supabase.in/storage")) return false;
-    const fileName = mediaUrl.split("/").pop() || "";
-    return !fileName.includes(".");
-  }, [mediaUrl, postType]);
+  const isLegacyMedia = useMemo(() => isLegacyMediaCheck(mediaUrl, postType), [mediaUrl, postType]);
 
   const shouldSkipMedia = mediaError || isLegacyMedia;
 
@@ -69,6 +46,35 @@ const PostCard = React.memo(function PostCard({
   // Custom Hooks Atômicos
   const actions = usePostActions(post, currentUser, onUpdated, onDeleted);
   const media = usePostMedia(post, isVideo, onUpdated);
+
+  const mediaContextValue = useMemo(() => ({
+    post, isVideo, isAudio, mediaUrl, shouldSkipMedia, postType, setLightboxUrl,  
+    handleDoubleClickLike: actions.handleDoubleClickLike, retryCount, setRetryCount, 
+    isPriority, setMediaError, showLikeAnim: actions.showLikeAnim, 
+    videoRef: media.videoRef, isMuted: media.isMuted, handlePlayMedia: media.handlePlayMedia,
+    setIsMuted: media.setIsMuted, audioRef: media.audioRef, isPlaying: media.isPlaying, 
+    toggleAudio: media.toggleAudio, audioProgress: media.audioProgress, mounted, 
+    fmtTime: media.fmtTime, setAudioProgress: media.setAudioProgress,
+    setIsPlaying: media.setIsPlaying, router
+  }), [post, isVideo, isAudio, mediaUrl, shouldSkipMedia, postType, setLightboxUrl, actions.handleDoubleClickLike, retryCount, setRetryCount, isPriority, setMediaError, actions.showLikeAnim, media.videoRef, media.isMuted, media.handlePlayMedia, media.setIsMuted, media.audioRef, media.isPlaying, media.toggleAudio, media.audioProgress, mounted, media.fmtTime, media.setAudioProgress, media.setIsPlaying, router]);
+
+  const contentContextValue = useMemo(() => ({
+    post, activeBackground, isVerseRepost, isMediaPost, isDFCH, isDevotional, isShortText, isExpanded, setIsExpanded,
+    renderContent: (content: string) => renderContent(content, isVerseRepost, isExpanded, setIsExpanded, activeBackground)
+  }), [post, activeBackground, isVerseRepost, isMediaPost, isDFCH, isDevotional, isShortText, isExpanded, setIsExpanded]);
+
+  const actionContextValue = useMemo(() => ({
+    post, currentUser, isLiked: actions.isLiked, toggleLike: actions.toggleLike, openLikesModal: actions.openLikesModal, 
+    likes: actions.likes, showComments, setShowComments, 
+    commentCount: actions.commentCount, toggleRepost: actions.toggleRepost,
+    isReposted: actions.isReposted, repostsCount: actions.repostsCount, handleShare: actions.handleShare, 
+    viewsCount: media.viewsCount, toggleSave: actions.toggleSave, isSaved: actions.isSaved, 
+    setCommentCount: actions.setCommentCount, lightboxUrl, 
+    showLikesModal: actions.showLikesModal, setShowLikesModal: actions.setShowLikesModal, 
+    isFetchingLikers: actions.isFetchingLikers, postLikers: actions.postLikers, 
+    isShareModalOpen: actions.isShareModalOpen, setIsShareModalOpen: actions.setIsShareModalOpen, mounted
+  }), [post, currentUser, actions.isLiked, actions.toggleLike, actions.openLikesModal, actions.likes, showComments, setShowComments, actions.commentCount, actions.toggleRepost, actions.isReposted, actions.repostsCount, actions.handleShare, media.viewsCount, actions.toggleSave, actions.isSaved, actions.setCommentCount, lightboxUrl, actions.showLikesModal, actions.setShowLikesModal, actions.isFetchingLikers, actions.postLikers, actions.isShareModalOpen, actions.setIsShareModalOpen, mounted]);
+
 
   useEffect(() => {
     setMounted(true);
@@ -117,45 +123,30 @@ const PostCard = React.memo(function PostCard({
       />
 
       {!actions.isEditing && (
-        <PostCardContext.Provider value={{
-          post, isVideo, isAudio, mediaUrl, shouldSkipMedia, postType, setLightboxUrl,  
-          handleDoubleClickLike: actions.handleDoubleClickLike, retryCount, setRetryCount, 
-          isPriority, setMediaError, showLikeAnim: actions.showLikeAnim, 
-          videoRef: media.videoRef, isMuted: media.isMuted, handlePlayMedia: media.handlePlayMedia,
-          setIsMuted: media.setIsMuted, audioRef: media.audioRef, isPlaying: media.isPlaying, 
-          toggleAudio: media.toggleAudio, audioProgress: media.audioProgress, mounted, 
-          fmtTime: media.fmtTime, setAudioProgress: media.setAudioProgress,
-          setIsPlaying: media.setIsPlaying, router, activeBackground, isVerseRepost, 
-          isMediaPost, isDFCH, isDevotional, isShortText, renderContent: (content: string) => renderContent(content, isVerseRepost, isExpanded, setIsExpanded, activeBackground),
-          isLiked: actions.isLiked, toggleLike: actions.toggleLike, openLikesModal: actions.openLikesModal, 
-          likes: actions.likes, showComments, setShowComments, 
-          commentCount: actions.commentCount, toggleRepost: actions.toggleRepost,
-          isReposted: actions.isReposted, repostsCount: actions.repostsCount, handleShare: actions.handleShare, 
-          viewsCount: media.viewsCount, toggleSave: actions.toggleSave, isSaved: actions.isSaved, 
-          currentUser, setCommentCount: actions.setCommentCount, lightboxUrl, 
-          showLikesModal: actions.showLikesModal, setShowLikesModal: actions.setShowLikesModal, 
-          isFetchingLikers: actions.isFetchingLikers, postLikers: actions.postLikers, 
-          isShareModalOpen: actions.isShareModalOpen, setIsShareModalOpen: actions.setIsShareModalOpen
-        }}>
-          <PostCardMedia />
-          {!isAudio && <PostCardText />}
-          
-          {postType === "journey" && mediaUrl && (
-            <div className="px-4 pb-4">
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  router.push(`/santuario/${mediaUrl}`);
-                }}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500/10 text-amber-600 dark:text-amber-500 font-bold rounded-xl border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
-              >
-                <Flame className="w-5 h-5 fill-amber-500/20" /> Iniciar Jornada Devocional
-              </button>
-            </div>
-          )}
+        <PostCardMediaContext.Provider value={mediaContextValue}>
+          <PostCardContentContext.Provider value={contentContextValue}>
+            <PostCardActionContext.Provider value={actionContextValue}>
+              <PostCardMedia />
+              {!isAudio && <PostCardText />}
+              
+              {postType === "journey" && mediaUrl && (
+                <div className="px-4 pb-4">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/santuario/${mediaUrl}`);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500/10 text-amber-600 dark:text-amber-500 font-bold rounded-xl border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+                  >
+                    <Flame className="w-5 h-5 fill-amber-500/20" /> Iniciar Jornada Devocional
+                  </button>
+                </div>
+              )}
 
-          <PostCardActions />
-        </PostCardContext.Provider>
+              <PostCardActions />
+            </PostCardActionContext.Provider>
+          </PostCardContentContext.Provider>
+        </PostCardMediaContext.Provider>
       )}
     </div>
   );

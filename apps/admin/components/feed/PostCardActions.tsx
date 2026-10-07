@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Flame, MessageCircle, Share2, Repeat, Eye, Bookmark, AlertCircle } from "lucide-react";
-import { usePostCardContext } from "./PostCardContext";
+import { usePostCardActionContext, usePostCardMediaContext } from "./PostCardContext";
 import dynamic from "next/dynamic";
 
 const CommentsSection = dynamic(() => import("./CommentsSection"), { ssr: false });
@@ -24,25 +24,28 @@ export default function PostCardActions() {
     isReposted,
     repostsCount,
     handleShare,
-    isAudio,
-    isVideo,
     viewsCount,
     toggleSave,
     isSaved,
     post,
     currentUser,
     setCommentCount,
-    lightboxUrl,
-    setLightboxUrl,
-    handleDoubleClickLike,
-    showLikeAnim,
     showLikesModal,
     setShowLikesModal,
     isFetchingLikers,
     postLikers,
     isShareModalOpen,
     setIsShareModalOpen
-  } = usePostCardContext();
+  } = usePostCardActionContext();
+
+  const {
+    isAudio,
+    isVideo,
+    lightboxUrl,
+    setLightboxUrl,
+    handleDoubleClickLike,
+    showLikeAnim,
+  } = usePostCardMediaContext();
 
   const [imageLoadFailed, setImageLoadFailed] = useState(false);
 

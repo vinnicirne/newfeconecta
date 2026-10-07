@@ -1,7 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import { Flame, Play, Pause, Volume2, VolumeX, Music, Mic, Radio, Sparkles } from "lucide-react";
-import { usePostCardContext } from "./PostCardContext";
+import { usePostCardMediaContext } from "./PostCardContext";
 import ExternalMediaNative, { parseExternalMedia } from "./ExternalMediaNative";
 import { LinkPreview } from "./LinkPreview";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,7 @@ export default function PostCardMedia() {
     setAudioProgress,
     setIsPlaying,
     router
-  } = usePostCardContext();
+  } = usePostCardMediaContext();
 
   return (
     <>

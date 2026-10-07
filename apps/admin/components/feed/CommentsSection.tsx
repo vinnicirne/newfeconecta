@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Send, Flame, Reply, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,13 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
   const [replyingTo, setReplyingTo] = useState<any>(null);
   const [editingComment, setEditingComment] = useState<any>(null);
   const [expandedThreads, setExpandedThreads] = useState<Record<string, boolean>>({});
+  const fallbackTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     fetchComments();
@@ -175,10 +182,9 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
       setEditingComment(null);
       // O listener de realtime detecta INSERT/UPDATE e chama fetchComments() automaticamente.
       // Este fallback garante que o comentário otimista seja substituído mesmo sem realtime.
-      const fallbackTimer = setTimeout(() => fetchComments(), 3000);
-      // Cancela o fallback se o componente desmontar antes
-      const cleanup = () => clearTimeout(fallbackTimer);
-      window.addEventListener('beforeunload', cleanup, { once: true });
+      if (fallbackTimerRef.current) clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = setTimeout(() => fetchComments(), 3000);
+      
       if (!editingComment) onCommentAdded?.();
     } catch (err: any) {
       // Reverter se der erro

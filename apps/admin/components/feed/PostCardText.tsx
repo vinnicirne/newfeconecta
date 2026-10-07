@@ -1,6 +1,6 @@
 import React from "react";
 import { Flame, Gamepad2, Trophy, Sparkles, ChevronRight, Play, BrainCircuit, Boxes, Layers } from "lucide-react";
-import { usePostCardContext } from "./PostCardContext";
+import { usePostCardContentContext, usePostCardMediaContext } from "./PostCardContext";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
 import { cn } from "@/lib/utils";
 
@@ -13,12 +13,15 @@ export default function PostCardText() {
     isDFCH,
     isDevotional,
     isShortText,
-    mediaUrl,
     renderContent,
+  } = usePostCardContentContext();
+  
+  const {
+    mediaUrl,
     showLikeAnim,
     handleDoubleClickLike,
     router
-  } = usePostCardContext();
+  } = usePostCardMediaContext();
 
   if (!post.content) return null;
 
