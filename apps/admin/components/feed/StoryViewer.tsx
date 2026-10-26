@@ -219,9 +219,11 @@ export default function StoryViewer({
           mediaRef.currentTime = start;
         }
       } else {
+        const rawDur = mediaRef.duration;
+        const safeDur = Number.isFinite(rawDur) && rawDur > 0 ? rawDur : 15;
         dispatch({
           type: "SET_MEDIA_DURATION",
-          payload: Math.min((mediaRef.duration || 30) * 1000, VIDEO_DURATION),
+          payload: Math.min(safeDur * 1000, VIDEO_DURATION),
         });
       }
     };
@@ -270,6 +272,9 @@ export default function StoryViewer({
     lastTick.current = Date.now();
     if (action === "prev") prev();
     if (action === "next") advance();
+    if (!action && story?.media_type === "video" && videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
   };
 
   const touchStartY = useRef<number | null>(null);

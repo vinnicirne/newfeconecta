@@ -62,23 +62,15 @@ export function useCrossfade({
       return;
     }
 
-    console.log(`[Crossfade] Iniciando transição suave para: ${nextTrack.title}`);
+    console.log(`[Crossfade] Pré-carregando próxima faixa para transição suave: ${nextTrack.title}`);
 
-    // Prepara o áudio inativo com volume zerado
+    // Prepara o áudio inativo com a URL da próxima faixa para buffering instantâneo sem concorrência
     nextAudio.src = nextSrc;
-    nextAudio.volume = 0;
     nextAudio.currentTime = 0;
-
     try {
-      await nextAudio.play();
-    } catch (err) {
-      console.warn('[Crossfade] Não conseguiu iniciar áudio seguinte:', err);
-      isCrossfading.current = false;
-      return;
-    }
+      nextAudio.load();
+    } catch (_) {}
 
-    // Em vez de manipulação arriscada de volume/intervalo que quebra o window.audioPlayer,
-    // deixamos o término natural ou avanço suave acontecer
     isCrossfading.current = false;
   };
 }

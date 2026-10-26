@@ -39,14 +39,6 @@ export function usePlayerControls({
   // 2. Sincronização rigorosa de Play/Pause baseada no estado isPlaying
   useEffect(() => {
     const active = getActiveAudio();
-    const inactive = getInactiveAudio();
-
-    // Garante SEMPRE que o inativo esteja pausado
-    if (inactive && !inactive.paused) {
-      inactive.pause();
-      inactive.currentTime = 0;
-    }
-
     if (!active) return;
 
     if (isPlaying) {
@@ -61,7 +53,7 @@ export function usePlayerControls({
         active.pause();
       }
     }
-  }, [isPlaying, activeIndex, getActiveAudio, getInactiveAudio]);
+  }, [isPlaying, activeIndex, getActiveAudio]);
 
   // 3. Handlers de eventos de áudio com sincronização contínua de progresso e duração
   const syncDuration = useCallback((audio: HTMLAudioElement) => {
@@ -94,7 +86,17 @@ export function usePlayerControls({
 
   const onError = useCallback((e: React.SyntheticEvent<HTMLAudioElement>) => {
     const audio = e.currentTarget;
-    console.error('[usePlayerControls] Erro nativo no elemento de áudio:', audio.error);
+    const active = getActiveAudio();
+
+    // Se o elemento com erro não for o áudio ativo, ou não tiver src válido, ignora!
+    if (audio !== active) {
+      return;
+    }
+    if (!audio.src || audio.src === window.location.href || audio.src === 'about:blank') {
+      return;
+    }
+
+    console.error('[usePlayerControls] Erro nativo no elemento de áudio ativo:', audio.error);
     
     if (!isCrossfading.current) {
       const store = usePlayerStore.getState();
@@ -106,7 +108,7 @@ export function usePlayerControls({
       
       store.incrementFailures();
     }
-  }, [isCrossfading]);
+  }, [getActiveAudio, isCrossfading]);
 
   return {
     handleTimeUpdate,

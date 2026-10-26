@@ -1,5 +1,5 @@
 import React from "react";
-import { Mic, AlertCircle } from "lucide-react";
+import { Mic, AlertCircle, Play } from "lucide-react";
 import { useStoryViewer } from "./StoryViewerContext";
 import { cn } from "@/lib/utils";
 
@@ -25,16 +25,81 @@ export default function StoryViewerMedia() {
   const nextMediaUrl = nextStory?.media_url?.split("#")[0] || "";
   const [imgLoaded, setImgLoaded] = React.useState(false);
   const [mediaError, setMediaError] = React.useState(false);
+  const [showTapToPlay, setShowTapToPlay] = React.useState(false);
+
+  const bufferTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const watchdogTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearBufferTimers = React.useCallback(() => {
+    if (bufferTimerRef.current) {
+      clearTimeout(bufferTimerRef.current);
+      bufferTimerRef.current = null;
+    }
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+  }, []);
+
+  const setIsBuffering = React.useCallback((val: boolean) => {
+    isBufferingRef.current = val;
+    dispatch({ type: "SET_BUFFERING", payload: val });
+  }, [dispatch, isBufferingRef]);
 
   React.useEffect(() => {
     setImgLoaded(false);
     setMediaError(false);
-  }, [cleanMediaUrl]);
+    setShowTapToPlay(false);
+    clearBufferTimers();
+    setIsBuffering(false);
+    return () => clearBufferTimers();
+  }, [cleanMediaUrl, clearBufferTimers, setIsBuffering]);
 
-  const setIsBuffering = (val: boolean) => {
-    isBufferingRef.current = val;
-    dispatch({ type: "SET_BUFFERING", payload: val });
-  };
+  // Buffering com debounce e watchdog de segurança (6 segundos)
+  const handleWaiting = React.useCallback(() => {
+    clearBufferTimers();
+    bufferTimerRef.current = setTimeout(() => {
+      setIsBuffering(true);
+      // Se passar de 6 segundos travado, libera o spinner e mostra botão de play/pular
+      watchdogTimerRef.current = setTimeout(() => {
+        setIsBuffering(false);
+        setShowTapToPlay(true);
+      }, 6000);
+    }, 350);
+  }, [clearBufferTimers, setIsBuffering]);
+
+  const handlePlayingOrCanPlay = React.useCallback(() => {
+    clearBufferTimers();
+    setIsBuffering(false);
+    setShowTapToPlay(false);
+  }, [clearBufferTimers, setIsBuffering]);
+
+  // Extração do fragmento #t=start,end se existir
+  const timeMatch = story.media_url?.match(/#t=(\d+(?:\.\d+)?),(\d+(?:\.\d+)?)/);
+  const clipStart = timeMatch ? parseFloat(timeMatch[1]) : 0;
+  const clipEnd = timeMatch ? parseFloat(timeMatch[2]) : null;
+  const clipDuration = clipEnd !== null ? clipEnd - clipStart : null;
+
+  const handleTimeUpdate = React.useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+
+    // Se duration for Infinity ou inválido (fMP4 comum de MediaRecorder), usa duration do hash ou 15s
+    const dur = (clipDuration && clipDuration > 0)
+      ? clipDuration
+      : (Number.isFinite(v.duration) && v.duration > 0)
+        ? v.duration
+        : 15;
+
+    const relCurrent = Math.max(0, v.currentTime - clipStart);
+    const pct = Math.min(Math.max(0, (relCurrent / dur) * 100), 100);
+    dispatch({ type: "SET_PROGRESS", payload: pct });
+
+    // Se atingiu o final do vídeo ou do fragmento
+    if (pct >= 99.2 || (dur > 0 && relCurrent >= dur - 0.25) || v.ended) {
+      advance();
+    }
+  }, [clipStart, clipDuration, dispatch, advance, videoRef]);
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden bg-black" onClick={togglePause}>
@@ -79,6 +144,35 @@ export default function StoryViewerMedia() {
               <div className="w-12 h-12 rounded-full border-4 border-whatsapp-green border-t-transparent animate-spin" />
             </div>
           )}
+
+          {showTapToPlay && !mediaError && (
+            <div className="absolute inset-0 z-12 flex flex-col items-center justify-center p-6 text-center bg-black/75 backdrop-blur-sm gap-3">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowTapToPlay(false);
+                  const v = videoRef.current;
+                  if (v) {
+                    v.play().catch(console.error);
+                  }
+                }}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-whatsapp-green text-white font-bold text-sm shadow-xl active:scale-95 transition-all"
+              >
+                <Play className="w-5 h-5 fill-current" />
+                Toque para reproduzir
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  advance();
+                }}
+                className="text-white/70 hover:text-white text-xs underline font-medium"
+              >
+                Pular para o próximo story
+              </button>
+            </div>
+          )}
+
           {mediaError ? (
             <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-zinc-950 gap-3">
               <AlertCircle className="w-12 h-12 text-rose-500" />
@@ -93,7 +187,13 @@ export default function StoryViewerMedia() {
           ) : (
             <video
               key={story.id}
-              ref={videoRef as any}
+              ref={(el) => {
+                (videoRef as any).current = el;
+                if (el) {
+                  el.muted = isMuted;
+                  el.defaultMuted = isMuted;
+                }
+              }}
               src={cleanMediaUrl}
               autoPlay
               playsInline
@@ -101,22 +201,17 @@ export default function StoryViewerMedia() {
               muted={isMuted}
               preload="auto"
               controls={false}
-              poster="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-              onWaiting={() => setIsBuffering(true)}
-              onPlaying={() => setIsBuffering(false)}
-              onCanPlay={() => setIsBuffering(false)}
-              onTimeUpdate={() => {
-                const v = videoRef.current;
-                if (v && v.duration > 0) {
-                  const pct = Math.min((v.currentTime / v.duration) * 100, 100);
-                  dispatch({ type: "SET_PROGRESS", payload: pct });
-                }
-              }}
+              onWaiting={handleWaiting}
+              onPlaying={handlePlayingOrCanPlay}
+              onCanPlay={handlePlayingOrCanPlay}
+              onLoadedData={handlePlayingOrCanPlay}
+              onTimeUpdate={handleTimeUpdate}
               onEnded={() => {
                 advance();
               }}
               onError={(e) => {
                 console.error("Erro na reprodução do vídeo do story:", e);
+                clearBufferTimers();
                 setIsBuffering(false);
                 setMediaError(true);
                 setTimeout(() => advance(), 2000);
@@ -159,7 +254,8 @@ export default function StoryViewerMedia() {
             onTimeUpdate={() => {
               const a = audioRef.current;
               if (a && a.duration > 0) {
-                const pct = Math.min((a.currentTime / a.duration) * 100, 100);
+                const dur = Number.isFinite(a.duration) ? a.duration : (clipDuration || 15);
+                const pct = Math.min((a.currentTime / dur) * 100, 100);
                 dispatch({ type: "SET_PROGRESS", payload: pct });
               }
             }}

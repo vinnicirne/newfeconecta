@@ -20,7 +20,7 @@ import { cn } from '@/lib/utils';
 import { READY_SESSIONS } from '@/modules/femusic/domain/sessions';
 import { getStoredProfile } from '@/lib/profile-cache';
 
-// Seeds iniciais com IDs YouTube verificados via API em 29/08/2026
+// Seeds iniciais com IDs YouTube e CDN de alta velocidade verificados
 const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
   {
     id: 'YnrN0o0lubM',
@@ -30,6 +30,7 @@ const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
     cover: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=600',
     provider: 'youtube',
     providerTrackId: 'YnrN0o0lubM',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-77401fba-97f2-4421-8a15-687ddf362b50.m4a',
   },
   {
     id: '5QHF5OQeFOs',
@@ -39,6 +40,7 @@ const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
     cover: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600',
     provider: 'youtube',
     providerTrackId: '5QHF5OQeFOs',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-cdaa3cce-d7fe-4c5c-ac56-4d85604a03d9.m4a',
   },
   {
     id: 'pAQeih7K5ZY',
@@ -48,6 +50,7 @@ const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
     cover: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?w=600',
     provider: 'youtube',
     providerTrackId: 'pAQeih7K5ZY',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-93aa8f3b-bb06-48ff-ac28-72415a460ba2.m4a',
   },
   {
     id: 'n0fDvJAyrQ8',
@@ -57,37 +60,51 @@ const INITIAL_TRENDING_SEEDS: MusicTrack[] = [
     cover: 'https://images.unsplash.com/photo-1507838153414-b4b713384a76?w=600',
     provider: 'youtube',
     providerTrackId: 'n0fDvJAyrQ8',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-52788ca7-f7ff-4c8f-8d80-f4b7642b80df.m4a',
   },
 ];
 
 
 const INITIAL_WORSHIP_SEEDS: MusicTrack[] = [
   {
-    id: '_DUSt0KGMsI',
-    title: 'Para Que Entre o Rei',
-    artist: 'Morada',
+    id: 'SdkWBHLHTgg',
+    title: 'Uma Nova História',
+    artist: 'Fernandinho',
+    duration: 380,
+    cover: 'https://i.ytimg.com/vi/SdkWBHLHTgg/hqdefault.jpg',
+    provider: 'youtube',
+    providerTrackId: 'SdkWBHLHTgg',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-fbc8bf65-cd64-4938-b415-a3d8e71a4672.m4a',
+  },
+  {
+    id: '0ZF5em0MTwY',
+    title: 'Quem É Esse?',
+    artist: 'Julliany Souza',
+    duration: 340,
+    cover: 'https://i.ytimg.com/vi/0ZF5em0MTwY/hqdefault.jpg',
+    provider: 'youtube',
+    providerTrackId: '0ZF5em0MTwY',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-96492d62-4f8b-4da4-9bc1-875fafeac21b.m4a',
+  },
+  {
+    id: 'EBVNygWr1vc',
+    title: 'Medley Corinhos de Fogo',
+    artist: 'Midian Lima',
     duration: 410,
-    cover: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600',
+    cover: 'https://i.ytimg.com/vi/EBVNygWr1vc/hqdefault.jpg',
     provider: 'youtube',
-    providerTrackId: '_DUSt0KGMsI',
+    providerTrackId: 'EBVNygWr1vc',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-c774b9bb-5339-4a7f-8b88-ea2dfb1260a4.m4a',
   },
   {
-    id: 'Tqdi6BZUWr4',
-    title: 'Raridade',
-    artist: 'Anderson Freire',
-    duration: 285,
-    cover: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=600',
+    id: '6NvkZY-va0E',
+    title: 'Um Novo Dia',
+    artist: 'Get Worship',
+    duration: 359,
+    cover: 'https://i.ytimg.com/vi/6NvkZY-va0E/hq720.jpg?sqp=-oaymwEgCNAFEJQDSFXyq4qpAxIIARUAAIhCGAFwAcABBrgC9xg=&rs=AOn4CLAq_3XqwZXNckSDBs1LJZub_a5fGg',
     provider: 'youtube',
-    providerTrackId: 'Tqdi6BZUWr4',
-  },
-  {
-    id: 'IxpWNuxGmzc',
-    title: 'Em Teus Braços',
-    artist: 'Laura Souguellis',
-    duration: 430,
-    cover: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=600',
-    provider: 'youtube',
-    providerTrackId: 'IxpWNuxGmzc',
+    providerTrackId: '6NvkZY-va0E',
+    audioUrl: 'https://supabase.vps9432.panel.icontainer.cloud/storage/v1/object/public/videos/audio-614ae907-821b-48de-806a-f09a54db6dc6.m4a',
   },
 ];
 

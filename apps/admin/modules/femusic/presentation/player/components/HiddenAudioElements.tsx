@@ -13,17 +13,22 @@ export function HiddenAudioElements({
   audioARef,
   audioBRef,
   isCrossfading,
+  getActiveAudio,
   handleTimeUpdate,
   handleLoadedMetadata,
   handleEnded,
   onError,
 }: Props) {
 
-  const onPlay = () => {
+  const onPlay = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const active = getActiveAudio();
+    if (active && e.currentTarget !== active) return;
     usePlayerStore.setState({ isPlaying: true });
   };
 
-  const onPlaying = () => {
+  const onPlaying = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    const active = getActiveAudio();
+    if (active && e.currentTarget !== active) return;
     usePlayerStore.setState({ isPlaying: true });
 
     if (typeof window !== 'undefined') {
@@ -39,13 +44,13 @@ export function HiddenAudioElements({
   };
 
   const onPause = (e: React.SyntheticEvent<HTMLAudioElement>) => {
-    const { isLoading, currentTrack } = usePlayerStore.getState();
-    const active = (window as any).audioPlayer;
-    // Se o elemento pausado for o inativo ou estiver trocando de música, ignora
-    if (isCrossfading.current || isLoading || !currentTrack) {
+    const active = getActiveAudio();
+    // Se o elemento pausado não for o áudio ativo, ignora completamente
+    if (!active || e.currentTarget !== active) {
       return;
     }
-    if (active && e.currentTarget !== active) {
+    const { isLoading, currentTrack } = usePlayerStore.getState();
+    if (isCrossfading.current || isLoading || !currentTrack) {
       return;
     }
     usePlayerStore.setState({ isPlaying: false });

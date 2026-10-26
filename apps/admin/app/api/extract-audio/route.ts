@@ -73,6 +73,31 @@ export async function POST(request: Request) {
         }
         return NextResponse.json({ success: true, url: cacheRows[0].audio_url });
       }
+
+      // Fallback Inteligente: Busca por título se não encontrou pelo ID exato
+      if (track?.title) {
+        const words = track.title
+          .replace(/[\[\]()\-–|#]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .split(' ')
+          .filter((w: string) => w.length >= 3 && !['oficial', 'video', 'clipe', 'live', 'album', 'gospel'].includes(w.toLowerCase()));
+
+        if (words.length > 0) {
+          const mainSearchTerm = words.slice(0, 2).join(' ');
+          const { data: titleMatches } = await supabase
+            .from('femusic_cache')
+            .select('*')
+            .not('audio_url', 'is', null)
+            .ilike('title', `%${mainSearchTerm}%`)
+            .limit(1);
+
+          if (titleMatches && titleMatches.length > 0 && titleMatches[0].audio_url) {
+            console.log(`[AudioExtractor] Match por título no cache: "${track.title}" -> "${titleMatches[0].title}"`);
+            return NextResponse.json({ success: true, url: titleMatches[0].audio_url, matchedByTitle: true });
+          }
+        }
+      }
     }
 
     const audioExtractorUrl = process.env.AUDIO_EXTRACTOR_URL || process.env.EXTRACTOR_URL;
@@ -85,13 +110,26 @@ export async function POST(request: Request) {
       ? audioExtractorUrl 
       : `${audioExtractorUrl.replace(/\/+$/, '')}/extract-audio`;
     
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ url }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: any) {
+      clearTimeout(timeoutId);
+      console.warn('[AudioExtractor] Extrator indisponível ou timeout:', fetchErr.message);
+      return NextResponse.json({ error: 'Extrator de áudio temporariamente indisponível', details: fetchErr.message }, { status: 504 });
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     if (!response.ok) {
       const text = await response.text();

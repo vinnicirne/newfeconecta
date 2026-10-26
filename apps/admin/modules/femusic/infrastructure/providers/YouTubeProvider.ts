@@ -89,7 +89,7 @@ export class YouTubeProvider implements IMusicProvider {
       }, 350);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 45000);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const headers = await this.getAuthHeaders();
 
@@ -183,6 +183,8 @@ export class YouTubeProvider implements IMusicProvider {
 
     try {
       const headers = await this.getAuthHeaders();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       const response = await fetch('/api/extract-audio', {
         method: 'POST',
@@ -191,7 +193,9 @@ export class YouTubeProvider implements IMusicProvider {
           url: `https://www.youtube.com/watch?v=${track.providerTrackId}`,
           track: track
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 

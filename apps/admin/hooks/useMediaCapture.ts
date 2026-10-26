@@ -9,31 +9,31 @@ export type FacingMode = "user" | "environment";
 
 function getSupportedMimeType(kind: "video" | "audio"): string {
   if (kind === "video") {
-    // Ordem de preferência: H.264 High Profile (padrão Instagram) -> MP4 -> WebM
-    if (MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.640028,mp4a.40.2")) return "video/mp4;codecs=avc1.640028,mp4a.40.2";
-    if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) return "video/mp4;codecs=h264,aac";
-    if (MediaRecorder.isTypeSupported("video/webm;codecs=h264,opus")) return "video/webm;codecs=h264,opus";
-    if (MediaRecorder.isTypeSupported("video/mp4")) return "video/mp4";
-    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) return "video/webm;codecs=vp9,opus";
+    // 1. WebM com VP8/Opus: padrão para Android/Chromium, controle estrito de bitrate e tamanho leve (1-3MB)
     if (MediaRecorder.isTypeSupported("video/webm;codecs=vp8,opus")) return "video/webm;codecs=vp8,opus";
+    if (MediaRecorder.isTypeSupported("video/webm;codecs=vp9,opus")) return "video/webm;codecs=vp9,opus";
     if (MediaRecorder.isTypeSupported("video/webm")) return "video/webm";
+    // 2. MP4 com H.264: suporte para iOS Safari (onde WebM MediaRecorder não é exposto)
+    if (MediaRecorder.isTypeSupported("video/mp4;codecs=avc1.42E01E,mp4a.40.2")) return "video/mp4;codecs=avc1.42E01E,mp4a.40.2";
+    if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264,aac")) return "video/mp4;codecs=h264,aac";
+    if (MediaRecorder.isTypeSupported("video/mp4")) return "video/mp4";
     return "";
   }
-  if (MediaRecorder.isTypeSupported("audio/mp4;codecs=mp4a.40.2")) return "audio/mp4;codecs=mp4a.40.2";
-  if (MediaRecorder.isTypeSupported("audio/mp4")) return "audio/mp4";
   if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) return "audio/webm;codecs=opus";
   if (MediaRecorder.isTypeSupported("audio/webm")) return "audio/webm";
+  if (MediaRecorder.isTypeSupported("audio/mp4;codecs=mp4a.40.2")) return "audio/mp4;codecs=mp4a.40.2";
+  if (MediaRecorder.isTypeSupported("audio/mp4")) return "audio/mp4";
   return "";
 }
 
-/** FOV aberto natural (sem super zoom / sem crop forçado do sensor) */
+/** FOV aberto natural sem super zoom e limitado a 720p para manter peso leve */
 function buildVideoConstraints(facingMode: FacingMode): MediaTrackConstraints {
   return {
     facingMode: { ideal: facingMode },
     // NÃO pedir 1080x1920 nem aspectRatio 9:16 aqui.
     // Isso força crop digital (super zoom) na maioria dos celulares.
-    width: { ideal: 1280 },
-    height: { ideal: 720 },
+    width: { ideal: 1280, max: 1280 },
+    height: { ideal: 720, max: 720 },
     frameRate: { ideal: 30, max: 30 },
   };
 }
@@ -378,12 +378,13 @@ export function useMediaCapture(
     const options: MediaRecorderOptions = {};
     if (mimeType) options.mimeType = mimeType;
 
-    // Bitrate no patamar Instagram Stories (3.5 Mbps vídeo alvo / 128 kbps áudio)
+    // Bitrate leve e fluido: 1.8 Mbps de vídeo (~225 KB/s) + 96 kbps áudio
+    // Produz Stories de 15s com apenas ~3 MB, com carregamento instantâneo em redes 3G/4G
     if (mode !== "audio") {
-      options.videoBitsPerSecond = 3_500_000;
-      options.audioBitsPerSecond = 128_000;
+      options.videoBitsPerSecond = 1_800_000;
+      options.audioBitsPerSecond = 96_000;
     } else {
-      options.audioBitsPerSecond = 128_000;
+      options.audioBitsPerSecond = 96_000;
     }
 
     try {
@@ -405,7 +406,7 @@ export function useMediaCapture(
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
-    recorderRef.current.start(250); // chunks pequenos = menos perda se crashar
+    recorderRef.current.start(1000); // chunks de 1s para consistência de streaming sem fragmentação excessiva
     setRecording(true);
     setSeconds(0);
 

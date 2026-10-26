@@ -40,20 +40,23 @@ export function useWarmCache() {
           new Map(allTracks.map((t) => [t.id, t])).values()
         );
 
-        // Pega só as 10~12 primeiras para não sobrecarregar a VPS
-        const toWarm = uniqueTracks.slice(0, 12);
+        // Pega só as 3 primeiras para pré-carregamento suave
+        const toWarm = uniqueTracks.slice(0, 3);
 
         console.log(`[WarmCache] Aquecendo ${toWarm.length} faixas selecionadas...`);
 
         // Cria uma instância do provider ou pega a referência global se já existir
         const provider = new YouTubeProvider();
 
-        // 3. Pré-carrega uma por uma, com intervalo de tempo (protege a CPU e rede da VPS)
+        // 3. Pré-carrega uma por uma, com verificação de erro para não insistir se offline
         for (const track of toWarm) {
-          await provider.preloadTrack(track);
-
-          // Espera 1.8 segundos entre cada requisição para não gerar picos na VPS
-          await new Promise((resolve) => setTimeout(resolve, 1800));
+          try {
+            await provider.preloadTrack(track);
+          } catch {
+            // Se falhou o primeiro, para o aquecimento para não congestionar a rede
+            break;
+          }
+          await new Promise((resolve) => setTimeout(resolve, 1000));
         }
 
         console.log('[WarmCache] Aquecimento de cache concluído com sucesso!');

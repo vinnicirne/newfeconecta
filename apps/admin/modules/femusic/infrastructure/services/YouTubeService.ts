@@ -227,6 +227,7 @@ export class YouTubeService {
       // ────────────────────────────────────────────────────────────────────
 
       const finalResults = dedupedResults.slice(0, limit);
+      await this.enrichTracksWithCache(finalResults);
 
       this.cache.set(cacheKey, {
         data: finalResults,
@@ -318,6 +319,7 @@ export class YouTubeService {
 
       const shuffled = uniqueTracks.sort(() => Math.random() - 0.5);
       const finalResults = shuffled.slice(0, limit);
+      await this.enrichTracksWithCache(finalResults);
 
       const cacheData = {
         data: finalResults,
@@ -337,6 +339,32 @@ export class YouTubeService {
       console.error('Erro ao buscar trending FéConecta:', error);
       return [];
     }
+  }
+
+  private static async enrichTracksWithCache(tracks: MusicTrack[]): Promise<MusicTrack[]> {
+    if (!tracks || tracks.length === 0 || typeof window === 'undefined') return tracks;
+    try {
+      const { supabase } = await import('@/lib/supabase');
+      const ids = tracks.map(t => t.providerTrackId || t.id).filter(Boolean);
+      if (ids.length === 0) return tracks;
+
+      const { data: cachedRows } = await supabase
+        .from('femusic_cache')
+        .select('youtube_id, audio_url')
+        .in('youtube_id', ids)
+        .not('audio_url', 'is', null);
+
+      if (cachedRows && cachedRows.length > 0) {
+        const urlMap = new Map<string, string>(cachedRows.map((r: any) => [r.youtube_id, r.audio_url]));
+        tracks.forEach(t => {
+          const trackId = t.providerTrackId || t.id;
+          if (urlMap.has(trackId)) {
+            t.audioUrl = urlMap.get(trackId);
+          }
+        });
+      }
+    } catch (_) {}
+    return tracks;
   }
 
   public static clearCache(): void {

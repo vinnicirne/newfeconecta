@@ -148,14 +148,15 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     if (!recording) {
       startRecording();
     } else {
+      const recordedSecs = recordDuration;
       const blob = await stopRecording();
       if (blob) {
         setPreview({
           url: URL.createObjectURL(blob),
           type: 'video',
           blob,
-          mimeType: blob.type || 'video/mp4',
-          duration: recordDuration
+          mimeType: blob.type || (MediaRecorder.isTypeSupported('video/webm') ? 'video/webm' : 'video/mp4'),
+          duration: recordedSecs > 0 ? recordedSecs : 15
         });
       }
     }
@@ -166,8 +167,8 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 30 * 1024 * 1024) {
-      toast.error("Arquivo muito grande! Máximo 30MB para Stories.");
+    if (file.size > 16 * 1024 * 1024) {
+      toast.error("Vídeos para stories devem ter até 16MB para manter o carregamento fluido.");
       return;
     }
 
@@ -333,6 +334,10 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
           } else {
             const { data: publicUrlData } = supabase.storage.from('stories').getPublicUrl(path);
             mediaUrl = publicUrlData.publicUrl;
+          }
+
+          if (preview.duration && preview.duration > 0 && (preview.type === 'video' || preview.type === 'audio')) {
+            mediaUrl = `${mediaUrl}#t=0,${preview.duration}`;
           }
         }
       }

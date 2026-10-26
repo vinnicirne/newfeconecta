@@ -38,8 +38,9 @@ export function useAudioPlayers(): AudioPlayerRefs {
       if (inactive) {
         inactive.pause();
         inactive.currentTime = 0;
-        inactive.removeAttribute('src');
-        inactive.load();
+        if (inactive.src) {
+          inactive.removeAttribute('src');
+        }
       }
     };
   }, [activeIndex, getActiveAudio, getInactiveAudio]);
@@ -53,12 +54,13 @@ export function useAudioPlayers(): AudioPlayerRefs {
     hasTriggeredCrossfade.current = false;
     isCrossfading.current = false;
 
-    // Pausa e descarrega IMEDIATAMENTE o áudio inativo
+    // Pausa e descarrega com segurança o áudio inativo
     if (inactive) {
       inactive.pause();
       inactive.currentTime = 0;
-      inactive.removeAttribute('src');
-      inactive.load();
+      if (inactive.src) {
+        inactive.removeAttribute('src');
+      }
     }
   }, [currentTrack?.id, getActiveAudio, getInactiveAudio]);
 
