@@ -14,6 +14,7 @@ import { BIBLE_BOOKS } from "@/lib/bible-data";
 
 const BIBLE_VERSIONS = [
   { id: "nvi", name: "NVI", label: "Nova Versão Internacional", color: "#00A884" },
+  { id: "kjf", name: "KJF", label: "King James Fiel",          color: "#e11d48" },
   { id: "aa",  name: "AA",  label: "Almeida Atualizada",        color: "#f59e0b" },
   { id: "acf", name: "ACF", label: "Almeida Corrigida Fiel",   color: "#6366f1" },
 ];

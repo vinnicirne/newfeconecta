@@ -4,11 +4,12 @@ import React, { useRef, useState, useEffect } from 'react';
 import { 
   X, Check, Image as ImageIcon, Type, Mic, Camera, 
   RotateCcw, Palette, Upload, Sparkles, Send, Loader2,
-  FlipHorizontal, Zap, ZapOff, Play, Pause, Video
+  FlipHorizontal, Zap, ZapOff, Play, Pause, Video, Volume2, VolumeX
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { compressImage } from '@/lib/image-compression';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
 import { useMediaCapture } from '@/hooks/useMediaCapture';
 
@@ -30,6 +31,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   const [textContent, setTextContent] = useState('');
   const [caption, setCaption] = useState('');
   const [bgColor, setBgColor] = useState('#00A884');
+  const [previewMuted, setPreviewMuted] = useState(true);
 
   const { uploadMedia, isUploading, progress } = useMediaUpload();
 
@@ -88,6 +90,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       URL.revokeObjectURL(preview.url);
     }
     setPreview(null);
+    setPreviewMuted(true);
     setTextContent('');
     setCaption('');
     setIsRecordingAudio(false);
@@ -158,8 +161,8 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     }
   };
 
-  // Seleção de Arquivo da Galeria
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Seleção de Arquivo da Galeria com compressão client-side
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -176,13 +179,44 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       return;
     }
 
-    const url = URL.createObjectURL(file);
-    setPreview({
-      url,
-      type: isImg ? 'image' : 'video',
-      mimeType: file.type,
-      file,
-    });
+    if (isImg) {
+      const toastCompress = toast.loading("Otimizando imagem para o story...");
+      try {
+        const compressedBlob = await compressImage(file, 1080, 1920, 0.82);
+        toast.dismiss(toastCompress);
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[^a-zA-Z0-9_-]/g, "_") + ".webp";
+        const compressedFile = new File([compressedBlob], cleanName, { type: "image/webp" });
+        const url = URL.createObjectURL(compressedFile);
+
+        setPreview({
+          url,
+          type: 'image',
+          mimeType: 'image/webp',
+          file: compressedFile,
+          blob: compressedBlob,
+        });
+      } catch (err) {
+        toast.dismiss(toastCompress);
+        const url = URL.createObjectURL(file);
+        setPreview({
+          url,
+          type: 'image',
+          mimeType: file.type,
+          file,
+        });
+      }
+    } else {
+      const url = URL.createObjectURL(file);
+      setPreview({
+        url,
+        type: 'video',
+        mimeType: file.type,
+        file,
+      });
+    }
+
+    // Limpa o input para permitir selecionar o mesmo arquivo novamente se descartado
+    if (e.target) e.target.value = '';
   };
 
   // Gravação de Áudio
@@ -263,18 +297,34 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
       if (preview) {
         storyType = preview.type;
-        const fileToUpload = preview.file || (preview.blob ? new File([preview.blob], `story-${Date.now()}.${preview.type === 'audio' ? 'webm' : (preview.type === 'video' ? 'mp4' : 'jpg')}`, { type: preview.mimeType }) : null);
+        const fileExt = preview.type === 'audio' 
+          ? 'webm' 
+          : preview.type === 'video' 
+            ? (preview.mimeType?.includes('webm') ? 'webm' : 'mp4') 
+            : 'webp';
+
+        const rawType = preview.mimeType || (preview.type === 'video' ? 'video/mp4' : (preview.type === 'audio' ? 'audio/webm' : 'image/webp'));
+        const fileToUpload = preview.file || (preview.blob ? new File([preview.blob], `story-${Date.now()}.${fileExt}`, { type: rawType }) : null);
 
         if (fileToUpload) {
           const path = `${user.id}/${Date.now()}-${fileToUpload.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+          const uploadMime = fileToUpload.type || rawType;
           const { error: uploadError } = await supabase.storage
             .from('stories')
-            .upload(path, fileToUpload, { cacheControl: '3600', upsert: false });
+            .upload(path, fileToUpload, { 
+              cacheControl: '3600', 
+              upsert: false,
+              contentType: uploadMime 
+            });
 
           if (uploadError) {
             const { error: fallbackError } = await supabase.storage
               .from('media')
-              .upload(path, fileToUpload, { cacheControl: '3600', upsert: false });
+              .upload(path, fileToUpload, { 
+                cacheControl: '3600', 
+                upsert: false,
+                contentType: uploadMime 
+              });
             
             if (fallbackError) throw uploadError;
             
@@ -294,14 +344,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
         .insert({
           author_id: user.id,
           user_id: user.id,
-          type: storyType,
+          profile_id: user.id,
           media_type: storyType,
           media_url: mediaUrl,
           content: activeTab === 'text' ? textContent.trim() : caption.trim() || null,
           background_color: activeTab === 'text' ? bgColor : null,
-          metadata: {
-            bg_color: activeTab === 'text' ? bgColor : undefined,
-          },
           expires_at: expiresAt,
           created_at: new Date().toISOString(),
         });
@@ -516,14 +563,25 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
 
           {/* PREVIEW DO VÍDEO GRAVADO / SELECIONADO */}
           {preview?.type === 'video' && (
-            <video 
-              src={preview.url} 
-              autoPlay 
-              loop 
-              playsInline 
-              muted={false}
-              className="absolute inset-0 w-full h-full object-cover object-center bg-black" 
-            />
+            <div className="absolute inset-0 w-full h-full">
+              <video 
+                src={preview.url} 
+                autoPlay 
+                loop 
+                playsInline 
+                webkit-playsinline="true"
+                muted={previewMuted}
+                className="absolute inset-0 w-full h-full object-cover object-center bg-black" 
+              />
+              <button
+                type="button"
+                onClick={() => setPreviewMuted(m => !m)}
+                className="absolute top-20 right-4 z-30 w-10 h-10 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white active:scale-95 transition-transform shadow-lg pointer-events-auto"
+                title={previewMuted ? "Ativar som" : "Desativar som"}
+              >
+                {previewMuted ? <VolumeX className="w-5 h-5 text-amber-400" /> : <Volume2 className="w-5 h-5" />}
+              </button>
+            </div>
           )}
 
           {/* PREVIEW DO ÁUDIO */}

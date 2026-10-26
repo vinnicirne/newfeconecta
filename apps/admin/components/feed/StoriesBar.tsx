@@ -3,8 +3,10 @@
 import React from 'react';
 import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
 
 export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onAddStory, onViewGroup }: any) {
+  const router = useRouter();
 
   const getInitials = (name: string) => {
     if (!name) return 'U';
@@ -23,6 +25,19 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
   };
 
   const otherStoryGroups = storyGroups.filter((g: any) => g.author_id !== currentUser?.id);
+  const hasMyStories = Boolean(myStoryGroup?.stories && myStoryGroup.stories.length > 0);
+
+  const handleGroupClick = (group: any) => {
+    if (group.is_live && (!group.stories || group.stories.length === 0)) {
+      if (group.room_id) {
+        router.push(`/room/${group.room_id}`);
+      }
+      return;
+    }
+    if (group.stories && group.stories.length > 0) {
+      onViewGroup(group);
+    }
+  };
 
   return (
     <>
@@ -35,13 +50,13 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
       >
         {/* Meu Story (Instagram Style Circular) */}
         <button
-          onClick={myStoryGroup ? () => onViewGroup(myStoryGroup) : onAddStory}
+          onClick={hasMyStories ? () => onViewGroup(myStoryGroup) : onAddStory}
           className="flex flex-col items-center gap-1.5 flex-shrink-0 group cursor-pointer active:scale-95 transition-transform"
         >
           <div className="relative">
             <div className={cn(
               "w-[66px] h-[66px] rounded-full p-[2.5px] transition-all",
-              myStoryGroup 
+              hasMyStories 
                 ? "bg-gradient-to-tr from-amber-500 via-rose-500 to-emerald-500 shadow-sm" 
                 : "bg-transparent border-2 border-dashed border-muted-foreground/30"
             )}>
@@ -68,7 +83,7 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
         {otherStoryGroups.map((group: any) => (
           <button
             key={group.author_id}
-            onClick={() => onViewGroup(group)}
+            onClick={() => handleGroupClick(group)}
             className="flex flex-col items-center gap-1.5 flex-shrink-0 group cursor-pointer active:scale-95 transition-transform"
           >
             <div className="relative">
@@ -109,10 +124,10 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
       >
         {/* Meu Story - Retangular */}
         <button
-          onClick={myStoryGroup ? () => onViewGroup(myStoryGroup) : onAddStory}
+          onClick={hasMyStories ? () => onViewGroup(myStoryGroup) : onAddStory}
           className="relative w-28 md:w-32 h-44 md:h-52 rounded-2xl overflow-hidden flex-shrink-0 group shadow-md border border-border cursor-pointer hover:opacity-95 transition-all bg-card"
         >
-          {myStoryGroup ? (
+          {hasMyStories ? (
             <div className="w-full h-full relative">
               <Avatar src={currentUser?.avatar_url} name={currentUser?.full_name} />
               <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/80" />
@@ -149,7 +164,7 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
         {otherStoryGroups.map((group: any) => (
           <button
             key={group.author_id}
-            onClick={() => onViewGroup(group)}
+            onClick={() => handleGroupClick(group)}
             className="relative w-28 md:w-32 h-44 md:h-52 rounded-2xl overflow-hidden flex-shrink-0 group shadow-md border border-border cursor-pointer hover:opacity-95 transition-all"
           >
             <div className="w-full h-full relative">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Trash2 } from 'lucide-react';
+import { X, Trash2, Volume2, VolumeX } from 'lucide-react';
 import { useStoryViewer } from './StoryViewerContext';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -17,8 +17,8 @@ function formatTime(date: Date) {
 export default function StoryViewerHeader() {
   const {
     data: { group, story, currentUser, onClose },
-    ui: { storyIdx, progress },
-    actions: { handleDelete }
+    ui: { storyIdx, progress, isMuted },
+    actions: { handleDelete, dispatch, videoRef }
   } = useStoryViewer();
   const router = useRouter();
 
@@ -65,17 +65,31 @@ export default function StoryViewerHeader() {
               </div>
             </div>
         </div>
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-1 sm:gap-2 pointer-events-auto">
+          {story.media_type === "video" && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                const next = !isMuted;
+                dispatch({ type: "SET_MUTED", payload: next });
+                if (videoRef?.current) videoRef.current.muted = next;
+              }}
+              className="p-2 text-white/80 hover:text-white transition-all rounded-full hover:bg-white/10 active:scale-95"
+              title={isMuted ? "Ativar áudio" : "Silenciar áudio"}
+            >
+              {isMuted ? <VolumeX size={20} className="text-amber-400" /> : <Volume2 size={20} />}
+            </button>
+          )}
           {currentUser && story.author_id === currentUser.id && (
              <button 
                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-               className="p-2 text-white/50 hover:text-red-500 transition-all"
+               className="p-2 text-white/50 hover:text-red-500 transition-all rounded-full hover:bg-white/10"
                title="Excluir Status"
              >
                <Trash2 size={20} />
              </button>
           )}
-          <button onClick={onClose} className="p-2 text-white/70 hover:text-white transition-all">
+          <button onClick={onClose} className="p-2 text-white/70 hover:text-white transition-all rounded-full hover:bg-white/10">
             <X size={24} />
           </button>
         </div>

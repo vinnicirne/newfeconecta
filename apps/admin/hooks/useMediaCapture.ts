@@ -320,21 +320,20 @@ export function useMediaCapture(
     setFlashOn(false); // flash só faz sentido na traseira
   }, []);
 
-  /** Foto estilo Instagram: full res da track, JPEG 0.92, flip só na front */
+  /** Foto otimizada para Stories: 1080x1920 máx, WebP/JPEG 0.82 (leve e instantâneo) */
   const capturePhoto = useCallback(() => {
     const video = videoRef.current;
     if (!video || !video.videoWidth) {
       return Promise.resolve(null);
     }
 
-    const MAX = 1920;
+    const MAX_W = 1080;
+    const MAX_H = 1920;
     let w = video.videoWidth;
     let h = video.videoHeight;
-    if (w > MAX || h > MAX) {
-      const ratio = Math.min(MAX / w, MAX / h);
-      w = Math.round(w * ratio);
-      h = Math.round(h * ratio);
-    }
+    const ratio = Math.min(MAX_W / w, MAX_H / h, 1);
+    w = Math.max(1, Math.round(w * ratio));
+    h = Math.max(1, Math.round(h * ratio));
 
     const canvas = document.createElement("canvas");
     canvas.width = w;
@@ -349,7 +348,17 @@ export function useMediaCapture(
     ctx.drawImage(video, 0, 0, w, h);
 
     return new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.92);
+      canvas.toBlob(
+        (b) => {
+          if (b && b.size > 0) {
+            resolve(b);
+          } else {
+            canvas.toBlob((b2) => resolve(b2), "image/jpeg", 0.82);
+          }
+        },
+        "image/webp",
+        0.82
+      );
     });
   }, [facingMode]);
 

@@ -19,17 +19,18 @@ import VerseShareModal from "@/components/bible/VerseShareModal";
 
 const BIBLE_VERSIONS = [
   { id: "nvi", name: "NVI", label: "Nova Versão Internacional", color: "#00A884" },
+  { id: "kjf", name: "KJF", label: "King James Fiel", color: "#e11d48" },
   { id: "aa", name: "AA", label: "Almeida Atualizada", color: "#f59e0b" },
   { id: "acf", name: "ACF", label: "Almeida Corrigida Fiel", color: "#6366f1" },
 ];
 
 const HIGHLIGHT_COLORS = [
-  { id: "yellow", bg: "rgba(250, 204, 21, 0.25)", bgDark: "rgba(250, 204, 21, 0.15)", dot: "#facc15", label: "Amarelo" },
-  { id: "green", bg: "rgba(34, 197, 94, 0.20)", bgDark: "rgba(34, 197, 94, 0.12)", dot: "#22c55e", label: "Verde" },
-  { id: "blue", bg: "rgba(59, 130, 246, 0.20)", bgDark: "rgba(59, 130, 246, 0.12)", dot: "#3b82f6", label: "Azul" },
-  { id: "pink", bg: "rgba(236, 72, 153, 0.20)", bgDark: "rgba(236, 72, 153, 0.12)", dot: "#ec4899", label: "Rosa" },
-  { id: "orange", bg: "rgba(249, 115, 22, 0.20)", bgDark: "rgba(249, 115, 22, 0.12)", dot: "#f97316", label: "Laranja" },
-  { id: "purple", bg: "rgba(139, 92, 246, 0.20)", bgDark: "rgba(139, 92, 246, 0.12)", dot: "#8b5cf6", label: "Roxo" },
+  { id: "yellow", bg: "rgba(250, 204, 21, 0.22)", dot: "#facc15", label: "Amarelo" },
+  { id: "green", bg: "rgba(34, 197, 94, 0.20)", dot: "#22c55e", label: "Verde" },
+  { id: "blue", bg: "rgba(59, 130, 246, 0.20)", dot: "#3b82f6", label: "Azul" },
+  { id: "pink", bg: "rgba(236, 72, 153, 0.20)", dot: "#ec4899", label: "Rosa" },
+  { id: "orange", bg: "rgba(249, 115, 22, 0.20)", dot: "#f97316", label: "Laranja" },
+  { id: "purple", bg: "rgba(139, 92, 246, 0.20)", dot: "#8b5cf6", label: "Roxo" },
 ];
 
 function BibleContent() {
@@ -53,6 +54,7 @@ function BibleContent() {
 
   // Seleção Múltipla de Versículos & Compartilhamento (Instagram / WhatsApp / Apps)
   const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
+  const [showMultiHighlight, setShowMultiHighlight] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [versesToShare, setVersesToShare] = useState<any[]>([]);
 
@@ -78,11 +80,13 @@ function BibleContent() {
   }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setAuthUser(user);
-    };
-    initAuth();
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUser(session?.user || null);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
   const { 
@@ -179,8 +183,24 @@ function BibleContent() {
   async function updateHighlight(verse: any, color: string | null) {
     try {
       await updateInteraction(verse, { highlight_color: color });
-    } catch (error) { toast.error("Erro ao salvar marcação"); }
+      toast.success(color ? "Versículo destacado! 🖍️" : "Marcação removida");
+    } catch (error) { 
+      toast.error("Erro ao salvar marcação"); 
+    }
   }
+
+  const highlightSelectedVerses = async (color: string | null) => {
+    try {
+      const selectedList = verses.filter(v => selectedVerses.includes(v.number));
+      for (const v of selectedList) {
+        await updateInteraction(v, { highlight_color: color });
+      }
+      toast.success(color ? `${selectedVerses.length} versículos destacados! 🖍️` : "Marcações removidas");
+      setShowMultiHighlight(false);
+    } catch (error) {
+      toast.error("Erro ao destacar versículos");
+    }
+  };
 
   async function saveComment() {
     if (!commentingVerse || !tempComment.trim()) return;
@@ -221,7 +241,10 @@ function BibleContent() {
     );
   };
 
-  const clearSelection = () => setSelectedVerses([]);
+  const clearSelection = () => {
+    setSelectedVerses([]);
+    setShowMultiHighlight(false);
+  };
 
   // Abre o modal de compartilhamento (para 1 versículo ou para os selecionados)
   const openShareModal = (targetVerses?: any[]) => {
@@ -349,6 +372,9 @@ function BibleContent() {
              ))
           ) : verses.map((verse) => {
             const isSelected = selectedVerses.includes(verse.number);
+            const highlightId = highlights[verse.number];
+            const highlightColor = HIGHLIGHT_COLORS.find(c => c.id === highlightId);
+
             return (
               <div 
                 id={`verse-${verse.number}`} 
@@ -363,19 +389,30 @@ function BibleContent() {
                       ? "bg-whatsapp-teal/10 border-whatsapp-teal/40 ring-2 ring-whatsapp-teal/20 shadow-md" 
                       : favorites[verse.number] 
                         ? "bg-amber-500/5 border-transparent" 
-                        : "border-transparent hover:bg-gray-50/80 dark:hover:bg-white/5"
+                        : "border-transparent hover:bg-gray-50/80 dark:hover:bg-white/5",
+                    highlightColor && "border-l-4 shadow-sm"
                   )} 
-                  style={!isSelected && highlights[verse.number] ? { backgroundColor: HIGHLIGHT_COLORS.find(c => c.id === highlights[verse.number])?.bg } : undefined}
+                  style={{
+                    backgroundColor: isSelected 
+                      ? undefined 
+                      : (highlightColor ? highlightColor.bg : undefined),
+                    borderLeftColor: highlightColor ? highlightColor.dot : undefined
+                  }}
                 >
                   <div className="pt-1.5 shrink-0 flex flex-col items-center gap-2">
-                    <span className={cn(
-                      "flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black border transition-all shadow-sm select-none",
-                      isSelected
-                        ? "bg-whatsapp-teal text-white border-whatsapp-teal scale-105"
-                        : favorites[verse.number] 
-                          ? "bg-amber-500 text-white border-amber-400" 
-                          : "bg-white dark:bg-white/15 text-gray-900 dark:text-white border-gray-200 dark:border-white/20 group-hover:border-whatsapp-teal/40"
-                    )}>
+                    <span 
+                      className={cn(
+                        "flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black border transition-all shadow-sm select-none",
+                        isSelected
+                          ? "bg-whatsapp-teal text-white border-whatsapp-teal scale-105"
+                          : favorites[verse.number] 
+                            ? "bg-amber-500 text-white border-amber-400" 
+                            : highlightColor
+                              ? "text-gray-900 dark:text-white"
+                              : "bg-white dark:bg-white/15 text-gray-900 dark:text-white border-gray-200 dark:border-white/20 group-hover:border-whatsapp-teal/40"
+                      )}
+                      style={!isSelected && highlightColor ? { backgroundColor: `${highlightColor.dot}25`, borderColor: highlightColor.dot } : undefined}
+                    >
                       {isSelected ? <Check size={14} className="stroke-[3]" /> : verse.number}
                     </span>
                   </div>
@@ -441,14 +478,52 @@ function BibleContent() {
                       <button title="Comparar Versões" onClick={() => { setCompareVerse(verse); openCompare(verse); }} className="flex items-center gap-1.5 text-gray-400 hover:text-violet-500 transition-all hover:scale-110 active:scale-90">
                         <Columns3 size={20} />
                       </button>
-                      <button title="Destacar / Colorir" onClick={() => setHighlightPickerVerse(verse.number)} className="flex items-center gap-1.5 text-gray-400 hover:text-yellow-500 transition-all hover:scale-110 active:scale-90">
-                        <Highlighter size={20} />
+                      <button 
+                        title="Destacar / Colorir" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setHighlightPickerVerse(prev => prev === verse.number ? null : verse.number);
+                        }} 
+                        className={cn(
+                          "flex items-center gap-1.5 transition-all hover:scale-110 active:scale-90",
+                          highlightColor ? "scale-110" : "text-gray-400 hover:text-yellow-500"
+                        )}
+                        style={highlightColor ? { color: highlightColor.dot } : undefined}
+                      >
+                        <Highlighter size={20} className={highlightColor ? "fill-current/30" : ""} />
                       </button>
                     </div>
+
                     {highlightPickerVerse === verse.number && (
-                      <div className="flex gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
-                        {HIGHLIGHT_COLORS.map(c => <button key={c.id} onClick={() => { updateHighlight(verse, c.id); setHighlightPickerVerse(null); }} className="w-6 h-6 rounded-full" style={{ backgroundColor: c.dot }} />)}
-                        <button onClick={() => { updateHighlight(verse, null); setHighlightPickerVerse(null); }}><Eraser size={14} /></button>
+                      <div className="flex items-center gap-2 mt-3 p-2 bg-white/95 dark:bg-[#18181b]/95 backdrop-blur-md rounded-2xl border border-gray-200 dark:border-white/10 shadow-lg w-fit animate-in fade-in zoom-in-95 duration-150" onClick={(e) => e.stopPropagation()}>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 pl-1 pr-1">Cor:</span>
+                        {HIGHLIGHT_COLORS.map(c => (
+                          <button 
+                            key={c.id} 
+                            title={c.label}
+                            onClick={(e) => { 
+                              e.stopPropagation();
+                              updateHighlight(verse, c.id); 
+                              setHighlightPickerVerse(null); 
+                            }} 
+                            className={cn(
+                              "w-6 h-6 rounded-full transition-transform hover:scale-125 active:scale-95 shadow-sm border border-black/10",
+                              highlights[verse.number] === c.id && "ring-2 ring-offset-2 ring-whatsapp-teal"
+                            )} 
+                            style={{ backgroundColor: c.dot }} 
+                          />
+                        ))}
+                        <button 
+                          title="Remover marcação"
+                          onClick={(e) => { 
+                            e.stopPropagation();
+                            updateHighlight(verse, null); 
+                            setHighlightPickerVerse(null); 
+                          }}
+                          className="w-6 h-6 rounded-full bg-gray-100 hover:bg-red-50 hover:text-red-500 dark:bg-white/10 flex items-center justify-center text-gray-400 transition-colors ml-1"
+                        >
+                          <Eraser size={13} />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -672,6 +747,41 @@ function BibleContent() {
               >
                 <Copy className="w-4 h-4" />
               </button>
+
+              {/* Botão Marca-Texto Múltiplo */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMultiHighlight(prev => !prev)}
+                  className={cn(
+                    "w-10 h-10 rounded-2xl flex items-center justify-center transition-all active:scale-95",
+                    showMultiHighlight ? "bg-amber-400 text-black shadow-lg" : "bg-white/10 hover:bg-white/20 text-white"
+                  )}
+                  title="Destacar Versículos Selecionados"
+                >
+                  <Highlighter className="w-4 h-4" />
+                </button>
+
+                {showMultiHighlight && (
+                  <div className="absolute bottom-14 right-0 bg-[#1e1e24] border border-white/20 rounded-2xl p-2 flex items-center gap-2 shadow-2xl animate-in fade-in zoom-in-95 z-50">
+                    {HIGHLIGHT_COLORS.map(c => (
+                      <button
+                        key={c.id}
+                        title={c.label}
+                        onClick={() => highlightSelectedVerses(c.id)}
+                        className="w-6 h-6 rounded-full transition-transform hover:scale-125 active:scale-95 border border-black/20"
+                        style={{ backgroundColor: c.dot }}
+                      />
+                    ))}
+                    <button
+                      title="Remover marcação"
+                      onClick={() => highlightSelectedVerses(null)}
+                      className="w-6 h-6 rounded-full bg-white/10 hover:bg-red-500 hover:text-white flex items-center justify-center text-gray-300 transition-colors ml-1"
+                    >
+                      <Eraser size={13} />
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {/* Botão Feed FéConecta */}
               <button

@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import CommentsSection from '@/components/feed/CommentsSection';
 import { cn } from '@/lib/utils';
 import { NotificationService } from '@/lib/notifications';
-import ExternalMediaNative from '@/components/feed/ExternalMediaNative';
+import ExternalMediaNative, { parseExternalMedia } from '@/components/feed/ExternalMediaNative';
 import { useTribo } from '@/hooks/useTribo';
 import { useSearchParams } from 'next/navigation';
 import { mutate as globalMutate } from 'swr'; // 6. Removido import dinâmico
@@ -42,37 +42,54 @@ const ReelItem = React.memo(({
       data-id={reel.id}
       className="relative w-full h-[100dvh] snap-start snap-always overflow-hidden reel-container"
     >
-      {reel.post_type === 'external_media' ? (
-        <div className="absolute inset-0 w-full h-full pointer-events-none overflow-hidden bg-black flex items-center justify-center">
-          <div className="absolute top-1/2 left-1/2 w-full aspect-[9/16] -translate-x-1/2 -translate-y-[42%] transform scale-[1.35] origin-center">
-            {isNear && <ExternalMediaNative url={reel.media_url} className="w-full h-full" />}
+      {(() => {
+        const rawUrl = reel.media_url || reel.content || "";
+        const externalParsed = parseExternalMedia(rawUrl);
+        const isExternal = reel.post_type === 'external_media' || externalParsed.platform !== 'unknown';
+        const externalUrl = isExternal ? (externalParsed.platform !== 'unknown' ? rawUrl : reel.media_url) : null;
+        const videoUrl = !isExternal && reel.media_url ? reel.media_url : null;
+
+        if (isExternal && externalUrl) {
+          return (
+            <div className="absolute inset-0 w-full h-full overflow-hidden bg-black flex items-center justify-center">
+              <div className="absolute top-1/2 left-1/2 w-full aspect-[9/16] -translate-x-1/2 -translate-y-[42%] transform scale-[1.35] origin-center">
+                {isNear && <ExternalMediaNative url={externalUrl} isActive={isActive} className="w-full h-full" />}
+              </div>
+            </div>
+          );
+        }
+
+        if (videoUrl) {
+          return isNear ? (
+            <video
+              ref={(el) => registerVideoRef(reel.id, el)}
+              src={(() => {
+                const base = videoUrl.includes('?') ? `${videoUrl}&sw=bypass` : `${videoUrl}?sw=bypass`;
+                return base.includes('#t=') ? base : `${base}#t=0.001`;
+              })()}
+              loop
+              playsInline
+              webkit-playsinline="true"
+              muted={muted}
+              onClick={() => onPlayToggle(reel.id)}
+              preload={isActive ? "auto" : "metadata"}
+              poster={reel.thumbnail_url || undefined}
+              className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+            />
+          ) : (
+            <div 
+              className="absolute inset-0 w-full h-full object-cover bg-black bg-center bg-cover" 
+              style={reel.thumbnail_url ? { backgroundImage: `url(${reel.thumbnail_url})` } : {}} 
+            />
+          );
+        }
+
+        return (
+          <div className="absolute inset-0 w-full h-full bg-zinc-950 flex flex-col items-center justify-center p-8 text-center gap-3">
+            <p className="text-white text-base font-medium max-w-sm">{reel.content || "Vídeo indisponível"}</p>
           </div>
-        </div>
-      ) : (
-        isNear ? (
-          <video
-            ref={(el) => registerVideoRef(reel.id, el)}
-            src={(() => {
-              if (!reel.media_url) return '';
-              const base = reel.media_url.includes('?') ? `${reel.media_url}&sw=bypass` : `${reel.media_url}?sw=bypass`;
-              return base.includes('#t=') ? base : `${base}#t=0.001`;
-            })()}
-            loop
-            playsInline
-            webkit-playsinline="true"
-            muted={muted}
-            onClick={() => onPlayToggle(reel.id)}
-            preload={isActive ? "auto" : "metadata"} // 3. preload otimizado
-            poster={reel.thumbnail_url || undefined}
-            className="absolute inset-0 w-full h-full object-cover cursor-pointer"
-          />
-        ) : (
-          <div 
-            className="absolute inset-0 w-full h-full object-cover bg-black bg-center bg-cover" 
-            style={reel.thumbnail_url ? { backgroundImage: `url(${reel.thumbnail_url})` } : {}} 
-          />
-        )
-      )}
+        );
+      })()}
 
       {/* Gradientes - Reduzidos p/ economizar GPU */}
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/70 via-black/20 to-transparent pointer-events-none" />
@@ -235,7 +252,11 @@ function TriboContent() {
   const [followingMap, setFollowingMap] = useState<{ [key: string]: boolean }>({});
   const [isPlaying, setIsPlaying] = useState(true);
 
-  const { reels, isLoading, loadMore, mutate } = useTribo(user?.id || null, initialReelId);
+  const { reels, isLoading, loadMore, mutate, error: triboError, isReachingEnd, isValidating, size: triboPageSize } = useTribo(user?.id || null, initialReelId);
+
+  
+
+  
 
   // Refs otimizadas por ID
   const videoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
@@ -300,13 +321,13 @@ function TriboContent() {
 
   // Trigger loadMore isolado
   useEffect(() => {
-    if (currentIdx >= reels.length - 3 && reels.length > 0 && !isFetchingMore.current) {
-      isFetchingMore.current = true;
-      loadMore().finally(() => {
-        isFetchingMore.current = false;
-      });
-    }
-  }, [currentIdx, reels.length, loadMore]);
+    if (isReachingEnd || isValidating) return;
+    const nearEnd = reels.length > 0 && currentIdx >= reels.length - 3;
+    if (!nearEnd || isFetchingMore.current) return;
+    isFetchingMore.current = true;
+    loadMore();
+    isFetchingMore.current = false;
+  }, [currentIdx, reels.length, loadMore, isReachingEnd, isValidating]);
 
   // Registros via Callback Ref
   const registerContainerRef = useCallback((id: string, el: HTMLDivElement | null) => {
@@ -339,7 +360,7 @@ function TriboContent() {
       videoEl.muted = muted; // Sincroniza o mudo para todos os renderizados
       
       if (id === currentId) {
-        if (isPlaying) {
+        if (isPlaying && videoEl.src && videoEl.src !== window.location.href) {
           const playPromise = videoEl.play();
           if (playPromise !== undefined) {
             playPromise.catch(() => {

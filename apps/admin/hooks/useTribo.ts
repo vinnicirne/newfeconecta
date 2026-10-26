@@ -1,12 +1,13 @@
 import useSWRInfinite from 'swr/infinite';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 
 export function useTribo(currentUserId: string | null, initialReelId?: string | null) {
   const getKey = (pageIndex: number, previousPageData: any[] | null) => {
     if (previousPageData && previousPageData.length === 0) return null;
     const lastReel = previousPageData?.[previousPageData.length - 1];
-    return ['tribo_reels', currentUserId, lastReel?.created_at || null, initialReelId || 'default'];
+    const key = ['tribo_reels', currentUserId, lastReel?.created_at || null, initialReelId || 'default'];
+    return key;
   };
 
   const { data, error, size, setSize, isValidating, mutate } = useSWRInfinite(
@@ -121,12 +122,18 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
     return () => { supabase.removeChannel(channel); };
   }, [currentUserId, mutate]);
 
+  const loadMore = useCallback(() => {
+    setSize((current) => current + 1);
+  }, [setSize]);
 
   return {
     reels,
     isLoading,
     isReachingEnd,
-    loadMore: () => setSize(size + 1),
+    isValidating,
+    size,
+    error,
+    loadMore,
     mutate
   };
 }

@@ -97,10 +97,12 @@ export default function StoryViewer({
   // ─── Timer ────────────────────────────────────────────────
   const startTimer = useCallback(() => {
     clearTimer();
-    const duration =
-      story?.media_type === "video" || story?.media_type === "audio"
-        ? state.currentMediaDuration
-        : PHOTO_DURATION;
+    // Para vídeo e áudio, o controle é nativo frame-perfect via onTimeUpdate e onEnded no próprio elemento
+    if (story?.media_type === "video" || story?.media_type === "audio") {
+      return;
+    }
+
+    const duration = PHOTO_DURATION;
 
     lastTick.current = Date.now();
     timerRef.current = setInterval(() => {
@@ -121,7 +123,6 @@ export default function StoryViewer({
   }, [
     clearTimer,
     story?.media_type,
-    state.currentMediaDuration,
     state.paused,
     advance,
     dispatch,
@@ -176,7 +177,8 @@ export default function StoryViewer({
       } else {
         const p = videoRef.current.play();
         if (p !== undefined) {
-          p.catch(() => {
+          p.catch((err) => {
+            console.warn("Autoplay with sound prevented, muting and retrying:", err);
             if (videoRef.current) {
               videoRef.current.muted = true;
               dispatch({ type: "SET_MUTED", payload: true });
@@ -190,7 +192,7 @@ export default function StoryViewer({
       if (state.paused) audioRef.current.pause();
       else audioRef.current.play().catch(() => {});
     }
-  }, [state.paused, story?.media_type, state.storyIdx]);
+  }, [state.paused, story?.media_type, story?.id, state.storyIdx, state.isMuted]);
 
   // Duration + fragment seeking
   useEffect(() => {
@@ -499,6 +501,12 @@ export default function StoryViewer({
       toast.error("Erro: " + err.message);
     }
   };
+
+  useEffect(() => {
+    if (!storyGroups || storyGroups.length === 0 || !group || !story) {
+      onClose();
+    }
+  }, [storyGroups, group, story, onClose]);
 
   if (!group || !story) return null;
 
