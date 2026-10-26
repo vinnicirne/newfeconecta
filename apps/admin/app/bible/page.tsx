@@ -95,7 +95,8 @@ function BibleContent() {
     commentsMap: interactions, 
     isChapterRead,
     markChapterAsRead,
-    updateInteraction 
+    updateInteraction,
+    updateMultipleInteractions
   } = useBibleInteractions(authUser?.id || null, selectedBook, selectedChapter);
 
   const [commentingVerse, setCommentingVerse] = useState<any>(null);
@@ -192,11 +193,10 @@ function BibleContent() {
   const highlightSelectedVerses = async (color: string | null) => {
     try {
       const selectedList = verses.filter(v => selectedVerses.includes(v.number));
-      for (const v of selectedList) {
-        await updateInteraction(v, { highlight_color: color });
-      }
+      await updateMultipleInteractions(selectedList, { highlight_color: color });
       toast.success(color ? `${selectedVerses.length} versículos destacados! 🖍️` : "Marcações removidas");
       setShowMultiHighlight(false);
+      setSelectedVerses([]);
     } catch (error) {
       toast.error("Erro ao destacar versículos");
     }
@@ -373,7 +373,8 @@ function BibleContent() {
           ) : verses.map((verse) => {
             const isSelected = selectedVerses.includes(verse.number);
             const highlightId = highlights[verse.number];
-            const highlightColor = HIGHLIGHT_COLORS.find(c => c.id === highlightId);
+            const highlightColor = HIGHLIGHT_COLORS.find(c => c.id === highlightId || c.dot.toLowerCase() === highlightId?.toLowerCase())
+              || (highlightId?.startsWith('#') ? { id: highlightId, dot: highlightId, bg: `${highlightId}33`, label: 'Personalizado' } : undefined);
 
             return (
               <div 

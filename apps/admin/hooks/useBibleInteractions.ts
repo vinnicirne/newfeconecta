@@ -173,6 +173,66 @@ export function useBibleInteractions(userId: string | null, book: string, chapte
     }
   };
 
+  const updateMultipleInteractions = async (versesList: any[], updates: Partial<BibleInteraction>) => {
+    const currentList = [...(data || readLocalInteractions(book, chapter, userId))];
+    const newItemsToUpsert: any[] = [];
+
+    for (const verse of versesList) {
+      const verseNum = typeof verse === 'number' ? verse : (verse?.number ?? 0);
+      const verseText = typeof verse === 'object' ? (verse?.text || '') : '';
+      const existingIndex = currentList.findIndex(i => i.verse_number === verseNum);
+
+      if (existingIndex >= 0) {
+        currentList[existingIndex] = {
+          ...currentList[existingIndex],
+          ...updates,
+          verse_text: verseText || currentList[existingIndex].verse_text || '',
+          book_abbrev: book,
+          chapter,
+          verse_number: verseNum
+        };
+        newItemsToUpsert.push({
+          user_id: userId,
+          profile_id: userId,
+          book_abbrev: book,
+          chapter,
+          verse_number: verseNum,
+          verse_text: verseText || currentList[existingIndex].verse_text || '',
+          ...currentList[existingIndex],
+          ...updates
+        });
+      } else {
+        const newItem: BibleInteraction = {
+          book_abbrev: book,
+          chapter,
+          verse_number: verseNum,
+          verse_text: verseText,
+          user_id: userId,
+          profile_id: userId,
+          ...updates
+        };
+        currentList.push(newItem);
+        newItemsToUpsert.push(newItem);
+      }
+    }
+
+    saveLocalInteractions(book, chapter, currentList, userId);
+    mutate(currentList, false);
+
+    if (userId && newItemsToUpsert.length > 0) {
+      try {
+        const { error: upsertError } = await supabase
+          .from("bible_interactions")
+          .upsert(newItemsToUpsert, { onConflict: 'user_id,book_abbrev,chapter,verse_number' });
+        if (upsertError) {
+          console.warn("Supabase multi upsert error:", upsertError.message);
+        }
+      } catch (err: any) {
+        console.warn("Supabase multi upsert exception:", err.message);
+      }
+    }
+  };
+
   const isChapterRead = interactions.some(i => i.verse_number === 0 && i.comment === 'CHAPTER_READ');
 
   const markChapterAsRead = async () => {
@@ -187,6 +247,7 @@ export function useBibleInteractions(userId: string | null, book: string, chapte
     isChapterRead,
     isLoading: !data && !error,
     updateInteraction,
+    updateMultipleInteractions,
     markChapterAsRead,
     refresh: mutate
   };
