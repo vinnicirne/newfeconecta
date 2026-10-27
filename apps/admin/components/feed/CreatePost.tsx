@@ -174,7 +174,17 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
       setUploadProgress(100);
       toast.success("Publicado com sucesso!", { id: toastId });
       localStorage.removeItem('feconecta_composer_draft');
-      onPostCreated?.();
+
+      onPostCreated?.(newPost);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('feconecta:new-post', { detail: newPost }));
+        try {
+          const bc = new BroadcastChannel('feconecta_feed_sync');
+          bc.postMessage({ type: 'NEW_POST', post: newPost });
+          bc.close();
+        } catch (e) {}
+      }
     } catch (err: any) {
       setUploadProgress(0);
       toast.error(`Erro ao publicar: ${err.message}`, { id: toastId });

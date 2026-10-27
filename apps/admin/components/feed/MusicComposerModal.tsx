@@ -52,15 +52,24 @@ export default function MusicComposerModal({ isOpen, onClose, onSuccess, initial
       if (trackError) throw trackError;
 
       // 2. Publica no Feed Principal do FéConecta
-      const { error: insertError } = await supabase.from('posts').insert([{
+      const { data: newPost, error: insertError } = await supabase.from('posts').insert([{
         author_id: user.id,
         user_id: user.id,
         content: reflection ? `${reflection}\n\n🎵 Louvor no FéMusic:\n${url}` : `🎵 Compartilhando um louvor que me abençoou:\n${url}`,
         media_url: url,
         post_type: 'text'
-      }]);
+      }]).select().single();
 
       if (insertError) throw insertError;
+
+      if (typeof window !== 'undefined' && newPost) {
+        window.dispatchEvent(new CustomEvent('feconecta:new-post', { detail: newPost }));
+        try {
+          const bc = new BroadcastChannel('feconecta_feed_sync');
+          bc.postMessage({ type: 'NEW_POST', post: newPost });
+          bc.close();
+        } catch (e) {}
+      }
 
       setUrl('');
       setReflection('');

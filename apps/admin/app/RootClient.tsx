@@ -94,6 +94,10 @@ export default function RootPage() {
 
   const [isMounted, setIsMounted] = useState(false);
   const profilesCacheRef = useRef<Record<string, any>>({});
+  const postsRef = useRef<any[]>([]);
+  useEffect(() => {
+    postsRef.current = posts;
+  }, [posts]);
   const [streak, setStreak] = useState(0);
   const [userChurches, setUserChurches] = useState<any[]>([]);
   const [feedControls, setFeedControls] = useState(() => {
@@ -184,6 +188,8 @@ export default function RootPage() {
       content: (post.content || '').trim(),
       media_url: post.media_url,
       media_type: post.media_type || 'text',
+      post_type: post.post_type || post.media_type || 'text',
+      thumbnail_url: post.thumbnail_url || null,
       likes: post.likes || [],
       likes_count: post.likes_count || (post.likes ? post.likes.length : 0),
       comments_count: post.comments_count || 0,
@@ -198,9 +204,71 @@ export default function RootPage() {
       }
     };
 
-
     return mapped;
   }, []);
+
+  const handleNewPost = useCallback(async (newPost: any) => {
+    if (!newPost || !newPost.id) {
+      loadInitialPosts(true);
+      return;
+    }
+
+    const postUserId = newPost.user_id || newPost.author_id;
+    let profile = profilesCacheRef.current[postUserId];
+
+    if (!profile && postUserId) {
+      if (currentUser && (currentUser.id === postUserId || currentUser.user_metadata?.sub === postUserId)) {
+        profile = {
+          id: postUserId,
+          full_name: currentUser.user_metadata?.full_name || currentUser.full_name || 'Você',
+          username: currentUser.user_metadata?.username || currentUser.username || 'voce',
+          avatar_url: currentUser.user_metadata?.avatar_url || currentUser.avatar_url,
+          is_verified: currentUser.is_verified || false,
+          verification_label: currentUser.verification_label
+        };
+        profilesCacheRef.current[postUserId] = profile;
+      } else {
+        try {
+          const { data } = await supabase
+            .from('profiles')
+            .select('id, full_name, username, avatar_url, is_verified, verification_label')
+            .eq('id', postUserId)
+            .single();
+          if (data) {
+            profile = data;
+            profilesCacheRef.current[postUserId] = data;
+          }
+        } catch (e) {}
+      }
+    }
+
+    const normalizedPost = {
+      ...newPost,
+      user_id: postUserId,
+      author_id: postUserId,
+      post_type: newPost.post_type || newPost.media_type || 'text',
+      thumbnail_url: newPost.thumbnail_url || null,
+      created_at: newPost.created_at || new Date().toISOString(),
+      likes: newPost.likes || [],
+      likes_count: newPost.likes_count || (newPost.likes ? newPost.likes.length : 0),
+      comments_count: newPost.comments_count || 0,
+      reposts_count: newPost.reposts_count || 0,
+    };
+
+    const mapped = {
+      ...mapPost(normalizedPost, { [postUserId]: profile || {} }),
+      unique_key: `${newPost.id}-original`,
+      display_date: normalizedPost.created_at,
+      created_date: normalizedPost.created_at,
+      post_type: normalizedPost.post_type,
+      thumbnail_url: normalizedPost.thumbnail_url
+    };
+
+    setPosts(prev => {
+      if (prev.some(p => p.id === mapped.id || p.unique_key === mapped.unique_key)) return prev;
+      return [mapped, ...prev];
+    });
+  }, [currentUser, mapPost]);
 
   const loadInitialPosts = async (isSilent = false) => {
     if (!isSilent) {
@@ -659,6 +727,67 @@ export default function RootPage() {
     };
     window.addEventListener('feed-controls-updated', handleFeedControlsUpdate);
 
+    const handleCustomNewPost = (e: any) => {
+      if (e.detail) {
+        handleNewPost(e.detail);
+      }
+    };
+    window.addEventListener('feconecta:new-post', handleCustomNewPost);
+
+    let feedBroadcastChannel: BroadcastChannel | null = null;
+    try {
+      feedBroadcastChannel = new BroadcastChannel('feconecta_feed_sync');
+      feedBroadcastChannel.onmessage = (event) => {
+        if (event.data?.type === 'NEW_POST' && event.data?.post) {
+          handleNewPost(event.data.post);
+        } else if (event.data?.type === 'DELETE_POST' && event.data?.postId) {
+          setPosts(prev => prev.filter(p => p.id !== event.data.postId && p.unique_key !== event.data.postId));
+        }
+      };
+    } catch (e) {}
+
+    // Sincronização viva e contínua de novos posts do feed (Smart Realtime Sync)
+    const smartSyncInterval = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+      const currentList = postsRef.current;
+      if (!currentList || currentList.length === 0) return;
+
+      const newestPost = currentList[0];
+      const latestTimestamp = newestPost?.created_date || newestPost?.display_date || newestPost?.created_at;
+      if (!latestTimestamp) return;
+
+      try {
+        const { data: incomingPosts, error: syncError } = await supabase
+          .from('posts')
+          .select('*')
+          .gt('created_at', latestTimestamp)
+          .order('created_at', { ascending: false })
+          .limit(10);
+
+        if (!syncError && incomingPosts && incomingPosts.length > 0) {
+          const missingUserIds = incomingPosts
+            .map((p: any) => p.user_id || p.author_id)
+            .filter((uid: string) => uid && !profilesCacheRef.current[uid]);
+
+          if (missingUserIds.length > 0) {
+            const { data: newProfiles } = await supabase
+              .from('profiles')
+              .select('id, full_name, username, avatar_url, is_verified, verification_label')
+              .in('id', Array.from(new Set(missingUserIds)));
+
+            (newProfiles || []).forEach((prof: any) => {
+              profilesCacheRef.current[prof.id] = prof;
+            });
+          }
+
+          for (const rawPost of [...incomingPosts].reverse()) {
+            handleNewPost(rawPost);
+          }
+        }
+      } catch (e) {}
+    }, 4000);
+
     const channel = supabase
       .channel('unified-feed-updates')
       // CONTROLES DE EXIBIÇÃO REALTIME
@@ -672,36 +801,7 @@ export default function RootPage() {
       })
       // FEED POSTS REALTIME
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'posts' }, async (payload) => {
-        const newPost = payload.new;
-        const postUserId = newPost.user_id || newPost.author_id;
-
-        let profile = profilesCacheRef.current[postUserId];
-
-        if (!profile && postUserId) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('id, full_name, username, avatar_url, is_verified, verification_label')
-            .eq('id', postUserId)
-            .single();
-
-          if (data) {
-            profile = data;
-            profilesCacheRef.current[postUserId] = data;
-          }
-        }
-
-        const normalizedPost = {
-          ...newPost,
-          user_id: postUserId,
-          author_id: postUserId
-        };
-
-        const mapped = {
-          ...mapPost(normalizedPost, { [postUserId]: profile || {} }),
-          unique_key: `${newPost.id}-original`
-        };
-
-        setPosts(prev => (prev.some(p => p.unique_key === mapped.unique_key) ? prev : [mapped, ...prev]));
+        handleNewPost(payload.new);
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'posts' }, (payload) => {
         setPosts(prev => prev.filter(p => p.id !== payload.old.id && p.unique_key !== payload.old.id));
@@ -746,8 +846,14 @@ export default function RootPage() {
     return () => {
       mounted = false;
       clearInterval(heartbeatInterval);
+      clearInterval(smartSyncInterval);
       supabase.removeChannel(channel);
       window.removeEventListener('presence-sync', handlePresenceSync);
+      window.removeEventListener('feed-controls-updated', handleFeedControlsUpdate);
+      window.removeEventListener('feconecta:new-post', handleCustomNewPost);
+      if (feedBroadcastChannel) {
+        try { feedBroadcastChannel.close(); } catch (e) {}
+      }
     };
   }, [currentUser?.id || 'guest']);
 
@@ -1197,7 +1303,13 @@ export default function RootPage() {
 
           {/* CreatePost — desktop: 2º / mobile: oculto */}
           <div className="order-5 lg:order-2 mt-2 px-4 hidden lg:block">
-            <CreatePost user={currentUser} onPostCreated={() => loadInitialPosts(true)} />
+            <CreatePost
+              user={currentUser}
+              onPostCreated={(newPost?: any) => {
+                if (newPost) handleNewPost(newPost);
+                else loadInitialPosts(true);
+              }}
+            />
           </div>
 
           {/* LiveRoomsBar — desktop: 3º / mobile: 1º */}

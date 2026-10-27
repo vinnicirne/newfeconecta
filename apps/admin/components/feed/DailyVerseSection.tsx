@@ -203,7 +203,7 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
     
     setSending(true);
     try {
-      const { error } = await supabase
+      const { data: newPost, error } = await supabase
         .from('posts')
         .insert({
           user_id: currentUser.id,
@@ -217,12 +217,23 @@ export default function DailyVerseSection({ currentUser }: { currentUser: any })
             verse_id: dailyVerse.id,
             bible_ref: `${dailyVerse.book_abbrev || ''}${dailyVerse.chapter || ''}:${dailyVerse.verse || ''}`
           }
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
       
       setIsReposted(true);
       toast.success("Versículo compartilhado no seu feed!");
+
+      if (typeof window !== 'undefined' && newPost) {
+        window.dispatchEvent(new CustomEvent('feconecta:new-post', { detail: newPost }));
+        try {
+          const bc = new BroadcastChannel('feconecta_feed_sync');
+          bc.postMessage({ type: 'NEW_POST', post: newPost });
+          bc.close();
+        } catch (e) {}
+      }
     } catch (err: any) {
       toast.error("Erro ao repostar: " + err.message);
     } finally {

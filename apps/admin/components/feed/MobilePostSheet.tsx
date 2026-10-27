@@ -79,7 +79,15 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
 
       toast.success("Publicado!", { id: toastId });
       setPosted(true);
-      onPostCreated?.();
+      onPostCreated?.(newPost);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('feconecta:new-post', { detail: newPost }));
+        try {
+          const bc = new BroadcastChannel('feconecta_feed_sync');
+          bc.postMessage({ type: 'NEW_POST', post: newPost });
+          bc.close();
+        } catch (e) {}
+      }
       setTimeout(() => {
         setPosted(false);
         setComposerOpen(false);

@@ -195,10 +195,9 @@ export function useBibleInteractions(userId: string | null, book: string, chapte
           user_id: userId,
           profile_id: userId,
           book_abbrev: book,
-          chapter,
+          chapter: chapter,
           verse_number: verseNum,
           verse_text: verseText || currentList[existingIndex].verse_text || '',
-          ...currentList[existingIndex],
           ...updates
         });
       } else {
