@@ -920,15 +920,15 @@ export default function RootPage() {
         className="sticky top-0 z-[200] bg-white/90 dark:bg-[#080808]/95 backdrop-blur-xl border-b border-black/5 dark:border-white/5 transition-all duration-300"
         style={{ paddingTop: 'max(env(safe-area-inset-top), 0px)' }}
       >
-        <div className="max-w-[1400px] mx-auto px-4 md:px-6 h-14 flex items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-4 md:px-6 h-14 flex items-center justify-between gap-1">
           
           {/* LOGO — esquerda, largura igual ao sidebar no desktop */}
-          <div className="flex items-center gap-2.5 xl:w-[280px]">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 xl:w-[280px] shrink-0 min-w-0">
             {/* Hamburguer mobile and tablet */}
             {isMounted && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button className="lg:hidden p-2 -ml-1 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all outline-none active:scale-95">
+                  <button className="lg:hidden p-1.5 -ml-1 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-colors outline-none active:scale-95 shrink-0">
                     <Menu className="w-5 h-5" />
                   </button>
                 </DropdownMenuTrigger>
@@ -1091,13 +1091,13 @@ export default function RootPage() {
             )}
 
             {/* Logo + Nome */}
-            <Link href="/" className="flex items-center gap-2 group">
+            <Link href="/" className="flex items-center gap-1.5 sm:gap-2 group shrink-0">
               {isMounted && (
-                <div className="w-9 h-9 rounded-2xl bg-whatsapp-teal/20 flex items-center justify-center text-whatsapp-teal group-hover:bg-whatsapp-teal/30 transition-colors">
-                  <Flame className="w-5 h-5 fill-whatsapp-teal" />
+                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl sm:rounded-2xl bg-whatsapp-teal/20 flex items-center justify-center text-whatsapp-teal group-hover:bg-whatsapp-teal/30 transition-colors shrink-0">
+                  <Flame className="w-4 h-4 sm:w-5 sm:h-5 fill-whatsapp-teal" />
                 </div>
               )}
-              <span className="text-xl font-black text-gray-900 dark:text-white tracking-tight">FéConecta</span>
+              <span className="text-lg sm:text-xl font-black text-gray-900 dark:text-white tracking-tight truncate">FéConecta</span>
             </Link>
           </div>
 
@@ -1109,25 +1109,26 @@ export default function RootPage() {
           </div>
 
           {/* AÇÕES — direita */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-0.5 sm:gap-1.5 shrink-0">
             {isMounted && (
               <>
                 <button
                   onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                  className="hidden xl:flex p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-amber-500 dark:hover:text-amber-400 transition-all"
+                  className="hidden xl:flex p-1.5 text-gray-500 dark:text-gray-400 hover:text-amber-500 dark:hover:text-amber-400 transition-colors"
                   title="Alterar Tema"
                 >
                   {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                 </button>
                 <button
                   onClick={() => router.push('/explore')}
-                  className="md:hidden p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all"
+                  className="md:hidden p-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-colors active:scale-95"
+                  title="Pesquisar"
                 >
                   <Search className="w-5 h-5" />
                 </button>
                 <Link
                   href="/messages"
-                  className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal transition-all relative"
+                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-colors active:scale-95 relative"
                   title="Chat"
                 >
                   <MessageSquare className="w-5 h-5" />
@@ -1135,22 +1136,30 @@ export default function RootPage() {
 
                 <button
                   onClick={() => setShowNotifications(true)}
-                  className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-whatsapp-teal relative"
+                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-colors active:scale-95 relative"
                   title="Notificações"
                 >
                   <Bell className="w-5 h-5" />
                   {unreadCount > 0 && (
-                    <div className="absolute top-2.5 right-2.5 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-[#080808] flex items-center justify-center">
-                      <span className="text-[10px] text-white font-bold">{unreadCount}</span>
+                    <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full border-2 border-white dark:border-[#080808] flex items-center justify-center">
+                      <span className="text-[9px] text-white font-bold leading-none">{unreadCount > 99 ? '99+' : unreadCount}</span>
                     </div>
                   )}
                 </button>
 
-                <Link href="/bible" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-emerald-500 transition-all" title="Bíblia Sagrada">
+                <Link
+                  href="/bible"
+                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-emerald-500 transition-colors active:scale-95"
+                  title="Bíblia Sagrada"
+                >
                   <BookOpen className="w-5 h-5" />
                 </Link>
 
-                <Link href="/jogos" className="p-2.5 bg-black/5 dark:bg-white/5 rounded-xl text-gray-400 hover:text-indigo-500 transition-all" title="Jogos & Quiz">
+                <Link
+                  href="/jogos"
+                  className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-indigo-500 transition-colors active:scale-95"
+                  title="Jogos & Quiz"
+                >
                   <Gamepad2 className="w-5 h-5" />
                 </Link>
               </>
