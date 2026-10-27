@@ -171,19 +171,19 @@ export default function StoryViewer({
 
   // Native media play/pause
   useEffect(() => {
-    if (story?.media_type === "video" && videoRef.current) {
+    const video = videoRef.current;
+    if (story?.media_type === "video" && video) {
       if (state.paused) {
-        videoRef.current.pause();
+        video.pause();
       } else {
-        const p = videoRef.current.play();
+        video.muted = state.isMuted;
+        const p = video.play();
         if (p !== undefined) {
           p.catch((err) => {
             console.warn("Autoplay with sound prevented, muting and retrying:", err);
-            if (videoRef.current) {
-              videoRef.current.muted = true;
-              dispatch({ type: "SET_MUTED", payload: true });
-              videoRef.current.play().catch(console.error);
-            }
+            video.muted = true;
+            dispatch({ type: "SET_MUTED", payload: true });
+            video.play().catch(console.error);
           });
         }
       }
@@ -215,7 +215,8 @@ export default function StoryViewer({
           type: "SET_MEDIA_DURATION",
           payload: Math.min((end - start) * 1000, VIDEO_DURATION),
         });
-        if (Math.abs(mediaRef.currentTime - start) > 1.5) {
+        // Só reposiciona se start > 0 para não forçar seek desnecessário em WebM
+        if (start > 0 && Math.abs(mediaRef.currentTime - start) > 1.0) {
           mediaRef.currentTime = start;
         }
       } else {

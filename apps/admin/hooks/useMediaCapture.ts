@@ -378,13 +378,13 @@ export function useMediaCapture(
     const options: MediaRecorderOptions = {};
     if (mimeType) options.mimeType = mimeType;
 
-    // Bitrate leve e fluido: 1.8 Mbps de vídeo (~225 KB/s) + 96 kbps áudio
-    // Produz Stories de 15s com apenas ~3 MB, com carregamento instantâneo em redes 3G/4G
+    // Bitrate otimizado para Stories móveis instantâneos: 1.0 Mbps (~125 KB/s) + 64 kbps áudio
+    // Produz Stories de 15s com apenas ~1.8 MB (compatível com redes móveis 3G/4G e sem travamento)
     if (mode !== "audio") {
-      options.videoBitsPerSecond = 1_800_000;
-      options.audioBitsPerSecond = 96_000;
+      options.videoBitsPerSecond = 1_000_000;
+      options.audioBitsPerSecond = 64_000;
     } else {
-      options.audioBitsPerSecond = 96_000;
+      options.audioBitsPerSecond = 64_000;
     }
 
     try {

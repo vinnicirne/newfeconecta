@@ -162,6 +162,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
     }
   };
 
+  // Limite estrito de 15 segundos para vídeos de Story (leve e instantâneo)
+  useEffect(() => {
+    if (recording && recordDuration >= 15) {
+      handleToggleVideoRecord();
+    }
+  }, [recording, recordDuration]);
+
   // Seleção de Arquivo da Galeria com compressão client-side
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -394,7 +401,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
             <div className="bg-rose-600/90 backdrop-blur-lg px-3.5 py-1 rounded-full border border-white/25 flex items-center gap-2 shadow-xl animate-pulse pointer-events-auto">
               <div className="w-2.5 h-2.5 rounded-full bg-white animate-ping" />
               <span className="text-xs font-mono font-black text-white">
-                00:{recordDuration.toString().padStart(2, '0')} / 01:00
+                00:{recordDuration.toString().padStart(2, '0')} / 00:15
               </span>
             </div>
           )}

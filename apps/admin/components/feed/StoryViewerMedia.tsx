@@ -55,18 +55,19 @@ export default function StoryViewerMedia() {
     return () => clearBufferTimers();
   }, [cleanMediaUrl, clearBufferTimers, setIsBuffering]);
 
-  // Buffering com debounce e watchdog de segurança (6 segundos)
+  // Buffering com debounce e watchdog de segurança (3.5 segundos)
   const handleWaiting = React.useCallback(() => {
-    clearBufferTimers();
+    if (bufferTimerRef.current) return;
     bufferTimerRef.current = setTimeout(() => {
       setIsBuffering(true);
-      // Se passar de 6 segundos travado, libera o spinner e mostra botão de play/pular
-      watchdogTimerRef.current = setTimeout(() => {
-        setIsBuffering(false);
-        setShowTapToPlay(true);
-      }, 6000);
+      if (!watchdogTimerRef.current) {
+        watchdogTimerRef.current = setTimeout(() => {
+          setIsBuffering(false);
+          setShowTapToPlay(true);
+        }, 3500);
+      }
     }, 350);
-  }, [clearBufferTimers, setIsBuffering]);
+  }, [setIsBuffering]);
 
   const handlePlayingOrCanPlay = React.useCallback(() => {
     clearBufferTimers();
@@ -140,23 +141,27 @@ export default function StoryViewerMedia() {
       {story.media_type === "video" && (
         <>
           {isBuffering && !mediaError && (
-            <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm pointer-events-none">
-              <div className="w-12 h-12 rounded-full border-4 border-whatsapp-green border-t-transparent animate-spin" />
+            <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
+              <div className="w-10 h-10 rounded-full border-3 border-whatsapp-green border-t-transparent animate-spin drop-shadow-md" />
             </div>
           )}
 
           {showTapToPlay && !mediaError && (
-            <div className="absolute inset-0 z-12 flex flex-col items-center justify-center p-6 text-center bg-black/75 backdrop-blur-sm gap-3">
+            <div className="absolute inset-0 z-30 flex flex-col items-center justify-center p-6 text-center bg-black/80 backdrop-blur-sm gap-3 pointer-events-auto">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowTapToPlay(false);
                   const v = videoRef.current;
                   if (v) {
-                    v.play().catch(console.error);
+                    v.muted = false;
+                    v.play().catch(() => {
+                      v.muted = true;
+                      v.play().catch(console.error);
+                    });
                   }
                 }}
-                className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-whatsapp-green text-white font-bold text-sm shadow-xl active:scale-95 transition-all"
+                className="flex items-center gap-2 px-6 py-3 rounded-full bg-whatsapp-green hover:bg-emerald-600 text-white font-bold text-sm shadow-2xl active:scale-95 transition-all"
               >
                 <Play className="w-5 h-5 fill-current" />
                 Toque para reproduzir
@@ -166,7 +171,7 @@ export default function StoryViewerMedia() {
                   e.stopPropagation();
                   advance();
                 }}
-                className="text-white/70 hover:text-white text-xs underline font-medium"
+                className="text-white/70 hover:text-white text-xs underline font-medium py-1 px-3"
               >
                 Pular para o próximo story
               </button>
@@ -191,7 +196,7 @@ export default function StoryViewerMedia() {
                 (videoRef as any).current = el;
                 if (el) {
                   el.muted = isMuted;
-                  el.defaultMuted = isMuted;
+                  el.defaultMuted = true;
                 }
               }}
               src={cleanMediaUrl}
@@ -217,8 +222,11 @@ export default function StoryViewerMedia() {
                 setTimeout(() => advance(), 2000);
               }}
               className="absolute inset-0 w-full h-full object-cover object-center bg-black
-                         [&::-webkit-media-controls]:hidden
-                         [&::-webkit-media-controls-start-playback-button]:hidden"
+                         [&::-webkit-media-controls]:!hidden
+                         [&::-webkit-media-controls-start-playback-button]:!hidden
+                         [&::-webkit-media-controls-overlay-play-button]:!hidden
+                         [&::-webkit-media-controls-play-button]:!hidden
+                         [&::-webkit-media-controls-enclosure]:!hidden"
             />
           )}
           {story.content && (

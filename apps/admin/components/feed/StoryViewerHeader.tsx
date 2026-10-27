@@ -72,7 +72,12 @@ export default function StoryViewerHeader() {
                 e.stopPropagation();
                 const next = !isMuted;
                 dispatch({ type: "SET_MUTED", payload: next });
-                if (videoRef?.current) videoRef.current.muted = next;
+                if (videoRef?.current) {
+                  videoRef.current.muted = next;
+                  if (!next) {
+                    videoRef.current.play().catch(console.error);
+                  }
+                }
               }}
               className="p-2 text-white/80 hover:text-white transition-all rounded-full hover:bg-white/10 active:scale-95"
               title={isMuted ? "Ativar áudio" : "Silenciar áudio"}
