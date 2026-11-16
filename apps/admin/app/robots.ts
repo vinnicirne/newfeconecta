@@ -1,12 +1,13 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/lib/seo';
 
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: ['/', '/about', '/faq', '/login', '/register', '/post/', '/room/', '/bible', '/feed'],
-      disallow: ['/admin/', '/api/', '/settings/', '/messages/'],
+      allow: ['/', '/about', '/faq', '/login', '/register', '/post/', '/bible'],
+      disallow: ['/admin/', '/api/', '/settings/', '/configuracoes/', '/messages/', '/chat/', '/dashboard/', '/saved/', '/notifications/'],
     },
-    sitemap: 'https://newfeconecta.vercel.app/sitemap.xml',
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

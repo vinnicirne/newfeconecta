@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { toast } from 'sonner';
 import { 
   X, Type, Image as ImageIcon, Camera, Mic, RotateCcw, SwitchCamera, Zap,
-  Play, Square, Users, ChevronDown
+  Play, Square, Users, ChevronDown, Images
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,14 @@ import { useMediaCapture } from '@/hooks/useMediaCapture';
 
 const MAX_VIDEO_SECONDS = 60;
 
-export type ComposerMode = 'text' | 'photo' | 'video' | 'audio' | 'gallery';
+export type ComposerMode = 'text' | 'photo' | 'video' | 'audio' | 'gallery' | 'carousel';
 
 export interface MediaCapture {
   type: 'photo' | 'video' | 'audio';
   url: string;
   blob: Blob | File;
+  files?: File[];
+  imageUrls?: string[];
 }
 
 export interface ComposerState {
@@ -82,7 +84,9 @@ function composerReducer(state: ComposerState, action: ComposerAction): Composer
   }
 }
 
-export function useComposerState(open: boolean, initialMode: ComposerMode = 'text', initialFile: File | Blob | null = null) {
+const EMPTY_FILES: File[] = [];
+
+export function useComposerState(open: boolean, initialMode: ComposerMode = 'text', initialFile: File | Blob | null = null, initialFiles: File[] = EMPTY_FILES) {
   const [state, dispatch] = useReducer(composerReducer, {
     mode: initialMode,
     content: '',
@@ -94,7 +98,11 @@ export function useComposerState(open: boolean, initialMode: ComposerMode = 'tex
   // Draft Resilience: Load draft on open
   useEffect(() => {
     if (open) {
-      if (initialFile) {
+      if (initialFiles.length > 1) {
+        const imageUrls = initialFiles.map((file) => URL.createObjectURL(file));
+        dispatch({ type: 'SET_CAPTURED', payload: { type: 'photo', url: imageUrls[0], blob: initialFiles[0], files: initialFiles, imageUrls } });
+        dispatch({ type: 'SET_MODE', payload: 'photo' });
+      } else if (initialFile) {
         const initialFileUrl = URL.createObjectURL(initialFile);
         const type = initialFile.type.startsWith('video/') ? 'video' : 'photo';
         dispatch({ type: 'SET_CAPTURED', payload: { type, url: initialFileUrl, blob: initialFile } });
@@ -120,7 +128,7 @@ export function useComposerState(open: boolean, initialMode: ComposerMode = 'tex
       // Clean up captured URL when closed
       dispatch({ type: 'SET_CAPTURED', payload: null });
     }
-  }, [open, initialFile, initialMode]);
+  }, [open, initialFile, initialFiles, initialMode]);
 
   // Draft Resilience: Save draft when typing (only if not captured media)
   useEffect(() => {
@@ -141,11 +149,9 @@ export function useComposerState(open: boolean, initialMode: ComposerMode = 'tex
 
   // Memory Leak Prevention: revoke URL when captured changes or unmounts
   useEffect(() => {
-    const url = state.captured?.url;
+    const urls = state.captured?.imageUrls || [state.captured?.url];
     return () => {
-      if (url && url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-      }
+      urls.forEach((url) => { if (url?.startsWith('blob:')) URL.revokeObjectURL(url); });
     };
   }, [state.captured]);
 
@@ -189,26 +195,28 @@ const BACKGROUNDS = [
 interface UnifiedComposerProps {
   open: boolean;
   onClose: () => void;
-  onSubmit: (data: any) => Promise<void>;
+  onSubmit: (data: any) => Promise<void | boolean>;
   user: any;
   initialMode?: ComposerMode;
   initialFile?: File | Blob | null;
+  initialFiles?: File[];
   allowedModes?: ComposerMode[];
 }
 
-export default function UnifiedComposer({ open, onClose, onSubmit, user, initialMode = 'text', initialFile = null, allowedModes }: UnifiedComposerProps) {
+export default function UnifiedComposer({ open, onClose, onSubmit, user, initialMode = 'text', initialFile = null, initialFiles = EMPTY_FILES, allowedModes }: UnifiedComposerProps) {
   const { 
     state, setMode, setContent, setBg, setCaptured, setIsSubmitting, clearDraft, reset 
-  } = useComposerState(open, initialMode, initialFile);
+  } = useComposerState(open, initialMode, initialFile, initialFiles);
   
   const { mode, content, bg, captured, isSubmitting } = state;
+  const captureMode = mode === 'carousel' ? 'gallery' : mode;
 
   const {
     videoRef, streamRef, recording, seconds,
     startCamera, stopCamera, capturePhoto, startRecording, stopRecording,
     facingMode, toggleFacingMode, toggleFlash, flashOn,
     handsFree, setHandsFree, micMuted, setMicMuted, cameraError, isProcessingPhoto, isReady
-  } = useMediaCapture(mode);
+  } = useMediaCapture(captureMode);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioPlayerRef = useRef<HTMLAudioElement | null>(null);
@@ -258,7 +266,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
       return;
     }
 
-    if (mode === 'text' || mode === 'gallery' || captured) {
+    if (mode === 'text' || mode === 'gallery' || mode === 'carousel' || captured) {
       stopCamera();
       if (mode !== 'audio') stopAudioPreview();
     } else if (mode === 'photo' || mode === 'video' || mode === 'audio') {
@@ -268,22 +276,47 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
 
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     // Reseta o input para permitir re-seleção do mesmo arquivo
     e.target.value = '';
-    if (!file) {
+    if (files.length === 0) {
       // Usuário cancelou o seletor — volta ao modo anterior
       setMode(prevModeRef.current);
       return;
     }
+
+    if (files.length > 1 || mode === 'carousel') {
+      if (files.length < 2 || files.length > 10) {
+        toast.error('Escolha de 2 a 10 imagens para o carrossel.');
+        return;
+      }
+      if (files.some((file) => !file.type.startsWith('image/'))) {
+        toast.error('O carrossel aceita somente imagens. Selecione novamente.');
+        return;
+      }
+      const oversized = files.find((file) => file.size > 20 * 1024 * 1024);
+      if (oversized) {
+        toast.error('Cada imagem precisa ter até 20 MB.');
+        return;
+      }
+      if (captured?.imageUrls) captured.imageUrls.forEach((url) => URL.revokeObjectURL(url));
+      else if (captured?.url?.startsWith('blob:')) URL.revokeObjectURL(captured.url);
+      const imageUrls = files.map((file) => URL.createObjectURL(file));
+      setCaptured({ type: 'photo', url: imageUrls[0], blob: files[0], files, imageUrls });
+      setMode('photo');
+      return;
+    }
+
+    const [file] = files;
 
     if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
         toast.error('Formato de arquivo inválido. Escolha uma imagem ou vídeo.');
         setMode(prevModeRef.current);
         return;
     }
-    if (file.size > 50 * 1024 * 1024) {
-        toast.error('O arquivo é muito grande (máximo 50MB).');
+    const maxSize = file.type.startsWith('image/') ? 20 * 1024 * 1024 : 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+        toast.error(file.type.startsWith('image/') ? 'A imagem precisa ter até 20 MB.' : 'O vídeo precisa ter até 50 MB.');
         setMode(prevModeRef.current);
         return;
     }
@@ -300,15 +333,19 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
     setIsSubmitting(true);
     try {
       if (mode === 'text') {
-        await onSubmit({ content, background: bg, post_type: 'text' });
+        const submitted = await onSubmit({ content, background: bg, post_type: 'text' });
+        if (submitted === false) return;
       } else if (captured) {
         const postType = captured.type === 'photo' ? 'image' : captured.type === 'audio' ? 'audio' : 'video';
-        await onSubmit({ 
+        const submitted = await onSubmit({
           media_url: captured.url, 
           post_type: postType, 
           caption: content, 
-          blob: overrideBlob ?? captured.blob
+          blob: overrideBlob ?? captured.blob,
+          images: captured.files,
+          metadata: captured.files?.length ? { media_layout: 'carousel' } : undefined,
         });
+        if (submitted === false) return;
       }
       clearDraft();
       onClose();
@@ -325,7 +362,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
   };
 
   const handleClearCapture = useCallback(() => {
-    const wasCapturing = captured?.type;
+    const wasCapturing = captured?.files?.length ? 'carousel' : captured?.type;
     setCaptured(null);
     // Só inicia câmera se estava capturando mídia
     if (wasCapturing === 'photo' || wasCapturing === 'video') {
@@ -809,6 +846,20 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
               {mode === 'audio' && renderAudioRecorder()}
             </>
           )}
+          {(!showEmojiPicker && mode === 'carousel' && !captured) && (
+            <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 py-12 text-center">
+              <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-pink-500/20 bg-pink-500/10 text-pink-500">
+                <Images className="h-9 w-9" />
+              </div>
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Carrossel de fotos</h3>
+                <p className="max-w-xs text-sm text-gray-500 dark:text-gray-400">Selecione de 2 a 10 imagens. As pessoas poderão deslizar para ver cada foto.</p>
+              </div>
+              <button onClick={() => fileInputRef.current?.click()} className="rounded-full bg-pink-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-pink-600/20 hover:bg-pink-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400">
+                Selecionar fotos
+              </button>
+            </div>
+          )}
           {(!showEmojiPicker && mode === 'gallery') && (
             <div className="flex flex-col items-center justify-center py-16 gap-5">
               <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center">
@@ -816,7 +867,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
               </div>
               <div className="text-center">
                 <p className="text-sm font-bold text-gray-700 dark:text-gray-200">Escolha uma mídia</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Imagem ou vídeo (máx. 50MB)</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Uma imagem, várias fotos para carrossel ou um vídeo (máx. 50 MB)</p>
               </div>
               <div className="flex gap-3">
                 <button
@@ -836,7 +887,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
           )}
         </div>
 
-        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileSelect} />
+        <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*" multiple onChange={handleFileSelect} />
 
         {(!captured && mode !== 'gallery' && !isMediaMode && !showEmojiPicker) && (
           <div 

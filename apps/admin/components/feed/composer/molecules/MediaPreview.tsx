@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { X } from 'lucide-react';
+import Image from 'next/image';
+import { X, ChevronLeft, ChevronRight, Images } from 'lucide-react';
 import { MediaCapture } from '../../UnifiedComposer';
 import { cn } from '@/lib/utils';
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 interface MediaPreviewProps {
   captured: MediaCapture;
@@ -23,7 +24,28 @@ const FILTERS = [
 export function MediaPreview({ captured, content, onContentChange, onClear, onPublish, disabled }: MediaPreviewProps) {
   const [filter, setFilter] = useState<string>('none');
   const [isApplyingFilter, setIsApplyingFilter] = useState(false);
+  const [carouselIndex, setCarouselIndex] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const captionRef = useRef<HTMLTextAreaElement>(null);
+  const carouselUrls = captured.imageUrls || [captured.url];
+  const isCarousel = carouselUrls.length > 1;
+
+  useEffect(() => setCarouselIndex(0), [captured.url]);
+
+  useEffect(() => {
+    const textarea = captionRef.current;
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+  }, [content]);
+
+  const scrollToCarouselImage = (index: number) => {
+    const nextIndex = Math.max(0, Math.min(index, carouselUrls.length - 1));
+    const container = carouselRef.current;
+    if (container) container.scrollTo({ left: container.clientWidth * nextIndex, behavior: 'smooth' });
+    setCarouselIndex(nextIndex);
+  };
 
   /**
    * Bug 8 fix: Para fotos com filtro ativo, re-renderiza a imagem num canvas
@@ -34,7 +56,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
     if (!onPublish) return;
 
     // Vídeo e áudio — sem filtro, passa direto
-    if (captured.type !== 'photo' || filter === 'none') {
+    if (captured.type !== 'photo' || isCarousel || filter === 'none') {
       onPublish();
       return;
     }
@@ -84,7 +106,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
     } finally {
       setIsApplyingFilter(false);
     }
-  }, [onPublish, captured, filter]);
+  }, [onPublish, captured, filter, isCarousel]);
 
   const isPublishing = disabled || isApplyingFilter;
 
@@ -107,14 +129,54 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
         <X className="w-5 h-5 drop-shadow-md" />
       </button>
 
-      {captured.type === 'photo' && (
+      {captured.type === 'photo' && isCarousel && (
         <>
-          <img 
+          <div
+            ref={carouselRef}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              const nextIndex = Math.round(element.scrollLeft / Math.max(element.clientWidth, 1));
+              setCarouselIndex((current) => current === nextIndex ? current : nextIndex);
+            }}
+            className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth no-scrollbar"
+            aria-label="Fotos do carrossel"
+          >
+            {carouselUrls.map((url, index) => (
+              <div key={url} className="relative h-full w-full shrink-0 snap-start bg-black">
+                <Image src={url} alt={`Foto ${index + 1} de ${carouselUrls.length}`} fill unoptimized sizes="100vw" className="object-contain" />
+              </div>
+            ))}
+          </div>
+          <div className="absolute right-5 top-[calc(env(safe-area-inset-top)+5rem)] z-20 flex items-center gap-1.5 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md">
+            <Images className="h-3.5 w-3.5" /> {carouselIndex + 1}/{carouselUrls.length}
+          </div>
+          {carouselIndex > 0 && (
+            <button type="button" aria-label="Foto anterior" onClick={() => scrollToCarouselImage(carouselIndex - 1)} className="absolute left-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          )}
+          {carouselIndex < carouselUrls.length - 1 && (
+            <button type="button" aria-label="Próxima foto" onClick={() => scrollToCarouselImage(carouselIndex + 1)} className="absolute right-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          )}
+          <div className="absolute bottom-36 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+            {carouselUrls.map((url, index) => <span key={url} className={cn("h-1.5 rounded-full transition-all", index === carouselIndex ? "w-4 bg-white" : "w-1.5 bg-white/50")} />)}
+          </div>
+        </>
+      )}
+
+      {captured.type === 'photo' && !isCarousel && (
+        <>
+          <Image
             key={captured.url}
             ref={imgRef}
-            src={captured.url} 
-            alt="Captura" 
-            className="absolute inset-0 w-full h-full object-cover"
+            src={captured.url}
+            alt="Prévia da imagem"
+            fill
+            unoptimized
+            sizes="100vw"
+            className="object-cover"
             style={{ filter: FILTERS.find(f => f.id === filter)?.css }}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none" />
@@ -138,8 +200,8 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
       )}
 
       {(captured.type === 'photo' || captured.type === 'video') && (
-        <div className="absolute bottom-0 left-0 right-0 p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] flex flex-col gap-6 z-20 pointer-events-auto">
-          {captured.type === 'photo' && (
+        <div className="absolute bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col gap-3 z-20 pointer-events-auto max-h-[65dvh] overflow-y-auto overscroll-contain">
+      {captured.type === 'photo' && !isCarousel && (
             <div className="flex justify-center gap-2 mb-2">
               <div className="bg-black/60 backdrop-blur-md rounded-full p-1.5 flex gap-1">
                 {FILTERS.map(f => (
@@ -158,25 +220,38 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
             </div>
           )}
 
-          <div className="w-full bg-black/40 backdrop-blur-md border border-white/20 rounded-3xl p-4 flex flex-col gap-4 shadow-xl">
+          <div className="w-full bg-black/75 backdrop-blur-xl border border-white/20 rounded-3xl p-4 flex flex-col gap-3 shadow-xl">
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="post-media-caption" className="text-sm font-semibold text-white">
+                Legenda
+                <span className="ml-1 font-normal text-white/60">· opcional</span>
+              </label>
+              <span className="text-xs tabular-nums text-white/65" aria-live="polite">
+                {content.length}/2.200
+              </span>
+            </div>
             <textarea
-              autoFocus
+              ref={captionRef}
+              id="post-media-caption"
               value={content}
-              onChange={(e) => onContentChange(e.target.value)}
-              placeholder="Toque para adicionar uma descrição..."
-              className="w-full bg-transparent border-none focus:ring-0 text-white text-lg font-medium placeholder:text-white/60 resize-none"
+              onChange={(e) => onContentChange(e.target.value.slice(0, 2200))}
+              placeholder="Escreva uma legenda para sua foto ou vídeo…"
+              aria-label="Legenda da publicação"
+              maxLength={2200}
+              className="w-full min-h-12 max-h-[120px] overflow-y-auto bg-white/10 border border-white/10 rounded-2xl px-3 py-3 text-white text-base leading-relaxed placeholder:text-white/55 resize-none focus:outline-none focus:ring-2 focus:ring-white/70 focus:border-transparent"
               rows={2}
               disabled={isPublishing}
             />
+            <p className="-mt-1 text-xs text-white/60">A legenda será exibida junto com a mídia no feed.</p>
             
-            <div className="flex items-center justify-between border-t border-white/10 pt-4">
+            <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
               <div className="flex items-center gap-2 text-white">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                 </div>
                 <div>
                    <p className="text-xs font-bold leading-none">Compartilhar em</p>
-                   <p className="text-[10px] text-white/60">Story: Desativado</p>
+                   <p className="text-[10px] text-white/60">{isCarousel ? `Carrossel · ${carouselUrls.length} fotos` : 'Compartilhado no seu feed'}</p>
                 </div>
               </div>
 

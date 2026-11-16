@@ -152,9 +152,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           }
         } else if (!session && !cached?.id) {
           const isPostRoute = pathname.startsWith("/post/");
+          const isHomeRoute = pathname === "/";
           const isGuardianRoute = pathname.startsWith("/guardian/");
           const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
-          const isPublic = isEntryRoute || isPostRoute || isGuardianRoute;
+          const isPublic = isEntryRoute || isPostRoute || isGuardianRoute || isHomeRoute;
 
           if (!isPublic && isMounted) {
             router.replace('/login');
@@ -210,9 +211,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     const isPostRoute = pathname.startsWith("/post/");
+    const isHomeRoute = pathname === "/";
     const isGuardianRoute = pathname.startsWith("/guardian/");
     const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
-    const isPublic = isEntryRoute || isPostRoute || isGuardianRoute;
+    const isPublic = isEntryRoute || isPostRoute || isGuardianRoute || isHomeRoute;
 
     if (!authorized && !isPublic) {
       router.replace("/login");
@@ -270,18 +272,19 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   const isPostRoute = pathname.startsWith("/post/");
+  const isHomeRoute = pathname === "/";
   const isGuardianRoute = pathname.startsWith("/guardian/");
   const isEntryRoute = PUBLIC_ROUTES.includes(pathname);
-  const isPublicRoute = isEntryRoute || isPostRoute || isGuardianRoute;
+  const isPublicRoute = isEntryRoute || isPostRoute || isGuardianRoute || isHomeRoute;
 
   let shouldRenderChildren = true;
-  if (loading) shouldRenderChildren = false;
+  if (loading && !isPostRoute && !isHomeRoute) shouldRenderChildren = false;
   else if (authorized && isEntryRoute) shouldRenderChildren = false;
   else if (!authorized && !isPublicRoute) shouldRenderChildren = false;
 
   return (
     <div className="min-h-screen bg-white dark:bg-black transition-colors duration-300" suppressHydrationWarning>
-      {loading && (
+      {loading && !isPostRoute && !isHomeRoute && (
         <div suppressHydrationWarning className="fixed inset-0 bg-white dark:bg-black flex flex-col items-center justify-center z-[9999] transition-colors duration-300">
           <div className="w-16 h-16 rounded-full bg-whatsapp-teal/10 flex items-center justify-center mb-4 text-whatsapp-teal">
             <Loader2 className="w-8 h-8 animate-spin" aria-hidden="true" />

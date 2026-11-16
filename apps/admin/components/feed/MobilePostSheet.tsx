@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Type, Image, Camera, Mic, X, CheckCircle2, Music } from 'lucide-react';
+import { Type, Image, Images, Camera, Mic, X, CheckCircle2, Music } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UnifiedComposer from './UnifiedComposer';
 import MusicComposerModal from './MusicComposerModal';
@@ -19,7 +19,9 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
   const [posted, setPosted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | Blob | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const carouselInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
   const { uploadMedia } = useMediaUpload();
@@ -36,20 +38,32 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
         content: data.content || data.caption || "",
         media_url: data.media_url,
         post_type: data.post_type,
+        metadata: data.metadata,
         background: data.background
       });
 
       let mediaUrl = data.media_url;
-      if (data.blob) {
+      let metadata = data.metadata || null;
+      if (Array.isArray(data.images) && data.images.length > 1) {
+         const imageUrls: string[] = [];
+         for (let index = 0; index < data.images.length; index += 1) {
+           const uploadedUrl = await uploadMedia(data.images[index], { bucket: 'posts', folder: 'images' });
+           if (!uploadedUrl) throw new Error(`Não foi possível enviar a foto ${index + 1}. Tente novamente.`);
+           imageUrls.push(uploadedUrl);
+         }
+         mediaUrl = imageUrls[0];
+         metadata = { ...(metadata || {}), media_layout: 'carousel', media_urls: imageUrls };
+      } else if (data.blob) {
          const isAudio = data.post_type === 'audio';
          const isVideo = data.post_type === 'video';
          const folder = isAudio ? 'audio' : (isVideo ? 'videos' : 'images');
          const ext = isAudio ? 'webm' : (isVideo ? (data.blob.type.includes('mp4') ? 'mp4' : 'webm') : 'jpg');
          const finalFile = data.blob instanceof File ? data.blob : new File([data.blob], `media_${Date.now()}.${ext}`, { type: data.blob.type || (isVideo ? 'video/mp4' : 'image/jpeg') });
          mediaUrl = await uploadMedia(finalFile, { bucket: 'posts', folder });
+         if (!mediaUrl) throw new Error('Não foi possível enviar a mídia. Verifique sua conexão e tente novamente.');
       }
 
-      const response = await supabase.from('posts').insert({
+      const postInsert: Record<string, any> = {
         author_id: user.id,
         user_id: user.id,
         content: data.content || data.caption || "",
@@ -57,7 +71,9 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
         thumbnail_url: data.thumbnail_url || null,
         post_type: data.post_type,
         background: data.background
-      }).select().single();
+      };
+      if (metadata) postInsert.metadata = metadata;
+      const response = await supabase.from('posts').insert(postInsert).select().single();
 
       if (response.error) throw response.error;
       const newPost = response.data;
@@ -93,14 +109,18 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
         setComposerOpen(false);
         onClose();
       }, 1500);
+      return true;
     } catch (err: any) {
       toast.error("Erro: " + err.message, { id: toastId });
+      return false;
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const openComposer = (mode: string) => {
+    setSelectedFile(null);
+    setSelectedFiles([]);
     setInitialMode(mode);
     setComposerOpen(true);
   };
@@ -110,16 +130,45 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
   const actions = [
     { icon: Type, label: 'Texto', color: 'bg-violet-100 text-violet-600 dark:bg-violet-500/20', onClick: () => openComposer('text') },
     { icon: Image, label: 'Galeria', color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20', onClick: () => fileInputRef.current?.click() },
+    { icon: Images, label: 'Carrossel', color: 'bg-pink-100 text-pink-600 dark:bg-pink-500/20', onClick: () => carouselInputRef.current?.click() },
     { icon: Camera, label: 'Câmera', color: 'bg-green-100 text-green-600 dark:bg-green-500/20', onClick: () => openComposer('photo') },
     { icon: Mic, label: 'Áudio', color: 'bg-orange-100 text-orange-600 dark:bg-orange-500/20', onClick: () => openComposer('audio') },
   ];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, mode: 'gallery' | 'photo') => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, mode: 'gallery' | 'photo' | 'carousel') => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+
+    if (mode === 'carousel' || files.length > 1) {
+      if (files.length > 10 || files.some((file) => !file.type.startsWith('image/'))) {
+        toast.error('Para um carrossel, escolha de 2 a 10 imagens.');
+        return;
+      }
+      if (files.some((file) => file.size > 20 * 1024 * 1024)) {
+        toast.error('Cada imagem precisa ter até 20 MB.');
+        return;
+      }
+      setSelectedFiles(files);
+      setSelectedFile(null);
+      setInitialMode('carousel');
+      setComposerOpen(true);
+      return;
+    }
 
     // Engatilha o composer já com o arquivo
+    const [file] = files;
     const isVideo = file.type.startsWith('video/');
+    if (!isVideo && !file.type.startsWith('image/')) {
+      toast.error('Escolha uma imagem ou vídeo compatível.');
+      return;
+    }
+    const maxSize = isVideo ? 50 * 1024 * 1024 : 20 * 1024 * 1024;
+    if (file.size > maxSize) {
+      toast.error(isVideo ? 'O vídeo precisa ter até 50 MB.' : 'A imagem precisa ter até 20 MB.');
+      return;
+    }
+    setSelectedFiles([]);
     setSelectedFile(file);
     setInitialMode(isVideo ? 'video' : 'photo');
     setComposerOpen(true);
@@ -151,13 +200,19 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
                   <p className="text-sm font-black uppercase tracking-widest dark:text-white">Sucesso!</p>
                </div>
              ) : (
-               <div className="flex flex-wrap justify-center items-center gap-4 py-4">
+               <div className="grid grid-cols-5 items-start gap-2 py-4">
                   {actions.map(({ icon: Icon, label, color, onClick }) => (
-                    <button key={label} onClick={onClick} className="flex-1 min-w-[60px] flex flex-col items-center gap-2 group active:scale-95 transition-transform">
-                      <div className={cn("w-16 h-16 rounded-[24px] flex items-center justify-center", color)}>
-                        <Icon className="w-8 h-8" />
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={onClick}
+                      aria-label={label === 'Carrossel' ? 'Criar publicação em carrossel com várias imagens' : `Criar publicação de ${label.toLowerCase()}`}
+                      className="min-w-0 flex flex-col items-center gap-2 group active:scale-95 transition-transform"
+                    >
+                      <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center", color)}>
+                        <Icon className="w-7 h-7" aria-hidden="true" />
                       </div>
-                      <span className="text-[10px] font-black uppercase tracking-tight text-gray-500">{label}</span>
+                      <span className="text-[9px] font-black uppercase tracking-tight text-gray-500 text-center leading-tight">{label}</span>
                     </button>
                   ))}
                </div>
@@ -169,8 +224,10 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
             ref={fileInputRef} 
             className="hidden" 
             accept="image/*,video/*"
+            multiple
             onChange={(e) => handleFileChange(e, 'gallery')}
           />
+          <input type="file" ref={carouselInputRef} className="hidden" accept="image/*" multiple onChange={(e) => handleFileChange(e, 'carousel')} />
           <input 
             type="file" 
             ref={cameraInputRef} 
@@ -187,11 +244,13 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
           onClose={() => {
             setComposerOpen(false);
             setSelectedFile(null);
+            setSelectedFiles([]);
           }}
           onSubmit={handleUnifiedSubmit}
           user={user}
           initialMode={initialMode}
           initialFile={selectedFile}
+          initialFiles={selectedFiles}
         />
       )}
 

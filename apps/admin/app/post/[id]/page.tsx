@@ -1,15 +1,8 @@
 import { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
-import nextDynamic from "next/dynamic";
-
-const PostPageClient = nextDynamic(() => import("./PostPageClient"), { 
-  ssr: false,
-  loading: () => (
-    <div className="min-h-screen bg-white dark:bg-[#0c0c0c] flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-whatsapp-teal border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-});
+import { notFound } from "next/navigation";
+import PostPageClient from "./PostPageClient";
+import { SITE_URL } from "@/lib/seo";
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -30,10 +23,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
     if (postError) {
       console.error("Supabase Error:", postError);
-      return { title: `Erro ${postError.code} | FéConecta` };
+      return {
+        title: "Publicação | FéConecta",
+        robots: { index: false, follow: true },
+      };
     }
 
-    if (!post) return { title: "Publicação não encontrada | FéConecta" };
+    if (!post) return {
+      title: "Publicação não encontrada | FéConecta",
+      robots: { index: false, follow: true },
+    };
 
     const authorId = post.author_id || post.user_id;
     const { data: profile } = await supabase
@@ -53,7 +52,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     
     const isVideoOrAudio = post.post_type === "video" || post.media_type === "video" || post.post_type === "audio" || post.media_type === "audio" || !!post.media_url?.match(/\.(mp4|webm|mov|mkv|mp3|wav|m4a|ogg|aac|flac|opus|weba)/i) || post.media_url?.includes('/posts/videos/') || post.media_url?.includes('/posts/audio/');
     
-    let imageUrl = post.thumbnail_url;
+    let imageUrl = post.thumbnail_url || post.metadata?.media_urls?.[0];
     if (!imageUrl && post.media_url && !isVideoOrAudio) {
       imageUrl = post.media_url;
     }
@@ -69,9 +68,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         description,
         siteName: 'FéConecta',
         images: [{ url: imageUrl, width: 1200, height: 630, alt: "Conteúdo FéConecta" }],
-        url: `https://newfeconecta.vercel.app/post/${postId}`,
+        url: `${SITE_URL}/post/${postId}`,
         type: 'article',
       },
+      alternates: { canonical: `${SITE_URL}/post/${postId}` },
+      robots: { index: true, follow: true, googleBot: { index: true, follow: true } },
       twitter: {
         card: 'summary_large_image',
         title,
@@ -87,5 +88,34 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function PostPage({ params }: Props) {
   const { id } = await params;
-  return <PostPageClient postId={id} />;
+  const { data: post, error } = await supabase
+    .from('posts')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error || !post) notFound();
+
+  const authorId = post.author_id || post.user_id;
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('full_name, avatar_url, username, is_verified, verification_label')
+    .eq('id', authorId)
+    .maybeSingle();
+
+  const initialPost = {
+    ...post,
+    author_name: profile?.full_name || 'FéConecta',
+    author_username: profile?.username || 'feconecta',
+    author_id: authorId,
+    author_avatar: profile?.avatar_url,
+    created_date: post.created_at,
+    display_date: post.created_at,
+    likes: post.likes || [],
+    likes_count: post.likes_count || (post.likes ? post.likes.length : 0),
+    is_verified: profile?.is_verified,
+    verification_label: profile?.verification_label,
+  };
+
+  return <PostPageClient postId={id} initialPost={initialPost} />;
 }

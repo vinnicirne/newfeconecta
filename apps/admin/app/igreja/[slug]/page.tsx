@@ -203,7 +203,10 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
   if (loading) return <div className="py-20 text-center text-gray-400">Carregando feed...</div>;
 
   const handlePostSubmit = async (data: any) => {
-    if (!currentUser || !church) return toast.error("Não foi possível publicar. Tente novamente.");
+    if (!currentUser || !church) {
+      toast.error("Não foi possível publicar. Tente novamente.");
+      return false;
+    }
 
     const newPost: any = {
       church_id: church.id,
@@ -221,7 +224,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
       const { data: uploadData, error: uploadError } = await supabase.storage.from('posts').upload(fileName, data.blob);
       if (uploadError) {
         toast.error(`Erro ao fazer upload: ${uploadError.message}`);
-        return; // ← não fecha o composer — usuário pode tentar de novo
+        return false; // mantém o composer aberto para uma nova tentativa
       }
       const { data: publicUrlData } = supabase.storage.from('posts').getPublicUrl(fileName);
       newPost.media_url = publicUrlData.publicUrl;
@@ -232,7 +235,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
     if (error) {
       toast.error("Erro ao criar publicação.");
       console.error(error);
-      return; // ← não fecha o composer em caso de erro
+      return false; // mantém o composer aberto em caso de erro
     }
     
     if (insertedPost) {
@@ -241,6 +244,7 @@ export default function ChurchProfile({ params }: { params: { slug: string } }) 
     }
     
     setIsComposerOpen(false); // ← fecha apenas no sucesso
+    return true;
   };
   
   const handleToggleLike = async (postId: string) => {

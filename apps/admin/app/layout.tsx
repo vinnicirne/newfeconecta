@@ -8,18 +8,16 @@ import { SWRProvider } from "@/components/swr-provider";
 import { GoogleProvider } from "@/components/google-provider";
 import { PresenceTracker } from "@/components/presence-tracker";
 import { GlobalShellFeatures } from "@/components/GlobalShellFeatures";
+import { SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://newfeconecta.vercel.app"),
+  metadataBase: new URL(SITE_URL),
   title: "FéConecta | Um lugar de adoração",
   description: "Clamor e conexão com o Reino em um só lugar. A rede social Cristã.",
   keywords: ["FéConecta", "Rede Social Cristã", "Gospel", "Cristão", "Igreja", "Comunidade Cristã"],
   authors: [{ name: "FéConecta", url: "https://newfeconecta.vercel.app" }],
   publisher: "FéConecta",
   robots: "index, follow",
-  alternates: {
-    canonical: "https://newfeconecta.vercel.app",
-  },
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192.png",
@@ -33,7 +31,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "FéConecta | Um lugar de adoração",
     description: "Clamor e conexão com o Reino em um só lugar. A rede social Cristã.",
-    url: "https://newfeconecta.vercel.app",
+    url: SITE_URL,
     siteName: "FéConecta",
     images: [
       {
@@ -110,10 +108,10 @@ export default function RootLayout({
                 {
                   "@type": "WebSite",
                   "name": "FéConecta",
-                  "url": "https://newfeconecta.vercel.app",
+                  "url": SITE_URL,
                   "potentialAction": {
                     "@type": "SearchAction",
-                    "target": "https://newfeconecta.vercel.app/explore?q={search_term_string}",
+                    "target": `${SITE_URL}/explore?q={search_term_string}`,
                     "query-input": "required name=search_term_string"
                   }
                 },

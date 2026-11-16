@@ -9,9 +9,9 @@ import { cn } from "@/lib/utils";
 
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 
-export default function PostPageClient({ postId }: { postId: string }) {
-  const [post, setPost] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+export default function PostPageClient({ postId, initialPost }: { postId: string; initialPost: any }) {
+  const [post, setPost] = useState<any>(initialPost || null);
+  const [loading, setLoading] = useState(!initialPost);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const router = useRouter();
 

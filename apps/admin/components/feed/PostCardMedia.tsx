@@ -1,18 +1,29 @@
 import React from "react";
 import Image from "next/image";
-import { Flame, Play, Pause, Volume2, VolumeX, Music, Mic, Radio, Sparkles } from "lucide-react";
+import { Flame, Play, Pause, Volume2, VolumeX, Music, Mic, Radio, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
 import { usePostCardMediaContext } from "./PostCardContext";
 import ExternalMediaNative, { parseExternalMedia } from "./ExternalMediaNative";
 import { LinkPreview } from "./LinkPreview";
 import { cn } from "@/lib/utils";
+
+function mediaUrlForRetry(url: string, retryCount: number) {
+  if (!retryCount) return url;
+  const hashIndex = url.indexOf('#');
+  const mediaPath = hashIndex >= 0 ? url.slice(0, hashIndex) : url;
+  const fragment = hashIndex >= 0 ? url.slice(hashIndex) : '';
+  const separator = mediaPath.includes('?') ? '&' : '?';
+  return `${mediaPath}${separator}sw=bypass&retry=${retryCount}${fragment}`;
+}
 
 export default function PostCardMedia() {
   const {
     post,
     isVideo,
     isAudio,
+    isCarousel,
     mediaUrl,
     shouldSkipMedia,
+    mediaError,
     postType,
     setLightboxUrl,
     handleDoubleClickLike,
@@ -35,6 +46,25 @@ export default function PostCardMedia() {
     setIsPlaying,
     router
   } = usePostCardMediaContext();
+  const carouselRef = React.useRef<HTMLDivElement>(null);
+  const [carouselIndex, setCarouselIndex] = React.useState(0);
+  const [videoReady, setVideoReady] = React.useState(false);
+  const [videoBuffering, setVideoBuffering] = React.useState(true);
+  const carouselUrls: string[] = isCarousel
+    ? (post.metadata?.media_urls || []).filter((url: unknown): url is string => typeof url === 'string' && url.length > 0)
+    : [];
+
+  React.useEffect(() => setCarouselIndex(0), [post.id]);
+  React.useEffect(() => {
+    setVideoReady(false);
+    setVideoBuffering(true);
+  }, [post.id, mediaUrl, retryCount]);
+
+  const moveCarousel = (index: number) => {
+    const next = Math.max(0, Math.min(index, carouselUrls.length - 1));
+    carouselRef.current?.scrollTo({ left: (carouselRef.current?.clientWidth || 0) * next, behavior: 'smooth' });
+    setCarouselIndex(next);
+  };
 
   return (
     <>
@@ -71,9 +101,73 @@ export default function PostCardMedia() {
           </div>
         )}
 
+      {isCarousel && mediaUrl && !shouldSkipMedia && carouselUrls.length > 1 && (
+        <div className="relative w-full overflow-hidden bg-black" onDoubleClick={handleDoubleClickLike}>
+          <div
+            ref={carouselRef}
+            onScroll={(event) => {
+              const element = event.currentTarget;
+              const next = Math.round(element.scrollLeft / Math.max(element.clientWidth, 1));
+              setCarouselIndex((current) => current === next ? current : next);
+            }}
+            className="flex aspect-[4/5] max-h-[80vh] snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth no-scrollbar"
+            aria-label={`Carrossel com ${carouselUrls.length} fotos`}
+          >
+            {carouselUrls.map((url, index) => (
+              <button
+                key={`${url}-${index}`}
+                type="button"
+                onClick={() => setLightboxUrl(url)}
+                aria-label={`Ampliar foto ${index + 1} de ${carouselUrls.length}`}
+                className="relative h-full w-full shrink-0 snap-start bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+              >
+                <Image
+                  src={mediaUrlForRetry(url, retryCount)}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 768px) 100vw, 672px"
+                  alt={`Foto ${index + 1} do carrossel`}
+                  className="object-contain"
+                  priority={index === 0 && isPriority}
+                  loading={index === 0 && isPriority ? undefined : 'lazy'}
+                  onError={() => {
+                    if (retryCount < 1) setRetryCount((count: number) => count + 1);
+                    else setMediaError(true);
+                  }}
+                />
+              </button>
+            ))}
+          </div>
+          <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur" aria-live="polite">
+            {carouselIndex + 1}/{carouselUrls.length}
+          </div>
+          {carouselIndex > 0 && (
+            <button type="button" aria-label="Foto anterior" onClick={() => moveCarousel(carouselIndex - 1)} className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          )}
+          {carouselIndex < carouselUrls.length - 1 && (
+            <button type="button" aria-label="Próxima foto" onClick={() => moveCarousel(carouselIndex + 1)} className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          )}
+          <div className="flex items-center justify-center gap-1.5 py-3" aria-hidden="true">
+            {carouselUrls.map((url, index) => <span key={`${url}-dot-${index}`} className={cn("h-1.5 rounded-full transition-all", carouselIndex === index ? "w-4 bg-whatsapp-green" : "w-1.5 bg-gray-400/60")} />)}
+          </div>
+        </div>
+      )}
+
+      {mediaError && mediaUrl && (
+        <div className="mx-4 my-3 flex items-center justify-between gap-3 rounded-2xl border border-rose-500/20 bg-rose-500/5 p-4 text-sm text-gray-600 dark:text-gray-300" role="status">
+          <span>Não foi possível carregar esta mídia.</span>
+          <button onClick={() => { setMediaError(false); setRetryCount((count: number) => count + 1); }} className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">Tentar novamente</button>
+        </div>
+      )}
+
       {/* Image Media */}
       {mediaUrl &&
         !shouldSkipMedia &&
+        !isCarousel &&
         (postType === "image" ||
           postType === "photo" ||
           post.media_type === "image" ||
@@ -83,8 +177,10 @@ export default function PostCardMedia() {
           (!isVideo &&
             !isAudio &&
             mediaUrl.includes("supabase.co/storage"))) && (
-          <div
-            className="w-full aspect-[4/5] bg-black relative group cursor-zoom-in overflow-hidden shadow-2xl"
+          <button
+            type="button"
+            aria-label="Ampliar imagem da publicação"
+            className="relative block w-full aspect-[4/5] overflow-hidden border-0 bg-black p-0 text-left shadow-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
             onClick={() => {
               if (mediaUrl && typeof mediaUrl === 'string') {
                 setLightboxUrl(mediaUrl);
@@ -93,13 +189,13 @@ export default function PostCardMedia() {
             onDoubleClick={handleDoubleClickLike}
           >
             <Image
-              src={retryCount > 0 ? `${mediaUrl}${mediaUrl.includes('?') ? '&' : '?'}sw=bypass` : mediaUrl}
+              src={mediaUrlForRetry(mediaUrl, retryCount)}
               fill
               unoptimized
               priority={isPriority}
               sizes="(max-width: 768px) 100vw, 672px"
               className="feconecta-vibe object-cover transition-transform duration-700 group-hover:scale-105"
-              alt="Imagem do post"
+              alt="Imagem da publicação"
               onError={() => {
                 if (retryCount < 1) {
                   setRetryCount((prev: number) => prev + 1);
@@ -114,13 +210,13 @@ export default function PostCardMedia() {
                 <Flame className="w-24 h-24 text-whatsapp-green fill-whatsapp-green drop-shadow-[0_0_20px_rgba(37,211,102,0.6)] animate-in zoom-in spin-in duration-300" />
               </div>
             )}
-          </div>
+          </button>
         )}
 
       {/* Video Media */}
       {mediaUrl && isVideo && !shouldSkipMedia && (
         <div
-          className="w-full bg-black rounded-2xl relative group cursor-pointer overflow-hidden shadow-2xl flex items-center justify-center"
+          className="relative aspect-[4/5] max-h-[70vh] w-full cursor-pointer overflow-hidden rounded-2xl bg-black shadow-2xl"
           onClick={() => router.push(`/tribo?id=${post.id}`)}
           onDoubleClick={handleDoubleClickLike}
         >
@@ -133,29 +229,46 @@ export default function PostCardMedia() {
 
           <video
             ref={videoRef}
-            className="w-full max-h-[70vh] object-contain relative z-10"
-            src={retryCount > 0 ? `${mediaUrl}${mediaUrl.includes('?') ? '&' : '?'}sw=bypass#t=0.001` : `${mediaUrl}#t=0.001`}
+            width={720}
+            height={900}
+            className="absolute inset-0 z-10 h-full w-full object-contain"
+            src={mediaUrlForRetry(mediaUrl, retryCount).includes('#') ? mediaUrlForRetry(mediaUrl, retryCount) : `${mediaUrlForRetry(mediaUrl, retryCount)}#t=0.001`}
             poster={post.thumbnail_url || undefined}
-            preload={isPriority ? "auto" : "metadata"}
+            preload="metadata"
             muted={isMuted}
             loop
             playsInline
             crossOrigin="anonymous"
             onPlay={handlePlayMedia}
+            onWaiting={() => setVideoBuffering(true)}
+            onCanPlay={() => setVideoBuffering(false)}
+            onPlaying={() => { setVideoBuffering(false); setVideoReady(true); }}
+            onLoadedData={() => { setVideoBuffering(false); setVideoReady(true); }}
             onError={(e) => {
               if (retryCount < 1) {
                 setRetryCount((prev: number) => prev + 1);
+                setVideoReady(false);
+                setVideoBuffering(true);
               } else {
+                setVideoBuffering(false);
                 setMediaError(true);
               }
             }}
           />
 
+          {(!videoReady || videoBuffering) && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 pointer-events-none" aria-hidden="true">
+              <div className="h-9 w-9 rounded-full border-3 border-white/30 border-t-white animate-spin" />
+            </div>
+          )}
+
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               setIsMuted(!isMuted);
             }}
+            aria-label={isMuted ? "Ativar som do vídeo" : "Desativar som do vídeo"}
             className="absolute bottom-4 right-4 z-[40] w-9 h-9 rounded-full bg-black/50 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-black/80 active:scale-90 transition-all shadow-lg"
           >
             {isMuted ? (
@@ -255,7 +368,9 @@ export default function PostCardMedia() {
 
                 {/* Botão de Play Circular Glow */}
                 <button
+                  type="button"
                   onClick={toggleAudio}
+                  aria-label={isPlaying ? "Pausar áudio" : "Reproduzir áudio"}
                   className="w-12 h-12 shrink-0 rounded-full bg-whatsapp-green text-black flex items-center justify-center shadow-[0_0_20px_rgba(37,211,102,0.45)] hover:scale-105 active:scale-95 transition-all cursor-pointer"
                   title={isPlaying ? "Pausar" : "Ouvir"}
                 >
@@ -269,13 +384,27 @@ export default function PostCardMedia() {
 
               {/* Rodapé: Equalizador Waveform Rítmico Interativo */}
               <div 
-                className="mt-5 w-full h-10 bg-black/40 backdrop-blur-md rounded-xl px-3 py-1 flex items-center justify-between gap-[3px] border border-white/5 cursor-pointer"
+                className="mt-5 w-full h-10 bg-black/40 backdrop-blur-md rounded-xl px-3 py-1 flex items-center justify-between gap-[3px] border border-white/5 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green"
+                role="slider"
+                tabIndex={0}
+                aria-label="Posição do áudio"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(audioProgress || 0)}
                 onClick={(e) => {
-                  if (audioRef.current && audioRef.current.duration) {
+                  if (audioRef.current && Number.isFinite(audioRef.current.duration) && audioRef.current.duration > 0) {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
+                    const percent = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                     audioRef.current.currentTime = percent * audioRef.current.duration;
                   }
+                }}
+                onKeyDown={(e) => {
+                  const audio = audioRef.current;
+                  if (!audio || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+                  if (e.key === 'ArrowRight') audio.currentTime = Math.min(audio.duration, audio.currentTime + 5);
+                  else if (e.key === 'ArrowLeft') audio.currentTime = Math.max(0, audio.currentTime - 5);
+                  else return;
+                  e.preventDefault();
                 }}
               >
                 {[...Array(36)].map((_, i) => {
@@ -305,16 +434,17 @@ export default function PostCardMedia() {
 
           <audio
             ref={audioRef}
-            src={mediaUrl}
+            src={mediaUrlForRetry(mediaUrl, retryCount)}
             crossOrigin="anonymous"
             preload="metadata"
-            onTimeUpdate={() =>
-              audioRef.current &&
-              setAudioProgress(
-                (audioRef.current.currentTime / audioRef.current.duration) *
-                100,
-              )
-            }
+            onPlay={() => setIsPlaying(true)}
+            onPause={() => setIsPlaying(false)}
+            onTimeUpdate={() => {
+              const audio = audioRef.current;
+              if (audio && Number.isFinite(audio.duration) && audio.duration > 0) {
+                setAudioProgress(Math.max(0, Math.min(100, (audio.currentTime / audio.duration) * 100)));
+              }
+            }}
             onEnded={() => {
               setIsPlaying(false);
               setAudioProgress(0);

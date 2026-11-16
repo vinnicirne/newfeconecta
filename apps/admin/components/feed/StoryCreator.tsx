@@ -32,6 +32,11 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   const [caption, setCaption] = useState('');
   const [bgColor, setBgColor] = useState('#00A884');
   const [previewMuted, setPreviewMuted] = useState(true);
+  const [previewVideoReady, setPreviewVideoReady] = useState(false);
+
+  useEffect(() => {
+    setPreviewVideoReady(false);
+  }, [preview?.url]);
 
   const { uploadMedia, isUploading, progress } = useMediaUpload();
 
@@ -136,7 +141,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
         url: URL.createObjectURL(blob),
         type: 'image',
         blob,
-        mimeType: 'image/jpeg'
+        mimeType: blob.type || 'image/jpeg'
       });
     } else {
       toast.error("Não foi possível capturar a foto. Verifique a câmera.");
@@ -230,8 +235,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
   // Gravação de Áudio
   const startAudioRecording = async () => {
     try {
+      if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+        throw new Error('Gravação de áudio não é suportada neste navegador.');
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4']
+        .find((type) => MediaRecorder.isTypeSupported(type));
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -242,13 +252,13 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       };
 
       mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || mimeType || 'audio/webm' });
         const audioUrl = URL.createObjectURL(audioBlob);
         setPreview({
           url: audioUrl,
           type: 'audio',
           blob: audioBlob,
-          mimeType: 'audio/webm'
+          mimeType: audioBlob.type
         });
         stream.getTracks().forEach(track => track.stop());
       };
@@ -258,17 +268,15 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       setAudioSeconds(0);
 
       audioTimerRef.current = setInterval(() => {
-        setAudioSeconds(prev => {
-          if (prev >= 59) {
-            stopAudioRecording();
-            return 60;
-          }
-          return prev + 1;
+        setAudioSeconds((prev) => {
+          const next = prev + 1;
+          if (next >= 60) stopAudioRecording();
+          return Math.min(next, 60);
         });
       }, 1000);
 
     } catch (err: any) {
-      toast.error("Permissão de microfone não concedida.");
+      toast.error(err?.message || "Não foi possível acessar o microfone.");
     }
   };
 
@@ -306,7 +314,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
       if (preview) {
         storyType = preview.type;
         const fileExt = preview.type === 'audio' 
-          ? 'webm' 
+          ? (preview.mimeType?.includes('mp4') ? 'm4a' : 'webm')
           : preview.type === 'video' 
             ? (preview.mimeType?.includes('webm') ? 'webm' : 'mp4') 
             : 'webp';
@@ -480,7 +488,7 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
               {!isReady && !cameraError && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/90 gap-3 text-white z-20">
                   <Loader2 className="w-9 h-9 animate-spin text-whatsapp-teal" />
-                  <span className="text-xs font-bold text-white/80">Iniciando câmera em alta definição...</span>
+                  <span className="text-xs font-bold text-white/80">Iniciando câmera...</span>
                 </div>
               )}
 
@@ -582,9 +590,20 @@ export default function StoryCreator({ open, onClose, user, onCreated }: any) {
                 loop 
                 playsInline 
                 webkit-playsinline="true"
+                controls={false}
+                preload="metadata"
+                width={720}
+                height={1280}
+                onLoadedData={() => setPreviewVideoReady(true)}
+                onCanPlay={() => setPreviewVideoReady(true)}
                 muted={previewMuted}
-                className="absolute inset-0 w-full h-full object-cover object-center bg-black" 
+                className="absolute inset-0 block h-full w-full max-w-full object-cover object-center bg-black"
               />
+              {!previewVideoReady && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/70 pointer-events-none">
+                  <Loader2 className="h-9 w-9 animate-spin text-whatsapp-teal" />
+                </div>
+              )}
               <button
                 type="button"
                 onClick={() => setPreviewMuted(m => !m)}

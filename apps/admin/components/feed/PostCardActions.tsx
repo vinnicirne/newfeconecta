@@ -10,6 +10,7 @@ const ShareModal = dynamic(() => import("./ShareModal"), { ssr: false });
 
 import { VerificationBadge } from "@/components/verification-badge";
 import { cn } from "@/lib/utils";
+import { SITE_URL } from "@/lib/seo";
 
 export default function PostCardActions() {
   const {
@@ -396,7 +397,7 @@ export default function PostCardActions() {
       <ShareModal
         isOpen={isShareModalOpen}
         onClose={() => setIsShareModalOpen(false)}
-        url={typeof window !== "undefined" ? (window.location.hostname === 'localhost' || window.location.protocol === 'capacitor:' ? `https://newfeconecta.vercel.app/post/${post.id}` : `${window.location.origin}/post/${post.id}`) : ""}
+        url={typeof window !== "undefined" ? (window.location.hostname === 'localhost' || window.location.protocol === 'capacitor:' ? `${SITE_URL}/post/${post.id}` : `${window.location.origin}/post/${post.id}`) : `${SITE_URL}/post/${post.id}`}
         title={`Post de ${post.author_name || "FéConecta"}`}
         postContent={post.content}
       />

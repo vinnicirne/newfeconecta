@@ -406,7 +406,9 @@ export function useMediaCapture(
       if (e.data.size > 0) chunksRef.current.push(e.data);
     };
 
-    recorderRef.current.start(1000); // chunks de 1s para consistência de streaming sem fragmentação excessiva
+    // Stories são curtos; gerar um único segmento evita travamentos em alguns players
+    // ao juntar blocos periódicos de WebM/MP4 gravados no celular.
+    recorderRef.current.start();
     setRecording(true);
     setSeconds(0);
 

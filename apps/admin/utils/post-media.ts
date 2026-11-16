@@ -7,6 +7,7 @@ export function getPostMediaInfo(post: any) {
   
   const isAudio = postType === "audio" || post.media_type === "audio" || !!mediaUrl?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i) || isAudioBucket;
   const isVideo = !isAudio && (postType === "video" || post.media_type === "video" || !!mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i) || isVideoBucket) && postType !== "external_media" && !mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i);
+  const isCarousel = !isAudio && !isVideo && Array.isArray(post.metadata?.media_urls) && post.metadata.media_urls.length > 1;
   
   const isShortText = post.content && post.content.length < 90 && !post.content.includes("\n") && !mediaUrl;
   const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);
@@ -21,6 +22,7 @@ export function getPostMediaInfo(post: any) {
     postType,
     isAudio: !!isAudio, 
     isVideo: !!isVideo, 
+    isCarousel,
     isShortText: !!isShortText, 
     isMediaPost: !!isMediaPost, 
     isVerseRepost: !!isVerseRepost, 

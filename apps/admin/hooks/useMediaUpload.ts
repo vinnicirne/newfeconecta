@@ -83,7 +83,8 @@ export function useMediaUpload() {
         });
 
       if (error) {
-        throw new Error(error.message + (error as any).statusCode ? ` (Code: ${(error as any).statusCode})` : '');
+        const statusCode = (error as any).statusCode;
+        throw new Error(`${error.message}${statusCode ? ` (Code: ${statusCode})` : ''}`);
       }
       
       const { data: { publicUrl } } = supabase.storage.from(options.bucket).getPublicUrl(data.path);

@@ -24,6 +24,7 @@ export default function StoryViewerMedia() {
   const cleanMediaUrl = story.media_url?.split("#")[0] || "";
   const nextMediaUrl = nextStory?.media_url?.split("#")[0] || "";
   const [imgLoaded, setImgLoaded] = React.useState(false);
+  const [imageError, setImageError] = React.useState(false);
   const [mediaError, setMediaError] = React.useState(false);
   const [showTapToPlay, setShowTapToPlay] = React.useState(false);
 
@@ -48,6 +49,7 @@ export default function StoryViewerMedia() {
 
   React.useEffect(() => {
     setImgLoaded(false);
+    setImageError(false);
     setMediaError(false);
     setShowTapToPlay(false);
     clearBufferTimers();
@@ -107,7 +109,7 @@ export default function StoryViewerMedia() {
       {/* IMAGE */}
       {story.media_type === "image" && (
         <>
-          {!imgLoaded && (
+          {!imgLoaded && !imageError && (
             <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/60 backdrop-blur-sm">
               <div className="w-10 h-10 rounded-full border-3 border-whatsapp-green border-t-transparent animate-spin" />
             </div>
@@ -117,12 +119,25 @@ export default function StoryViewerMedia() {
             alt=""
             decoding="async"
             onLoad={() => setImgLoaded(true)}
+            onError={() => {
+              setImageError(true);
+              setImgLoaded(true);
+            }}
             className={cn(
               "absolute inset-0 w-full h-full object-cover object-center transition-opacity duration-300",
-              imgLoaded ? "opacity-100" : "opacity-0"
+              imgLoaded && !imageError ? "opacity-100" : "opacity-0"
             )}
             draggable={false}
           />
+          {imageError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-zinc-950 text-center">
+              <AlertCircle className="h-10 w-10 text-rose-500" />
+              <p className="text-sm font-bold text-white">Não foi possível carregar esta imagem</p>
+              <button onClick={(e) => { e.stopPropagation(); advance(); }} className="rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold text-white">
+                Próximo story
+              </button>
+            </div>
+          )}
           {/* Pré-carregamento invisível da próxima imagem de story para transição sem delay */}
           {nextMediaUrl && nextStory?.media_type === "image" && (
             <img src={nextMediaUrl} alt="" className="hidden" decoding="async" />
@@ -203,8 +218,10 @@ export default function StoryViewerMedia() {
               autoPlay
               playsInline
               webkit-playsinline="true"
+              width={720}
+              height={1280}
               muted={isMuted}
-              preload="auto"
+              preload="metadata"
               controls={false}
               onWaiting={handleWaiting}
               onPlaying={handlePlayingOrCanPlay}
@@ -261,10 +278,12 @@ export default function StoryViewerMedia() {
             onCanPlay={() => setIsBuffering(false)}
             onTimeUpdate={() => {
               const a = audioRef.current;
-              if (a && a.duration > 0) {
-                const dur = Number.isFinite(a.duration) ? a.duration : (clipDuration || 15);
-                const pct = Math.min((a.currentTime / dur) * 100, 100);
+              if (a) {
+                const dur = (Number.isFinite(a.duration) && a.duration > 0) ? a.duration : (clipDuration || 15);
+                const current = Math.max(0, a.currentTime - clipStart);
+                const pct = Math.min((current / dur) * 100, 100);
                 dispatch({ type: "SET_PROGRESS", payload: pct });
+                if (clipDuration && current >= clipDuration - 0.25) advance();
               }
             }}
             onEnded={() => advance()}
@@ -300,7 +319,7 @@ export default function StoryViewerMedia() {
         )}
         {nextStory &&
           (nextStory.media_type === "video" || nextStory.media_type === "audio") && (
-            <video src={nextMediaUrl} preload="auto" muted playsInline />
+              <video src={nextMediaUrl} preload="metadata" muted playsInline />
           )}
       </div>
     </div>

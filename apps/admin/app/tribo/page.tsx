@@ -34,6 +34,17 @@ const ReelItem = React.memo(({
   showComments
 }: any) => {
   const isLiked = reel.is_liked;
+  const [videoReady, setVideoReady] = useState(false);
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  useEffect(() => {
+    setVideoReady(false);
+    setVideoFailed(false);
+  }, [reel.id, reel.media_url]);
+  const rawMediaUrl = reel.media_url || reel.content || "";
+  const externalMedia = parseExternalMedia(rawMediaUrl);
+  const isExternalMedia = reel.post_type === 'external_media' || externalMedia.platform !== 'unknown';
+  const isNativeVideo = !isExternalMedia && !!reel.media_url;
 
   return (
     <div
@@ -43,17 +54,23 @@ const ReelItem = React.memo(({
       className="relative w-full h-[100dvh] snap-start snap-always overflow-hidden reel-container"
     >
       {(() => {
-        const rawUrl = reel.media_url || reel.content || "";
-        const externalParsed = parseExternalMedia(rawUrl);
-        const isExternal = reel.post_type === 'external_media' || externalParsed.platform !== 'unknown';
-        const externalUrl = isExternal ? (externalParsed.platform !== 'unknown' ? rawUrl : reel.media_url) : null;
-        const videoUrl = !isExternal && reel.media_url ? reel.media_url : null;
+        const externalUrl = isExternalMedia ? (externalMedia.platform !== 'unknown' ? rawMediaUrl : reel.media_url) : null;
+        const videoUrl = isNativeVideo ? reel.media_url : null;
 
-        if (isExternal && externalUrl) {
+        if (isExternalMedia && externalUrl) {
           return (
             <div className="absolute inset-0 w-full h-full overflow-hidden bg-black flex items-center justify-center">
-              <div className="absolute top-1/2 left-1/2 w-full aspect-[9/16] -translate-x-1/2 -translate-y-[42%] transform scale-[1.35] origin-center">
-                {isNear && <ExternalMediaNative url={externalUrl} isActive={isActive} className="w-full h-full" />}
+              <div className="absolute left-1/2 top-0 h-full w-[min(100vw,56.25dvh)] -translate-x-1/2 overflow-hidden bg-black">
+                {isActive ? (
+                  <ExternalMediaNative url={externalUrl} isActive className="w-full h-full" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-900">
+                    {externalMedia.platform.startsWith('youtube') && externalMedia.id ? (
+                      <img src={`https://img.youtube.com/vi/${externalMedia.id}/hqdefault.jpg`} alt="" className="h-full w-full object-cover opacity-60" loading="lazy" />
+                    ) : null}
+                    <Play className="absolute h-14 w-14 fill-white text-white drop-shadow-lg" />
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -63,17 +80,17 @@ const ReelItem = React.memo(({
           return isNear ? (
             <video
               ref={(el) => registerVideoRef(reel.id, el)}
-              src={(() => {
-                const base = videoUrl.includes('?') ? `${videoUrl}&sw=bypass` : `${videoUrl}?sw=bypass`;
-                return base.includes('#t=') ? base : `${base}#t=0.001`;
-              })()}
+              data-reel-id={reel.id}
+              src={videoUrl}
               loop
               playsInline
               webkit-playsinline="true"
               muted={muted}
               onClick={() => onPlayToggle(reel.id)}
-              preload={isActive ? "auto" : "metadata"}
+            preload="metadata"
               poster={reel.thumbnail_url || undefined}
+              onLoadedData={() => { setVideoReady(true); setVideoFailed(false); }}
+              onError={() => { setVideoFailed(true); setVideoReady(true); }}
               className="absolute inset-0 w-full h-full object-cover cursor-pointer"
             />
           ) : (
@@ -90,6 +107,31 @@ const ReelItem = React.memo(({
           </div>
         );
       })()}
+
+      {isNativeVideo && isActive && !videoReady && (
+        <div className="absolute inset-0 z-[5] flex items-center justify-center bg-black/40 pointer-events-none">
+          <div className="h-10 w-10 rounded-full border-3 border-white/30 border-t-white animate-spin" />
+        </div>
+      )}
+      {videoFailed && isActive && (
+        <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center">
+          <p className="text-sm font-bold text-white">Este vídeo não pôde ser carregado.</p>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const video = document.querySelector<HTMLVideoElement>(`video[data-reel-id="${reel.id}"]`);
+              if (!video) return;
+              setVideoFailed(false);
+              setVideoReady(false);
+              video.load();
+              if (isPlaying) void video.play().catch(() => {});
+            }}
+            className="rounded-full bg-white/15 px-4 py-2 text-xs font-bold text-white"
+          >
+            Tentar novamente
+          </button>
+        </div>
+      )}
 
       {/* Gradientes - Reduzidos p/ economizar GPU */}
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/70 via-black/20 to-transparent pointer-events-none" />
@@ -263,6 +305,10 @@ function TriboContent() {
   const containerRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const isFetchingMore = useRef(false);
+  const resumePlaybackRef = useRef(true);
+  const isPlayingRef = useRef(isPlaying);
+  const pageWasHiddenRef = useRef(false);
+  isPlayingRef.current = isPlaying;
 
   useEffect(() => {
     const initAuth = async () => {
@@ -325,8 +371,9 @@ function TriboContent() {
     const nearEnd = reels.length > 0 && currentIdx >= reels.length - 3;
     if (!nearEnd || isFetchingMore.current) return;
     isFetchingMore.current = true;
-    loadMore();
-    isFetchingMore.current = false;
+    void loadMore()
+      .catch(() => undefined)
+      .finally(() => { isFetchingMore.current = false; });
   }, [currentIdx, reels.length, loadMore, isReachingEnd, isValidating]);
 
   // Registros via Callback Ref
@@ -382,10 +429,13 @@ function TriboContent() {
   // Limpeza em background
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.hidden) {
+      if (document.hidden && !pageWasHiddenRef.current) {
+        pageWasHiddenRef.current = true;
+        resumePlaybackRef.current = isPlayingRef.current;
         setIsPlaying(false);
-      } else {
-        setIsPlaying(true);
+      } else if (!document.hidden && pageWasHiddenRef.current) {
+        pageWasHiddenRef.current = false;
+        setIsPlaying(resumePlaybackRef.current);
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -452,9 +502,11 @@ function TriboContent() {
 
     try {
       if (isReposted) {
-        await supabase.from('reposts').delete().eq('post_id', reel.id).eq('profile_id', user.id);
+        const { error } = await supabase.from('reposts').delete().eq('post_id', reel.id).eq('profile_id', user.id);
+        if (error) throw error;
       } else {
-        await supabase.from('reposts').insert({ post_id: reel.id, profile_id: user.id });
+        const { error } = await supabase.from('reposts').insert({ post_id: reel.id, profile_id: user.id });
+        if (error) throw error;
         toast.success("Republicado!");
 
         await NotificationService.notify({
@@ -470,6 +522,7 @@ function TriboContent() {
         is_reposted: isReposted,
         reposts_count: reel.reposts_count
       } : r)), { revalidate: false });
+      toast.error("Não foi possível republicar este vídeo.");
     }
   }, [user, mutate]);
 
@@ -481,9 +534,11 @@ function TriboContent() {
 
     try {
       if (isSaved) {
-        await supabase.from('saved_posts').delete().eq('post_id', reel.id).eq('user_id', user.id);
+        const { error } = await supabase.from('saved_posts').delete().eq('post_id', reel.id).eq('user_id', user.id);
+        if (error) throw error;
       } else {
-        await supabase.from('saved_posts').insert({ post_id: reel.id, user_id: user.id });
+        const { error } = await supabase.from('saved_posts').insert({ post_id: reel.id, user_id: user.id });
+        if (error) throw error;
         toast.success("Salvo nos favoritos!");
       }
       
@@ -532,6 +587,15 @@ function TriboContent() {
   if (isLoading && reels.length === 0) return (
     <div className="fixed inset-0 flex items-center justify-center bg-black">
       <div className="w-12 h-12 border-4 border-whatsapp-green/20 border-t-whatsapp-green rounded-full animate-spin" />
+    </div>
+  );
+
+  if (triboError && reels.length === 0) return (
+    <div className="fixed inset-0 flex flex-col items-center justify-center space-y-4 bg-black px-6 text-center text-white">
+      <Flame className="h-10 w-10 text-orange-400" />
+      <h2 className="text-xl font-bold">Não foi possível carregar a Tribo</h2>
+      <p className="max-w-sm text-sm text-gray-400">Verifique sua conexão e tente novamente.</p>
+      <button onClick={() => { void mutate(); }} className="rounded-full bg-whatsapp-green px-6 py-2.5 text-sm font-bold text-black">Tentar novamente</button>
     </div>
   );
 

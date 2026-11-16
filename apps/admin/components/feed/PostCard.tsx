@@ -29,7 +29,7 @@ const PostCard = React.memo(function PostCard({
   const [retryCount, setRetryCount] = useState(0);
   const router = useRouter();
 
-  const { mediaUrl, postType, isAudio, isVideo, isShortText, isMediaPost, isVerseRepost, isDFCH, isDevotional } = useMemo(() => getPostMediaInfo(post), [post]);
+  const { mediaUrl, postType, isAudio, isVideo, isCarousel, isShortText, isMediaPost, isVerseRepost, isDFCH, isDevotional } = useMemo(() => getPostMediaInfo(post), [post]);
 
   const isLegacyMedia = useMemo(() => isLegacyMediaCheck(mediaUrl, postType), [mediaUrl, postType]);
 
@@ -48,7 +48,7 @@ const PostCard = React.memo(function PostCard({
   const media = usePostMedia(post, isVideo, onUpdated);
 
   const mediaContextValue = useMemo(() => ({
-    post, isVideo, isAudio, mediaUrl, shouldSkipMedia, postType, setLightboxUrl,  
+    post, isVideo, isAudio, isCarousel, mediaError, mediaUrl, shouldSkipMedia, postType, setLightboxUrl,
     handleDoubleClickLike: actions.handleDoubleClickLike, retryCount, setRetryCount, 
     isPriority, setMediaError, showLikeAnim: actions.showLikeAnim, 
     videoRef: media.videoRef, isMuted: media.isMuted, handlePlayMedia: media.handlePlayMedia,
@@ -56,7 +56,7 @@ const PostCard = React.memo(function PostCard({
     toggleAudio: media.toggleAudio, audioProgress: media.audioProgress, mounted, 
     fmtTime: media.fmtTime, setAudioProgress: media.setAudioProgress,
     setIsPlaying: media.setIsPlaying, router
-  }), [post, isVideo, isAudio, mediaUrl, shouldSkipMedia, postType, setLightboxUrl, actions.handleDoubleClickLike, retryCount, setRetryCount, isPriority, setMediaError, actions.showLikeAnim, media.videoRef, media.isMuted, media.handlePlayMedia, media.setIsMuted, media.audioRef, media.isPlaying, media.toggleAudio, media.audioProgress, mounted, media.fmtTime, media.setAudioProgress, media.setIsPlaying, router]);
+  }), [post, isVideo, isAudio, isCarousel, mediaError, mediaUrl, shouldSkipMedia, postType, setLightboxUrl, actions.handleDoubleClickLike, retryCount, setRetryCount, isPriority, setMediaError, actions.showLikeAnim, media.videoRef, media.isMuted, media.handlePlayMedia, media.setIsMuted, media.audioRef, media.isPlaying, media.toggleAudio, media.audioProgress, mounted, media.fmtTime, media.setAudioProgress, media.setIsPlaying, router]);
 
   const contentContextValue = useMemo(() => ({
     post, activeBackground, isVerseRepost, isMediaPost, isDFCH, isDevotional, isShortText, isExpanded, setIsExpanded,
@@ -93,8 +93,6 @@ const PostCard = React.memo(function PostCard({
       };
     }
   }, [lightboxUrl]);
-
-  if (mediaError) return <div style={{ height: 1, opacity: 0, pointerEvents: 'none' }} />;
 
   return (
     <div

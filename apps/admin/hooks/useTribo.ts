@@ -122,9 +122,7 @@ export function useTribo(currentUserId: string | null, initialReelId?: string | 
     return () => { supabase.removeChannel(channel); };
   }, [currentUserId, mutate]);
 
-  const loadMore = useCallback(() => {
-    setSize((current) => current + 1);
-  }, [setSize]);
+  const loadMore = useCallback(() => setSize((current) => current + 1), [setSize]);
 
   return {
     reels,

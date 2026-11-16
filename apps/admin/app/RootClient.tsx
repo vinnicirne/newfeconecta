@@ -189,6 +189,7 @@ export default function RootPage() {
       media_url: post.media_url,
       media_type: post.media_type || 'text',
       post_type: post.post_type || post.media_type || 'text',
+      metadata: post.metadata || {},
       thumbnail_url: post.thumbnail_url || null,
       likes: post.likes || [],
       likes_count: post.likes_count || (post.likes ? post.likes.length : 0),

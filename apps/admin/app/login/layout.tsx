@@ -3,6 +3,7 @@ import { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Entrar - FéConecta",
   description: "Faça login na sua conta da FéConecta, a rede social Cristã.",
+  robots: { index: false, follow: true },
 };
 
 export default function LoginLayout({

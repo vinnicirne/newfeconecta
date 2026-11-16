@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { trackQualifiedPostView } from "@/lib/viewTracker";
+import { toast } from "sonner";
 
 export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any) => void) {
   const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
@@ -67,16 +68,23 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
     };
   }, [isVideo, post.id, viewsCount]);
 
-  const toggleAudio = (e: React.MouseEvent) => {
+  const toggleAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.pause();
-      } else {
-        audioRef.current.play();
-        handlePlayMedia();
-      }
-      setIsPlaying(!isPlaying);
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (isPlaying) {
+      audio.pause();
+      setIsPlaying(false);
+      return;
+    }
+
+    try {
+      await audio.play();
+      setIsPlaying(true);
+      void handlePlayMedia();
+    } catch {
+      setIsPlaying(false);
+      toast.error("Não foi possível reproduzir o áudio. Toque para tentar novamente.");
     }
   };
 

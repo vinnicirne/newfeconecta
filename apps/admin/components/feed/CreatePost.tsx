@@ -67,6 +67,7 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
 
       let finalMediaUrl = data.media_url;
       let finalPostType = data.post_type || 'text';
+      let finalMetadata: any = data.metadata || null;
       let contentText = data.content || data.caption || "";
 
       // 🔥 DETECÇÃO MÁGICA: YouTube/TikTok
@@ -109,10 +110,26 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
         content: contentText,
         media_url: finalMediaUrl,
         post_type: finalPostType,
+        metadata: finalMetadata,
         background: data.background
       });
 
-      if (data.blob) {
+      if (Array.isArray(data.images) && data.images.length > 1) {
+        const imageUrls: string[] = [];
+        for (let index = 0; index < data.images.length; index += 1) {
+          setUploadProgress(20 + Math.round((index / data.images.length) * 60));
+          const url = await uploadMedia(data.images[index], {
+            bucket: 'posts',
+            folder: 'images',
+            onProgress: (progress) => setUploadProgress(Math.max(20, Math.round(((index + progress / 100) / data.images.length) * 80)))
+          });
+          if (!url) throw new Error(`Não foi possível enviar a foto ${index + 1}. Verifique sua conexão e tente novamente.`);
+          imageUrls.push(url);
+        }
+        finalMediaUrl = imageUrls[0];
+        finalPostType = 'image';
+        finalMetadata = { ...(finalMetadata || {}), media_layout: 'carousel', media_urls: imageUrls };
+      } else if (data.blob) {
         setUploadProgress(40);
         const folder = data.post_type === 'audio' ? 'audio' : (data.post_type === 'video' ? 'videos' : 'images');
         
@@ -137,15 +154,19 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
         const isVideo = data.post_type === 'video';
         const ext = isAudio ? 'webm' : (isVideo ? (data.blob.type.includes('mp4') ? 'mp4' : 'webm') : 'jpg');
         const finalFile = data.blob instanceof File ? data.blob : new File([data.blob], `media_${Date.now()}.${ext}`, { type: data.blob.type || (isVideo ? 'video/mp4' : 'image/jpeg') });
-        finalMediaUrl = await uploadMedia(finalFile, { 
+        const uploadedMediaUrl = await uploadMedia(finalFile, {
            bucket: 'posts', 
            folder,
            onProgress: (p) => setUploadProgress(Math.max(40, p))
         });
+        if (!uploadedMediaUrl) {
+          throw new Error('Não foi possível enviar a mídia. Verifique sua conexão e tente novamente.');
+        }
+        finalMediaUrl = uploadedMediaUrl;
       }
 
       setUploadProgress(80);
-      const response = await supabase.from('posts').insert({
+      const postInsert: Record<string, any> = {
         author_id: user.id,
         user_id: user.id,
         content: contentText,
@@ -153,7 +174,9 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
         thumbnail_url: data.thumbnail_url || null,
         post_type: finalPostType,
         background: data.background,
-      }).select().single();
+      };
+      if (finalMetadata) postInsert.metadata = finalMetadata;
+      const response = await supabase.from('posts').insert(postInsert).select().single();
 
       if (response.error) throw response.error;
       const newPost = response.data;
@@ -185,9 +208,11 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
           bc.close();
         } catch (e) {}
       }
+      return true;
     } catch (err: any) {
       setUploadProgress(0);
       toast.error(`Erro ao publicar: ${err.message}`, { id: toastId });
+      return false;
     } finally {
       setIsSubmitting(false);
       setTimeout(() => setUploadProgress(0), 1000);
