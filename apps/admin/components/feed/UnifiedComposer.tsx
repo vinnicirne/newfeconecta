@@ -206,9 +206,10 @@ interface UnifiedComposerProps {
 export default function UnifiedComposer({ open, onClose, onSubmit, user, initialMode = 'text', initialFile = null, initialFiles = EMPTY_FILES, allowedModes }: UnifiedComposerProps) {
   const { 
     state, setMode, setContent, setBg, setCaptured, setIsSubmitting, clearDraft, reset 
-  } = useComposerState(open, initialMode, initialFile, initialFiles);
+  } = useComposerState(open, initialMode === 'carousel' ? 'text' : initialMode, initialFile, initialFiles);
   
   const { mode, content, bg, captured, isSubmitting } = state;
+  const composerAllowedModes: ComposerMode[] = allowedModes ?? ['text', 'photo', 'video', 'audio', 'gallery'];
   const captureMode = mode === 'carousel' ? 'gallery' : mode;
 
   const {
@@ -286,24 +287,8 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
     }
 
     if (files.length > 1 || mode === 'carousel') {
-      if (files.length < 2 || files.length > 10) {
-        toast.error('Escolha de 2 a 10 imagens para o carrossel.');
-        return;
-      }
-      if (files.some((file) => !file.type.startsWith('image/'))) {
-        toast.error('O carrossel aceita somente imagens. Selecione novamente.');
-        return;
-      }
-      const oversized = files.find((file) => file.size > 20 * 1024 * 1024);
-      if (oversized) {
-        toast.error('Cada imagem precisa ter até 20 MB.');
-        return;
-      }
-      if (captured?.imageUrls) captured.imageUrls.forEach((url) => URL.revokeObjectURL(url));
-      else if (captured?.url?.startsWith('blob:')) URL.revokeObjectURL(captured.url);
-      const imageUrls = files.map((file) => URL.createObjectURL(file));
-      setCaptured({ type: 'photo', url: imageUrls[0], blob: files[0], files, imageUrls });
-      setMode('photo');
+      toast.error('Publicações em carrossel estão temporariamente desativadas. Escolha uma imagem.');
+      setMode(prevModeRef.current);
       return;
     }
 
@@ -902,7 +887,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
               }}
               onShowEmoji={() => setShowEmojiPicker(true)}
               disabled={isSubmitting} 
-              allowedModes={allowedModes}
+              allowedModes={composerAllowedModes}
             />
           </div>
         )}

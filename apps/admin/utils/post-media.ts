@@ -1,3 +1,22 @@
+export function getPostCarouselUrls(post: any): string[] {
+  let metadata = post?.metadata;
+
+  // JSONB normally arrives as an object. Older cached/API paths may serialize it
+  // to a JSON string, so normalize it before deciding whether this is a carousel.
+  if (typeof metadata === "string") {
+    try {
+      metadata = JSON.parse(metadata);
+    } catch {
+      metadata = null;
+    }
+  }
+
+  const urls = metadata?.media_urls ?? post?.media_urls;
+  return Array.isArray(urls)
+    ? urls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0)
+    : [];
+}
+
 export function getPostMediaInfo(post: any) {
   const mediaUrl = post.media_url === "null" || !post.media_url ? null : post.media_url;
   const postType = post.post_type === "null" ? "text" : post.post_type;
@@ -7,7 +26,7 @@ export function getPostMediaInfo(post: any) {
   
   const isAudio = postType === "audio" || post.media_type === "audio" || !!mediaUrl?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i) || isAudioBucket;
   const isVideo = !isAudio && (postType === "video" || post.media_type === "video" || !!mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i) || isVideoBucket) && postType !== "external_media" && !mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i);
-  const isCarousel = !isAudio && !isVideo && Array.isArray(post.metadata?.media_urls) && post.metadata.media_urls.length > 1;
+  const isCarousel = !isAudio && !isVideo && getPostCarouselUrls(post).length > 1;
   
   const isShortText = post.content && post.content.length < 90 && !post.content.includes("\n") && !mediaUrl;
   const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);

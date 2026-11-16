@@ -1,6 +1,6 @@
 import React from "react";
 import Image from "next/image";
-import { Flame, Play, Pause, Volume2, VolumeX, Music, Mic, Radio, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { Flame, Play, Pause, Volume2, VolumeX, Music, Mic, Radio, Sparkles } from "lucide-react";
 import { usePostCardMediaContext } from "./PostCardContext";
 import ExternalMediaNative, { parseExternalMedia } from "./ExternalMediaNative";
 import { LinkPreview } from "./LinkPreview";
@@ -46,25 +46,12 @@ export default function PostCardMedia() {
     setIsPlaying,
     router
   } = usePostCardMediaContext();
-  const carouselRef = React.useRef<HTMLDivElement>(null);
-  const [carouselIndex, setCarouselIndex] = React.useState(0);
   const [videoReady, setVideoReady] = React.useState(false);
   const [videoBuffering, setVideoBuffering] = React.useState(true);
-  const carouselUrls: string[] = isCarousel
-    ? (post.metadata?.media_urls || []).filter((url: unknown): url is string => typeof url === 'string' && url.length > 0)
-    : [];
-
-  React.useEffect(() => setCarouselIndex(0), [post.id]);
   React.useEffect(() => {
     setVideoReady(false);
     setVideoBuffering(true);
   }, [post.id, mediaUrl, retryCount]);
-
-  const moveCarousel = (index: number) => {
-    const next = Math.max(0, Math.min(index, carouselUrls.length - 1));
-    carouselRef.current?.scrollTo({ left: (carouselRef.current?.clientWidth || 0) * next, behavior: 'smooth' });
-    setCarouselIndex(next);
-  };
 
   return (
     <>
@@ -101,57 +88,24 @@ export default function PostCardMedia() {
           </div>
         )}
 
-      {isCarousel && mediaUrl && !shouldSkipMedia && carouselUrls.length > 1 && (
-        <div className="relative w-full overflow-hidden bg-black" onDoubleClick={handleDoubleClickLike}>
-          <div
-            ref={carouselRef}
-            onScroll={(event) => {
-              const element = event.currentTarget;
-              const next = Math.max(0, Math.min(
-                Math.round(element.scrollLeft / Math.max(element.clientWidth, 1)),
-                carouselUrls.length - 1,
-              ));
-              setCarouselIndex((current) => current === next ? current : next);
+      {isCarousel && mediaUrl && !shouldSkipMedia && (
+        <div className="relative aspect-[4/5] w-full overflow-hidden bg-black" role="img" aria-label="Primeira imagem; carrossel temporariamente desativado">
+          <Image
+            src={mediaUrlForRetry(mediaUrl, retryCount)}
+            fill
+            unoptimized
+            priority={isPriority}
+            sizes="(max-width: 768px) 100vw, 672px"
+            className="object-cover"
+            alt="Imagem da publicação"
+            onError={() => {
+              if (retryCount < 1) setRetryCount((count: number) => count + 1);
+              else setMediaError(true);
             }}
-            className="flex aspect-[4/5] max-h-[80vh] snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth no-scrollbar"
-            aria-label={`Carrossel com ${carouselUrls.length} fotos`}
-          >
-            {carouselUrls.map((url, index) => (
-              <div
-                key={`${url}-${index}`}
-                role="group"
-                aria-label={`Foto ${index + 1} de ${carouselUrls.length}`}
-                className="relative h-full w-full shrink-0 snap-start bg-black"
-              >
-                <Image
-                  src={mediaUrlForRetry(url, retryCount)}
-                  fill
-                  unoptimized
-                  sizes="(max-width: 768px) 100vw, 672px"
-                  alt={`Foto ${index + 1} do carrossel`}
-                  className="object-contain"
-                  priority={index === 0 && isPriority}
-                  loading={index === 0 && isPriority ? undefined : 'lazy'}
-                  onError={() => {
-                    if (retryCount < 1) setRetryCount((count: number) => count + 1);
-                    else setMediaError(true);
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur" aria-live="polite">
-            {carouselIndex + 1}/{carouselUrls.length}
-          </div>
-          <button type="button" aria-label="Foto anterior" disabled={carouselIndex === 0} onClick={() => moveCarousel(carouselIndex - 1)} className={cn("absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white", carouselIndex === 0 ? "cursor-not-allowed opacity-45" : "hover:bg-black/70")}>
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-          <button type="button" aria-label="Próxima foto" disabled={carouselIndex >= carouselUrls.length - 1} onClick={() => moveCarousel(carouselIndex + 1)} className={cn("absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white", carouselIndex >= carouselUrls.length - 1 ? "cursor-not-allowed opacity-45" : "hover:bg-black/70")}>
-            <ChevronRight className="h-5 w-5" />
-          </button>
-          <div className="flex items-center justify-center gap-1.5 py-3" aria-hidden="true">
-            {carouselUrls.map((url, index) => <span key={`${url}-dot-${index}`} className={cn("h-1.5 rounded-full transition-all", carouselIndex === index ? "w-4 bg-whatsapp-green" : "w-1.5 bg-gray-400/60")} />)}
-          </div>
+          />
+          <span className="absolute bottom-3 left-3 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
+            Carrossel temporariamente indisponível
+          </span>
         </div>
       )}
 

@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import NextImage from 'next/image';
-import { Type, Image, Images, Camera, Mic, X, Send, Smile, Paperclip } from 'lucide-react';
+import { Type, Image, Camera, Mic, X, Send, Smile, Paperclip } from 'lucide-react';
 import UnifiedComposer from './UnifiedComposer';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -19,7 +19,6 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
-  const carouselRef = useRef<HTMLInputElement>(null);
 
   const { uploadMedia } = useMediaUpload();
 
@@ -73,6 +72,10 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
       let finalMetadata: any = data.metadata || null;
       let contentText = data.content || data.caption || "";
 
+      if (Array.isArray(data.images) && data.images.length > 1) {
+        throw new Error('Publicações em carrossel estão temporariamente desativadas. Escolha uma imagem.');
+      }
+
       // 🔥 DETECÇÃO MÁGICA: YouTube/TikTok
       if (finalPostType === 'text' && !data.blob && !data.media_url) {
         const ytTkRegex = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:shorts\/|watch\?v=)|youtu\.be\/|tiktok\.com\/@[\w.-]+\/video\/|vm\.tiktok\.com\/|instagram\.com\/(?:p|reel|tv)\/)[a-zA-Z0-9_-]+)/i;
@@ -117,22 +120,7 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
         background: data.background
       });
 
-      if (Array.isArray(data.images) && data.images.length > 1) {
-        const imageUrls: string[] = [];
-        for (let index = 0; index < data.images.length; index += 1) {
-          setUploadProgress(20 + Math.round((index / data.images.length) * 60));
-          const url = await uploadMedia(data.images[index], {
-            bucket: 'posts',
-            folder: 'images',
-            onProgress: (progress) => setUploadProgress(Math.max(20, Math.round(((index + progress / 100) / data.images.length) * 80)))
-          });
-          if (!url) throw new Error(`Não foi possível enviar a foto ${index + 1}. Verifique sua conexão e tente novamente.`);
-          imageUrls.push(url);
-        }
-        finalMediaUrl = imageUrls[0];
-        finalPostType = 'image';
-        finalMetadata = { ...(finalMetadata || {}), media_layout: 'carousel', media_urls: imageUrls };
-      } else if (data.blob) {
+      if (data.blob) {
         setUploadProgress(40);
         const folder = data.post_type === 'audio' ? 'audio' : (data.post_type === 'video' ? 'videos' : 'images');
         
@@ -233,15 +221,7 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
     const selected = Array.from(e.target.files || []);
     e.target.value = '';
     if (selected.length > 1) {
-      if (selected.length > 10 || selected.some((file) => !file.type.startsWith('image/'))) {
-        toast.error('Escolha de 2 a 10 imagens para criar um carrossel.');
-        return;
-      }
-      if (selected.some((file) => file.size > 20 * 1024 * 1024)) {
-        toast.error('Cada foto precisa ter até 20 MB.');
-        return;
-      }
-      openComposer('carousel', null, selected);
+      toast.error('Publicações em carrossel estão temporariamente desativadas. Escolha uma imagem.');
       return;
     }
 
@@ -258,25 +238,9 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
     if (fileRef.current) fileRef.current.value = '';
   };
 
-  const handleCarouselSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    e.target.value = '';
-    if (!files.length) return;
-    if (files.length < 2 || files.length > 10 || files.some((file) => !file.type.startsWith('image/'))) {
-      toast.error('Escolha de 2 a 10 imagens para criar um carrossel.');
-      return;
-    }
-    if (files.some((file) => file.size > 20 * 1024 * 1024)) {
-      toast.error('Cada foto precisa ter até 20 MB.');
-      return;
-    }
-    openComposer('carousel', null, files);
-  };
-
   const actions = [
     { icon: Type, label: 'Texto', color: 'text-violet-500 bg-violet-50 dark:bg-violet-500/10', onClick: () => openComposer('text') },
     { icon: Image, label: 'Galeria', color: 'text-blue-500 bg-blue-50 dark:bg-blue-500/10', onClick: () => fileRef.current?.click() },
-    { icon: Images, label: 'Carrossel', color: 'text-pink-500 bg-pink-50 dark:bg-pink-500/10', onClick: () => carouselRef.current?.click() },
     { icon: Camera, label: 'Câmera', color: 'text-green-500 bg-green-50 dark:bg-green-500/10', onClick: () => openComposer('photo') },
     { icon: Mic, label: 'Áudio', color: 'text-orange-500 bg-orange-50 dark:bg-orange-500/10', onClick: () => openComposer('audio') },
   ];
@@ -313,13 +277,11 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
           ref={fileRef} 
           className="hidden" 
           accept="image/*,video/*"
-          multiple
           onChange={handleFileSelect} 
         />
-        <input type="file" ref={carouselRef} className="hidden" accept="image/*" multiple onChange={handleCarouselSelect} />
 
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-white/5">
-           <div className="grid min-w-0 flex-1 grid-cols-5 gap-1">
+           <div className="grid min-w-0 flex-1 grid-cols-4 gap-1">
               {actions.map(({ icon: Icon, color, onClick, label }) => (
                 <button
                   key={label}
