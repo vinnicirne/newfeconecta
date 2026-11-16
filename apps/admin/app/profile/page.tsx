@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useUserProfile } from "@/hooks/useUserProfile";
@@ -19,7 +19,7 @@ import StoryViewer from "@/components/feed/StoryViewer";
 import StoryCreator from "@/components/feed/StoryCreator";
 
 import {
-  Grid, Bookmark, PlaySquare, Heart, Settings, X, Copy, CheckCircle2, Repeat2, ArrowLeft, Flame
+  Grid, Bookmark, PlaySquare, Heart, Settings, X, Copy, CheckCircle2, Repeat2, ArrowLeft, Flame, Mic
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import PostCard from "@/components/feed/PostCard";
@@ -29,9 +29,12 @@ import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 export default function ProfilePage() {
   const router = useRouter();
   const [authUser, setAuthUser] = useState<any>(null);
-  const [view, setView] = useState<'grid' | 'tagged' | 'lumes' | 'likes' | 'saved' | 'settings'>('grid');
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [view, setView] = useState<'grid' | 'tagged' | 'lumes' | 'audio' | 'likes' | 'saved' | 'settings'>('grid');
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   useBodyScrollLock(!!selectedPost);
+  const postCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null);
   const [copied, setCopied] = useState(false);
 
   const modals = useProfileModals();
@@ -39,11 +42,15 @@ export default function ProfilePage() {
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setAuthUser(user);
-      } else {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) setAuthUser(user);
+        else router.push('/login');
+      } catch (error) {
+        console.error("Falha ao verificar autenticação do perfil:", error);
         router.push('/login');
+      } finally {
+        setIsAuthLoading(false);
       }
     };
     initAuth();
@@ -57,6 +64,7 @@ export default function ProfilePage() {
     stories: userStories, 
     highlights: rawHighlights,
     isLoading: loading,
+    error: profileError,
     mutate
   } = useUserProfile(authUser?.id || null);
 
@@ -66,6 +74,27 @@ export default function ProfilePage() {
 
   const setUserStories = (stories: any) => {
     mutate((prev: any) => ({ ...prev, stories }), false);
+  };
+
+  const updateProfilePost = (updatedPost: any) => {
+    setUser((prev: any) => ({
+      ...prev,
+      posts: prev.posts?.map((post: any) => post.id === updatedPost.id ? { ...post, ...updatedPost } : post),
+      liked: prev.liked?.map((post: any) => post.id === updatedPost.id ? { ...post, ...updatedPost } : post),
+      saved: prev.saved?.map((post: any) => post.id === updatedPost.id ? { ...post, ...updatedPost } : post)
+    }));
+    setSelectedPost((prev: any) => prev?.id === updatedPost.id ? { ...prev, ...updatedPost } : prev);
+  };
+
+  const removeProfilePost = (postId: string) => {
+    setUser((prev: any) => ({
+      ...prev,
+      posts: prev.posts?.filter((post: any) => post.id !== postId),
+      liked: prev.liked?.filter((post: any) => post.id !== postId),
+      saved: prev.saved?.filter((post: any) => post.id !== postId),
+      posts_count: Math.max(0, (prev.posts_count || 0) - 1)
+    }));
+    setSelectedPost(null);
   };
 
   const highlights = React.useMemo(() => {
@@ -113,6 +142,15 @@ export default function ProfilePage() {
       supabase.removeChannel(followChannel);
     };
   }, [user?.id]);
+
+  useEffect(() => {
+    if (!selectedPost) return;
+
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    postCloseButtonRef.current?.focus();
+
+    return () => previouslyFocusedRef.current?.focus();
+  }, [selectedPost]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -168,11 +206,24 @@ export default function ProfilePage() {
     }
   };
 
-  if (loading) {
+  if (isAuthLoading || (loading && !user)) {
     return (
-      <div className="min-h-screen max-w-2xl mx-auto border-x flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-4 border-whatsapp-teal border-t-transparent rounded-full" />
+      <div className="flex min-h-screen max-w-2xl flex-col items-center justify-center gap-3 border-x mx-auto text-gray-500" role="status" aria-live="polite">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-whatsapp-teal border-t-transparent" />
+        <span className="text-sm">Carregando seu perfil…</span>
       </div>
+    );
+  }
+
+  if (profileError && !user) {
+    return (
+      <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center text-gray-700 dark:text-gray-200">
+        <h1 className="text-lg font-bold">Não foi possível carregar seu perfil</h1>
+        <p className="max-w-sm text-sm text-gray-500">Verifique sua conexão e tente novamente.</p>
+        <button type="button" onClick={() => void mutate()} className="rounded-xl bg-whatsapp-teal px-5 py-3 text-sm font-semibold text-white hover:bg-whatsapp-tealLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2">
+          Tentar novamente
+        </button>
+      </main>
     );
   }
 
@@ -195,6 +246,13 @@ export default function ProfilePage() {
         onOpenShareModal={() => modals.setIsShareModalOpen(true)}
       />
 
+      {profileError && user && (
+        <div className="mx-4 mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200" role="status">
+          <span>Mostrando os dados salvos. Não foi possível atualizar o perfil.</span>
+          <button type="button" onClick={() => void mutate()} className="shrink-0 font-bold underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">Tentar novamente</button>
+        </div>
+      )}
+
       <div className="px-5">
         <ProfileHighlights
           highlights={highlights}
@@ -209,20 +267,25 @@ export default function ProfilePage() {
 
       <div className="flex border-b border-black/5 dark:border-white/5 mt-4 sticky top-14 bg-white/80 dark:bg-black/80 backdrop-blur-md z-40">
         {[
-          { id: 'grid', icon: Grid },
-          { id: 'lumes', icon: PlaySquare },
-          { id: 'likes', icon: Heart },
-          { id: 'saved', icon: Bookmark }
+          { id: 'grid', icon: Grid, label: 'Publicações' },
+          { id: 'lumes', icon: PlaySquare, label: 'Vídeos' },
+          { id: 'audio', icon: Mic, label: 'Áudios' },
+          { id: 'likes', icon: Heart, label: 'Curtidas' },
+          { id: 'saved', icon: Bookmark, label: 'Salvos' }
         ].map((tab) => (
           <button
             key={tab.id}
+            type="button"
             onClick={() => setView(tab.id as any)}
+            aria-label={tab.label}
+            aria-pressed={view === tab.id}
+            title={tab.label}
             className={cn(
-              "flex-1 py-3 flex justify-center border-b-2 transition-all active:scale-95",
+              "flex-1 py-3 flex justify-center border-b-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal",
               view === tab.id ? "border-whatsapp-teal text-whatsapp-teal dark:text-whatsapp-green dark:border-whatsapp-green" : "border-transparent text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
             )}
           >
-            <tab.icon className={cn("w-6 h-6", view === tab.id && "fill-current")} />
+            <tab.icon className={cn("w-6 h-6", view === tab.id && "fill-current")} aria-hidden="true" />
           </button>
         ))}
       </div>
@@ -241,6 +304,7 @@ export default function ProfilePage() {
             userPosts={userPosts}
             likedPosts={likedPosts}
             savedPosts={savedPosts}
+            isLoading={loading}
             view={view}
             setSelectedPost={setSelectedPost}
           />
@@ -248,29 +312,49 @@ export default function ProfilePage() {
       </div>
 
       {selectedPost && (
-        <div className="fixed inset-0 z-[100] bg-black/90 flex flex-col">
-          <div className="flex justify-between items-center p-4">
-            <button onClick={() => setSelectedPost(null)} className="p-2 bg-white/10 rounded-full text-white hover:bg-white/20 transition-all"><ArrowLeft className="w-6 h-6" /></button>
-            <span className="text-white font-bold">Publicação</span>
-            <div className="w-10" />
-          </div>
-          <div className="flex-1 overflow-y-auto no-scrollbar pb-20 px-2 max-w-lg mx-auto w-full">
-            <PostCard
-              post={{
-                ...selectedPost,
-                author_name: user?.full_name || 'Usuário FéConecta',
-                author_username: user?.username || user?.id,
-                author_avatar: user?.avatar_url,
-                is_verified: user?.is_verified,
-                verification_label: user?.verification_label
-              }}
-              currentUser={user}
-              onDeleted={() => {
-                setUser((prev: any) => ({ ...prev, posts_count: Math.max(0, prev.posts_count - 1) }));
-                setSelectedPost(null);
-              }}
-            />
-          </div>
+        <div className="fixed inset-0 z-[100] flex flex-col bg-black/90" onClick={() => setSelectedPost(null)}>
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-post-dialog-title"
+            className="flex min-h-0 flex-1 flex-col"
+            onClick={(event) => event.stopPropagation()}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setSelectedPost(null);
+            }}
+          >
+            <div className="flex items-center justify-between p-4">
+              <button
+                ref={postCloseButtonRef}
+                type="button"
+                onClick={() => setSelectedPost(null)}
+                aria-label="Fechar publicação"
+                className="rounded-full bg-white/10 p-2 text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              >
+                <ArrowLeft className="h-6 w-6" aria-hidden="true" />
+              </button>
+              <h2 id="profile-post-dialog-title" className="font-bold text-white">Publicação</h2>
+              <div className="w-10" aria-hidden="true" />
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-20">
+              <div className="mx-auto w-full max-w-lg">
+                <PostCard
+                  post={{
+                    ...selectedPost,
+                    author_name: user?.full_name || 'Usuário FéConecta',
+                    author_username: user?.username || user?.id,
+                    author_avatar: user?.avatar_url,
+                    is_verified: user?.is_verified,
+                    verification_label: user?.verification_label,
+                    disableMediaNavigation: true
+                  }}
+                  currentUser={user}
+                  onUpdated={updateProfilePost}
+                  onDeleted={removeProfilePost}
+                />
+              </div>
+            </div>
+          </section>
         </div>
       )}
 

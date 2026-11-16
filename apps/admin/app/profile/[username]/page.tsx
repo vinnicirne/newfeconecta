@@ -16,6 +16,7 @@ import { VerificationBadge } from "@/components/verification-badge";
 import { ProfileConnectionsModal } from "@/components/profile/ProfileConnectionsModal";
 import useSWR from 'swr';
 import { formatExternalUrl } from '@/lib/url-utils';
+import { getPostCarouselUrls, getPostMediaInfo } from '@/utils/post-media';
 
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
@@ -28,7 +29,7 @@ export default function PublicProfilePage() {
   const [currentUser, setCurrentUser] = useState<any>(() => getStoredProfile());
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   useBodyScrollLock(!!selectedPost);
-  const [view, setView] = useState<'grid' | 'lumes' | 'likes'>('grid');
+  const [view, setView] = useState<'grid' | 'lumes' | 'audio' | 'likes'>('grid');
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
   const [connectionsType, setConnectionsType] = useState<'followers' | 'following'>('followers');
   const [connectionsData, setConnectionsData] = useState<any[]>([]);
@@ -130,12 +131,14 @@ export default function PublicProfilePage() {
   const filteredPosts = useMemo(() => {
     const list = view === 'likes' ? likedPosts : userPosts;
     return list.filter((post: any) => {
-      if (view === 'lumes') return post.post_type === 'video';
+      const mediaInfo = getPostMediaInfo(post);
+      if (view === 'lumes') return mediaInfo.isVideo;
+      if (view === 'audio') return mediaInfo.isAudio;
       return true;
     }).map((post: any) => ({
       ...post,
-      isVideo: post.post_type === 'video',
-      isAudio: post.post_type === 'audio'
+      isVideo: getPostMediaInfo(post).isVideo,
+      isAudio: getPostMediaInfo(post).isAudio
     }));
   }, [view, userPosts, likedPosts]);
 
@@ -386,16 +389,14 @@ export default function PublicProfilePage() {
           <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{user?.bio}</p>
           {user?.church && <p className="text-xs text-whatsapp-teal dark:text-whatsapp-green font-bold uppercase tracking-wider mt-1">{user.church}</p>}
           {user?.website_url && (
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.open(formatExternalUrl(user.website_url), '_blank', 'noopener,noreferrer');
-              }}
-              className="text-xs text-blue-500 font-bold hover:underline block mt-2 text-left"
+            <a
+              href={formatExternalUrl(user.website_url, 'website')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-500 font-bold hover:underline block mt-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
             >
               {user.website_url.replace('https://', '').replace('http://', '')}
-            </button>
+            </a>
           )}
         </div>
 
@@ -446,48 +447,51 @@ export default function PublicProfilePage() {
               { label: 'LinkedIn', icon: Linkedin, color: 'hover:text-blue-500', key: 'linkedin_url', type: 'linkedin' },
               { label: 'YouTube', icon: Youtube, color: 'hover:text-red-500', key: 'youtube_url', type: 'youtube' },
             ].filter(link => user?.[link.key]).map((link) => (
-              <button
+              <a
                 key={link.label}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  const url = formatExternalUrl(user?.[link.key], link.type);
-                  window.open(url, '_blank', 'noopener,noreferrer');
-                }}
+                href={formatExternalUrl(user?.[link.key], link.type)}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Abrir ${link.label}`}
                 className={cn(
-                  "w-11 h-11 rounded-2xl bg-gray-100 dark:bg-white/5 border border-black/5 dark:border-white/10 flex items-center justify-center transition-all active:scale-90 group",
+                  "w-11 h-11 rounded-2xl bg-gray-100 dark:bg-white/5 border border-black/5 dark:border-white/10 flex items-center justify-center transition-colors active:scale-90 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
                   link.color
                 )}
                 title={link.label}
               >
-                <link.icon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-inherit transition-colors" />
-              </button>
+                <link.icon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-inherit transition-colors" aria-hidden="true" />
+              </a>
             ))}
           </div>
         )}
       </div>
 
       <div className="flex border-t border-white/10 mt-4 h-12">
-        <button onClick={() => setView('grid')} className={cn("flex-1 flex justify-center items-center", view === 'grid' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
-          <Grid className="w-6 h-6" />
+        <button type="button" onClick={() => setView('grid')} aria-label="Publicações" aria-pressed={view === 'grid'} className={cn("flex-1 flex justify-center items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal", view === 'grid' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
+          <Grid className="w-6 h-6" aria-hidden="true" />
         </button>
-        <button onClick={() => setView('lumes')} className={cn("flex-1 flex justify-center items-center", view === 'lumes' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
-          <PlaySquare className="w-6 h-6" />
+        <button type="button" onClick={() => setView('lumes')} aria-label="Vídeos" aria-pressed={view === 'lumes'} className={cn("flex-1 flex justify-center items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal", view === 'lumes' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
+          <PlaySquare className="w-6 h-6" aria-hidden="true" />
         </button>
-        <button onClick={() => setView('likes')} className={cn("flex-1 flex justify-center items-center", view === 'likes' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
-          <Flame className="w-6 h-6" />
+        <button onClick={() => setView('audio')} aria-label="Áudios" aria-pressed={view === 'audio'} className={cn("flex-1 flex justify-center items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal", view === 'audio' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
+          <Mic className="w-6 h-6" aria-hidden="true" />
+        </button>
+        <button type="button" onClick={() => setView('likes')} aria-label="Curtidas" aria-pressed={view === 'likes'} className={cn("flex-1 flex justify-center items-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal", view === 'likes' ? "text-white border-t-2 border-white -mt-[2px]" : "text-gray-500")}>
+          <Flame className="w-6 h-6" aria-hidden="true" />
         </button>
       </div>
 
       <div className="grid grid-cols-3 gap-[2px]">
         {filteredPosts.map((post: any) => {
-          const carouselUrls = Array.isArray(post.metadata?.media_urls) ? post.metadata.media_urls.filter((url: unknown): url is string => typeof url === 'string' && url.length > 0) : [];
+          const carouselUrls = getPostCarouselUrls(post);
           const previewUrl = carouselUrls.length > 1 ? carouselUrls[0] : post.media_url;
           return (
-            <div
+            <button
               key={post.id}
+              type="button"
               onClick={() => setSelectedPost(post)}
-              className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
+              aria-label={`Abrir publicação${post.isAudio ? ' de áudio' : post.isVideo ? ' de vídeo' : ''}${post.content ? `: ${String(post.content).slice(0, 80)}` : ''}`}
+              className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal"
             >
               {previewUrl ? (
                 post.isAudio ? (
@@ -506,7 +510,7 @@ export default function PublicProfilePage() {
                     playsInline
                   />
                 ) : (
-                  <img src={previewUrl} className="absolute inset-0 w-full h-full object-cover" alt="" loading="lazy" />
+                  <img src={previewUrl} width={320} height={320} className="absolute inset-0 w-full h-full object-cover" alt={post.content ? `Imagem da publicação: ${String(post.content).slice(0, 80)}` : 'Imagem da publicação'} loading="lazy" />
                 )
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
@@ -521,7 +525,7 @@ export default function PublicProfilePage() {
                   <Images className="h-3.5 w-3.5" />{carouselUrls.length}
                 </div>
               )}
-            </div>
+            </button>
           );
         })}
         {filteredPosts.length === 0 && (

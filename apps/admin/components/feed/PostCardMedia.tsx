@@ -5,6 +5,7 @@ import { usePostCardMediaContext } from "./PostCardContext";
 import ExternalMediaNative, { parseExternalMedia } from "./ExternalMediaNative";
 import { LinkPreview } from "./LinkPreview";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function mediaUrlForRetry(url: string, retryCount: number) {
   if (!retryCount) return url;
@@ -168,8 +169,8 @@ export default function PostCardMedia() {
       {/* Video Media */}
       {mediaUrl && isVideo && !shouldSkipMedia && (
         <div
-          className="relative aspect-[4/5] max-h-[70vh] w-full cursor-pointer overflow-hidden rounded-2xl bg-black shadow-2xl"
-          onClick={() => router.push(`/tribo?id=${post.id}`)}
+          className={cn("relative aspect-[4/5] max-h-[70vh] w-full overflow-hidden rounded-2xl bg-black shadow-2xl", !post.disableMediaNavigation && "cursor-pointer")}
+          onClick={post.disableMediaNavigation ? undefined : () => router.push(`/tribo?id=${post.id}`)}
           onDoubleClick={handleDoubleClickLike}
         >
           {post.thumbnail_url && (
@@ -191,7 +192,11 @@ export default function PostCardMedia() {
             loop
             playsInline
             crossOrigin="anonymous"
-            onPlay={handlePlayMedia}
+            onPlay={() => {
+              setIsPlaying(true);
+              handlePlayMedia();
+            }}
+            onPause={() => setIsPlaying(false)}
             onWaiting={() => setVideoBuffering(true)}
             onCanPlay={() => setVideoBuffering(false)}
             onPlaying={() => { setVideoBuffering(false); setVideoReady(true); }}
@@ -207,6 +212,23 @@ export default function PostCardMedia() {
               }
             }}
           />
+
+          {post.disableMediaNavigation && (
+            <button
+              type="button"
+              aria-label={isPlaying ? "Pausar vídeo" : "Reproduzir vídeo"}
+              onClick={(event) => {
+                event.stopPropagation();
+                const video = videoRef.current;
+                if (!video) return;
+                if (video.paused) video.play().catch(() => toast.error("Não foi possível reproduzir o vídeo."));
+                else video.pause();
+              }}
+              className="absolute left-1/2 top-1/2 z-30 flex h-12 w-12 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            >
+              {isPlaying ? <Pause className="h-5 w-5 fill-white" aria-hidden="true" /> : <Play className="ml-0.5 h-5 w-5 fill-white" aria-hidden="true" />}
+            </button>
+          )}
 
           {(!videoReady || videoBuffering) && (
             <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/30 pointer-events-none" aria-hidden="true">
@@ -298,7 +320,7 @@ export default function PostCardMedia() {
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="w-14 h-14 shrink-0 rounded-2xl overflow-hidden bg-black/50 border border-white/15 shadow-xl flex items-center justify-center relative">
                     {post.thumbnail_url ? (
-                      <img src={post.thumbnail_url} alt="Cover" className="w-full h-full object-cover" />
+                      <img src={post.thumbnail_url} alt="Capa do áudio" width={56} height={56} className="h-full w-full object-cover" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal/80 to-whatsapp-green/60 flex items-center justify-center">
                         <Music className="w-7 h-7 text-white" />
@@ -313,7 +335,7 @@ export default function PostCardMedia() {
                       </h4>
                     ) : null}
                     <p className="text-whatsapp-green text-xs font-semibold truncate mt-0.5">
-                      {post.metadata?.artist || post.author?.full_name || "Membro FéConecta"}
+                      {post.metadata?.artist || post.author?.full_name || post.author_name || "Membro FéConecta"}
                     </p>
                   </div>
                 </div>

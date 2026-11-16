@@ -63,15 +63,16 @@ export function ProfileHeader({
       {/* Banner Section */}
       <div className="relative h-48 w-full bg-gray-900 overflow-hidden group">
         {user?.banner_url ? (
-          <img src={user.banner_url} className="w-full h-full object-cover" alt="Banner" />
+          <img src={user.banner_url} width={1200} height={450} className="h-full w-full object-cover" alt="Capa do perfil" />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal/20 via-black to-whatsapp-green/20" />
         )}
         {isSelf && onOpenCropper && (
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-            <label className="cursor-pointer bg-white/10 hover:bg-white/20 backdrop-blur-md p-3 rounded-full border border-white/20 transition-all active:scale-95">
-              <Camera className="w-6 h-6 text-white" />
-              <input type="file" className="hidden" onChange={(e) => onOpenCropper(e, 'banner')} accept="image/*" />
+            <label className="cursor-pointer rounded-full border border-white/20 bg-white/10 p-3 backdrop-blur-md transition-colors hover:bg-white/20 focus-within:ring-2 focus-within:ring-white">
+              <Camera className="h-6 w-6 text-white" aria-hidden="true" />
+              <span className="sr-only">Alterar capa do perfil</span>
+              <input type="file" aria-label="Selecionar capa do perfil" className="sr-only" onChange={(e) => onOpenCropper(e, 'banner')} accept="image/*" />
             </label>
           </div>
         )}
@@ -80,12 +81,12 @@ export function ProfileHeader({
       {/* Top Header (Overlay style) */}
       <div className="flex items-center justify-between px-4 pt-10 pb-4 absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent">
         <div className="flex items-center gap-3">
-          <Link href="/" className="p-1 hover:bg-white/10 rounded-lg transition-all text-white">
-            <ArrowLeft className="w-6 h-6" />
+          <Link href="/" aria-label="Voltar ao feed" className="rounded-lg p-1 text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <ArrowLeft className="h-6 w-6" aria-hidden="true" />
           </Link>
-          <div className="flex items-center gap-1 cursor-pointer hover:opacity-70 transition-opacity text-white">
+          <div className="flex items-center gap-1 text-white">
             <h1 className="text-xl font-bold tracking-tight">{user?.username || '...'}</h1>
-            {isSelf && <ChevronDown className="w-4 h-4" />}
+            {isSelf && <ChevronDown className="h-4 w-4" aria-hidden="true" />}
           </div>
         </div>
         
@@ -93,18 +94,20 @@ export function ProfileHeader({
           <div className="flex items-center gap-5 text-white">
             <button
               onClick={onOpenHighlightModal}
-              className="p-1 hover:bg-white/10 rounded-lg transition-all"
+              aria-label="Criar destaque"
+              className="rounded-lg p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               title="Criar novo Destaque"
             >
-              <Plus className="w-6 h-6" />
+              <Plus className="h-6 w-6" aria-hidden="true" />
             </button>
 
             <Link
               href="/messages"
-              className="p-1 hover:bg-white/10 rounded-lg transition-all"
+              aria-label="Abrir mensagens"
+              className="rounded-lg p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               title="Mensagens / Chat"
             >
-              <MessageSquare className="w-6 h-6" />
+              <MessageSquare className="h-6 w-6" aria-hidden="true" />
             </Link>
 
             <button
@@ -112,18 +115,20 @@ export function ProfileHeader({
                 if(onSetView) onSetView('settings');
                 window.scrollTo({ top: 400, behavior: 'smooth' });
               }}
-              className="p-1 hover:bg-white/10 rounded-lg transition-all"
+              aria-label="Abrir configurações do perfil"
+              className="rounded-lg p-1 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               title="Configurações"
             >
-              <Settings className="w-6 h-6" />
+              <Settings className="h-6 w-6" aria-hidden="true" />
             </button>
 
             <button
               onClick={onLogout}
-              className="p-1 hover:bg-white/10 rounded-lg text-red-500 transition-all"
+              aria-label="Sair da conta"
+              className="rounded-lg p-1 text-red-400 transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               title="Sair da conta"
             >
-              <LogOut className="w-6 h-6" />
+              <LogOut className="h-6 w-6" aria-hidden="true" />
             </button>
           </div>
         )}
@@ -134,33 +139,37 @@ export function ProfileHeader({
         <div className="flex items-center justify-between gap-4 mb-6 pt-12">
           {/* Avatar with Story Ring style */}
           <div className="relative group">
-            <div
+            <button
+              type="button"
               onClick={() => {
                 if (userStoriesLength > 0) onOpenStoryViewer();
                 else if (isSelf) onOpenStoryCreator();
               }}
+              aria-label={userStoriesLength > 0 ? "Ver stories do perfil" : isSelf ? "Adicionar story" : "Foto de perfil"}
               className={cn(
-                "w-[100px] h-[100px] rounded-[32px] p-[3px] cursor-pointer transition-all active:scale-95",
+                "block h-[100px] w-[100px] appearance-none rounded-[32px] border-0 p-[3px] transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
                 userStoriesLength > 0 ? "bg-gradient-to-tr from-whatsapp-teal to-whatsapp-green shadow-[0_0_15px_rgba(37,211,102,0.4)]" : "bg-white dark:bg-black"
               )}
             >
               <div className="w-full h-full rounded-[28px] border-4 border-white dark:border-black overflow-hidden bg-gray-100 dark:bg-gray-800 shadow-xl">
                 {user?.avatar_url ? (
-                  <img src={user.avatar_url} className="w-full h-full object-cover" alt="" />
+                  <img src={user.avatar_url} width={100} height={100} className="h-full w-full object-cover" alt={`Foto de perfil de ${user?.full_name || user?.username || 'usuário'}`} />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-800">
                     <User className="w-10 h-10 text-gray-400" />
                   </div>
                 )}
               </div>
-            </div>
+            </button>
             {isSelf && onOpenCropper && (
               <label
                 onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-2 right-0 w-7 h-7 bg-whatsapp-green rounded-xl border-4 border-black flex items-center justify-center scale-95 hover:scale-105 transition-transform cursor-pointer"
+                title="Alterar foto do perfil"
+                className="absolute bottom-2 right-0 flex h-7 w-7 cursor-pointer items-center justify-center rounded-xl border-4 border-black bg-whatsapp-green transition-transform hover:scale-105 focus-within:ring-2 focus-within:ring-white"
               >
-                <Plus className="w-5 h-5 text-whatsapp-dark font-black" />
-                <input type="file" className="hidden" onChange={(e) => onOpenCropper(e, 'avatar')} accept="image/*" />
+                <Plus className="h-5 w-5 font-black text-whatsapp-dark" aria-hidden="true" />
+                <span className="sr-only">Alterar foto do perfil</span>
+                <input type="file" aria-label="Selecionar foto do perfil" className="sr-only" onChange={(e) => onOpenCropper(e, 'avatar')} accept="image/*" />
               </label>
             )}
           </div>
@@ -347,22 +356,20 @@ export function ProfileHeader({
                 { label: 'YouTube', icon: Youtube, color: 'hover:text-red-500', key: 'youtube_url', type: 'youtube' },
                 { label: 'Site', icon: Globe, color: 'hover:text-blue-400', key: 'website_url', type: 'website' },
               ].filter(link => user?.[link.key]).map((link) => (
-                <button
+                <a
                   key={link.label}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const url = formatExternalUrl(user?.[link.key], link.type);
-                    window.open(url, '_blank', 'noopener,noreferrer');
-                  }}
+                  href={formatExternalUrl(user?.[link.key], link.type)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Abrir ${link.label}`}
                   className={cn(
-                    "w-11 h-11 rounded-2xl bg-gray-100 dark:bg-white/5 border border-black/5 dark:border-white/10 flex items-center justify-center transition-all active:scale-90 group shrink-0",
+                    "w-11 h-11 rounded-2xl bg-gray-100 dark:bg-white/5 border border-black/5 dark:border-white/10 flex items-center justify-center transition-colors active:scale-90 group shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
                     link.color
                   )}
                   title={link.label}
                 >
-                  <link.icon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-inherit transition-colors" />
-                </button>
+                  <link.icon className="w-5 h-5 text-gray-500 dark:text-gray-400 group-hover:text-inherit transition-colors" aria-hidden="true" />
+                </a>
               ))}
               
               {isSelf && (

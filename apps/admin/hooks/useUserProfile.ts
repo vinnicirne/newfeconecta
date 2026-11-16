@@ -3,7 +3,7 @@ import useSWR from 'swr';
 import { getStoredProfile, setStoredProfile } from '@/lib/profile-cache';
 
 export function useUserProfile(userId: string | null) {
-  const { data, mutate, error, isValidating } = useSWR(
+  const { data, mutate, error, isValidating, isLoading } = useSWR(
     userId ? `profile_full:${userId}` : null,
     async () => {
       if (!userId) return null;
@@ -78,7 +78,8 @@ export function useUserProfile(userId: string | null) {
     saved: data?.saved || [],
     stories: data?.stories || [],
     highlights: data?.highlights || [],
-    isLoading: !data && !error,
+    isLoading,
+    error,
     mutate,
     isValidating
   };

@@ -1,8 +1,9 @@
 "use client";
 
 import React from "react";
-import { Grid, PlaySquare, Mic, Heart, Bookmark, Images } from "lucide-react";
+import { Bookmark, Grid, Heart, Images, Mic, PlaySquare } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getPostCarouselUrls, getPostMediaInfo } from "@/utils/post-media";
 import Image from "next/image";
 import { VirtuosoGrid } from "react-virtuoso";
 
@@ -11,6 +12,7 @@ interface ProfileMediaGridProps {
   userPosts: any[];
   likedPosts: any[];
   savedPosts: any[];
+  isLoading?: boolean;
   setSelectedPost: (post: any) => void;
 }
 
@@ -19,17 +21,27 @@ export function ProfileMediaGrid({
   userPosts,
   likedPosts,
   savedPosts,
+  isLoading = false,
   setSelectedPost
 }: ProfileMediaGridProps) {
-
   const renderGrid = (posts: any[], emptyIcon: any, emptyText: string, gridClass = "grid grid-cols-3 gap-[2px]") => {
+    if (isLoading && posts.length === 0) {
+      return (
+        <div className={gridClass} role="status" aria-label="Carregando publicações">
+          {Array.from({ length: 6 }, (_, index) => (
+            <div key={index} className={cn("animate-pulse bg-gray-200 dark:bg-white/10", view === "lumes" ? "aspect-[9/16]" : "aspect-square")} />
+          ))}
+        </div>
+      );
+    }
+
     if (posts.length === 0) {
       return (
-        <div className="col-span-3 py-20 flex flex-col items-center justify-center text-gray-500 gap-4 opacity-50">
-          <div className="w-16 h-16 rounded-full border border-white/10 flex items-center justify-center">
-            {React.createElement(emptyIcon, { className: "w-6 h-6" })}
+        <div className="col-span-3 flex flex-col items-center justify-center gap-4 py-20 text-center text-gray-500">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full border border-black/10 dark:border-white/10">
+            {React.createElement(emptyIcon, { className: "h-6 w-6", "aria-hidden": true })}
           </div>
-          <p className="text-[11px] font-black uppercase tracking-widest">{emptyText}</p>
+          <p className="text-xs font-semibold">{emptyText}</p>
         </div>
       );
     }
@@ -39,98 +51,107 @@ export function ProfileMediaGrid({
         useWindowScroll
         data={posts}
         listClassName={gridClass}
-        itemContent={(index, post) => {
-          const isVideo = (post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i)) && !post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
-          const isAudio = post.post_type === 'audio' || post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
-          const carouselUrls = Array.isArray(post.metadata?.media_urls) ? post.metadata.media_urls.filter((url: unknown): url is string => typeof url === 'string' && url.length > 0) : [];
-          const isCarousel = carouselUrls.length > 1;
-          const previewUrl = isCarousel ? carouselUrls[0] : post.media_url;
+        itemContent={(_, post) => {
+          const { isVideo, isAudio, isCarousel, mediaUrl, postType } = getPostMediaInfo(post);
+          const carouselUrls = isCarousel ? getPostCarouselUrls(post) : [];
+          const imageUrl = isCarousel ? carouselUrls[0] : mediaUrl;
+          const isImage = Boolean(imageUrl && !isAudio && !isVideo && postType !== "external_media");
+          const textPreview = String(post.content || "").trim();
+          const label = isAudio
+            ? `Abrir publicação de áudio${textPreview ? `: ${textPreview.slice(0, 80)}` : ""}`
+            : isVideo
+              ? `Abrir publicação de vídeo${textPreview ? `: ${textPreview.slice(0, 80)}` : ""}`
+              : isImage
+                ? `Abrir publicação com imagem${textPreview ? `: ${textPreview.slice(0, 80)}` : ""}`
+                : `Abrir publicação de texto: ${textPreview.slice(0, 100) || "sem legenda"}`;
 
           return (
-            <div
+            <button
               key={post.id}
+              type="button"
               onClick={() => setSelectedPost(post)}
+              aria-label={label}
+              title={label}
               className={cn(
-                "relative group cursor-pointer overflow-hidden bg-gray-100 dark:bg-gray-900 border border-black/5 dark:border-white/5",
-                view === 'lumes' ? "aspect-[9/16]" : "aspect-square"
+                "group relative block w-full overflow-hidden border border-black/5 bg-gray-100 text-left focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-teal dark:border-white/5 dark:bg-gray-900",
+                view === "lumes" ? "aspect-[9/16]" : "aspect-square"
               )}
             >
-              {previewUrl ? (
-                isAudio ? (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
-                    <div className="w-12 h-12 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
-                      <Mic className="w-6 h-6 text-whatsapp-teal" />
-                    </div>
-                  </div>
-                ) : isVideo ? (
-                  <video
-                    src={`${previewUrl}#t=0.001`}
-                    crossOrigin="anonymous"
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 pointer-events-none"
-                    muted
-                    playsInline
-                    preload="metadata"
-                  />
-                ) : (
-                  <Image
-                    src={previewUrl}
-                    fill
-                    unoptimized
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                    alt=""
-                  />
-                )
-              ) : (() => {
-                const youtubeMatch = post.content?.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11})/);
-                const youtubeId = youtubeMatch ? youtubeMatch[1] : null;
-
-                if (youtubeId) {
-                  return (
+              {isImage && imageUrl ? (
+                <Image
+                  src={imageUrl}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 768px) 33vw, 220px"
+                  loading="lazy"
+                  className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                  alt={textPreview ? `Imagem da publicação: ${textPreview.slice(0, 100)}` : "Imagem da publicação"}
+                />
+              ) : isVideo ? (
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-950 via-slate-800 to-whatsapp-teal/60">
+                  {post.thumbnail_url ? (
                     <Image
-                      src={`https://img.youtube.com/vi/${youtubeId}/mqdefault.jpg`}
+                      src={post.thumbnail_url}
                       fill
                       unoptimized
-                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                      alt="YouTube Thumbnail"
+                      sizes="(max-width: 768px) 33vw, 220px"
+                      loading="lazy"
+                      className="object-cover"
+                      alt="Capa do vídeo"
                     />
-                  );
-                }
-
-                // Gradients dinâmicos para posts de texto (Premium)
-                const gradients = [
-                  'from-whatsapp-teal/20 via-whatsapp-teal/40 to-whatsapp-green/40',
-                  'from-indigo-500/20 via-blue-500/40 to-whatsapp-teal/40',
-                  'from-orange-500/20 via-rose-500/40 to-amber-500/40',
-                  'from-whatsapp-green/20 via-emerald-500/40 to-teal-500/40'
-                ];
-                const gradientIdx = (post.id?.charCodeAt(0) || 0) % gradients.length;
-
-                return (
-                  <div className={cn(
-                    "absolute inset-0 flex items-center justify-center p-6 bg-gradient-to-br",
-                    gradients[gradientIdx],
-                    "backdrop-blur-sm border border-white/10"
-                  )}>
-                    <div className="absolute inset-0 bg-black/20" />
-                    <p className="relative z-10 text-[10px] text-white text-center uppercase font-black leading-relaxed tracking-wider drop-shadow-md line-clamp-4">
-                      {post.content}
-                    </p>
-                  </div>
-                );
-              })()}
-
-              <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-              {isVideo && (
-                 <div className="absolute top-2 right-2 z-10">
-                    <PlaySquare className="w-4 h-4 text-white drop-shadow-md" />
-                 </div>
-              )}
-              {isCarousel && (
-                <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur" aria-label={`Carrossel com ${carouselUrls.length} fotos`}>
-                  <Images className="h-3.5 w-3.5" />{carouselUrls.length}
+                  ) : null}
+                  <span className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm">
+                    <PlaySquare className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                </div>
+              ) : isAudio ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-gradient-to-br from-[#101a20] via-[#15272b] to-whatsapp-teal/70 p-3 text-center text-white">
+                  {post.thumbnail_url ? (
+                    <Image
+                      src={post.thumbnail_url}
+                      fill
+                      unoptimized
+                      sizes="(max-width: 768px) 33vw, 220px"
+                      loading="lazy"
+                      className="object-cover opacity-35"
+                      alt="Capa do áudio"
+                    />
+                  ) : null}
+                  <Mic className="relative z-10 h-7 w-7" aria-hidden="true" />
+                  <span className="relative z-10 line-clamp-3 text-xs font-semibold">
+                    {post.metadata?.title || textPreview || "Publicação de áudio"}
+                  </span>
+                </div>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-whatsapp-teal/20 via-slate-900 to-whatsapp-green/30 p-4 text-white">
+                  <p className="line-clamp-6 whitespace-pre-wrap break-words text-center text-xs leading-relaxed">
+                    {textPreview || "Publicação de texto"}
+                  </p>
                 </div>
               )}
-            </div>
+
+              <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent opacity-70 transition-opacity group-hover:opacity-100" />
+              {isVideo && (
+                <span className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-1.5 text-white" aria-hidden="true">
+                  <PlaySquare className="h-4 w-4" />
+                </span>
+              )}
+              {isAudio && (
+                <span className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-1.5 text-white" aria-hidden="true">
+                  <Mic className="h-4 w-4" />
+                </span>
+              )}
+              {carouselUrls.length > 1 && (
+                <span
+                  className="absolute left-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur"
+                  aria-label={`Carrossel temporariamente indisponível, ${carouselUrls.length} imagens`}
+                  title="Carrossel temporariamente indisponível"
+                >
+                  <Images className="h-3.5 w-3.5" aria-hidden="true" />
+                  {carouselUrls.length}
+                </span>
+              )}
+            </button>
           );
         }}
       />
@@ -138,11 +159,12 @@ export function ProfileMediaGrid({
   };
 
   return (
-    <div className="min-h-[400px]">
-      {view === 'grid' && renderGrid(userPosts, Grid, "Nenhuma publicação")}
-      {view === 'lumes' && renderGrid(userPosts.filter(p => p.post_type === 'video' || p.media_url?.match(/\.(mp4|webm|mov|m4v)/i)), PlaySquare, "Nenhum Lume disponível")}
-      {view === 'likes' && renderGrid(likedPosts, Heart, "Nada curtido ainda")}
-      {view === 'saved' && renderGrid(savedPosts, Bookmark, "Nada salvo ainda")}
+    <div className="min-h-[300px]">
+      {view === "grid" && renderGrid(userPosts, Grid, "Nenhuma publicação ainda")}
+      {view === "lumes" && renderGrid(userPosts.filter((post) => getPostMediaInfo(post).isVideo), PlaySquare, "Nenhum vídeo publicado ainda")}
+      {view === "audio" && renderGrid(userPosts.filter((post) => getPostMediaInfo(post).isAudio), Mic, "Nenhum áudio publicado ainda")}
+      {view === "likes" && renderGrid(likedPosts, Heart, "Você ainda não curtiu publicações")}
+      {view === "saved" && renderGrid(savedPosts, Bookmark, "Você ainda não salvou publicações")}
     </div>
   );
 }
