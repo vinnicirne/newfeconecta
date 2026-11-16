@@ -107,7 +107,10 @@ export default function PostCardMedia() {
             ref={carouselRef}
             onScroll={(event) => {
               const element = event.currentTarget;
-              const next = Math.round(element.scrollLeft / Math.max(element.clientWidth, 1));
+              const next = Math.max(0, Math.min(
+                Math.round(element.scrollLeft / Math.max(element.clientWidth, 1)),
+                carouselUrls.length - 1,
+              ));
               setCarouselIndex((current) => current === next ? current : next);
             }}
             className="flex aspect-[4/5] max-h-[80vh] snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth no-scrollbar"
@@ -141,16 +144,12 @@ export default function PostCardMedia() {
           <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur" aria-live="polite">
             {carouselIndex + 1}/{carouselUrls.length}
           </div>
-          {carouselIndex > 0 && (
-            <button type="button" aria-label="Foto anterior" onClick={() => moveCarousel(carouselIndex - 1)} className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-          )}
-          {carouselIndex < carouselUrls.length - 1 && (
-            <button type="button" aria-label="Próxima foto" onClick={() => moveCarousel(carouselIndex + 1)} className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          )}
+          <button type="button" aria-label="Foto anterior" disabled={carouselIndex === 0} onClick={() => moveCarousel(carouselIndex - 1)} className={cn("absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white", carouselIndex === 0 ? "cursor-not-allowed opacity-45" : "hover:bg-black/70")}>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button type="button" aria-label="Próxima foto" disabled={carouselIndex >= carouselUrls.length - 1} onClick={() => moveCarousel(carouselIndex + 1)} className={cn("absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white", carouselIndex >= carouselUrls.length - 1 ? "cursor-not-allowed opacity-45" : "hover:bg-black/70")}>
+            <ChevronRight className="h-5 w-5" />
+          </button>
           <div className="flex items-center justify-center gap-1.5 py-3" aria-hidden="true">
             {carouselUrls.map((url, index) => <span key={`${url}-dot-${index}`} className={cn("h-1.5 rounded-full transition-all", carouselIndex === index ? "w-4 bg-whatsapp-green" : "w-1.5 bg-gray-400/60")} />)}
           </div>

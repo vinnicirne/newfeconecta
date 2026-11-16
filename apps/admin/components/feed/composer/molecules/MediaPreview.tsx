@@ -135,7 +135,10 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
             ref={carouselRef}
             onScroll={(event) => {
               const element = event.currentTarget;
-              const nextIndex = Math.round(element.scrollLeft / Math.max(element.clientWidth, 1));
+              const nextIndex = Math.max(0, Math.min(
+                Math.round(element.scrollLeft / Math.max(element.clientWidth, 1)),
+                carouselUrls.length - 1,
+              ));
               setCarouselIndex((current) => current === nextIndex ? current : nextIndex);
             }}
             className="absolute inset-0 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scroll-smooth no-scrollbar"
@@ -150,16 +153,12 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
           <div className="absolute right-5 top-[calc(env(safe-area-inset-top)+5rem)] z-20 flex items-center gap-1.5 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md">
             <Images className="h-3.5 w-3.5" /> {carouselIndex + 1}/{carouselUrls.length}
           </div>
-          {carouselIndex > 0 && (
-            <button type="button" aria-label="Foto anterior" onClick={() => scrollToCarouselImage(carouselIndex - 1)} className="absolute left-4 top-[25%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-          )}
-          {carouselIndex < carouselUrls.length - 1 && (
-            <button type="button" aria-label="Próxima foto" onClick={() => scrollToCarouselImage(carouselIndex + 1)} className="absolute right-4 top-[25%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          )}
+          <button type="button" aria-label="Foto anterior" disabled={carouselIndex === 0} onClick={() => scrollToCarouselImage(carouselIndex - 1)} className={cn("absolute left-4 top-[25%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white", carouselIndex === 0 ? "cursor-not-allowed opacity-45" : "hover:bg-black/75")}>
+            <ChevronLeft className="h-5 w-5" />
+          </button>
+          <button type="button" aria-label="Próxima foto" disabled={carouselIndex >= carouselUrls.length - 1} onClick={() => scrollToCarouselImage(carouselIndex + 1)} className={cn("absolute right-4 top-[25%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white", carouselIndex >= carouselUrls.length - 1 ? "cursor-not-allowed opacity-45" : "hover:bg-black/75")}>
+            <ChevronRight className="h-5 w-5" />
+          </button>
           <div className="absolute left-1/2 top-[calc(25%+3rem)] z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur-sm" aria-hidden="true">
             {carouselUrls.map((url, index) => <span key={url} className={cn("h-1.5 rounded-full transition-all", index === carouselIndex ? "w-4 bg-white" : "w-1.5 bg-white/50")} />)}
           </div>
