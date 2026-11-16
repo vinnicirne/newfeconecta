@@ -17,6 +17,7 @@ import StoryViewerControls from "./StoryViewerControls";
 import StoryViewerFooter from "./StoryViewerFooter";
 import StoryViewerStats from "./StoryViewerStats";
 import StoryViewerHighlightModal from "./StoryViewerHighlightModal";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const viewedStoriesCache = new Set<string>();
 const likesCache = new Map<string, boolean>();
@@ -52,17 +53,7 @@ export default function StoryViewer({
   const group = storyGroups[state.userIdx];
   const story = group?.stories[state.storyIdx];
 
-  // Trava o scroll da página de fundo (Feed) enquanto o StoryViewer estiver aberto
-  useEffect(() => {
-    const originalOverflow = document.body.style.overflow;
-    const originalTouchAction = document.body.style.touchAction;
-    document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
-    return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.touchAction = originalTouchAction;
-    };
-  }, []);
+  useBodyScrollLock(true);
 
   // ─── Navigation ───────────────────────────────────────────
   const advance = useCallback(() => {

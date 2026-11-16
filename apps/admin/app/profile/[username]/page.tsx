@@ -2,10 +2,10 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
+import {
   Grid, ChevronDown, Globe, Instagram, MessageCircle, MessageSquare,
-  Linkedin, Youtube, UserSquare2, PlaySquare, Flame, 
-  ArrowLeft, RefreshCw, Mic, Camera 
+  Linkedin, Youtube, UserSquare2, PlaySquare, Flame,
+  ArrowLeft, RefreshCw, Mic, Camera, Images
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -18,6 +18,7 @@ import useSWR from 'swr';
 import { formatExternalUrl } from '@/lib/url-utils';
 
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 export default function PublicProfilePage() {
   const params = useParams();
@@ -26,6 +27,7 @@ export default function PublicProfilePage() {
 
   const [currentUser, setCurrentUser] = useState<any>(() => getStoredProfile());
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  useBodyScrollLock(!!selectedPost);
   const [view, setView] = useState<'grid' | 'lumes' | 'likes'>('grid');
   const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
   const [connectionsType, setConnectionsType] = useState<'followers' | 'following'>('followers');
@@ -56,7 +58,7 @@ export default function PublicProfilePage() {
     const parts = key.split(':');
     const username = parts[1];
     const viewerId = parts[2];
-    
+
     // Sanitização rigorosa (Gabarito #11): garante UUID válido ou null real
     const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str) || /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
     const pViewerId = isUUID(viewerId) ? viewerId : null;
@@ -123,7 +125,7 @@ export default function PublicProfilePage() {
   const isFollowing = data?.viewer_state?.is_following || false;
   const userPosts = data?.posts || [];
   const likedPosts = data?.liked_posts || [];
-  
+
   // Memoização das listas baseadas em post_type em vez de regex pesado na renderização
   const filteredPosts = useMemo(() => {
     const list = view === 'likes' ? likedPosts : userPosts;
@@ -153,9 +155,9 @@ export default function PublicProfilePage() {
 
     const followChannel = supabase
       .channel(`profile-sync-${user.id}`)
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
         table: 'follows',
         filter: `following_id=eq.${user.id}`
       }, (payload) => {
@@ -171,9 +173,9 @@ export default function PublicProfilePage() {
           };
         }, false);
       })
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
         table: 'follows',
         filter: `follower_id=eq.${user.id}`
       }, (payload) => {
@@ -247,16 +249,16 @@ export default function PublicProfilePage() {
   const toggleFollow = async () => {
     if (!currentUser || !user || !data) return;
     if (currentUser.id === user.id) return;
-    
+
     const oldFollowing = isFollowing;
     const newFollowing = !oldFollowing;
-    
+
     // 🚀 ATUALIZAÇÃO NUCLEAR OTIMISTA (SWR Mutate)
     const optimisticData = {
       ...data,
       viewer_state: { ...data.viewer_state, is_following: newFollowing },
-      profile: { 
-        ...data.profile, 
+      profile: {
+        ...data.profile,
         followers_count: newFollowing ? (data.profile.followers_count || 0) + 1 : Math.max(0, (data.profile.followers_count || 0) - 1)
       }
     };
@@ -306,7 +308,7 @@ export default function PublicProfilePage() {
           <ArrowLeft className="w-6 h-6" />
         </button>
         <h1 className="text-lg font-bold tracking-tight text-white drop-shadow-md">@{user?.username || '...'}</h1>
-        <div className="w-10" /> 
+        <div className="w-10" />
       </div>
 
       <div className="px-5 -mt-12 relative z-10 pb-2">
@@ -375,9 +377,9 @@ export default function PublicProfilePage() {
           <div className="flex items-center gap-1.5 overflow-hidden">
             <h2 className="font-bold text-sm tracking-tight truncate">{user?.full_name}</h2>
             {user?.is_verified && (
-              <VerificationBadge 
-                role={user?.verification_label || 'Verificado'} 
-                size="sm" 
+              <VerificationBadge
+                role={user?.verification_label || 'Verificado'}
+                size="sm"
               />
             )}
           </div>
@@ -399,26 +401,26 @@ export default function PublicProfilePage() {
 
         <div className="flex gap-2 mb-6">
           {(currentUser?.id && user?.id && (currentUser.id === user.id || (currentUser.username && currentUser.username === username))) ? (
-            <button 
-              onClick={() => router.push('/profile')} 
+            <button
+              onClick={() => router.push('/profile')}
               className="flex-1 bg-gray-100 dark:bg-white/10 py-2 rounded-xl text-sm font-bold uppercase tracking-wide text-gray-900 dark:text-white"
             >
               Editar Perfil
             </button>
           ) : (
-            <button 
+            <button
               onClick={toggleFollow}
               className={cn(
                 "flex-1 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 uppercase tracking-wide",
-                isFollowing 
-                  ? "bg-gray-100 dark:bg-white/5 border border-black/5 dark:border-white/10 text-gray-500 dark:text-gray-400" 
+                isFollowing
+                  ? "bg-gray-100 dark:bg-white/5 border border-black/5 dark:border-white/10 text-gray-500 dark:text-gray-400"
                   : "bg-whatsapp-teal text-white shadow-lg shadow-whatsapp-teal/20"
               )}
             >
               {isFollowing ? "Seguindo" : "Seguir"}
             </button>
           )}
-          <button 
+          <button
             onClick={() => {
               const isOwnProfile = currentUser?.id === user?.id || (currentUser?.username && currentUser.username === username);
               router.push(isOwnProfile ? '/messages' : `/messages?userId=${user?.id}`);
@@ -479,13 +481,15 @@ export default function PublicProfilePage() {
 
       <div className="grid grid-cols-3 gap-[2px]">
         {filteredPosts.map((post: any) => {
+          const carouselUrls = Array.isArray(post.metadata?.media_urls) ? post.metadata.media_urls.filter((url: unknown): url is string => typeof url === 'string' && url.length > 0) : [];
+          const previewUrl = carouselUrls.length > 1 ? carouselUrls[0] : post.media_url;
           return (
-            <div 
-              key={post.id} 
+            <div
+              key={post.id}
               onClick={() => setSelectedPost(post)}
               className="aspect-square relative group cursor-pointer overflow-hidden bg-gray-900 border border-white/5"
             >
-              {post.media_url ? (
+              {previewUrl ? (
                 post.isAudio ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
                      <div className="w-10 h-10 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
@@ -493,16 +497,16 @@ export default function PublicProfilePage() {
                      </div>
                   </div>
                 ) : post.isVideo ? (
-                  <video 
-                    src={`${post.media_url}#t=0.001`} 
+                  <video
+                    src={`${previewUrl}#t=0.001`}
                     preload="metadata"
                     crossOrigin="anonymous"
-                    className="absolute inset-0 w-full h-full object-cover" 
-                    muted 
-                    playsInline 
+                    className="absolute inset-0 w-full h-full object-cover"
+                    muted
+                    playsInline
                   />
                 ) : (
-                  <img src={post.media_url} className="absolute inset-0 w-full h-full object-cover" alt="" loading="lazy" />
+                  <img src={previewUrl} className="absolute inset-0 w-full h-full object-cover" alt="" loading="lazy" />
                 )
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center p-2 text-[8px] text-gray-500 text-center uppercase font-bold overflow-hidden">{post.content}</div>
@@ -510,6 +514,11 @@ export default function PublicProfilePage() {
               {post.isVideo && (
                 <div className="absolute top-2 right-2 z-10">
                   <PlaySquare className="w-4 h-4 text-white drop-shadow-md" />
+                </div>
+              )}
+              {carouselUrls.length > 1 && (
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur" aria-label={`Carrossel com ${carouselUrls.length} fotos`}>
+                  <Images className="h-3.5 w-3.5" />{carouselUrls.length}
                 </div>
               )}
             </div>
@@ -521,13 +530,13 @@ export default function PublicProfilePage() {
           </div>
         )}
       </div>
-      
+
       {selectedPost && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/90 backdrop-blur-sm transition-all" onClick={() => setSelectedPost(null)}>
            <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto no-scrollbar" onClick={e => e.stopPropagation()}>
-              <PostCard 
-                post={{...selectedPost, author_name: user?.full_name, author_username: user?.username, author_avatar: user?.avatar_url}} 
-                currentUser={currentUser} 
+              <PostCard
+                post={{...selectedPost, author_name: user?.full_name, author_username: user?.username, author_avatar: user?.avatar_url}}
+                currentUser={currentUser}
               />
            </div>
         </div>

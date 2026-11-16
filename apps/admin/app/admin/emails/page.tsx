@@ -672,7 +672,7 @@ export default function EmailsAdminPage() {
             ) : (
               logs.map((log) => {
                 const isSuccess = log.status === "sent" || log.status === "delivered" || log.status === "success";
-                const templateRef = templates.find(t => t.id === log.template_key || t.key === log.template_key || t.slug === log.template_key);
+                const templateRef = templates.find(t => t.id === log.template_key || t.slug === log.template_key);
                 return (
                   <div key={log.id} className="flex items-center justify-between gap-3 px-5 py-3 text-xs hover:bg-muted/30 transition-colors">
                     <div className="min-w-0 flex-1">

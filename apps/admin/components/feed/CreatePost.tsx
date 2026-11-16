@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from 'react';
-import { Type, Image, Camera, Mic, X, Send, Smile, Paperclip } from 'lucide-react';
+import NextImage from 'next/image';
+import { Type, Image, Images, Camera, Mic, X, Send, Smile, Paperclip } from 'lucide-react';
 import UnifiedComposer from './UnifiedComposer';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
@@ -13,10 +14,12 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
   const [composerOpen, setComposerOpen] = useState(false);
   const [initialMode, setInitialMode] = useState<any>('text');
   const [initialFile, setInitialFile] = useState<File | null>(null);
+  const [initialFiles, setInitialFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const carouselRef = useRef<HTMLInputElement>(null);
 
   const { uploadMedia } = useMediaUpload();
 
@@ -219,14 +222,30 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
     }
   };
 
-  const openComposer = (mode: string, file: File | null = null) => {
+  const openComposer = (mode: string, file: File | null = null, files: File[] = []) => {
     setInitialMode(mode);
     setInitialFile(file);
+    setInitialFiles(files);
     setComposerOpen(true);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+    const selected = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (selected.length > 1) {
+      if (selected.length > 10 || selected.some((file) => !file.type.startsWith('image/'))) {
+        toast.error('Escolha de 2 a 10 imagens para criar um carrossel.');
+        return;
+      }
+      if (selected.some((file) => file.size > 20 * 1024 * 1024)) {
+        toast.error('Cada foto precisa ter até 20 MB.');
+        return;
+      }
+      openComposer('carousel', null, selected);
+      return;
+    }
+
+    const file = selected[0];
     if (file) {
       if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
         import('sonner').then(m => m.toast.error("Formato de arquivo inválido. Escolha uma imagem ou vídeo."));
@@ -239,9 +258,25 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
     if (fileRef.current) fileRef.current.value = '';
   };
 
+  const handleCarouselSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (!files.length) return;
+    if (files.length < 2 || files.length > 10 || files.some((file) => !file.type.startsWith('image/'))) {
+      toast.error('Escolha de 2 a 10 imagens para criar um carrossel.');
+      return;
+    }
+    if (files.some((file) => file.size > 20 * 1024 * 1024)) {
+      toast.error('Cada foto precisa ter até 20 MB.');
+      return;
+    }
+    openComposer('carousel', null, files);
+  };
+
   const actions = [
     { icon: Type, label: 'Texto', color: 'text-violet-500 bg-violet-50 dark:bg-violet-500/10', onClick: () => openComposer('text') },
     { icon: Image, label: 'Galeria', color: 'text-blue-500 bg-blue-50 dark:bg-blue-500/10', onClick: () => fileRef.current?.click() },
+    { icon: Images, label: 'Carrossel', color: 'text-pink-500 bg-pink-50 dark:bg-pink-500/10', onClick: () => carouselRef.current?.click() },
     { icon: Camera, label: 'Câmera', color: 'text-green-500 bg-green-50 dark:bg-green-500/10', onClick: () => openComposer('photo') },
     { icon: Mic, label: 'Áudio', color: 'text-orange-500 bg-orange-50 dark:bg-orange-500/10', onClick: () => openComposer('audio') },
   ];
@@ -259,9 +294,9 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
         isSubmitting && "opacity-50 pointer-events-none"
       )}>
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full overflow-hidden bg-muted flex-shrink-0 border-2 border-gray-100 dark:border-white/10">
+          <div className="relative w-12 h-12 rounded-full overflow-hidden bg-muted flex-shrink-0 border-2 border-gray-100 dark:border-white/10">
             {user?.avatar_url
-              ? <img src={user.avatar_url} className="w-full h-full object-cover" alt="avatar" />
+              ? <NextImage src={user.avatar_url} width={48} height={48} unoptimized className="w-full h-full object-cover" alt="Sua foto de perfil" />
               : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-whatsapp-tealLight flex items-center justify-center text-white font-bold text-lg italic">F</div>
             }
           </div>
@@ -277,21 +312,26 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
           type="file" 
           ref={fileRef} 
           className="hidden" 
+          accept="image/*,video/*"
+          multiple
           onChange={handleFileSelect} 
         />
+        <input type="file" ref={carouselRef} className="hidden" accept="image/*" multiple onChange={handleCarouselSelect} />
 
         <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 dark:border-white/5">
-           <div className="flex gap-2">
+           <div className="grid min-w-0 flex-1 grid-cols-5 gap-1">
               {actions.map(({ icon: Icon, color, onClick, label }) => (
                 <button
                   key={label}
                   onClick={onClick}
-                  className="flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all group"
+                  type="button"
+                  aria-label={`Criar publicação de ${label.toLowerCase()}`}
+                  className="min-w-0 flex flex-col items-center gap-1 rounded-xl px-0.5 py-1 hover:bg-gray-50 dark:hover:bg-white/5 transition-all group"
                 >
                   <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-transform group-active:scale-90", color)}>
-                     <Icon className="w-4 h-4" />
+                     <Icon className="w-4 h-4" aria-hidden="true" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 group-hover:text-whatsapp-teal transition-colors">{label}</span>
+                  <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-tight text-gray-400 group-hover:text-whatsapp-teal transition-colors text-center leading-tight">{label}</span>
                 </button>
               ))}
            </div>
@@ -313,6 +353,7 @@ export default function CreatePost({ user, onPostCreated, onPostStart }: any) {
           user={user}
           initialMode={initialMode}
           initialFile={initialFile}
+          initialFiles={initialFiles}
         />
       )}
     </>

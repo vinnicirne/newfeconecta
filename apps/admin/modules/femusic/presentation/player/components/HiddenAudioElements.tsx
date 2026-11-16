@@ -72,7 +72,7 @@ export function HiddenAudioElements({
         onPlaying={onPlaying}
         onPause={onPause}
         className="hidden"
-        preload="auto"
+        preload="none"
         playsInline
         {...({ disableRemotePlayback: true } as any)}
       />
@@ -89,7 +89,7 @@ export function HiddenAudioElements({
         onPlaying={onPlaying}
         onPause={onPause}
         className="hidden"
-        preload="auto"
+        preload="none"
         playsInline
         {...({ disableRemotePlayback: true } as any)}
       />

@@ -213,8 +213,7 @@ async function handleWelcomeSync(request: Request) {
                 template_key: 'welcome',
                 status: sentSuccess ? 'success' : 'error',
                 error_message: errorMessage
-              })
-              .catch(() => {});
+              });
           }
 
           if (sentSuccess) {

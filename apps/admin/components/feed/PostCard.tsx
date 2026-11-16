@@ -13,6 +13,7 @@ import { usePostMedia } from "@/hooks/feed/usePostMedia";
 import { renderContent } from "@/utils/feed-formatter";
 import { getPostMediaInfo, isLegacyMediaCheck } from "@/utils/post-media";
 import { Flame } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 const PostCard = React.memo(function PostCard({
   post,
@@ -80,19 +81,7 @@ const PostCard = React.memo(function PostCard({
     setMounted(true);
   }, []);
 
-  // Trava a rolagem da página de fundo (body) quando o zoom/lightbox do poster estiver aberto
-  useEffect(() => {
-    if (lightboxUrl) {
-      const originalOverflow = document.body.style.overflow;
-      const originalTouchAction = document.body.style.touchAction;
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-      return () => {
-        document.body.style.overflow = originalOverflow;
-        document.body.style.touchAction = originalTouchAction;
-      };
-    }
-  }, [lightboxUrl]);
+  useBodyScrollLock(!!lightboxUrl);
 
   return (
     <div

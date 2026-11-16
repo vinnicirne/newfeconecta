@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { PlayCircle, Plus, Music, Sparkles, Radio, ListPlus, Flame, Loader2 } from 'lucide-react';
 import MusicComposerModal from '@/components/feed/MusicComposerModal';
+import CreatePost from '@/components/feed/CreatePost';
 import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToPlaylistModal';
 import { MusicTrack } from '@/modules/femusic/domain/entities/MusicTrack';
 import { supabase } from '@/lib/supabase';
@@ -137,6 +139,7 @@ export default function MusicFeedPage() {
   };
 
   useEffect(() => {
+    let isActive = true;
     async function fetchData() {
       setLoading(true);
       
@@ -146,39 +149,35 @@ export default function MusicFeedPage() {
           const historyStr = localStorage.getItem('fc_music_history');
           if (historyStr) {
             const parsed = JSON.parse(historyStr);
-            setHistory(parsed.filter((t: any) => t && t.title && t.title.trim() !== ''));
+            if (isActive) setHistory(parsed.filter((t: any) => t && t.title && t.title.trim() !== ''));
           } else {
-            setHistory([]);
+            if (isActive) setHistory([]);
           }
         } catch (e) {
           console.error("Falha ao ler histórico", e);
         }
       }
 
-      // 2. Busca Louvores em Alta do YouTube
-      try {
-        const youtubeGospel = await YouTubeService.getTrending(20);
-        if (youtubeGospel && youtubeGospel.length > 0) {
-          setTrending(youtubeGospel);
-        }
-      } catch (e) {
-        console.warn("Usando catálogo semente para Em Alta", e);
-      }
-
-      // 3. Busca Louvores & Adoração ao Vivo
-      try {
-        const worshipHits = await YouTubeService.search('louvor e adoração gospel ao vivo oficial', 30);
-        if (worshipHits && worshipHits.length > 0) {
-          setWorship(worshipHits.filter((t: any) => t.duration <= 1200).slice(0, 15));
-        }
-      } catch (e) {
-        console.warn("Usando catálogo semente para Adoração", e);
-      }
-
+      // As duas prateleiras são independentes; carregá-las juntas reduz o tempo de espera.
+      const withTimeout = <T,>(promise: Promise<T>, fallback: T) => new Promise<T>((resolve) => {
+        const timeout = setTimeout(() => resolve(fallback), 8000);
+        promise.then(
+          (value) => { clearTimeout(timeout); resolve(value); },
+          () => { clearTimeout(timeout); resolve(fallback); },
+        );
+      });
+      const [youtubeGospel, worshipHits] = await Promise.all([
+        withTimeout(YouTubeService.getTrending(20), [] as MusicTrack[]),
+        withTimeout(YouTubeService.search('louvor e adoração gospel ao vivo oficial', 30), [] as MusicTrack[]),
+      ]);
+      if (!isActive) return;
+      if (youtubeGospel.length) setTrending(youtubeGospel);
+      if (worshipHits.length) setWorship(worshipHits.filter((track) => typeof track.duration === 'number' && track.duration <= 1200).slice(0, 15));
       setLoading(false);
     }
     
     fetchData();
+    return () => { isActive = false; };
   }, []);
 
   return (
@@ -204,6 +203,10 @@ export default function MusicFeedPage() {
         </button>
       </div>
 
+      <div className="px-4 mb-2">
+        <CreatePost user={user} />
+      </div>
+
       {/* Continuar Ouvindo (Sessão salva com progresso) */}
       <div className="px-4">
         <ContinueListening />
@@ -224,10 +227,13 @@ export default function MusicFeedPage() {
                 className="relative aspect-square w-full rounded-2xl overflow-hidden cursor-pointer group shadow-md bg-gray-200 dark:bg-white/5 border border-white/5"
               >
                 {track.cover ? (
-                  <img
+                  <Image
                     src={track.cover}
                     alt={track.title}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                    fill
+                    unoptimized
+                    sizes="(max-width: 640px) 33vw, 16vw"
+                    className="object-cover transition-transform duration-300 group-hover:scale-110"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center">
@@ -297,7 +303,7 @@ export default function MusicFeedPage() {
               >
                 <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
                   {track.cover ? (
-                    <img loading="lazy" src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
+                    <Image src={track.cover} fill unoptimized sizes="160px" className="object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
                   ) : (
                     <Music className="w-8 h-8 text-gray-400" />
                   )}
@@ -355,7 +361,7 @@ export default function MusicFeedPage() {
               >
                 <div className="w-36 sm:w-40 h-28 rounded-2xl overflow-hidden relative shadow-md bg-gray-200 dark:bg-white/5 flex items-center justify-center border border-white/5">
                   {track.cover ? (
-                    <img loading="lazy" src={track.cover} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
+                    <Image src={track.cover} fill unoptimized sizes="160px" className="object-cover group-hover:scale-105 transition-transform duration-300" alt={track.title} />
                   ) : (
                     <Radio className="w-8 h-8 text-gray-400" />
                   )}

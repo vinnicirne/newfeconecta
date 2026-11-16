@@ -30,7 +30,7 @@ let messaging: Messaging | null = null;
 
 if (typeof window !== "undefined") {
   // Verificação assíncrona de suporte para evitar erros em navegadores incompatíveis/anônimos
-  isSupported().then((supported) => {
+  isSupported().then((supported: boolean) => {
     if (supported) {
       try {
         messaging = getMessaging(app);

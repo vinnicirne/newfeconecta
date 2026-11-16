@@ -1,3 +1,5 @@
+export type RSVPStatus = "going" | "maybe" | "not_going";
+
 export interface EventItemCommitment {
   id: string;
   item_id: string;

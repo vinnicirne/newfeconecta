@@ -173,7 +173,7 @@ export const usePushNotifications = () => {
 
     // Escuta Web
     if (!messaging) return;
-    onMessage(messaging, (payload) => {
+      onMessage(messaging, (payload: import("firebase/messaging").MessagePayload) => {
       console.log("Push Firebase Web recebido em foreground", payload);
     });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { LucideIcon } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
@@ -10,7 +10,7 @@ interface StatsCardProps {
   value: string | number;
   change?: string;
   trend?: "up" | "down" | "neutral";
-  icon: LucideIcon;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
   color: string;
   link?: string;
 }

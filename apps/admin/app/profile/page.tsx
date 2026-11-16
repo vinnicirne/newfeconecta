@@ -24,12 +24,14 @@ import {
 import { cn } from "@/lib/utils";
 import PostCard from "@/components/feed/PostCard";
 import { toast } from "sonner";
+import { useBodyScrollLock } from "@/hooks/useBodyScrollLock";
 
 export default function ProfilePage() {
   const router = useRouter();
   const [authUser, setAuthUser] = useState<any>(null);
   const [view, setView] = useState<'grid' | 'tagged' | 'lumes' | 'likes' | 'saved' | 'settings'>('grid');
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
+  useBodyScrollLock(!!selectedPost);
   const [copied, setCopied] = useState(false);
 
   const modals = useProfileModals();

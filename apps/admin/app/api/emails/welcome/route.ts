@@ -190,7 +190,7 @@ export async function POST(request: Request) {
         template_key: 'welcome',
         status: sentSuccess ? 'success' : 'error',
         error_message: errorMessage
-      }).catch(() => {});
+      });
     }
 
     return NextResponse.json({ 

@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { LucideIcon } from 'lucide-react';
+import type { ComponentType, SVGProps } from 'react';
 
 interface IconButtonProps {
-  icon: LucideIcon;
+  icon: ComponentType<SVGProps<SVGSVGElement>>;
   label: string;
   isActive: boolean;
   onClick: () => void;

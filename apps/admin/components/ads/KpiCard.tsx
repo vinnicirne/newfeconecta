@@ -1,5 +1,6 @@
 import React from "react";
-import { LucideIcon, HelpCircle } from "lucide-react";
+import { HelpCircle } from "lucide-react";
+import type { ComponentType, SVGProps } from "react";
 import clsx from "clsx";
 
 interface KpiCardProps {
@@ -7,7 +8,7 @@ interface KpiCardProps {
   value: string | number;
   description?: string;
   tooltip?: string;
-  icon?: LucideIcon;
+  icon?: ComponentType<SVGProps<SVGSVGElement>>;
   variant?: "default" | "primary" | "success" | "warning";
   linkText?: string;
   onLinkClick?: () => void;

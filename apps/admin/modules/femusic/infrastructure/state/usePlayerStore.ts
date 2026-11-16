@@ -39,6 +39,8 @@ interface PlayerState {
   resetFailures: () => void;
 }
 
+let latestPlayRequest = 0;
+
 export const usePlayerStore = create<PlayerState>((set, get) => ({
   currentTrack: null,
   isPlaying: false,
@@ -161,6 +163,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   setVideoVisible: (val) => set({ isVideoVisible: val }),
 
   play: async (track, newQueue) => {
+    const playRequest = ++latestPlayRequest;
     const { provider } = get();
     if (!provider) {
       console.warn("Nenhum MusicProvider configurado.");
@@ -252,6 +255,8 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
 
     try {
       await provider.play(track);
+      if (playRequest !== latestPlayRequest) return;
+      if (get().currentTrack?.id !== track.id || !get().isLoading) return;
       // track.duration vem em SEGUNDOS do YouTubeService — converter para ms
       const durationMs = track.duration && track.duration > 0
         ? (track.duration > 3600 ? track.duration : track.duration * 1000)
@@ -263,8 +268,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
         recordUserPlayback(track);
       }).catch(() => {});
     } catch (e) {
+      if (playRequest !== latestPlayRequest) return;
       console.warn("Failed to play track:", e);
-      set({ currentTrack: null, isPlaying: false, isFullScreen: false, isLoading: false });
+      set({ isPlaying: false, isLoading: false });
     }
   },
 

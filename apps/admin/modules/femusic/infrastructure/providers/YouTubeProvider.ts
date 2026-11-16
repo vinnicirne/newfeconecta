@@ -66,13 +66,17 @@ export class YouTubeProvider implements IMusicProvider {
           localStorage.setItem(`fc_audio_cache_${track.providerTrackId}`, track.audioUrl);
         } catch (_) {}
       }
-      currentPlayer.play().catch((e: any) => {
+      try {
+        await currentPlayer.play();
+        return;
+      } catch (e: any) {
         console.error('[YouTubeProvider] Direct hit play failed:', e);
         if (typeof window !== 'undefined') {
           localStorage.removeItem(`fc_audio_cache_${track.providerTrackId}`);
         }
-      });
-      return;
+        currentPlayer.removeAttribute('src');
+        currentPlayer.load();
+      }
     }
 
 
@@ -108,6 +112,7 @@ export class YouTubeProvider implements IMusicProvider {
       if (loadingToastId) toast.dismiss(loadingToastId);
 
       const data = await response.json();
+      if (this.currentTrack?.id !== track.id) return;
       const activeAudio = (window as any).audioPlayer || this.player;
 
       if (data.url && activeAudio) {
@@ -117,7 +122,7 @@ export class YouTubeProvider implements IMusicProvider {
 
         activeAudio.src = data.url;
         activeAudio.currentTime = 0;
-        await activeAudio.play().catch((e: any) => console.error('Play failed:', e));
+        await activeAudio.play();
 
         try {
           const { usePlayerStore } = await import(
@@ -130,6 +135,7 @@ export class YouTubeProvider implements IMusicProvider {
       }
 
     } catch (err: any) {
+      if (this.currentTrack?.id !== track.id) return;
       if (toastTimer) clearTimeout(toastTimer);
 
       const { toast } = await import('sonner');
@@ -137,12 +143,9 @@ export class YouTubeProvider implements IMusicProvider {
 
       const isAbort = err?.name === 'AbortError';
 
-      if (isAbort) {
-        toast.error('Tempo esgotado ao carregar a musica');
-      } else {
-        console.error('[YouTubeProvider] Erro:', err);
-        await this.handleUnavailableTrack(track, toast);
-      }
+      if (isAbort) toast.error('Tempo esgotado ao carregar a música');
+      else console.error('[YouTubeProvider] Erro:', err);
+      await this.handleUnavailableTrack(track, toast);
     }
   }
 
@@ -152,6 +155,10 @@ export class YouTubeProvider implements IMusicProvider {
     loadingToastId?: string | number
   ) {
     this.isPlaying = false;
+    try {
+      const { usePlayerStore } = await import('@/modules/femusic/infrastructure/state/usePlayerStore');
+      usePlayerStore.setState({ isPlaying: false, isLoading: false });
+    } catch {}
 
     if (loadingToastId) toast.dismiss(loadingToastId);
 

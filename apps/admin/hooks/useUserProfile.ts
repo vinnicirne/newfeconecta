@@ -64,7 +64,7 @@ export function useUserProfile(userId: string | null) {
       fallbackData: (() => {
         const cached = getStoredProfile();
         if (cached && (!userId || cached.id === userId)) {
-          return { profile: cached };
+          return { profile: cached, posts: [], liked: [], saved: [], stories: [], highlights: [] };
         }
         return undefined;
       })()

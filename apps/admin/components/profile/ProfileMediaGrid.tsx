@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Grid, PlaySquare, Mic, Heart, Bookmark } from "lucide-react";
+import { Grid, PlaySquare, Mic, Heart, Bookmark, Images } from "lucide-react";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { VirtuosoGrid } from "react-virtuoso";
@@ -14,14 +14,14 @@ interface ProfileMediaGridProps {
   setSelectedPost: (post: any) => void;
 }
 
-export function ProfileMediaGrid({ 
-  view, 
-  userPosts, 
-  likedPosts, 
-  savedPosts, 
-  setSelectedPost 
+export function ProfileMediaGrid({
+  view,
+  userPosts,
+  likedPosts,
+  savedPosts,
+  setSelectedPost
 }: ProfileMediaGridProps) {
-  
+
   const renderGrid = (posts: any[], emptyIcon: any, emptyText: string, gridClass = "grid grid-cols-3 gap-[2px]") => {
     if (posts.length === 0) {
       return (
@@ -42,6 +42,9 @@ export function ProfileMediaGrid({
         itemContent={(index, post) => {
           const isVideo = (post.post_type === 'video' || post.media_url?.match(/\.(mp4|webm|mov|m4v)/i)) && !post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
           const isAudio = post.post_type === 'audio' || post.media_url?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i);
+          const carouselUrls = Array.isArray(post.metadata?.media_urls) ? post.metadata.media_urls.filter((url: unknown): url is string => typeof url === 'string' && url.length > 0) : [];
+          const isCarousel = carouselUrls.length > 1;
+          const previewUrl = isCarousel ? carouselUrls[0] : post.media_url;
 
           return (
             <div
@@ -52,7 +55,7 @@ export function ProfileMediaGrid({
                 view === 'lumes' ? "aspect-[9/16]" : "aspect-square"
               )}
             >
-              {post.media_url ? (
+              {previewUrl ? (
                 isAudio ? (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-br from-whatsapp-dark to-[#111b21]">
                     <div className="w-12 h-12 rounded-full bg-whatsapp-teal/20 flex items-center justify-center mb-2 animate-pulse">
@@ -60,17 +63,17 @@ export function ProfileMediaGrid({
                     </div>
                   </div>
                 ) : isVideo ? (
-                  <video 
-                    src={`${post.media_url}#t=0.001`} 
+                  <video
+                    src={`${previewUrl}#t=0.001`}
                     crossOrigin="anonymous"
-                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 pointer-events-none" 
-                    muted 
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 pointer-events-none"
+                    muted
                     playsInline
                     preload="metadata"
                   />
                 ) : (
                   <Image
-                    src={post.media_url}
+                    src={previewUrl}
                     fill
                     unoptimized
                     className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
@@ -80,7 +83,7 @@ export function ProfileMediaGrid({
               ) : (() => {
                 const youtubeMatch = post.content?.match(/(?:youtu\.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]{11})/);
                 const youtubeId = youtubeMatch ? youtubeMatch[1] : null;
-                
+
                 if (youtubeId) {
                   return (
                     <Image
@@ -121,6 +124,11 @@ export function ProfileMediaGrid({
                  <div className="absolute top-2 right-2 z-10">
                     <PlaySquare className="w-4 h-4 text-white drop-shadow-md" />
                  </div>
+              )}
+              {isCarousel && (
+                <div className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-black/65 px-2 py-1 text-[10px] font-semibold text-white backdrop-blur" aria-label={`Carrossel com ${carouselUrls.length} fotos`}>
+                  <Images className="h-3.5 w-3.5" />{carouselUrls.length}
+                </div>
               )}
             </div>
           );

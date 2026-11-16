@@ -67,7 +67,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
       if (!img || !img.naturalWidth) {
         // Fallback: imagem ainda não carregou — aguarda
         await new Promise<void>((res) => {
-          const tmpImg = new Image();
+          const tmpImg = new window.Image();
           tmpImg.onload = () => res();
           tmpImg.onerror = () => res();
           tmpImg.src = captured.url;
@@ -75,7 +75,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
       }
 
       const source = imgRef.current ?? (() => {
-        const tmp = new Image();
+        const tmp = new window.Image();
         tmp.src = captured.url;
         return tmp;
       })();
@@ -111,7 +111,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
   const isPublishing = disabled || isApplyingFilter;
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.95 }}
@@ -185,9 +185,9 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
 
       {captured.type === 'video' && (
         <>
-          <video 
+          <video
             key={captured.url}
-            src={captured.url} 
+            src={captured.url}
             autoPlay
             loop
             muted
@@ -243,7 +243,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
               disabled={isPublishing}
             />
             <p className="-mt-1 text-xs text-white/60">A legenda será exibida junto com a mídia no feed.</p>
-            
+
             <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-3">
               <div className="flex items-center gap-2 text-white">
                 <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
@@ -255,7 +255,7 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
                 </div>
               </div>
 
-              <button 
+              <button
                 onClick={handlePublishWithFilter}
                 disabled={isPublishing}
                 className="px-6 py-2.5 bg-white text-black rounded-full font-black text-sm uppercase tracking-widest shadow-lg hover:scale-105 active:scale-95 transition-all disabled:opacity-50 flex items-center gap-2"

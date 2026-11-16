@@ -68,7 +68,9 @@ export default function CommunityListeningSection() {
         const unique = data.filter((item, index, self) => {
           if (index === 0) return true;
           const prev = self[index - 1];
-          return !(prev.provider_track_id === item.provider_track_id && prev.user?.id === item.user?.id);
+          const previousUser = Array.isArray(prev.user) ? prev.user[0] : prev.user;
+          const currentUser = Array.isArray(item.user) ? item.user[0] : item.user;
+          return !(prev.provider_track_id === item.provider_track_id && previousUser?.id === currentUser?.id);
         });
         setItems(unique as any);
       }
