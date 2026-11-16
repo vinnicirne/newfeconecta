@@ -45,8 +45,14 @@ export function useWarRoomTimer(roomData: any, userId: string, onExit: () => voi
         return;
       }
 
-      const dur = moment.duration(diff);
-      setRemainingTime(`${Math.floor(dur.asMinutes())}:${dur.seconds() < 10 ? '0' : ''}${dur.seconds()}`);
+      const totalSeconds = Math.floor(diff / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      const twoDigits = (value: number) => String(value).padStart(2, '0');
+      setRemainingTime(hours > 0
+        ? `${twoDigits(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`
+        : `${twoDigits(minutes)}:${twoDigits(seconds)}`);
     }, 1000);
 
     return () => clearInterval(tInterval);

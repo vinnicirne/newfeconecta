@@ -1,15 +1,16 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { Mic, Plus, Users, Clock, ArrowRight, RefreshCw, X, Crown, Lock, ShieldCheck } from "lucide-react";
+import { Mic, Plus, Users, Clock, ArrowRight, RefreshCw, X, Lock, ShieldCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { VerificationModal } from "@/components/profile/VerificationModal";
-import useSWR, { useSWRConfig } from 'swr';
+import useSWR from 'swr';
 import { NotificationService } from "@/lib/notifications";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 
 const DURATIONS = [
   { label: "15 min", value: 15, premium: false },
@@ -28,15 +29,17 @@ function RoomTimer({ createdAt, duration }: { createdAt: string, duration: numbe
   useEffect(() => {
     const tick = () => {
       const end = moment(createdAt).add(duration, 'minutes');
-      const diff = end.diff(moment());
+      const diff = Math.max(0, end.diff(moment()));
       if (diff <= 0) {
         setTimeLeft("00:00");
         return;
       }
-      const dur = moment.duration(diff);
-      const mins = Math.floor(dur.asMinutes());
-      const secs = dur.seconds();
-      setTimeLeft(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
+      const totalSeconds = Math.floor(diff / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const mins = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+      const twoDigits = (value: number) => String(value).padStart(2, '0');
+      setTimeLeft(hours > 0 ? `${twoDigits(hours)}:${twoDigits(mins)}:${twoDigits(secs)}` : `${twoDigits(mins)}:${twoDigits(secs)}`);
     };
 
     tick();
@@ -45,9 +48,9 @@ function RoomTimer({ createdAt, duration }: { createdAt: string, duration: numbe
   }, [createdAt, duration]);
 
   return (
-    <div className="flex items-center gap-1 text-[10px] text-orange-500 font-black uppercase ml-2">
-      <Clock size={12} />
-      <span>{timeLeft}</span>
+    <div className="flex items-center gap-1 text-[10px] text-orange-500 font-black uppercase ml-2" aria-label={`Tempo restante ${timeLeft}`}>
+      <Clock size={12} aria-hidden="true" />
+      <span aria-hidden="true">{timeLeft}</span>
     </div>
   );
 }
@@ -55,6 +58,7 @@ function RoomTimer({ createdAt, duration }: { createdAt: string, duration: numbe
 export default function RoomsListPage() {
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewerId, setViewerId] = useState<string | null | undefined>(undefined);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [newRoomName, setNewRoomName] = useState("");
@@ -64,6 +68,10 @@ export default function RoomsListPage() {
   const [searchUser, setSearchUser] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [invitedUsers, setInvitedUsers] = useState<any[]>([]);
+  const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchSequenceRef = useRef(0);
   const router = useRouter();
 
   useEffect(() => {
@@ -94,7 +102,7 @@ export default function RoomsListPage() {
     });
   };
 
-  const { data: swrRooms, mutate } = useSWR('war-room-list', fetcher, {
+  const { data: swrRooms, error: roomsError, mutate } = useSWR(viewerId === undefined ? null : ['war-room-list', viewerId], fetcher, {
     revalidateOnFocus: true,
     refreshInterval: 30000 // Revalidação leve a cada 30s (backup do realtime)
   });
@@ -107,66 +115,83 @@ export default function RoomsListPage() {
   }, [swrRooms]);
 
   useEffect(() => {
+    if (roomsError) setLoading(false);
+  }, [roomsError]);
+
+  useEffect(() => {
+    if (viewerId === undefined) return;
     // 2. Realtime Cirúrgico: Ouve apenas mudanças vitais
     const channel = supabase
       .channel('war-room-realtime')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'rooms' }, async (payload) => {
-        // Se uma nova sala ativa surgir, injetamos no topo
-        if (payload.new.status === 'active') {
-          // Busca perfil do criador (para manter a UI rica)
-          const { data: profile } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', payload.new.creator_id).single();
-          const newRoom: any = { ...payload.new, profiles: profile };
-          
-          mutate((currentRooms: any) => {
-            if (!Array.isArray(currentRooms)) return [newRoom];
-            // Evita duplicata se o SWR já tiver pegado
-            if ((currentRooms as any[]).find((r: any) => r.id === newRoom.id)) return currentRooms;
-            return [newRoom, ...currentRooms];
-          }, false);
-        }
-      })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'rooms' }, (payload) => {
-        // Se uma sala for fechada, removemos da lista instantaneamente
-        if (payload.new.status !== 'active') {
-          mutate((currentRooms: any) => {
-            if (!Array.isArray(currentRooms)) return [];
-            return (currentRooms as any[]).filter((r: any) => r.id !== payload.new.id);
-          }, false);
-        }
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms' }, () => { void mutate(); })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [mutate, viewerId]);
 
   const init = async () => {
-    // Pegar usuário logado para controle de UI
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    if (authUser) {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
-      setCurrentUser(profile);
+    try {
+      const { data: { user: authUser }, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      setViewerId(authUser?.id ?? null);
+      if (authUser) {
+        const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', authUser.id).single();
+        if (profileError) throw profileError;
+        setCurrentUser(profile);
+      }
+    } catch {
+      setViewerId(null);
+      toast.error('Não foi possível carregar sua conta. Tente atualizar a página.');
     }
   };
 
-  const searchProfiles = async (term: string) => {
+  const searchProfiles = (term: string) => {
+    const searchSequence = ++searchSequenceRef.current;
     setSearchUser(term);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
     if (term.length < 2) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
-    const { data } = await supabase
-      .from('profiles')
-      .select('id, full_name, username, avatar_url')
-      .or(`username.ilike.%${term}%,full_name.ilike.%${term}%`)
-      .limit(5);
-    
-    setSearchResults(data || []);
+    searchTimeoutRef.current = setTimeout(async () => {
+      const safeTerm = term.replace(/[^\w\u00C0-\u024F.@ -]/g, '').trim();
+      if (safeTerm.length < 2) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+      setIsSearching(true);
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url')
+          .or(`username.ilike.%${safeTerm}%,full_name.ilike.%${safeTerm}%`)
+          .limit(5);
+        if (error) throw error;
+        if (searchSequence === searchSequenceRef.current) setSearchResults(data || []);
+      } catch {
+        if (searchSequence === searchSequenceRef.current) {
+          setSearchResults([]);
+          toast.error('Não foi possível buscar pessoas. Tente novamente.');
+        }
+      } finally {
+        if (searchSequence === searchSequenceRef.current) setIsSearching(false);
+      }
+    }, 250);
   };
 
+  useEffect(() => () => {
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+  }, []);
+
   const toggleInvite = (user: any) => {
+    searchSequenceRef.current += 1;
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    setIsSearching(false);
     if (invitedUsers.find(u => u.id === user.id)) {
       setInvitedUsers(prev => prev.filter(u => u.id !== user.id));
     } else {
@@ -201,7 +226,9 @@ export default function RoomsListPage() {
       }
     }
 
+    setIsCreatingRoom(true);
     try {
+      let invitationWarning = '';
       const { data, error } = await supabase
         .from('rooms')
         .insert({
@@ -223,18 +250,21 @@ export default function RoomsListPage() {
           user_id: u.id,
           role: 'invited'
         }));
-        await supabase.from('participants').insert(invites);
-
-        // 3. Enviar Notificações Ativas para os convidados
-        const notifications = invitedUsers.map(u => ({
-          recipient_id: u.id,
-          sender_id: currentUser.id,
-          type: 'room_invite',
-          title: 'Convite para Intercessão 🙏',
-          content: `${currentUser.full_name} convidou você para a Sala de Guerra: ${newRoomName}`,
-          metadata: { room_id: data.id, link: `/room/${data.id}` }
-        }));
-        await supabase.from('notifications').insert(notifications);
+        const { error: inviteError } = await supabase.from('participants').insert(invites);
+        if (inviteError) {
+          invitationWarning = 'A sala foi criada, mas não foi possível registrar os convidados.';
+        } else {
+          const notifications = invitedUsers.map(u => ({
+            recipient_id: u.id,
+            sender_id: currentUser.id,
+            type: 'room_invite',
+            title: 'Convite para Intercessão 🙏',
+            content: `${currentUser.full_name} convidou você para a Sala de Guerra: ${newRoomName}`,
+            metadata: { room_id: data.id, link: `/room/${data.id}` }
+          }));
+          const { error: notificationError } = await supabase.from('notifications').insert(notifications);
+          if (notificationError) invitationWarning = 'A sala foi criada, mas não foi possível enviar as notificações dos convites.';
+        }
       }
       
       // Notificação global inteligente
@@ -251,9 +281,12 @@ export default function RoomsListPage() {
       }
 
       toast.success("Sala de Guerra criada!");
+      if (invitationWarning) toast.warning(invitationWarning);
       router.push(`/room/${data.id}`);
     } catch (err) {
-      toast.error("Erro ao criar sala");
+      toast.error(err instanceof Error ? `Erro ao criar sala: ${err.message}` : "Erro ao criar sala. Tente novamente.");
+    } finally {
+      setIsCreatingRoom(false);
     }
   };
 
@@ -264,17 +297,25 @@ export default function RoomsListPage() {
           <h1 className="text-2xl font-black text-gray-900 dark:text-white">Salas de Guerra</h1>
           <p className="text-xs text-gray-500 font-bold uppercase tracking-widest mt-1">Intercessão ao vivo</p>
         </div>
-        <button 
+        <button
+          type="button"
           onClick={() => setIsCreating(true)}
+          aria-label="Criar sala de guerra"
           className="w-12 h-12 rounded-2xl bg-whatsapp-teal text-white flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 active:scale-95 transition-all"
         >
-          <Plus size={24} />
+          <Plus size={24} aria-hidden="true" />
         </button>
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
+        <div className="flex justify-center py-20" role="status" aria-live="polite">
           <RefreshCw className="animate-spin text-whatsapp-teal" />
+          <span className="sr-only">Carregando salas…</span>
+        </div>
+      ) : roomsError && !swrRooms ? (
+        <div className="rounded-3xl border border-red-500/20 bg-red-500/5 p-6 text-center" role="alert">
+          <p className="text-sm font-semibold text-gray-800 dark:text-white">Não foi possível carregar as salas.</p>
+          <button type="button" onClick={() => void mutate()} className="mt-4 rounded-xl bg-whatsapp-teal px-4 py-2 text-xs font-bold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2">Tentar novamente</button>
         </div>
       ) : (
         <div className="space-y-4">
@@ -282,7 +323,8 @@ export default function RoomsListPage() {
             <div className="text-center py-20 opacity-40">
               <Mic size={48} className="mx-auto mb-4" />
               <p className="font-bold uppercase tracking-widest text-xs">Nenhuma sala ativa no momento</p>
-              <button 
+              <button
+                type="button"
                 onClick={() => setIsCreating(true)}
                 className="mt-6 text-whatsapp-teal font-black text-[10px] uppercase underline underline-offset-4"
               >
@@ -292,12 +334,14 @@ export default function RoomsListPage() {
           )}
 
           {rooms.map(room => (
-            <motion.div 
+            <motion.button
+              type="button"
               key={room.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               onClick={() => router.push(`/room/${room.id}`)}
-              className="bg-gray-50 dark:bg-white/5 p-4 rounded-3xl border border-gray-100 dark:border-white/5 flex items-center gap-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-all group"
+              aria-label={`Entrar na sala ${room.name}, liderada por ${room.profiles?.full_name || 'membro'}`}
+              className="w-full text-left bg-gray-50 dark:bg-white/5 p-4 rounded-3xl border border-gray-100 dark:border-white/5 flex items-center gap-4 cursor-pointer hover:bg-gray-100 dark:hover:bg-white/10 transition-colors group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
             >
               <div className="relative">
                 <div className="w-16 h-16 rounded-2xl overflow-hidden bg-zinc-800 flex items-center justify-center">
@@ -314,7 +358,7 @@ export default function RoomsListPage() {
 
               <div className="flex-1">
                 <h3 className="font-bold text-gray-900 dark:text-white truncate max-w-[180px]">{room.name}</h3>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-0.5">Liderado por {room.profiles.full_name}</p>
+                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-tighter mt-0.5">Liderado por {room.profiles?.full_name || 'membro FéConecta'}</p>
                 <div className="flex items-center gap-3 mt-2">
                    <div className="flex items-center gap-1 text-[10px] text-whatsapp-teal font-black uppercase">
                      <Users size={12} />
@@ -325,43 +369,50 @@ export default function RoomsListPage() {
               </div>
 
               <div className="w-10 h-10 rounded-xl bg-whatsapp-teal/10 flex items-center justify-center group-hover:bg-whatsapp-teal transition-colors">
-                <ArrowRight size={20} className="text-whatsapp-teal group-hover:text-white" />
+                <ArrowRight size={20} className="text-whatsapp-teal group-hover:text-white" aria-hidden="true" />
               </div>
-            </motion.div>
+            </motion.button>
           ))}
         </div>
       )}
 
       {/* Create Room Modal */}
-      <AnimatePresence>
-        {isCreating && (
-          <div className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <DialogPrimitive.Root open={isCreating} onOpenChange={setIsCreating}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-sm" />
+          <DialogPrimitive.Content className="fixed inset-0 z-[151] flex items-center justify-center p-4 sm:p-6 focus:outline-none">
             <motion.div 
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               className="w-full max-w-sm bg-white dark:bg-[#111111] rounded-[40px] relative shadow-2xl flex flex-col max-h-[85dvh]"
             >
-              <button onClick={() => setIsCreating(false)} className="absolute top-6 right-6 p-2 text-gray-400 group hover:text-red-500 transition-colors z-10">
-                <X />
-              </button>
+              <DialogPrimitive.Close asChild>
+                <button type="button" aria-label="Fechar criação da sala" className="absolute top-6 right-6 p-2 text-gray-400 group hover:text-red-500 transition-colors z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal rounded-full">
+                  <X aria-hidden="true" />
+                </button>
+              </DialogPrimitive.Close>
               
               <div className="p-8 overflow-y-auto no-scrollbar flex-1 rounded-[40px]">
                 <div className="text-center mb-8">
                 <div className="w-16 h-16 rounded-3xl bg-whatsapp-teal/10 flex items-center justify-center mx-auto mb-4">
                   <Mic className="text-whatsapp-teal" size={32} />
                 </div>
-                <h2 className="text-xl font-black dark:text-white uppercase tracking-tight">Nova Sala de Guerra</h2>
-                <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Defina o tempo de intercessão</p>
+                <DialogPrimitive.Title className="text-xl font-black dark:text-white uppercase tracking-tight">Nova Sala de Guerra</DialogPrimitive.Title>
+                <DialogPrimitive.Description className="text-[10px] text-gray-500 font-bold uppercase tracking-widest mt-1">Defina o tempo de intercessão</DialogPrimitive.Description>
               </div>
 
               <div className="space-y-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Assunto da Oração</label>
+                  <label htmlFor="room-name" className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Assunto da Oração</label>
                   <input 
+                    id="room-name"
+                    name="room_name"
                     type="text" 
                     value={newRoomName}
                     onChange={(e) => setNewRoomName(e.target.value)}
+                    maxLength={80}
+                    autoComplete="off"
                     placeholder="Ex: Pela restauração da família..."
                     className="w-full bg-gray-50 dark:bg-white/5 border-none rounded-3xl px-6 py-4 text-sm focus:ring-2 focus:ring-whatsapp-teal/20 outline-none dark:text-white"
                   />
@@ -384,8 +435,10 @@ export default function RoomsListPage() {
 
                       return (
                         <button
+                          type="button"
                           key={d.value}
                           onClick={() => setSelectedDuration(d.value)}
+                          aria-pressed={selectedDuration === d.value}
                           className={cn(
                             "py-3 rounded-2xl text-[10px] font-black uppercase transition-all relative flex flex-col items-center justify-center gap-1",
                             selectedDuration === d.value 
@@ -405,8 +458,10 @@ export default function RoomsListPage() {
                   <div className="space-y-3">
                     <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Visibilidade da Sala</label>
                     <div className="grid grid-cols-2 gap-4">
-                      <button 
+                      <button
+                        type="button"
                         onClick={() => setVisibility('public')}
+                        aria-pressed={visibility === 'public'}
                         className={cn(
                           "py-4 rounded-3xl flex flex-col items-center gap-2 border-2 transition-all",
                           visibility === 'public' 
@@ -419,8 +474,10 @@ export default function RoomsListPage() {
                         <p className="text-[8px] text-gray-400 leading-none">Aparece no Feed</p>
                       </button>
 
-                      <button 
+                      <button
+                        type="button"
                         onClick={() => setVisibility('private')}
+                        aria-pressed={visibility === 'private'}
                         className={cn(
                           "py-4 rounded-3xl flex flex-col items-center gap-2 border-2 transition-all",
                           visibility === 'private' 
@@ -437,19 +494,26 @@ export default function RoomsListPage() {
 
                   {visibility === 'private' && (
                     <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                      <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Convidar Intercessores (@)</label>
+                      <label htmlFor="invite-search" className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Convidar Intercessores (@)</label>
                       <div className="relative">
                         <input 
+                          id="invite-search"
+                          name="invite_search"
                           type="text" 
                           value={searchUser}
                           onChange={(e) => searchProfiles(e.target.value)}
+                          autoComplete="off"
+                          aria-controls="invite-search-results"
+                          aria-expanded={searchResults.length > 0}
                           placeholder="Buscar por nome ou @"
                           className="w-full bg-gray-50 dark:bg-white/5 border-none rounded-2xl px-5 py-3 text-xs focus:ring-2 focus:ring-whatsapp-teal/20 outline-none dark:text-white"
                         />
+                        {isSearching && <p className="px-3 pt-2 text-xs text-gray-500" role="status">Buscando pessoas…</p>}
                         {searchResults.length > 0 && (
-                          <div className="absolute z-50 left-0 right-0 top-full mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden p-1">
+                          <div id="invite-search-results" className="absolute z-50 left-0 right-0 top-full mt-2 bg-white dark:bg-[#1a1a1a] border border-gray-100 dark:border-white/10 rounded-2xl shadow-2xl overflow-hidden p-1">
                             {searchResults.map(user => (
                               <button 
+                                type="button"
                                 key={user.id}
                                 onClick={() => toggleInvite(user)}
                                 className="w-full flex items-center gap-3 p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all"
@@ -478,8 +542,8 @@ export default function RoomsListPage() {
                           {invitedUsers.map(u => (
                             <div key={u.id} className="bg-whatsapp-teal/10 text-whatsapp-teal text-[9px] font-black uppercase px-3 py-1.5 rounded-full flex items-center gap-2 border border-whatsapp-teal/20">
                               <span>{u.full_name}</span>
-                              <button onClick={() => toggleInvite(u)} className="hover:text-red-500 transition-colors">
-                                <X size={10} />
+                              <button type="button" onClick={() => toggleInvite(u)} aria-label={`Remover convite de ${u.full_name}`} className="hover:text-red-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal rounded-full">
+                                <X size={10} aria-hidden="true" />
                               </button>
                             </div>
                           ))}
@@ -513,7 +577,8 @@ export default function RoomsListPage() {
                               </p>
                             </div>
                           </div>
-                          <button 
+                          <button
+                            type="button"
                             onClick={() => setIsVerifyModalOpen(true)}
                             className="w-full py-3 bg-orange-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-orange-500/20 active:scale-95 transition-all"
                           >
@@ -525,18 +590,20 @@ export default function RoomsListPage() {
                   </AnimatePresence>
                 </div>
 
-                <button 
+                <button
+                  type="button"
                   onClick={handleCreateRoom}
-                  className="w-full py-5 bg-whatsapp-teal text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-whatsapp-teal/20 active:scale-95 transition-all mt-4"
+                  disabled={isCreatingRoom}
+                  className="w-full py-5 bg-whatsapp-teal text-white rounded-3xl font-black text-xs uppercase tracking-widest shadow-2xl shadow-whatsapp-teal/20 active:scale-95 transition-all mt-4 disabled:cursor-wait disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2"
                 >
-                  Abrir Sala Agora
+                  {isCreatingRoom ? 'Criando sala…' : 'Abrir Sala Agora'}
                 </button>
               </div>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
       <VerificationModal 
         isOpen={isVerifyModalOpen}
         onClose={() => setIsVerifyModalOpen(false)}

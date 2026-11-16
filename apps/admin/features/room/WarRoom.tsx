@@ -45,6 +45,16 @@ interface Reaction {
   offset: number;
 }
 
+function parseParticipantMetadata(metadata?: string | null): Record<string, string> {
+  if (!metadata) return {};
+  try {
+    const parsed: unknown = JSON.parse(metadata);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, string> : {};
+  } catch {
+    return {};
+  }
+}
+
 import { ChatOverlay } from "./ChatOverlay";
 import { MicCheckModal } from "./MicCheckModal";
 import { WarRoomSettings } from "./WarRoomSettings";
@@ -56,9 +66,13 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
   const [token, setToken] = useState<string | null>(null);
   const [roomData, setRoomData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [connectionError, setConnectionError] = useState(false);
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
 
   useEffect(() => {
     async function init() {
+      setLoading(true);
+      setConnectionError(false);
       const { data: room, error: roomError } = await supabase.from('rooms').select('*, profiles:creator_id(full_name, avatar_url)').eq('id', roomId).single();
       if (roomError || !room) { toast.error("Sala não encontrada"); onExit(); return; }
       
@@ -129,19 +143,32 @@ export function WarRoom({ roomId, user, onExit }: WarRoomProps) {
       } catch (err) {
         console.error("Erro token:", err);
         toast.error("Erro sintonizando clamor. Tente novamente.");
+        setConnectionError(true);
       } finally {
         setLoading(false);
       }
     }
     init();
-  }, [roomId, user?.id]);
+  }, [roomId, user?.id, connectionAttempt]);
 
-  if (loading || !token) {
+  if (loading) {
     return (
-      <div className="fixed inset-0 z-50 bg-[#0e0e0e] flex flex-col items-center justify-center gap-6">
+      <div className="fixed inset-0 z-50 bg-[#0e0e0e] flex flex-col items-center justify-center gap-6" role="status" aria-live="polite">
         <div className="w-16 h-16 rounded-full border-4 border-[#3fff8b]/20 animate-spin border-t-[#3fff8b]" />
-        <p className="text-[#3fff8b] font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Sintonizando Canal de Oração...</p>
+        <p className="text-[#3fff8b] font-black uppercase tracking-[0.4em] text-[10px] animate-pulse">Sintonizando canal de oração…</p>
       </div>
+    );
+  }
+
+  if (!token) {
+    return (
+      <main className="fixed inset-0 z-50 bg-[#0e0e0e] flex flex-col items-center justify-center gap-4 px-6 text-center text-white">
+        <h1 className="text-lg font-bold">Não foi possível conectar à sala</h1>
+        <p className="max-w-sm text-sm text-white/60">Verifique sua conexão e tente novamente.</p>
+        <button type="button" onClick={() => setConnectionAttempt((attempt) => attempt + 1)} className="rounded-xl bg-[#3fff8b] px-5 py-3 text-sm font-bold text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">Tentar novamente</button>
+        <button type="button" onClick={onExit} className="text-sm text-white/70 underline underline-offset-4">Voltar às salas</button>
+        {connectionError && <p className="sr-only" role="alert">A conexão com a sala falhou.</p>}
+      </main>
     );
   }
 
@@ -244,6 +271,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
   const handleSendMessage = async (content: string, file?: File) => {
     if (!content.trim() && !file) return;
 
+    try {
     let media_url: string | undefined = undefined;
     if (file) {
       // --- SECURITY-REVIEW: Validação Estrita de Arquivos ---
@@ -285,24 +313,49 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
       media_url = publicUrl;
     }
 
-    await sendRoomMessage(content, media_url);
+    const { error } = await sendRoomMessage(content, media_url);
+    if (error) {
+      toast.error("Não foi possível enviar sua mensagem. Tente novamente.");
+      return;
+    }
     setChatInput("");
+    } catch (error) {
+      console.error("Erro ao enviar mensagem da sala:", error);
+      toast.error("Não foi possível enviar sua mensagem. Tente novamente.");
+    }
   };
 
   const approveReq = async (r: any) => {
-    setPendingRequests(prev => prev.filter(req => req.id !== r.id));
-    await supabase.from('requests').update({ status: 'approved' }).eq('id', r.id);
-    await supabase.from('participants').upsert(
-      { room_id: roomData.id, user_id: r.user_id, role: 'speaker' },
-      { onConflict: 'room_id,user_id' }
-    );
-    toast.success("Intercessor aprovado! 🎤");
+    try {
+      const { error: participantError } = await supabase.from('participants').upsert(
+        { room_id: roomData.id, user_id: r.user_id, role: 'speaker' },
+        { onConflict: 'room_id,user_id' }
+      );
+      if (participantError) throw participantError;
+      const { error: requestError } = await supabase.from('requests').update({ status: 'approved' }).eq('id', r.id);
+      if (requestError) throw requestError;
+      setPendingRequests(prev => prev.filter(req => req.id !== r.id));
+      toast.success("Intercessor aprovado! 🎤");
+    } catch (error) {
+      toast.error(error instanceof Error ? `Não foi possível aprovar: ${error.message}` : 'Não foi possível aprovar o pedido.');
+    }
+  };
+
+  const requestToSpeak = async () => {
+    setRequestStatus('pending');
+    const { error } = await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' });
+    if (error) {
+      setRequestStatus('none');
+      toast.error('Não foi possível enviar o pedido. Tente novamente.');
+      return;
+    }
+    toast.info("Pedido enviado");
   };
 
 
 
   const creatorInLive = participants.find(p => p.identity === roomData?.creator_id) || (localParticipant?.identity === roomData?.creator_id ? localParticipant : null);
-  const leaderMeta = JSON.parse(creatorInLive?.metadata || '{}');
+  const leaderMeta = parseParticipantMetadata(creatorInLive?.metadata);
 
   const handleLeaveSilently = () => {
     try {
@@ -360,8 +413,10 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
     <div className="fixed inset-0 z-50 w-full flex flex-col overflow-hidden bg-[#0a0a0a] text-white font-body antialiased">
       <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[300] w-full max-w-[280px] flex flex-col gap-4 pointer-events-none">
         {!canPlayAudio && (
-          <button 
+          <button
+            type="button"
             onClick={() => { startAudio(); }} 
+            aria-label="Ativar reprodução do áudio da sala"
             className="p-6 bg-red-600/90 backdrop-blur-3xl border border-red-500/30 rounded-[2.5rem] flex flex-col items-center text-center gap-4 pointer-events-auto shadow-2xl animate-pulse group active:scale-95 transition-all"
           >
             <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center">
@@ -402,8 +457,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
       </div>
 
       <div className="flex items-center justify-between px-6 pb-4 pt-[max(env(safe-area-inset-top),2rem)] z-20 w-full">
-        <button onClick={handleLeaveSilently} className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors">
-          <ArrowLeft size={20} />
+        <button type="button" onClick={handleLeaveSilently} aria-label="Sair da sala" className="flex items-center justify-center w-10 h-10 rounded-full hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fff8b]">
+          <ArrowLeft size={20} aria-hidden="true" />
         </button>
         <div className="flex flex-col items-center">
           <h1 className="font-headline font-extrabold text-sm tracking-tight uppercase text-center text-white">
@@ -426,8 +481,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
             )}
           </div>
         </div>
-        <button onClick={handleCloseClick} className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-white/10 transition-all active:scale-90 text-white">
-          <X size={24} />
+        <button type="button" onClick={handleCloseClick} aria-label={myRole === 'creator' ? 'Opções para encerrar ou sair da sala' : 'Sair da sala'} className="flex items-center justify-center w-11 h-11 rounded-full hover:bg-white/10 transition-all active:scale-90 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fff8b]">
+          <X size={24} aria-hidden="true" />
         </button>
       </div>
 
@@ -482,6 +537,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
           <div className="absolute right-4 flex flex-col gap-3">
             <button
+              type="button"
+              aria-label={localParticipant?.isMicrophoneEnabled ? 'Desativar microfone' : 'Ativar microfone'}
               onClick={async () => {
                 if (!localParticipant) return;
                 const canSpeak = myRole === 'creator' || myRole === 'admin' || myRole === 'speaker';
@@ -505,6 +562,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
             </button>
             {myRole === 'creator' || myRole === 'admin' || myRole === 'speaker' ? (
               <button 
+                type="button"
+                aria-label="Testar microfone e áudio"
                 onClick={() => setShowMicTest(true)} 
                 className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 text-[#3fff8b] transition-all active:scale-95"
               >
@@ -512,7 +571,11 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
               </button>
             ) : (
               <button 
-                onClick={async () => { setRequestStatus('pending'); await supabase.from('requests').insert({ room_id: roomData.id, user_id: user.id, status: 'pending' }); toast.info("Pedido enviado"); }} 
+                type="button"
+                aria-label={requestStatus === 'pending' ? 'Pedido para falar enviado' : 'Pedir para falar'}
+                aria-pressed={requestStatus === 'pending'}
+                disabled={requestStatus === 'pending'}
+                onClick={requestToSpeak}
                 className={cn(
                   "w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 text-[#3fff8b] transition-all", 
                   requestStatus === 'pending' && "bg-[#3fff8b]/40 animate-pulse border-[#3fff8b]"
@@ -521,8 +584,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
                 <Hand size={20} />
               </button>
             )}
-            <button onClick={() => setShowModeration(true)} className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 hover:bg-[#3fff8b]/20 active:scale-95 transition-all text-[#3fff8b] relative">
-              <Users size={20} />
+            <button type="button" onClick={() => setShowModeration(true)} aria-label={`Abrir participantes${pendingRequests.length ? `, ${pendingRequests.length} pedidos pendentes` : ''}`} className="w-12 h-12 rounded-full glass-panel flex items-center justify-center border border-[#3fff8b]/30 bg-[#3fff8b]/10 hover:bg-[#3fff8b]/20 active:scale-95 transition-all text-[#3fff8b] relative focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fff8b]">
+              <Users size={20} aria-hidden="true" />
               {pendingRequests.length > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full border-2 border-[#0e0e0e] flex items-center justify-center">
                   <span className="relative text-[8px] font-black text-white">{pendingRequests.length}</span>
@@ -530,6 +593,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
               )}
             </button>
             <button 
+              type="button"
+              aria-label="Compartilhar convite da sala"
               onClick={() => {
                 const shareData = {
                   title: roomData?.name || "War Room FéConecta",
@@ -558,7 +623,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
         <div className="flex items-center justify-center -space-x-3 mb-2">
           {activeParticipants.slice(0, 3).map((p, i) => {
-            const meta = JSON.parse(p.metadata || '{}');
+            const meta = parseParticipantMetadata(p.metadata);
             return (
               <div key={i} className="relative transition-all opacity-100 saturate-150">
                 <div className="w-12 h-12 rounded-full border-2 border-[#3fff8b] avatar-glow overflow-hidden bg-zinc-800 flex items-center justify-center shadow-xl">
@@ -591,16 +656,16 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
         <div className="w-full max-w-[320px] flex flex-col gap-1.5 mb-1 shrink-0">
           <div className="flex gap-3">
-            <button onClick={() => { handleAddReaction("🙏"); handleSendMessage("Amém! 🙏"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all">
+            <button type="button" aria-label="Reagir: Amém" onClick={() => { handleAddReaction("🙏"); void handleSendMessage("Amém! 🙏"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <span className="font-headline font-extrabold text-[#0e0e0e] text-xs tracking-widest uppercase italic">Amém</span>
             </button>
-            <button onClick={() => { handleAddReaction("🙌"); handleSendMessage("Glória! 🙌"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all">
+            <button type="button" aria-label="Reagir: Glória" onClick={() => { handleAddReaction("🙌"); void handleSendMessage("Glória! 🙌"); }} className="primary-gradient flex-1 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <span className="font-headline font-extrabold text-[#0e0e0e] text-xs tracking-widest uppercase italic">Glória</span>
             </button>
           </div>
           <div className="flex justify-between px-4">
             {["🙏", "👏", "🔥", "❤️"].map((e) => (
-              <button key={e} onClick={() => { handleAddReaction(e); handleSendMessage(e); }} className="w-10 h-10 rounded-full glass-panel flex items-center justify-center border border-white/5 active:scale-90 transition-all text-xl">{e}</button>
+              <button type="button" key={e} aria-label={`Reagir com ${e}`} onClick={() => { handleAddReaction(e); void handleSendMessage(e); }} className="w-10 h-10 rounded-full glass-panel flex items-center justify-center border border-white/5 active:scale-90 transition-all text-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fff8b]">{e}</button>
             ))}
           </div>
         </div>
@@ -636,7 +701,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
 
       <div className="w-full px-6 pt-4 pb-[env(safe-area-inset-bottom,1.5rem)] bg-gradient-to-t from-[#0e0e0e] via-[#0e0e0e] to-transparent border-t border-white/5 z-[110]">
         <div className="relative flex items-center gap-2">
-          <button onClick={() => setShowChatOverlay(true)} className="md:hidden w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-[#3fff8b] transition-colors"><Users size={18} /></button>
+          <button type="button" onClick={() => setShowChatOverlay(true)} aria-label="Abrir conversa da sala" className="md:hidden w-11 h-11 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-[#3fff8b] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fff8b]"><Users size={18} aria-hidden="true" /></button>
           <input 
             type="file" 
             id="desktop-chat-file"
@@ -647,6 +712,8 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
             }}
           />
           <button 
+            type="button"
+            aria-label="Anexar imagem ou arquivo"
             onClick={() => document.getElementById('desktop-chat-file')?.click()}
             className="hidden md:flex w-11 h-11 rounded-full bg-white/5 border border-white/10 items-center justify-center text-white/40 hover:text-[#3fff8b] transition-colors active:scale-90"
           >
@@ -654,6 +721,9 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
           </button>
           <div className="flex-1 relative">
             <input
+              aria-label="Mensagem para a sala"
+              name="room_message"
+              autoComplete="off"
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
@@ -661,7 +731,7 @@ function WarRoomInterface({ roomData, setRoomData, user, onExit }: { roomData: a
               placeholder="Envie sua intercessão..."
               className="w-full bg-[#0f0f0f] border border-white/10 rounded-full py-3.5 px-5 text-sm focus:ring-1 focus:ring-[#3fff8b]/50 placeholder:text-white/20 outline-none text-white"
             />
-            <button onClick={() => { if (chatInput.trim()) handleSendMessage(chatInput); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#3fff8b]/10 flex items-center justify-center hover:bg-[#3fff8b]/20 transition-colors active:scale-95"><Send size={18} className="text-[#3fff8b]" /></button>
+            <button type="button" aria-label="Enviar mensagem" onClick={() => { if (chatInput.trim()) void handleSendMessage(chatInput); }} className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-[#3fff8b]/10 flex items-center justify-center hover:bg-[#3fff8b]/20 transition-colors active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3fff8b]"><Send size={18} className="text-[#3fff8b]" aria-hidden="true" /></button>
           </div>
         </div>
       </div>
