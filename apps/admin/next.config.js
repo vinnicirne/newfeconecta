@@ -59,6 +59,9 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
+  // Keep `next dev` output separate so a production build cannot overwrite
+  // the styles and manifests used by an already-running development server.
+  distDir: process.env.NODE_ENV === 'development' ? '.next-dev' : '.next',
   typescript: {
     ignoreBuildErrors: true,
   },
