@@ -117,12 +117,11 @@ export default function PostCardMedia() {
             aria-label={`Carrossel com ${carouselUrls.length} fotos`}
           >
             {carouselUrls.map((url, index) => (
-              <button
+              <div
                 key={`${url}-${index}`}
-                type="button"
-                onClick={() => setLightboxUrl(url)}
-                aria-label={`Ampliar foto ${index + 1} de ${carouselUrls.length}`}
-                className="relative h-full w-full shrink-0 snap-start bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white"
+                role="group"
+                aria-label={`Foto ${index + 1} de ${carouselUrls.length}`}
+                className="relative h-full w-full shrink-0 snap-start bg-black"
               >
                 <Image
                   src={mediaUrlForRetry(url, retryCount)}
@@ -138,7 +137,7 @@ export default function PostCardMedia() {
                     else setMediaError(true);
                   }}
                 />
-              </button>
+              </div>
             ))}
           </div>
           <div className="absolute right-3 top-3 rounded-full bg-black/65 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur" aria-live="polite">
