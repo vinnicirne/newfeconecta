@@ -1,13 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import Link from "next/link";
-import { 
-  ShieldAlert, AlertTriangle, AlertOctagon, CheckCircle2, 
-  Clock, RefreshCw, Activity, Users, Flame, Plus, X, 
-  Check, Radio, ArrowUpRight, Zap, Play, Square, MessageSquare,
-  ShieldCheck
-} from "lucide-react";
+import { AlertOctagon, CheckCircle2, RefreshCw, Activity, Users, Flame, X, Zap, ShieldCheck } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
@@ -27,6 +21,8 @@ interface IncidentItem {
   metrics_summary?: string;
   created_at: string;
   resolved_at?: string;
+  metadata?: Record<string, unknown>;
+  isReport?: boolean;
 }
 
 export default function WaroomPage() {
@@ -34,8 +30,11 @@ export default function WaroomPage() {
   const [loading, setLoading] = useState(true);
   const [isDeclareOpen, setIsDeclareOpen] = useState(false);
   const [selectedIncident, setSelectedIncident] = useState<IncidentItem | null>(null);
-  const [onlineModsCount, setOnlineModsCount] = useState(1);
+  const [onlineModsCount, setOnlineModsCount] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [updatingIncidentId, setUpdatingIncidentId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
 
   const [formData, setFormData] = useState({
     title: "",
@@ -45,27 +44,23 @@ export default function WaroomPage() {
     metrics_summary: "",
   });
 
-  // Estatísticas
-  const [stats, setStats] = useState({
-    activeIncidents: 0,
-    reportsPerMin: 0,
-    onlineModerators: 1,
-    avgResponseTime: "2m 14s",
-  });
+  const reportCount = incidents.filter((incident) => incident.isReport).length;
+  const activeCount = incidents.filter((incident) => incident.status === "active").length;
 
   useEffect(() => {
     fetchIncidents();
 
     // ⚡ Monitor Realtime WebSocket de Incidentes e Presença
+    const presenceKey = typeof crypto !== "undefined" ? crypto.randomUUID() : `waroom-${Date.now()}`;
     const channel = supabase.channel("waroom-realtime-monitor", {
-      config: { presence: { key: "waroom-admin" } },
+      config: { presence: { key: presenceKey } },
     });
 
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         const count = Object.keys(state).length;
-        setOnlineModsCount(Math.max(1, count));
+        setOnlineModsCount(count);
       })
       .on(
         "postgres_changes",
@@ -75,6 +70,7 @@ export default function WaroomPage() {
         }
       )
       .subscribe(async (status) => {
+        setIsRealtimeConnected(status === "SUBSCRIBED");
         if (status === "SUBSCRIBED") {
           await channel.track({ online_at: new Date().toISOString() });
         }
@@ -97,74 +93,38 @@ export default function WaroomPage() {
 
       if (error) throw error;
 
-      // Formatar ou gerar incidentes a partir dos logs reais
-      const formatted: IncidentItem[] = (data || []).map((item: any, index: number) => {
+      // Normalizar incidentes e denúncias registrados no banco
+      const formatted: IncidentItem[] = (data || []).map((item: any) => {
         const isReport = item.error_message?.startsWith("[DENÚNCIA]");
         const isResolved = item.resolved;
-        const sev = index % 3 === 0 ? "SEV-1" : index % 2 === 0 ? "SEV-2" : "SEV-3";
+        const severityMatch = item.error_message?.match(/\[(?:WAROOM )?(SEV-[123])\]/i);
+        const savedSeverity = item.metadata?.severity;
+        const severityCandidate = savedSeverity || severityMatch?.[1];
+        const sev: IncidentItem["severity"] = severityCandidate === "SEV-1" || severityCandidate === "SEV-2" || severityCandidate === "SEV-3"
+          ? severityCandidate
+          : isReport ? "SEV-2" : "SEV-3";
+        const rawTitle = String(item.error_message || "Oscilação no serviço").replace(/^\[WAROOM SEV-[123]\]\s*/i, "").replace(/^\[DENÚNCIA\]\s*/i, "");
 
         return {
           id: item.id,
-          title: isReport ? `${sev} · ${item.metadata?.reason || "Pico de denúncias na rede"}` : `${sev} · ${item.error_message || "Oscilação no serviço"}`,
+          title: `${sev} · ${isReport ? item.metadata?.reason || rawTitle : rawTitle}`,
           description: item.metadata?.snippet || item.stack_trace || "Incidente registrado pelo monitor de infraestrutura.",
           severity: sev,
-          status: isResolved ? "resolved" : index === 0 ? "active" : "contained",
+          status: isResolved ? "resolved" : item.metadata?.status === "contained" ? "contained" : "active",
           affected_module: item.module || "Infraestrutura",
           metrics_summary: item.metadata?.post_id ? `Post #${item.metadata.post_id.slice(0, 6)} · ${item.metadata?.author || "membro"}` : `Módulo ${item.module || "Core"}`,
           created_at: item.created_at,
+          resolved_at: item.resolved_at,
+          metadata: item.metadata || {},
+          isReport,
         };
       });
 
-      const activeList = formatted.filter((i) => i.status === "active");
-
       setIncidents(formatted);
-      setStats({
-        activeIncidents: activeList.length || (formatted.length > 0 ? 3 : 0),
-        reportsPerMin: Math.floor(Math.random() * 8) + 12,
-        onlineModerators: onlineModsCount,
-        avgResponseTime: "2m 14s",
-      });
+      setLoadError(false);
     } catch (err: any) {
       console.warn("[Waroom] Erro ao carregar incidentes:", err);
-      // Fallback gracioso com itens padrão caso a tabela esteja vazia
-      setIncidents([
-        {
-          id: "inc-1",
-          title: "SEV-1 · Onda coordenada de spam",
-          description: "Múltiplas publicações automatizadas detectadas em curto intervalo de tempo.",
-          severity: "SEV-1",
-          status: "active",
-          affected_module: "Feed & Spam",
-          metrics_summary: "142 posts em 6 min · 12 contas novas",
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: "inc-2",
-          title: "SEV-2 · Pico de denúncias em live",
-          description: "Volume de denúncias acima do limiar padrão de segurança.",
-          severity: "SEV-2",
-          status: "active",
-          affected_module: "Transmissões / Culto",
-          metrics_summary: "Igreja Central do Sul · 38 denúncias",
-          created_at: moment().subtract(15, "minutes").toISOString(),
-        },
-        {
-          id: "inc-3",
-          title: "SEV-3 · Fila de notificações push",
-          description: "Lentidão temporária no gateway de envio de mensagens.",
-          severity: "SEV-3",
-          status: "contained",
-          affected_module: "Push Notifications",
-          metrics_summary: "Fila em processamento",
-          created_at: moment().subtract(45, "minutes").toISOString(),
-        },
-      ]);
-      setStats({
-        activeIncidents: 3,
-        reportsPerMin: 18,
-        onlineModerators: onlineModsCount,
-        avgResponseTime: "2m 14s",
-      });
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -190,6 +150,7 @@ export default function WaroomPage() {
             snippet: formData.description.trim(),
             metrics: formData.metrics_summary.trim() || "Declarado manualmente",
             severity: formData.severity,
+            status: "active",
           },
         })
         .select()
@@ -206,6 +167,7 @@ export default function WaroomPage() {
         affected_module: formData.affected_module,
         metrics_summary: formData.metrics_summary.trim() || "Monitoramento ativo",
         created_at: new Date().toISOString(),
+        metadata: { status: "active", severity: formData.severity },
       };
 
       setIncidents((prev) => [newInc, ...prev]);
@@ -226,12 +188,17 @@ export default function WaroomPage() {
   };
 
   const handleUpdateStatus = async (incident: IncidentItem, newStatus: "contained" | "resolved") => {
+    setUpdatingIncidentId(incident.id);
     const toastId = toast.loading(`Alterando status do incidente para ${newStatus === "resolved" ? "Encerrado" : "Contido"}...`);
     try {
-      await supabase
+      const { error } = await supabase
         .from("system_errors")
-        .update({ resolved: newStatus === "resolved" })
+        .update({
+          resolved: newStatus === "resolved",
+          metadata: { ...(incident.metadata || {}), status: newStatus },
+        })
         .eq("id", incident.id);
+      if (error) throw error;
 
       setIncidents((prev) =>
         prev.map((i) => (i.id === incident.id ? { ...i, status: newStatus } : i))
@@ -240,6 +207,8 @@ export default function WaroomPage() {
       toast.success(newStatus === "resolved" ? "Incidente encerrado com sucesso! ✅" : "Incidente marcado como Contido. 🛡️", { id: toastId });
     } catch (err: any) {
       toast.error("Erro ao atualizar incidente: " + err.message, { id: toastId });
+    } finally {
+      setUpdatingIncidentId(null);
     }
   };
 
@@ -254,7 +223,7 @@ export default function WaroomPage() {
             </h1>
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
               <span className="h-1.5 w-1.5 rounded-full bg-red-500 animate-ping" />
-              Ao Vivo
+              {isRealtimeConnected ? "Ao Vivo" : "Reconectando"}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
@@ -266,14 +235,16 @@ export default function WaroomPage() {
           <button
             onClick={fetchIncidents}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+            type="button"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-border bg-card text-xs font-medium text-foreground hover:bg-muted transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
           >
             <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin text-whatsapp-green")} />
             <span>Atualizar</span>
           </button>
           <button
             onClick={() => setIsDeclareOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors shadow-sm active:scale-95"
+            type="button"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold transition-colors shadow-sm active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2"
           >
             <AlertOctagon className="h-3.5 w-3.5" />
             <span>Declarar Incidente</span>
@@ -281,78 +252,19 @@ export default function WaroomPage() {
         </div>
       </div>
 
-      {/* ─── 4 CARDS DE MÉTRICAS (STATS GRID) ─── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Incidentes Ativos */}
+      {/* Métricas calculadas a partir dos incidentes carregados e da presença realtime */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-xl border border-red-500/30 bg-red-500/5 dark:bg-red-950/10 p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Incidentes Ativos</span>
-            <div className="p-2 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400">
-              <Flame className="h-4 w-4 animate-pulse" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {stats.activeIncidents}
-            </span>
-            <span className="text-[11px] font-semibold text-red-600 dark:text-red-400 bg-red-500/10 px-1.5 py-0.5 rounded">
-              Severidade 1 e 2
-            </span>
-          </div>
+          <div className="flex items-center justify-between"><span className="text-xs font-medium text-muted-foreground">Incidentes ativos</span><Flame className="h-4 w-4 text-red-500" aria-hidden="true" /></div>
+          <p className="mt-3 text-2xl font-bold tabular-nums text-foreground">{activeCount}</p>
         </div>
-
-        {/* Denúncias/min */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Denúncias / min</span>
-            <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400">
-              <Activity className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {stats.reportsPerMin}
-            </span>
-            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
-              ▲ 240% vs. média
-            </span>
-          </div>
+          <div className="flex items-center justify-between"><span className="text-xs font-medium text-muted-foreground">Denúncias carregadas</span><Activity className="h-4 w-4 text-amber-500" aria-hidden="true" /></div>
+          <p className="mt-3 text-2xl font-bold tabular-nums text-foreground">{reportCount}</p>
         </div>
-
-        {/* Moderadores Online */}
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Moderadores Online</span>
-            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-              <Users className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {stats.onlineModerators}
-            </span>
-            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-              Turno ativo
-            </span>
-          </div>
-        </div>
-
-        {/* Tempo de Resposta */}
-        <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-muted-foreground">Tempo de Resposta</span>
-            <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
-              <Clock className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-foreground">
-              {stats.avgResponseTime}
-            </span>
-            <span className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">
-              Meta &lt; 5 min
-            </span>
-          </div>
+          <div className="flex items-center justify-between"><span className="text-xs font-medium text-muted-foreground">Sessões na Waroom</span><Users className="h-4 w-4 text-emerald-500" aria-hidden="true" /></div>
+          <p className="mt-3 text-2xl font-bold tabular-nums text-foreground">{onlineModsCount}</p>
         </div>
       </div>
 
@@ -371,8 +283,14 @@ export default function WaroomPage() {
         {/* Lista de Incidentes */}
         <div className="divide-y divide-border/60">
           {loading ? (
-            <div className="py-12 text-center text-xs text-muted-foreground">
-              Carregando incidentes da sala de guerra...
+            <div className="py-12 text-center text-xs text-muted-foreground" role="status" aria-live="polite">
+              Carregando incidentes da Waroom…
+            </div>
+          ) : loadError ? (
+            <div className="py-12 text-center space-y-3" role="alert">
+              <p className="text-sm font-semibold text-foreground">Não foi possível carregar os incidentes.</p>
+              <p className="text-xs text-muted-foreground">Confira sua conexão e tente novamente.</p>
+              <button type="button" onClick={() => void fetchIncidents()} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">Tentar novamente</button>
             </div>
           ) : incidents.length === 0 ? (
             <div className="py-16 text-center space-y-2">
@@ -411,10 +329,11 @@ export default function WaroomPage() {
                   )}
 
                   <button
+                    type="button"
                     onClick={() => setSelectedIncident(incident)}
-                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-whatsapp-teal text-white hover:bg-whatsapp-tealLight transition-colors"
+                    className="px-3 py-1 rounded-lg text-xs font-semibold bg-whatsapp-teal text-white hover:bg-whatsapp-tealLight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2"
                   >
-                    Assumir
+                    {incident.status === "resolved" ? "Ver detalhes" : "Gerenciar"}
                   </button>
                 </div>
               </div>
@@ -427,28 +346,32 @@ export default function WaroomPage() {
       <DialogPrimitive.Root open={isDeclareOpen} onOpenChange={setIsDeclareOpen}>
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
-          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-card p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
+          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto overscroll-contain bg-card p-4 sm:p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <div className="p-2 rounded-lg bg-red-500/10 text-red-500">
                   <AlertOctagon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-foreground">Declarar Novo Incidente</h3>
-                  <p className="text-[11px] text-muted-foreground">Emita um alerta para resposta coordenada da equipe</p>
+                  <DialogPrimitive.Title className="font-bold text-sm text-foreground">Declarar Novo Incidente</DialogPrimitive.Title>
+                  <DialogPrimitive.Description className="text-[11px] text-muted-foreground">Emita um alerta para resposta coordenada da equipe</DialogPrimitive.Description>
                 </div>
               </div>
-              <DialogPrimitive.Close className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors">
-                <X className="h-4 w-4" />
+              <DialogPrimitive.Close aria-label="Fechar formulário" className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
+                <X className="h-4 w-4" aria-hidden="true" />
               </DialogPrimitive.Close>
             </div>
 
             <form onSubmit={handleDeclareIncident} className="space-y-4 pt-4 text-xs">
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Título do Incidente *</label>
+                <label htmlFor="incident-title" className="block text-muted-foreground font-medium mb-1">Título do Incidente *</label>
                 <input
+                  id="incident-title"
+                  name="title"
                   type="text"
                   required
+                  maxLength={160}
+                  autoComplete="off"
                   value={formData.title}
                   onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                   placeholder="Ex: Ataque de spam no feed / Instabilidade no WebSocket"
@@ -456,13 +379,15 @@ export default function WaroomPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-muted-foreground font-medium mb-1">Severidade</label>
+                  <label htmlFor="incident-severity" className="block text-muted-foreground font-medium mb-1">Severidade</label>
                   <select
+                    id="incident-severity"
+                    name="severity"
                     value={formData.severity}
-                    onChange={(e) => setFormData({ ...formData, severity: e.target.value as any })}
-                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-card text-foreground focus:outline-none"
+                    onChange={(e) => setFormData({ ...formData, severity: e.target.value as IncidentItem["severity"] })}
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                   >
                     <option value="SEV-1">SEV-1 (Crítico / Parada Total)</option>
                     <option value="SEV-2">SEV-2 (Alto / Degradação)</option>
@@ -471,11 +396,13 @@ export default function WaroomPage() {
                 </div>
 
                 <div>
-                  <label className="block text-muted-foreground font-medium mb-1">Módulo Afetado</label>
+                  <label htmlFor="incident-module" className="block text-muted-foreground font-medium mb-1">Módulo Afetado</label>
                   <select
+                    id="incident-module"
+                    name="affected_module"
                     value={formData.affected_module}
                     onChange={(e) => setFormData({ ...formData, affected_module: e.target.value })}
-                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-card text-foreground focus:outline-none"
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-card text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                   >
                     <option value="Feed & Publicações">Feed & Publicações</option>
                     <option value="Autenticação">Autenticação (Login/Cadastro)</option>
@@ -487,9 +414,13 @@ export default function WaroomPage() {
               </div>
 
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Impacto & Resumo Numérico</label>
+                <label htmlFor="incident-metrics" className="block text-muted-foreground font-medium mb-1">Impacto & Resumo Numérico</label>
                 <input
+                  id="incident-metrics"
+                  name="metrics_summary"
                   type="text"
+                  maxLength={250}
+                  autoComplete="off"
                   value={formData.metrics_summary}
                   onChange={(e) => setFormData({ ...formData, metrics_summary: e.target.value })}
                   placeholder="Ex: 140 posts em 5 min · 8 contas sob suspeita"
@@ -498,9 +429,13 @@ export default function WaroomPage() {
               </div>
 
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Descrição & Procedimento</label>
+                <label htmlFor="incident-description" className="block text-muted-foreground font-medium mb-1">Descrição & Procedimento</label>
                 <textarea
+                  id="incident-description"
+                  name="description"
                   rows={3}
+                  maxLength={2000}
+                  autoComplete="off"
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Instruções para os moderadores em plantão..."
@@ -534,7 +469,7 @@ export default function WaroomPage() {
       <DialogPrimitive.Root open={!!selectedIncident} onOpenChange={(open) => !open && setSelectedIncident(null)}>
         <DialogPrimitive.Portal>
           <DialogPrimitive.Overlay className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 animate-in fade-in" />
-          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-card p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
+          <DialogPrimitive.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] max-w-lg max-h-[90dvh] overflow-y-auto overscroll-contain bg-card p-4 sm:p-6 rounded-2xl z-50 border border-border shadow-2xl animate-in zoom-in-95 text-foreground">
             {selectedIncident && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-border pb-3">
@@ -543,14 +478,14 @@ export default function WaroomPage() {
                       <Zap className="h-5 w-5" />
                     </div>
                     <div>
-                      <h3 className="font-bold text-sm text-foreground">Ação de Resposta em Waroom</h3>
-                      <p className="text-[11px] text-muted-foreground font-mono">
+                      <DialogPrimitive.Title className="font-bold text-sm text-foreground">Ação de Resposta em Waroom</DialogPrimitive.Title>
+                      <DialogPrimitive.Description className="text-[11px] text-muted-foreground font-mono">
                         {selectedIncident.severity} · {selectedIncident.affected_module}
-                      </p>
+                      </DialogPrimitive.Description>
                     </div>
                   </div>
-                  <DialogPrimitive.Close className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors">
-                    <X className="h-4 w-4" />
+                  <DialogPrimitive.Close aria-label="Fechar detalhes do incidente" className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
+                    <X className="h-4 w-4" aria-hidden="true" />
                   </DialogPrimitive.Close>
                 </div>
 
@@ -574,20 +509,24 @@ export default function WaroomPage() {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-border">
+                {selectedIncident.status !== "resolved" && <div className="flex flex-col sm:flex-row gap-2 pt-3 border-t border-border">
                   <button
+                    type="button"
+                    disabled={updatingIncidentId === selectedIncident.id}
                     onClick={() => handleUpdateStatus(selectedIncident, "contained")}
-                    className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                   >
                     <ShieldCheck className="h-3.5 w-3.5" /> Marcar como Contido
                   </button>
                   <button
+                    type="button"
+                    disabled={updatingIncidentId === selectedIncident.id}
                     onClick={() => handleUpdateStatus(selectedIncident, "resolved")}
-                    className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center gap-1.5 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" /> Encerrar Incidente
                   </button>
-                </div>
+                </div>}
               </div>
             )}
           </DialogPrimitive.Content>
