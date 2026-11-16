@@ -151,16 +151,16 @@ export function MediaPreview({ captured, content, onContentChange, onClear, onPu
             <Images className="h-3.5 w-3.5" /> {carouselIndex + 1}/{carouselUrls.length}
           </div>
           {carouselIndex > 0 && (
-            <button type="button" aria-label="Foto anterior" onClick={() => scrollToCarouselImage(carouselIndex - 1)} className="absolute left-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <button type="button" aria-label="Foto anterior" onClick={() => scrollToCarouselImage(carouselIndex - 1)} className="absolute left-4 top-[25%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <ChevronLeft className="h-5 w-5" />
             </button>
           )}
           {carouselIndex < carouselUrls.length - 1 && (
-            <button type="button" aria-label="Próxima foto" onClick={() => scrollToCarouselImage(carouselIndex + 1)} className="absolute right-4 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
+            <button type="button" aria-label="Próxima foto" onClick={() => scrollToCarouselImage(carouselIndex + 1)} className="absolute right-4 top-[25%] z-30 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-black/55 text-white shadow-lg backdrop-blur hover:bg-black/75 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <ChevronRight className="h-5 w-5" />
             </button>
           )}
-          <div className="absolute bottom-36 left-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5">
+          <div className="absolute left-1/2 top-[calc(25%+3rem)] z-30 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/40 px-2 py-1 backdrop-blur-sm" aria-hidden="true">
             {carouselUrls.map((url, index) => <span key={url} className={cn("h-1.5 rounded-full transition-all", index === carouselIndex ? "w-4 bg-white" : "w-1.5 bg-white/50")} />)}
           </div>
         </>
