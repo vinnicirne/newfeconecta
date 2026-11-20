@@ -6,6 +6,8 @@ import ExternalMediaNative, { parseExternalMedia } from "./ExternalMediaNative";
 import { LinkPreview } from "./LinkPreview";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import PostCarousel from '@/modules/post-carousel/presentation/components/PostCarousel';
+import { getPostCarouselUrls } from '@/modules/post-carousel/domain/carousel-media.service';
 
 function mediaUrlForRetry(url: string, retryCount: number) {
   if (!retryCount) return url;
@@ -49,6 +51,8 @@ export default function PostCardMedia() {
   } = usePostCardMediaContext();
   const [videoReady, setVideoReady] = React.useState(false);
   const [videoBuffering, setVideoBuffering] = React.useState(true);
+  const carouselUrls = React.useMemo(() => getPostCarouselUrls(post), [post]);
+  const hasCarousel = isCarousel && carouselUrls.length > 1;
   React.useEffect(() => {
     setVideoReady(false);
     setVideoBuffering(true);
@@ -89,25 +93,8 @@ export default function PostCardMedia() {
           </div>
         )}
 
-      {isCarousel && mediaUrl && !shouldSkipMedia && (
-        <div className="relative aspect-[4/5] w-full overflow-hidden bg-black" role="img" aria-label="Primeira imagem; carrossel temporariamente desativado">
-          <Image
-            src={mediaUrlForRetry(mediaUrl, retryCount)}
-            fill
-            unoptimized
-            priority={isPriority}
-            sizes="(max-width: 768px) 100vw, 672px"
-            className="object-cover"
-            alt="Imagem da publicação"
-            onError={() => {
-              if (retryCount < 1) setRetryCount((count: number) => count + 1);
-              else setMediaError(true);
-            }}
-          />
-          <span className="absolute bottom-3 left-3 rounded-full bg-black/65 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur">
-            Carrossel temporariamente indisponível
-          </span>
-        </div>
+      {hasCarousel && !shouldSkipMedia && (
+        <PostCarousel urls={carouselUrls} priority={isPriority} onDoubleClick={handleDoubleClickLike} />
       )}
 
       {mediaError && mediaUrl && (
@@ -120,7 +107,7 @@ export default function PostCardMedia() {
       {/* Image Media */}
       {mediaUrl &&
         !shouldSkipMedia &&
-        !isCarousel &&
+        !hasCarousel &&
         (postType === "image" ||
           postType === "photo" ||
           post.media_type === "image" ||

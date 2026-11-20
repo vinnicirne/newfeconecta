@@ -1,21 +1,6 @@
-export function getPostCarouselUrls(post: any): string[] {
-  let metadata = post?.metadata;
+import { getPostCarouselUrls } from '@/modules/post-carousel/domain/carousel-media.service';
 
-  // JSONB normally arrives as an object. Older cached/API paths may serialize it
-  // to a JSON string, so normalize it before deciding whether this is a carousel.
-  if (typeof metadata === "string") {
-    try {
-      metadata = JSON.parse(metadata);
-    } catch {
-      metadata = null;
-    }
-  }
-
-  const urls = metadata?.media_urls ?? post?.media_urls;
-  return Array.isArray(urls)
-    ? urls.filter((url: unknown): url is string => typeof url === "string" && url.trim().length > 0)
-    : [];
-}
+export { getPostCarouselUrls };
 
 export function getPostMediaInfo(post: any) {
   const mediaUrl = post.media_url === "null" || !post.media_url ? null : post.media_url;

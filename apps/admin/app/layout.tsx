@@ -8,6 +8,7 @@ import { SWRProvider } from "@/components/swr-provider";
 import { GoogleProvider } from "@/components/google-provider";
 import { PresenceTracker } from "@/components/presence-tracker";
 import { GlobalShellFeatures } from "@/components/GlobalShellFeatures";
+import { LegacyPwaCacheReset } from "@/components/LegacyPwaCacheReset";
 import { SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
@@ -99,6 +100,7 @@ export default function RootLayout({
       </head>
 
       <body className="antialiased font-sans bg-white dark:bg-black text-gray-900 dark:text-white transition-colors duration-300" style={{ fontFamily: "'Poppins', sans-serif" }} suppressHydrationWarning>
+        <LegacyPwaCacheReset />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

@@ -45,7 +45,6 @@ import { useTheme } from "next-themes";
 import { Virtuoso } from 'react-virtuoso';
 import dynamic from "next/dynamic";
 
-const CreatePost = dynamic(() => import("@/components/feed/CreatePost"), { ssr: false });
 import PostCard from "@/components/feed/PostCard";
 import FollowSuggestions from "@/components/feed/FollowSuggestions";
 import SponsoredAdCard from "@/components/feed/SponsoredAdCard";
@@ -174,6 +173,7 @@ export default function RootPage() {
       display_date: post.created_at,
       content: (post.content || '').trim(),
       media_url: post.media_url,
+      media_urls: post.media_urls || null,
       media_type: post.media_type || 'text',
       post_type: post.post_type || post.media_type || 'text',
       metadata: post.metadata || {},
@@ -1345,17 +1345,6 @@ export default function RootPage() {
                 } else {
                   setViewingStoryGroup(group);
                 }
-              }}
-            />
-          </div>
-
-          {/* CreatePost — desktop: 2º / mobile: oculto */}
-          <div className="order-5 lg:order-2 mt-2 px-4 hidden lg:block">
-            <CreatePost
-              user={currentUser}
-              onPostCreated={(newPost?: any) => {
-                if (newPost) handleNewPost(newPost);
-                else loadInitialPosts(true);
               }}
             />
           </div>
