@@ -79,19 +79,19 @@ export function ProfileHeader({
       </div>
 
       {/* Top Header (Overlay style) */}
-      <div className="flex items-center justify-between px-4 pt-10 pb-4 absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between gap-2 px-3 pt-10 pb-4 absolute top-0 left-0 right-0 z-50 bg-gradient-to-b from-black/80 to-transparent sm:px-4">
+        <div className="flex min-w-0 items-center gap-2 sm:gap-3">
           <Link href="/" aria-label="Voltar ao feed" className="rounded-lg p-1 text-white transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
             <ArrowLeft className="h-6 w-6" aria-hidden="true" />
           </Link>
           <div className="flex items-center gap-1 text-white">
-            <h1 className="text-xl font-bold tracking-tight">{user?.username || '...'}</h1>
+            <h1 className="max-w-[42vw] truncate text-lg font-bold tracking-tight sm:max-w-none sm:text-xl">{user?.username || '...'}</h1>
             {isSelf && <ChevronDown className="h-4 w-4" aria-hidden="true" />}
           </div>
         </div>
         
         {isSelf && (
-          <div className="flex items-center gap-5 text-white">
+          <div className="flex shrink-0 items-center gap-2 text-white sm:gap-5">
             <button
               onClick={onOpenHighlightModal}
               aria-label="Criar destaque"
@@ -135,8 +135,8 @@ export function ProfileHeader({
       </div>
 
       {/* Profile Header Stats */}
-      <div className="px-5 -mt-12 relative z-10 pb-2">
-        <div className="flex items-center justify-between gap-4 mb-6 pt-12">
+      <div className="relative z-10 -mt-12 min-w-0 px-4 pb-2 sm:px-5">
+        <div className="mb-5 flex min-w-0 items-center gap-3 pt-12 sm:mb-6 sm:gap-4">
           {/* Avatar with Story Ring style */}
           <div className="relative group">
             <button
@@ -147,7 +147,7 @@ export function ProfileHeader({
               }}
               aria-label={userStoriesLength > 0 ? "Ver stories do perfil" : isSelf ? "Adicionar story" : "Foto de perfil"}
               className={cn(
-                "block h-[100px] w-[100px] appearance-none rounded-[32px] border-0 p-[3px] transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green",
+                "block h-20 w-20 shrink-0 appearance-none rounded-[26px] border-0 p-[3px] transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green sm:h-[100px] sm:w-[100px] sm:rounded-[32px]",
                 userStoriesLength > 0 ? "bg-gradient-to-tr from-whatsapp-teal to-whatsapp-green shadow-[0_0_15px_rgba(37,211,102,0.4)]" : "bg-white dark:bg-black"
               )}
             >
@@ -174,12 +174,12 @@ export function ProfileHeader({
             )}
           </div>
 
-          <div className="flex-1 flex justify-around items-start text-center pt-8">
-            <div className="flex flex-col min-w-[72px] cursor-default select-none">
-              <span className="font-bold text-lg leading-none text-black dark:text-white tabular-nums">
+          <div className="grid min-w-0 flex-1 grid-cols-3 items-start gap-1 pt-5 text-center sm:pt-8">
+            <div className="flex min-w-0 cursor-default select-none flex-col">
+              <span className="text-base font-bold leading-none text-black dark:text-white tabular-nums sm:text-lg">
                 {(user?.posts_count ?? 0).toLocaleString()}
               </span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">
+              <span className="mt-1 truncate text-[8px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-widest">
                 Publicações
               </span>
             </div>
@@ -189,13 +189,13 @@ export function ProfileHeader({
                   type="button"
                   onClick={() => user?.id && onFetchConnections('followers', user.id)}
                   disabled={!user?.id}
-                  className="flex flex-col min-w-[72px] hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                  className="flex min-w-0 flex-col hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                   aria-label={`${(user?.followers_count ?? 0).toLocaleString()} seguidores`}
                 >
-                  <span className="font-bold text-lg leading-none text-black dark:text-white tabular-nums">
+                  <span className="text-base font-bold leading-none text-black dark:text-white tabular-nums sm:text-lg">
                     {(user?.followers_count ?? 0).toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">
+                  <span className="mt-1 truncate text-[8px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-widest">
                     Seguidores
                   </span>
                 </button>
@@ -203,13 +203,13 @@ export function ProfileHeader({
                   type="button"
                   onClick={() => user?.id && onFetchConnections('following', user.id)}
                   disabled={!user?.id}
-                  className="flex flex-col min-w-[72px] hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
+                  className="flex min-w-0 flex-col hover:opacity-70 active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none"
                   aria-label={`${(user?.following_count ?? 0).toLocaleString()} seguindo`}
                 >
-                  <span className="font-bold text-lg leading-none text-black dark:text-white tabular-nums">
+                  <span className="text-base font-bold leading-none text-black dark:text-white tabular-nums sm:text-lg">
                     {(user?.following_count ?? 0).toLocaleString()}
                   </span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-400 font-bold uppercase tracking-widest mt-1">
+                  <span className="mt-1 truncate text-[8px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 sm:text-[10px] sm:tracking-widest">
                     Seguindo
                   </span>
                 </button>
@@ -257,18 +257,18 @@ export function ProfileHeader({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-2 mb-6">
+        <div className="mb-6 flex min-w-0 flex-nowrap gap-1.5 sm:gap-2">
           {isSelf ? (
             <>
               <button
                 onClick={onOpenEditModal}
-                className="flex-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 py-2 rounded-xl text-sm font-bold transition-all border border-black/5 dark:border-white/5 active:scale-95 uppercase tracking-wide text-gray-900 dark:text-white"
+                className="flex h-12 min-w-0 flex-[1.15] items-center justify-center whitespace-nowrap rounded-xl border border-black/5 bg-black/5 px-1 py-2 text-center text-[9px] font-bold uppercase tracking-tight text-gray-900 transition-all hover:bg-black/10 active:scale-95 dark:border-white/5 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 sm:h-auto sm:flex-1 sm:px-3 sm:text-sm sm:tracking-wide"
               >
                 Editar Perfil
               </button>
               <Link
                 href="/messages"
-                className="flex-1 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold transition-all border border-black/5 dark:border-white/5 active:scale-95 uppercase tracking-wide text-gray-900 dark:text-white"
+                className="flex h-12 min-w-0 flex-[0.75] items-center justify-center gap-1 whitespace-nowrap rounded-xl border border-black/5 bg-black/5 px-1 py-2 text-[10px] font-bold uppercase tracking-tight text-gray-900 transition-all hover:bg-black/10 active:scale-95 dark:border-white/5 dark:bg-white/10 dark:text-white dark:hover:bg-white/15 sm:h-auto sm:flex-1 sm:gap-2 sm:px-3 sm:text-sm sm:tracking-wide"
                 title="Mensagens"
               >
                 <MessageSquare className="w-4 h-4 text-gray-500 dark:text-gray-300" />
@@ -276,7 +276,7 @@ export function ProfileHeader({
               </Link>
               <Link
                 href="/santuario"
-                className="flex-1 bg-amber-500 hover:bg-amber-600 text-white flex items-center justify-center gap-2 py-2 rounded-xl text-sm font-bold transition-all shadow-[0_4px_14px_0_rgb(245,158,11,0.39)] active:scale-95 uppercase tracking-wide [text-shadow:0_1px_2px_rgba(0,0,0,0.5)]"
+                className="flex h-12 min-w-0 flex-[1.2] items-center justify-center gap-1 whitespace-nowrap rounded-xl bg-amber-500 px-1 py-2 text-[9px] font-bold uppercase tracking-tight text-white shadow-[0_4px_14px_0_rgb(245,158,11,0.39)] transition-all hover:bg-amber-600 active:scale-95 [text-shadow:0_1px_2px_rgba(0,0,0,0.5)] sm:h-auto sm:flex-1 sm:gap-2 sm:px-3 sm:text-sm sm:tracking-wide"
               >
                 <Flame className="w-4 h-4 fill-current drop-shadow-md" />
                 Lugar Secreto
@@ -296,7 +296,7 @@ export function ProfileHeader({
           {isSelf && (
             <DropdownMenu.Root>
               <DropdownMenu.Trigger asChild>
-                <button className="w-10 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-black/5 dark:border-white/5 active:scale-95 text-gray-900 dark:text-white focus:outline-none">
+                <button aria-label="Mais opções do perfil" className="h-12 w-9 shrink-0 bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center rounded-xl transition-all border border-black/5 dark:border-white/5 active:scale-95 text-gray-900 dark:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal sm:h-auto sm:w-10">
                   <ChevronDown className="w-4 h-4" />
                 </button>
               </DropdownMenu.Trigger>

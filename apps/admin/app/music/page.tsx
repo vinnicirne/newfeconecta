@@ -1,13 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
-import { PlayCircle, Plus, Music, Sparkles, Radio, ListPlus, Flame, Loader2 } from 'lucide-react';
-import MusicComposerModal from '@/components/feed/MusicComposerModal';
-import CreatePost from '@/components/feed/CreatePost';
+import { PlayCircle, Music, Sparkles, Radio, ListPlus } from 'lucide-react';
 import AddToPlaylistModal from '@/modules/femusic/presentation/components/AddToPlaylistModal';
 import { MusicTrack } from '@/modules/femusic/domain/entities/MusicTrack';
-import { supabase } from '@/lib/supabase';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { YouTubeService } from '@/modules/femusic/infrastructure/services/YouTubeService';
 import dynamic from 'next/dynamic';
@@ -117,7 +114,6 @@ export default function MusicFeedPage() {
   const [trending, setTrending] = useState<MusicTrack[]>(INITIAL_TRENDING_SEEDS);
   const [worship, setWorship] = useState<MusicTrack[]>(INITIAL_WORSHIP_SEEDS);
   const [loading, setLoading] = useState(true);
-  const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [selectedTrackForPlaylist, setSelectedTrackForPlaylist] = useState<MusicTrack | null>(null);
   const { play } = usePlayerStore();
   
@@ -158,6 +154,9 @@ export default function MusicFeedPage() {
         }
       }
 
+      // Os seeds e o histórico local já compõem uma tela utilizável, sem esperar a API externa.
+      if (isActive) setLoading(false);
+
       // As duas prateleiras são independentes; carregá-las juntas reduz o tempo de espera.
       const withTimeout = <T,>(promise: Promise<T>, fallback: T) => new Promise<T>((resolve) => {
         const timeout = setTimeout(() => resolve(fallback), 8000);
@@ -193,18 +192,6 @@ export default function MusicFeedPage() {
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 font-medium">O que vamos louvar hoje?</p>
         </div>
-        <button
-          onClick={() => setIsComposerOpen(true)}
-          aria-label="Compartilhar Louvor"
-          className="w-11 h-11 rounded-full bg-whatsapp-teal text-white flex items-center justify-center shadow-lg shadow-whatsapp-teal/20 hover:scale-105 active:scale-95 transition-all"
-          title="Compartilhar Louvor"
-        >
-          <Plus className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="px-4 mb-2">
-        <CreatePost user={user} />
       </div>
 
       {/* Continuar Ouvindo (Sessão salva com progresso) */}
@@ -390,19 +377,12 @@ export default function MusicFeedPage() {
         </div>
       </div>
 
-      <MusicComposerModal 
-        isOpen={isComposerOpen} 
-        onClose={() => setIsComposerOpen(false)} 
-        onSuccess={() => {
-          setIsComposerOpen(false);
-        }}
-      />
-
       <AddToPlaylistModal
         isOpen={!!selectedTrackForPlaylist}
         onClose={() => setSelectedTrackForPlaylist(null)}
         track={selectedTrackForPlaylist}
       />
+
     </div>
   );
 }

@@ -1,14 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
-import { Home, Image as ImageIcon, Video, BookOpen, Users, Shield, ArrowLeft, Clock, Heart, Search, MoreVertical, ChevronRight, Globe2, ChevronDown, Settings, Copy, Flag, LogOut, Bell } from "lucide-react";
+import { Home, Video, BookOpen, Users, Shield, ArrowLeft, Clock, Heart, Search, MoreVertical, ChevronRight, Globe2, ChevronDown, Settings, Copy, LogOut, Bell } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ChurchInviteModal } from "@/components/igreja/ChurchInviteModal";
 import { ChurchMemberProfileModal } from "@/components/igreja/ChurchMemberProfileModal";
 import { ChurchSearchModal } from "@/components/igreja/ChurchSearchModal";
@@ -26,6 +25,8 @@ export default function ChurchLayout({
   const [church, setChurch] = useState<any>(null);
   const [role, setRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const requestVersion = useRef(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -35,85 +36,126 @@ export default function ChurchLayout({
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    loadChurchAndUser();
-  }, [params.slug]);
+    const requestId = ++requestVersion.current;
+    setChurch(null);
+    setRole(null);
+    setCurrentUser(null);
+    setIsMember(false);
+    setJoinStatus(null);
+    setPendingCount(0);
+    loadChurchAndUser(requestId);
+    return () => {
+      if (requestVersion.current === requestId) requestVersion.current += 1;
+    };
+  }, [params.slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function loadChurchAndUser() {
-    // ✅ Rodada 1: auth + church em paralelo — nenhuma depende da outra
-    const [{ data: { user } }, { data: churchData }] = await Promise.all([
-      supabase.auth.getUser(),
-      supabase
-        .from('churches')
-        .select('*, church_members(count)')
-        .eq('slug', params.slug)
-        .single()
-    ]);
+  async function loadChurchAndUser(requestId?: number) {
+    const activeRequest = requestId ?? ++requestVersion.current;
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const [authResult, churchResult] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase
+          .from('churches')
+          .select('*, church_members(count)')
+          .eq('slug', params.slug)
+          .maybeSingle(),
+      ]);
+      if (activeRequest !== requestVersion.current) return;
+      if (authResult.error) throw authResult.error;
+      if (churchResult.error) throw churchResult.error;
 
-    if (!churchData) {
-      setLoading(false);
-      return;
-    }
+      const churchData = churchResult.data;
+      if (!churchData) {
+        setChurch(null);
+        return;
+      }
 
-    // ✅ Usa count real do join como fonte da verdade (fallback robusto)
-    const realMemberCount = (churchData.church_members as any)?.[0]?.count ?? churchData.member_count ?? 0;
-    setChurch({ ...churchData, member_count: realMemberCount });
+      const realMemberCount = (churchData.church_members as any)?.[0]?.count ?? churchData.member_count ?? 0;
+      setChurch({ ...churchData, member_count: realMemberCount });
 
+      const user = authResult.data.user;
+      if (!user) {
+        setCurrentUser(null);
+        setIsMember(false);
+        setJoinStatus(null);
+        return;
+      }
 
-    if (!user) {
-      setLoading(false);
-      return;
-    }
-
-    // ✅ Rodada 2: permissão do membro + perfil do usuário
-    const [{ data: member }, { data: profile }] = await Promise.all([
-      supabase
-        .from('church_members')
-        .select('role, approved')
-        .eq('church_id', churchData.id)
-        .eq('user_id', user.id)
-        .maybeSingle(),
-      supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single()
-    ]);
-
-    // Mescla o Auth User com os dados reais de perfil para uso nos componentes
-    setCurrentUser({ ...user, ...profile });
-
-    if (member?.approved) {
-      setRole(member.role);
-      setIsMember(true);
-
-      // ✅ Rodada 3 (somente admins): pending count
-      if (['admin', 'pastor'].includes(member.role)) {
-        const { count } = await supabase
-          .from('church_join_requests')
-          .select('*', { count: 'exact', head: true })
+      const [memberResult, profileResult] = await Promise.all([
+        supabase
+          .from('church_members')
+          .select('role, approved')
           .eq('church_id', churchData.id)
-          .eq('status', 'pending');
-        setPendingCount(count || 0);
-      }
-    } else {
-      setIsMember(false);
-      const { data: req } = await supabase
-        .from('church_join_requests')
-        .select('status')
-        .eq('church_id', churchData.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (req?.status === 'pending') {
-        setJoinStatus('pending');
-      }
-    }
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle(),
+      ]);
+      if (activeRequest !== requestVersion.current) return;
+      if (memberResult.error) throw memberResult.error;
+      if (profileResult.error) throw profileResult.error;
 
-    setLoading(false);
+      const member = memberResult.data;
+      setCurrentUser({ ...user, ...profileResult.data });
+
+      if (member?.approved) {
+        setRole(member.role);
+        setIsMember(true);
+        if (['admin', 'pastor'].includes(member.role)) {
+          const { count, error } = await supabase
+            .from('church_join_requests')
+            .select('*', { count: 'exact', head: true })
+            .eq('church_id', churchData.id)
+            .eq('status', 'pending');
+          if (activeRequest !== requestVersion.current) return;
+          if (error) throw error;
+          setPendingCount(count || 0);
+        }
+      } else {
+        setIsMember(false);
+        const { data: request, error } = await supabase
+          .from('church_join_requests')
+          .select('status')
+          .eq('church_id', churchData.id)
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (activeRequest !== requestVersion.current) return;
+        if (error) throw error;
+        setJoinStatus(request?.status === 'pending' ? 'pending' : null);
+      }
+    } catch (error) {
+      if (activeRequest === requestVersion.current) {
+        console.error('[Igreja] Erro ao carregar comunidade:', error);
+        setLoadError(error instanceof Error ? error.message : 'Não foi possível carregar esta igreja.');
+      }
+    } finally {
+      if (activeRequest === requestVersion.current) setLoading(false);
+    }
   }
 
-  if (loading) return <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">Carregando Igreja...</div>;
-  if (!church) return <div className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">Igreja não encontrada.</div>;
+  if (loading || (church && church.slug !== params.slug)) return <div role="status" aria-live="polite" className="min-h-screen bg-[#0A0A0A] flex items-center justify-center text-white">Carregando igreja…</div>;
+  if (loadError) return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <p role="alert">Não foi possível carregar esta igreja.</p>
+      <button type="button" onClick={() => loadChurchAndUser()} className="px-5 py-2.5 rounded-xl bg-whatsapp-teal text-white font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">Tentar novamente</button>
+      <Link href="/igreja" className="text-sm underline">Voltar à lista de igrejas</Link>
+    </div>
+  );
+  if (!church) return (
+    <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <p role="status">Igreja não encontrada.</p>
+      <Link href="/igreja" className="text-sm underline underline-offset-4">Voltar à lista de igrejas</Link>
+    </div>
+  );
 
   const tabs = [
     { name: 'Início', path: `/igreja/${params.slug}`, icon: <Home size={18} /> },
@@ -123,28 +165,54 @@ export default function ChurchLayout({
     { name: 'Membros', path: `/igreja/${params.slug}/membros`, icon: <Users size={18} /> },
   ];
 
-  const isAdminRoute = pathname.includes('/admin');
-
   const isDeepGroupRoute = pathname.includes('/celula/') || (pathname.includes('/ministerios/') && pathname.split('/').length > 4);
 
   const handleJoinChurch = async () => {
     if (!currentUser) return router.push('/login');
+    if (joinStatus === 'loading') return;
     setJoinStatus('loading');
+    try {
+      // church_join_requests não tem chave única (church_id, user_id), então
+      // upsert com onConflict falha. Reaproveita pedido pendente e cria outro
+      // registro quando a solicitação anterior foi rejeitada.
+      const { data: existing, error: lookupError } = await supabase
+        .from('church_join_requests')
+        .select('id, status')
+        .eq('church_id', church.id)
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (lookupError) throw lookupError;
 
-    // ✅ upsert previne pedidos duplicados — se já existe, só atualiza para 'pending'
-    const { error } = await supabase
-      .from('church_join_requests')
-      .upsert(
-        { church_id: church.id, user_id: currentUser.id, status: 'pending' },
-        { onConflict: 'church_id,user_id', ignoreDuplicates: false }
-      );
-      
-    if (error) {
-      toast.error('Erro ao solicitar entrada.');
-      setJoinStatus(null);
-    } else {
+      if (existing?.status === 'pending') {
+        setJoinStatus('pending');
+        toast.info('Sua solicitação já está aguardando aprovação.');
+        return;
+      }
+
+      const { error } = await supabase.from('church_join_requests').insert({
+        church_id: church.id,
+        user_id: currentUser.id,
+        status: 'pending',
+      });
+      if (error) throw error;
+
       toast.success('Solicitação enviada! Aguarde a aprovação.');
       setJoinStatus('pending');
+    } catch (error) {
+      console.error('[Igreja] Erro ao solicitar entrada:', error);
+      toast.error(error instanceof Error ? `Não foi possível solicitar entrada: ${error.message}` : 'Não foi possível solicitar entrada. Tente novamente.');
+      setJoinStatus(null);
+    }
+  };
+
+  const handleCopyChurchLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success('Link da comunidade copiado.');
+    } catch {
+      toast.error('Não foi possível copiar o link. Copie-o pela barra do navegador.');
     }
   };
 
@@ -181,7 +249,7 @@ export default function ChurchLayout({
       {/* Banner / Capa (16:9 Proporção aproximada) */}
       <div className="relative w-full aspect-video md:h-64 md:aspect-auto bg-gradient-to-br from-[#075E54] via-[#25D366] to-[#00A884]">
         {church.banner_url && (
-          <img src={church.banner_url} className="absolute inset-0 w-full h-full object-cover" alt="Banner da Igreja" />
+          <img src={church.banner_url} className="absolute inset-0 w-full h-full object-cover" alt={`Capa de ${church.name}`} width={1600} height={900} fetchPriority="high" />
         )}
         <div className="absolute inset-0 bg-black/30" />
         
@@ -190,44 +258,23 @@ export default function ChurchLayout({
           className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center z-20"
           style={{ paddingTop: 'max(env(safe-area-inset-top), 48px)' }}
         >
-          <Link href="/" className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10 flex items-center gap-1.5 pr-3 text-xs font-semibold">
+          <Link href="/" aria-label="Voltar ao feed" className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10 flex items-center gap-1.5 pr-3 text-xs font-semibold">
             <ArrowLeft className="w-4 h-4" /> Feed
           </Link>
           
           <div className="flex gap-2">
-            <button onClick={() => setIsSearchOpen(true)} className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10">
+            <button type="button" onClick={() => setIsSearchOpen(true)} aria-label="Buscar nesta igreja" className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
               <Search className="w-5 h-5" />
             </button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10 outline-none">
+                <button aria-label="Mais opções da igreja" className="p-2 bg-black/20 backdrop-blur-sm rounded-full text-white hover:bg-black/40 transition-all border border-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
                   <MoreVertical className="w-5 h-5" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-card border-border rounded-xl shadow-lg">
-                <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => {
-                  const url = window.location.href;
-                  if (navigator.clipboard) {
-                    navigator.clipboard.writeText(url);
-                    toast.success("Link da comunidade copiado!");
-                  } else {
-                    try {
-                      const textArea = document.createElement("textarea");
-                      textArea.value = url;
-                      document.body.appendChild(textArea);
-                      textArea.select();
-                      document.execCommand("copy");
-                      textArea.remove();
-                      toast.success("Link da comunidade copiado!");
-                    } catch (err) {
-                      toast.error("Não foi possível copiar o link de forma automática.");
-                    }
-                  }
-                }}>
+                <DropdownMenuItem className="gap-2 cursor-pointer" onClick={handleCopyChurchLink}>
                   <Copy className="w-4 h-4" /> Copiar Link
-                </DropdownMenuItem>
-                <DropdownMenuItem className="gap-2 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/10">
-                  <Flag className="w-4 h-4" /> Denunciar Comunidade
                 </DropdownMenuItem>
                 <DropdownMenuItem 
                   className="gap-2 cursor-pointer text-red-500 focus:text-red-500 focus:bg-red-500/10"

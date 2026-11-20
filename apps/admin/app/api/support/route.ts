@@ -1,4 +1,23 @@
 import { NextResponse } from 'next/server';
+import { requireAuth } from '@/lib/auth-server';
+
+const SUBJECT_OPTIONS = new Set([
+  'Bug / Erro no sistema',
+  'Problema com login ou conta',
+  'Erro em publicação ou post',
+  'Problema com áudio ou vídeo',
+  'Erro de carregamento ou lentidão',
+  'Sugestão de melhoria',
+  'Outro',
+]);
+
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => ({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+}[char] || char));
 
 // Rate limiting simples em memória (por IP)
 const ipRateMap = new Map<string, { count: number; resetAt: number }>();
@@ -25,16 +44,29 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { subject, message, userEmail, userName } = await request.json();
+    const body = await request.json();
+    const { subject, message } = body;
+    const authUser = await requireAuth(request).catch(() => null);
+    const providedEmail = typeof body.userEmail === 'string' ? body.userEmail.trim() : '';
+    const validProvidedEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(providedEmail);
+    const userEmail = authUser?.email || (validProvidedEmail ? providedEmail : '');
+    const userName = authUser
+      ? String(authUser.user_metadata?.full_name || authUser.user_metadata?.name || authUser.email || 'Usuário identificado')
+      : 'Usuário anônimo';
 
-    if (!message || !subject) {
+    if (typeof message !== 'string' || message.trim().length < 10 || typeof subject !== 'string' || !SUBJECT_OPTIONS.has(subject)) {
       return NextResponse.json({ error: 'Assunto e mensagem são obrigatórios' }, { status: 400 });
     }
 
     // Validação básica de tamanho para evitar payloads gigantes
-    if (message.length > 5000 || subject.length > 200) {
+    if (message.length > 5000) {
       return NextResponse.json({ error: 'Conteúdo muito longo' }, { status: 400 });
     }
+
+    const safeSubject = escapeHtml(subject);
+    const safeMessage = escapeHtml(message.trim());
+    const safeUserName = escapeHtml(userName);
+    const safeUserEmail = escapeHtml(userEmail || 'Não informado');
 
     const resendApiKey = process.env.RESEND_API_KEY;
     const senderEmail = process.env.RESEND_SENDER_EMAIL || 'FéConecta <contato@feconecta.shop>';
@@ -55,22 +87,22 @@ export async function POST(request: Request) {
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
             <tr>
               <td style="padding: 8px 0; font-size: 13px; color: #6b7280; width: 130px;">👤 Nome:</td>
-              <td style="padding: 8px 0; font-size: 14px; font-weight: 600;">${userName || 'Não identificado'}</td>
+              <td style="padding: 8px 0; font-size: 14px; font-weight: 600;">${safeUserName}</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; font-size: 13px; color: #6b7280;">📧 E-mail:</td>
-              <td style="padding: 8px 0; font-size: 14px;"><a href="mailto:${userEmail}" style="color: #25D366;">${userEmail || 'Não informado'}</a></td>
+              <td style="padding: 8px 0; font-size: 14px;">${userEmail ? `<a href="mailto:${safeUserEmail}" style="color: #25D366;">${safeUserEmail}</a>` : safeUserEmail}</td>
             </tr>
             <tr>
               <td style="padding: 8px 0; font-size: 13px; color: #6b7280;">🏷️ Categoria:</td>
-              <td style="padding: 8px 0; font-size: 14px; font-weight: 600;">${subject}</td>
+              <td style="padding: 8px 0; font-size: 14px; font-weight: 600;">${safeSubject}</td>
             </tr>
           </table>
 
           <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16px 0;" />
 
           <h3 style="font-size: 14px; color: #374151; margin: 0 0 10px;">📝 Descrição do problema:</h3>
-          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">${message}</div>
+          <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; font-size: 14px; line-height: 1.7; white-space: pre-wrap;">${safeMessage}</div>
 
           <p style="font-size: 11px; color: #9ca3af; margin: 20px 0 0; text-align: center;">
             Este e-mail foi gerado automaticamente pelo sistema de suporte do FéConecta.<br/>
@@ -89,7 +121,7 @@ export async function POST(request: Request) {
       body: JSON.stringify({
         from: senderEmail,
         to: ['agenciaiconedigital@gmail.com'],
-        subject: `[Suporte FéConecta] ${subject} — ${userName || userEmail || 'Usuário desconhecido'}`,
+        subject: `[Suporte FéConecta] ${subject} — ${userName}`,
         html: htmlContent,
         reply_to: userEmail || undefined,
       }),

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/seo";
 
 export const metadata: Metadata = {
   title: "Bíblia Sagrada | FéConecta",
@@ -7,7 +8,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Bíblia Sagrada | FéConecta",
     description: "Leia, estude e ouça a Bíblia Sagrada online.",
-    url: "https://newfeconecta.vercel.app/bible",
+    url: `${SITE_URL}/biblia`,
     images: [
       {
         url: "/icons/icon-512.png", // Sugestão no futuro: criar uma imagem de OG específica para a bíblia
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     ],
   },
   alternates: {
-    canonical: "https://newfeconecta.vercel.app/bible",
+    canonical: `${SITE_URL}/biblia`,
   },
 };
 

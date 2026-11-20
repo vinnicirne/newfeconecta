@@ -132,9 +132,13 @@ export async function POST(request: Request) {
     const parts = externalRef.split(":");
     const walletId = parts[1];
 
-    if (!walletId) {
+    if (parts.length !== 3 || !walletId || !parts[2]) {
       console.error("[Webhook MP] walletId ausente na external_reference:", externalRef);
       return NextResponse.json({ error: "Referência inválida" }, { status: 400 });
+    }
+
+    if (payment.currency_id !== "BRL" || !Number.isFinite(payment.transaction_amount) || payment.transaction_amount <= 0) {
+      return NextResponse.json({ error: "Valor ou moeda do pagamento inválidos" }, { status: 400 });
     }
 
     // Verificar se já foi processado (idempotência)
@@ -142,6 +146,17 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
+
+    const { data: walletOwner, error: ownerError } = await db
+      .from("wallets")
+      .select("partner_id")
+      .eq("id", walletId)
+      .maybeSingle();
+
+    if (ownerError || !walletOwner || walletOwner.partner_id !== parts[2]) {
+      console.error("[Webhook MP] Carteira não corresponde ao parceiro da referência:", externalRef);
+      return NextResponse.json({ error: "Referência de carteira inválida" }, { status: 400 });
+    }
 
     const { data: existing } = await db
       .from("wallet_transactions")

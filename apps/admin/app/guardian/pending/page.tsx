@@ -62,12 +62,12 @@ function PendingContent() {
 
     setResending(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Sua sessão expirou. Entre novamente para solicitar outro e-mail.');
       const res = await fetch('/api/guardian/send-consent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          guardian_email: guardianEmail,
-        })
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ user_id: session.user.id })
       });
 
       const data = await res.json();

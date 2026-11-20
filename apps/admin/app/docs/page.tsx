@@ -231,10 +231,10 @@ $$\\text{Anúncio no Feed} \\longrightarrow \\text{Clique com UTMs} \\longrighta
    \`https://sualoja.com.br/produto?fc_cid=CAMP_123&fc_pid=FC-8F72A91&utm_source=feconecta&utm_medium=feads\`
 
 2. **Na Memória do Navegador (Cookie de 30 Dias):**
-   O script \`pixel.js\` captura o ID da campanha e salva em um first-party cookie seguro com validade de **30 dias**. Mesmo que o comprador finalize a compra dias depois, a venda é creditada à campanha.
+   O script \`pixel.js\` guarda o identificador da campanha por até **30 dias** para atribuição de atividade. Esse identificador é público e, sozinho, não comprova uma compra.
 
 3. **Na Página de Obrigado / Confirmação (Disparo da Venda):**
-   Assim que o pagamento é aprovado, a página de obrigado executa:
+   O navegador pode registrar um evento de compra para diagnóstico, mas ele não altera receita nem ROAS. Para confirmar a venda, o backend do checkout deve chamar o CAPI com a chave secreta da campanha.
    \`\`\`javascript
    feconectaPixel.track("Purchase", {
      value: 149.90,        // Valor da compra em Reais
@@ -243,14 +243,11 @@ $$\\text{Anúncio no Feed} \\longrightarrow \\text{Clique com UTMs} \\longrighta
    });
    \`\`\`
 
-4. **Envio Silencioso para a Central:**
-   O \`pixel.js\` envia os dados assincronamente via \`navigator.sendBeacon\` para \`POST https://ads.feconecta.com.br/api/events\`.
+4. **CAPI no servidor do checkout:**
+   Gere uma chave na aba CAPI, guarde-a em um segredo do servidor e envie-a no cabeçalho \`Authorization: Bearer\`. Não inclua essa chave no pixel ou no código do navegador.
 
-5. **Gravação Atômica:**
-   A API do FéAds grava o evento na tabela \`ad_conversions\` vinculando o ID da campanha, o valor transacionado e o pedido.
-
-6. **Atualização Instantânea no Painel:**
-   O painel da campanha atualiza em tempo real:
+5. **Atualização no Painel:**
+   Conversões autorizadas pela chave server-to-server entram nas métricas de receita e ROAS:
    * 🎯 **Resultado:** +1 Compra Concluída
    * 💵 **Receita:** +R$ 149,90
    * 💰 **CPA:** Custo por aquisição
@@ -274,7 +271,7 @@ Cole o código abaixo no cabeçalho (\`<head>\`) de todas as páginas da sua loj
 Para plataformas como **Hotmart, Kiwify, Eduzz, Shopify e WooCommerce**, você pode enviar eventos diretamente via backend através de Webhooks sem depender do navegador:
 
 * **Endpoint:** \`POST https://ads.feconecta.com.br/api/events\`
-* **Headers:** \`Content-Type: application/json\`
+* **Headers:** \`Content-Type: application/json\` e \`Authorization: Bearer CHAVE_CAPI_DA_CAMPANHA\`
 * **Payload:**
 \`\`\`json
 {

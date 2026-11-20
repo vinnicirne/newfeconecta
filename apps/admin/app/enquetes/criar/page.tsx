@@ -7,7 +7,7 @@ import { ArrowLeft, BarChart2 } from "lucide-react";
 import PollForm from "@/components/polls/PollForm";
 import { CreatePollDto } from "@/domain/polls/types";
 import { toast } from "sonner";
-import BottomNav from "@/components/feed/BottomNav";
+import { supabase } from "@/lib/supabase";
 
 export default function CreatePollPage() {
   const router = useRouter();
@@ -16,9 +16,11 @@ export default function CreatePollPage() {
   const handleSubmit = async (dto: CreatePollDto) => {
     try {
       setIsSaving(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Entre na sua conta para criar uma enquete.");
       const res = await fetch("/api/polls", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(dto),
       });
 
@@ -66,7 +68,6 @@ export default function CreatePollPage() {
         </div>
       </main>
 
-      <BottomNav />
     </div>
   );
 }

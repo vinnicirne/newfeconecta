@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 interface PixelIntegrationModalProps {
   isOpen: boolean;
@@ -35,6 +36,8 @@ export function PixelIntegrationModal({
 }: PixelIntegrationModalProps) {
   const [activeTab, setActiveTab] = useState<"install" | "events" | "utms" | "capi">("install");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [capiToken, setCapiToken] = useState<string | null>(null);
+  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
 
   if (!isOpen) return null;
 
@@ -46,6 +49,28 @@ export function PixelIntegrationModal({
     setCopiedKey(key);
     toast.success("Copiado para a área de transferência!");
     setTimeout(() => setCopiedKey(null), 2500);
+  }
+
+  async function generateCapiToken() {
+    setIsGeneratingToken(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Entre novamente na sua conta para gerar a chave.');
+      const response = await fetch(`/api/campaigns/${campaignId}/pixel-token`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || typeof result.token !== 'string') {
+        throw new Error(result.error || 'Não foi possível gerar a chave CAPI.');
+      }
+      setCapiToken(result.token);
+      toast.success('Chave gerada. Copie e guarde em segredo no servidor do checkout.');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Não foi possível gerar a chave CAPI.');
+    } finally {
+      setIsGeneratingToken(false);
+    }
   }
 
   // Snippets
@@ -63,14 +88,14 @@ feconectaPixel.track("Purchase", {
 
   const leadSnippet = `// Disparar no envio de formulário / captura de contato
 feconectaPixel.track("Lead", {
-  form_name: "Inscrição Conferência 2026",
-  email: "membro@email.com" // opcional
+  form_name: "Inscrição Conferência 2026"
 });`;
 
   const cleanUrl = destinationUrl ? destinationUrl.split("?")[0] : "https://seusite.com.br";
   const trackedUrl = `${cleanUrl}?fc_cid=${campaignId}&fc_pid=${pixelId}&utm_source=feconecta&utm_medium=feads&utm_campaign=${campaignId}`;
 
   const capiCurlSnippet = `curl -X POST "${origin}/api/events" \\
+  -H "Authorization: Bearer ${capiToken || '<CHAVE_CAPI_DO_SERVIDOR>'}" \\
   -H "Content-Type: application/json" \\
   -d '{
     "pixel_id": "${pixelId}",
@@ -96,14 +121,14 @@ feconectaPixel.track("Lead", {
                   FéConecta Pixel & Conversions API
                 </h3>
                 <p className="text-xs text-zinc-400">
-                  Rastreamento 100% confiável de compras, leads e conversões fora do FéConecta.
+                  Eventos do pixel e conversões server-to-server vinculadas à campanha.
                 </p>
               </div>
             </div>
           </div>
 
           <button
-            onClick={onClose}
+            onClick={() => { setCapiToken(null); onClose(); }}
             className="p-2 rounded-xl text-zinc-400 hover:bg-white/5 hover:text-white"
           >
             <X className="w-5 h-5" />
@@ -205,7 +230,7 @@ feconectaPixel.track("Lead", {
               <div className="rounded-xl border border-white/5 bg-white/5 p-3 space-y-1 text-zinc-400">
                 <strong className="text-white block font-semibold">✨ Como funciona a atribuição moderna:</strong>
                 <span>
-                  O script captura o ID da campanha e salva em um first-party cookie seguro de 30 dias. Qualquer compra realizada pelo usuário dentro desse período será automaticamente atribuída à sua campanha no FéAds!
+                  O script registra atividade e o identificador de campanha por até 30 dias. Conversões que entram no cálculo de receita e ROAS precisam ser confirmadas pelo CAPI server-to-server.
                 </span>
               </div>
             </div>
@@ -217,7 +242,7 @@ feconectaPixel.track("Lead", {
                 <div className="flex items-center justify-between">
                   <span className="font-bold text-white flex items-center gap-1.5">
                     <ShoppingCart className="w-4 h-4 text-emerald-400" />
-                    Evento de Compra (Purchase) — Para calcular ROAS e Receita
+                    Evento de Compra (Purchase) — Atividade do navegador, sem validar receita
                   </span>
                   <button
                     onClick={() => copyToClipboard(purchaseSnippet, "purchase_code")}
@@ -275,8 +300,26 @@ feconectaPixel.track("Lead", {
           {activeTab === "capi" && (
             <div className="space-y-3">
               <p className="text-zinc-300">
-                Para plataformas de checkout (Hotmart, Kiwify, Eduzz, Shopify) ou backends, envie conversões diretamente via servidor (CAPI):
+                Gere uma chave exclusiva desta campanha e guarde-a como segredo no servidor do checkout. Não coloque essa chave no JavaScript do navegador.
               </p>
+
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 space-y-3">
+                <button
+                  type="button"
+                  onClick={generateCapiToken}
+                  disabled={isGeneratingToken}
+                  className="rounded-lg bg-emerald-500 px-4 py-2 text-xs font-bold text-black disabled:opacity-60"
+                >
+                  {isGeneratingToken ? 'Gerando chave...' : capiToken ? 'Rotacionar chave CAPI' : 'Gerar chave CAPI'}
+                </button>
+                {capiToken && (
+                  <div>
+                    <p className="mb-1 text-[11px] font-bold text-amber-200">Copie agora. A chave não poderá ser recuperada depois.</p>
+                    <code className="block break-all rounded-lg bg-black/50 p-3 text-xs text-emerald-300">{capiToken}</code>
+                  </div>
+                )}
+                <p className="text-[11px] text-zinc-400">Rotacionar invalida imediatamente a chave anterior. O pixel do navegador registra atividade, mas não confirma receita.</p>
+              </div>
 
               <div className="relative rounded-xl border border-white/10 bg-zinc-950 p-4 font-mono text-xs text-zinc-200">
                 <pre className="overflow-x-auto whitespace-pre-wrap">{capiCurlSnippet}</pre>
@@ -295,7 +338,7 @@ feconectaPixel.track("Lead", {
         {/* Footer */}
         <div className="pt-4 border-t border-white/10 flex justify-end">
           <button
-            onClick={onClose}
+            onClick={() => { setCapiToken(null); onClose(); }}
             className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-all"
           >
             Fechar

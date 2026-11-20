@@ -37,11 +37,13 @@ export function useNotes(userId: string | null) {
 
     try {
       if (editingId) {
-        const { data } = await supabase.from("user_notes").update(payload).eq("id", editingId).select().single();
+        const { data, error } = await supabase.from("user_notes").update(payload).eq("id", editingId).select().single();
+        if (error) throw error;
         mutate(); // Revalida para garantir ID real
         return data;
       } else {
-        const { data } = await supabase.from("user_notes").insert(payload).select().single();
+        const { data, error } = await supabase.from("user_notes").insert(payload).select().single();
+        if (error) throw error;
         mutate(); // Revalida para garantir ID real
         return data;
       }
@@ -52,15 +54,25 @@ export function useNotes(userId: string | null) {
   };
 
   const deleteNote = async (id: string) => {
-    mutate((currentNotes: any) => currentNotes?.filter((n: any) => n.id !== id) || [], false);
-    await supabase.from("user_notes").delete().eq("id", id);
+    const previous = data || [];
+    await mutate((currentNotes: any) => currentNotes?.filter((n: any) => n.id !== id) || [], false);
+    const { error: deleteError } = await supabase.from("user_notes").delete().eq("id", id);
+    if (deleteError) {
+      await mutate(previous, false);
+      throw deleteError;
+    }
   };
 
   const toggleFavorite = async (id: string, currentState: boolean) => {
-    mutate((currentNotes: any) => {
+    const previous = data || [];
+    await mutate((currentNotes: any) => {
       return currentNotes?.map((n: any) => n.id === id ? { ...n, is_favorite: !currentState } : n) || [];
     }, false);
-    await supabase.from("user_notes").update({ is_favorite: !currentState }).eq("id", id);
+    const { error: updateError } = await supabase.from("user_notes").update({ is_favorite: !currentState }).eq("id", id);
+    if (updateError) {
+      await mutate(previous, false);
+      throw updateError;
+    }
   };
 
   return {

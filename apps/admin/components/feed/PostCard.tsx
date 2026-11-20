@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import PostCardHeader from "./PostCardHeader";
 import { PostCardMediaContext, PostCardActionContext, PostCardContentContext } from "./PostCardContext";
 import PostCardMedia from "./PostCardMedia";
@@ -28,6 +28,7 @@ const PostCard = React.memo(function PostCard({
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [mediaError, setMediaError] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const postViewRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
   const { mediaUrl, postType, isAudio, isVideo, isCarousel, isShortText, isMediaPost, isVerseRepost, isDFCH, isDevotional } = useMemo(() => getPostMediaInfo(post), [post]);
@@ -46,7 +47,7 @@ const PostCard = React.memo(function PostCard({
 
   // Custom Hooks Atômicos
   const actions = usePostActions(post, currentUser, onUpdated, onDeleted);
-  const media = usePostMedia(post, isVideo, onUpdated);
+  const media = usePostMedia(post, isVideo, isAudio, onUpdated, postViewRef);
 
   const mediaContextValue = useMemo(() => ({
     post, isVideo, isAudio, isCarousel, mediaError, mediaUrl, shouldSkipMedia, postType, setLightboxUrl,
@@ -66,7 +67,7 @@ const PostCard = React.memo(function PostCard({
 
   const actionContextValue = useMemo(() => ({
     post, currentUser, isLiked: actions.isLiked, toggleLike: actions.toggleLike, openLikesModal: actions.openLikesModal, 
-    likes: actions.likes, showComments, setShowComments, 
+    likes: actions.likes, likesCount: actions.likesCount, showComments, setShowComments,
     commentCount: actions.commentCount, toggleRepost: actions.toggleRepost,
     isReposted: actions.isReposted, repostsCount: actions.repostsCount, handleShare: actions.handleShare, 
     viewsCount: media.viewsCount, toggleSave: actions.toggleSave, isSaved: actions.isSaved, 
@@ -74,7 +75,7 @@ const PostCard = React.memo(function PostCard({
     showLikesModal: actions.showLikesModal, setShowLikesModal: actions.setShowLikesModal, 
     isFetchingLikers: actions.isFetchingLikers, postLikers: actions.postLikers, 
     isShareModalOpen: actions.isShareModalOpen, setIsShareModalOpen: actions.setIsShareModalOpen, mounted
-  }), [post, currentUser, actions.isLiked, actions.toggleLike, actions.openLikesModal, actions.likes, showComments, setShowComments, actions.commentCount, actions.toggleRepost, actions.isReposted, actions.repostsCount, actions.handleShare, media.viewsCount, actions.toggleSave, actions.isSaved, actions.setCommentCount, lightboxUrl, actions.showLikesModal, actions.setShowLikesModal, actions.isFetchingLikers, actions.postLikers, actions.isShareModalOpen, actions.setIsShareModalOpen, mounted]);
+  }), [post, currentUser, actions.isLiked, actions.toggleLike, actions.openLikesModal, actions.likes, actions.likesCount, showComments, setShowComments, actions.commentCount, actions.toggleRepost, actions.isReposted, actions.repostsCount, actions.handleShare, media.viewsCount, actions.toggleSave, actions.isSaved, actions.setCommentCount, lightboxUrl, actions.showLikesModal, actions.setShowLikesModal, actions.isFetchingLikers, actions.postLikers, actions.isShareModalOpen, actions.setIsShareModalOpen, mounted]);
 
 
   useEffect(() => {
@@ -85,6 +86,7 @@ const PostCard = React.memo(function PostCard({
 
   return (
     <div
+      ref={postViewRef}
       id={`post-${post.id}`}
       className={cn(
         "bg-white dark:bg-whatsapp-dark transition-all duration-300 relative w-full border-b border-gray-100 dark:border-white/5 mb-2",

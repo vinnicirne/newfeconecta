@@ -100,23 +100,10 @@ export default function RootPage() {
   }, [posts]);
   const [streak, setStreak] = useState(0);
   const [userChurches, setUserChurches] = useState<any[]>([]);
-  const [feedControls, setFeedControls] = useState(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const cached = localStorage.getItem('fc_feed_controls_v1');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          return {
-            show_daily_verse: Boolean(parsed.show_daily_verse),
-            show_fenamoro_banner: Boolean(parsed.show_fenamoro_banner),
-          };
-        }
-      } catch (e) {}
-    }
-    return {
-      show_daily_verse: false,
-      show_fenamoro_banner: false,
-    };
+  // This state must be identical during SSR and the first client render.
+  const [feedControls, setFeedControls] = useState({
+    show_daily_verse: false,
+    show_fenamoro_banner: false,
   });
 
   const loadStreak = async (id: string) => {
@@ -174,7 +161,7 @@ export default function RootPage() {
     }
   };
 
-  const mapPost = useCallback((post: any, profilesMap: any, myFollowingSet?: Set<string>, mySavedSet?: Set<string>) => {
+  const mapPost = useCallback((post: any, profilesMap: any, myFollowingSet?: Set<string>, mySavedSet?: Set<string>, myRepostedSet?: Set<string>) => {
     const profile = profilesMap[post.user_id] || {};
 
     const mapped = {
@@ -201,7 +188,8 @@ export default function RootPage() {
       background: post.background,
       viewer_state: {
         following: myFollowingSet ? myFollowingSet.has(post.user_id) : false,
-        saved: mySavedSet ? mySavedSet.has(post.id) : false
+        saved: mySavedSet ? mySavedSet.has(post.id) : false,
+        reposted: myRepostedSet ? myRepostedSet.has(post.id) : false
       }
     };
 
@@ -283,6 +271,31 @@ export default function RootPage() {
     }, 6000);
 
     try {
+      fetch('/api/ads/serve?format=feed', { cache: 'no-store' })
+        .then(async (response) => {
+          if (!response.ok) return null;
+          const adData = await response.json();
+          if (adData?.campaign_id) {
+            setActiveAds([{
+              id: adData.campaign_id,
+              nome: adData.nome,
+              texto: adData.texto,
+              criativo_url: adData.criativo_url,
+              criativo_tipo: adData.criativo_tipo,
+              call_to_action: adData.call_to_action,
+              profiles: {
+                full_name: adData.partner_nome,
+                avatar_url: adData.partner_avatar,
+                is_verified: adData.partner_verified,
+              },
+              tracking_url_impression: adData.tracking_url_impression,
+              tracking_url_click: adData.tracking_url_click,
+            }]);
+          }
+          return null;
+        })
+        .catch(() => null);
+
       const fetchPostsPromise = Promise.all([
         supabase
           .from('posts')
@@ -293,32 +306,10 @@ export default function RootPage() {
           .from('reposts')
           .select('*')
           .order('created_at', { ascending: false })
-          .limit(10),
-        fetch('/api/ads/serve?format=feed', { cache: 'no-store' }).catch(() => null)
+          .limit(10)
       ]);
 
-      const [postsRes, repostsRes, adServerRes]: any = await fetchPostsPromise;
-
-      if (adServerRes && adServerRes.ok && adServerRes.status === 200) {
-        const adData = await adServerRes.json().catch(() => null);
-        if (adData && adData.campaign_id) {
-          setActiveAds([{
-            id: adData.campaign_id,
-            nome: adData.nome,
-            texto: adData.texto,
-            criativo_url: adData.criativo_url,
-            criativo_tipo: adData.criativo_tipo,
-            call_to_action: adData.call_to_action,
-            profiles: {
-              full_name: adData.partner_nome,
-              avatar_url: adData.partner_avatar,
-              is_verified: adData.partner_verified,
-            },
-            tracking_url_impression: adData.tracking_url_impression,
-            tracking_url_click: adData.tracking_url_click,
-          }]);
-        }
-      }
+      const [postsRes, repostsRes]: any = await fetchPostsPromise;
 
       const postsData = postsRes.data;
       const repostsData = repostsRes.data;
@@ -367,10 +358,29 @@ export default function RootPage() {
         if (item.reposter_id) userIds.add(item.reposter_id);
       });
 
-      const { data: profilesData } = await supabase
-        .from('profiles')
-        .select('id, full_name, username, avatar_url, is_verified, verification_label')
-        .in('id', Array.from(userIds));
+      const postIds = Array.from(new Set(pagedFeed.map((item) => item.original_post_id || item.id)));
+      const authorIds = Array.from(new Set(pagedFeed.map((item) => item.user_id).filter(Boolean)));
+      let viewerId: string | null = null;
+      try {
+        const cached = localStorage.getItem('fc_profile_cache');
+        viewerId = cached ? JSON.parse(cached)?.id || null : null;
+      } catch {}
+
+      const viewerStatePromise: Promise<any> = viewerId
+        ? Promise.all([
+            supabase.from('follows').select('following_id').eq('follower_id', viewerId).in('following_id', authorIds),
+            supabase.from('saved_posts').select('post_id').eq('user_id', viewerId).in('post_id', postIds),
+            supabase.from('reposts').select('post_id').eq('profile_id', viewerId).in('post_id', postIds)
+          ])
+        : Promise.resolve([{ data: [] }, { data: [] }, { data: [] }]);
+
+      const [{ data: profilesData }, viewerStateResults] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('id, full_name, username, avatar_url, is_verified, verification_label')
+          .in('id', Array.from(userIds)),
+        viewerStatePromise
+      ]);
 
       const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
         acc[p.id] = p;
@@ -379,18 +389,11 @@ export default function RootPage() {
 
       const myFollowingSet = new Set<string>();
       const mySavedSet = new Set<string>();
-      try {
-        const cached = localStorage.getItem('fc_profile_cache');
-        const authUser = cached ? JSON.parse(cached) : null;
-        if (authUser?.id) {
-          const [{ data: follows }, { data: saved }] = await Promise.all([
-            supabase.from('follows').select('following_id').eq('follower_id', authUser.id),
-            supabase.from('saved_posts').select('post_id').eq('user_id', authUser.id)
-          ]);
-          follows?.forEach(f => myFollowingSet.add(f.following_id));
-          saved?.forEach(s => mySavedSet.add(s.post_id));
-        }
-      } catch (e) { }
+      const myRepostedSet = new Set<string>();
+      const [{ data: follows }, { data: saved }, { data: myReposts }] = viewerStateResults;
+      follows?.forEach((f: any) => myFollowingSet.add(f.following_id));
+      saved?.forEach((s: any) => mySavedSet.add(s.post_id));
+      myReposts?.forEach((r: any) => myRepostedSet.add(r.post_id));
 
       const mappedPosts = pagedFeed.map((item: any, idx: number) => {
         const profile = profilesMap[item.user_id] || {};
@@ -421,7 +424,8 @@ export default function RootPage() {
           background: item.background,
           viewer_state: {
             following: myFollowingSet.has(item.user_id),
-            saved: mySavedSet.has(item.original_post_id || item.id)
+            saved: mySavedSet.has(item.original_post_id || item.id),
+            reposted: myRepostedSet.has(item.original_post_id || item.id)
           }
         };
       });
@@ -484,21 +488,25 @@ export default function RootPage() {
 
         const myFollowingSet = new Set<string>();
         const mySavedSet = new Set<string>();
+        const myRepostedSet = new Set<string>();
         try {
           const cached = localStorage.getItem('fc_profile_cache');
           const authUser = cached ? JSON.parse(cached) : null;
           if (authUser?.id) {
-            const [{ data: follows }, { data: saved }] = await Promise.all([
+            const postIds = morePosts.map((post) => post.id);
+            const [{ data: follows }, { data: saved }, { data: myReposts }] = await Promise.all([
               supabase.from('follows').select('following_id').eq('follower_id', authUser.id),
-              supabase.from('saved_posts').select('post_id').eq('user_id', authUser.id).in('post_id', morePosts.map(p => p.id))
+              supabase.from('saved_posts').select('post_id').eq('user_id', authUser.id).in('post_id', postIds),
+              supabase.from('reposts').select('post_id').eq('profile_id', authUser.id).in('post_id', postIds)
             ]);
             follows?.forEach(f => myFollowingSet.add(f.following_id));
             saved?.forEach(s => mySavedSet.add(s.post_id));
+            myReposts?.forEach((r) => myRepostedSet.add(r.post_id));
           }
         } catch (e) { }
 
         const mapped = morePosts.map(p => ({
-          ...mapPost(p, profilesMap, myFollowingSet, mySavedSet),
+          ...mapPost(p, profilesMap, myFollowingSet, mySavedSet, myRepostedSet),
           unique_key: `${p.id}-original`
         }));
 
@@ -527,24 +535,27 @@ export default function RootPage() {
 
   const loadStories = async () => {
     try {
-      const { data: storiesData } = await supabase
-        .from('stories')
-        .select('*')
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: true });
-
       const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
-      const [{ data: rawRooms }, followsRes] = await Promise.all([
+      const [storiesResult, roomsResult] = await Promise.all([
+        supabase
+          .from('stories')
+          .select('*')
+          .gt('expires_at', new Date().toISOString())
+          .order('created_at', { ascending: false })
+          .limit(200),
         supabase
           .from('rooms')
           .select('*')
           .eq('status', 'active')
-          .gt('created_at', twelveHoursAgo),
-        currentUser?.id ? supabase
-          .from('follows')
-          .select('following_id, profiles:following_id(id, full_name, avatar_url, username)')
-          .eq('follower_id', currentUser.id) : Promise.resolve({ data: [] })
+          .gt('created_at', twelveHoursAgo)
       ]);
+
+      if (storiesResult.error) throw storiesResult.error;
+      if (roomsResult.error) {
+        console.error("Erro ao carregar salas do carrossel:", roomsResult.error.message);
+      }
+      const storiesData = storiesResult.data || [];
+      const rawRooms = roomsResult.error ? [] : roomsResult.data || [];
 
       const activeRooms = (rawRooms || []).filter(room => {
         const end = moment(room.created_at).add(room.duration_minutes || 60, 'minutes');
@@ -557,10 +568,15 @@ export default function RootPage() {
         return acc;
       }, {});
 
-      const storyUserIds = storiesData?.map(s => s.author_id) || [];
-      const friendIds = followsRes?.data?.map(f => f.following_id) || [];
+      const storiesByAuthor = new Map<string, any[]>();
+      (storiesData || []).forEach((story: any) => {
+        const authorStories = storiesByAuthor.get(story.author_id) || [];
+        authorStories.push(story);
+        storiesByAuthor.set(story.author_id, authorStories);
+      });
+      const storyUserIds = Array.from(storiesByAuthor.keys());
 
-      const allDisplayIds = Array.from(new Set([...storyUserIds, ...liveUserIds, ...friendIds]))
+      const allDisplayIds = Array.from(new Set([...storyUserIds, ...liveUserIds]))
         .filter(id => id && String(id).length > 20);
 
       if (allDisplayIds.length > 0) {
@@ -575,7 +591,7 @@ export default function RootPage() {
         }, {});
 
         const groups = allDisplayIds.map(uid => {
-          const userStories = (storiesData || []).filter(s => s.author_id === uid);
+          const userStories = storiesByAuthor.get(uid) || [];
           const author = profilesMap[uid] || {};
           const room = roomsMap[uid];
 
@@ -609,6 +625,28 @@ export default function RootPage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+
+    try {
+      const cached = localStorage.getItem('fc_feed_controls_v1');
+      if (!cached) return;
+      const parsed = JSON.parse(cached);
+      if (!parsed || typeof parsed !== 'object') return;
+
+      setFeedControls({
+        show_daily_verse: parsed.show_daily_verse === true,
+        show_fenamoro_banner: parsed.show_fenamoro_banner === true,
+      });
+    } catch {
+      try {
+        localStorage.removeItem('fc_feed_controls_v1');
+      } catch {
+        // Storage may be unavailable in private browsing or restricted webviews.
+      }
+    }
+  }, [isMounted]);
 
   useEffect(() => {
     if (!isMounted) return;
@@ -787,7 +825,7 @@ export default function RootPage() {
           }
         }
       } catch (e) {}
-    }, 4000);
+    }, 20000);
 
     const channel = supabase
       .channel('unified-feed-updates')
@@ -856,7 +894,7 @@ export default function RootPage() {
         try { feedBroadcastChannel.close(); } catch (e) {}
       }
     };
-  }, [currentUser?.id || 'guest']);
+  }, [currentUser?.id || 'guest', isMounted]);
 
   // Observador de Interseção único e correto (via lastPostRef)
 
@@ -1442,7 +1480,15 @@ export default function RootPage() {
       </div>
 
       {showStoryCreator && <StoryCreator open={showStoryCreator} onClose={() => setShowStoryCreator(false)} user={currentUser} onCreated={loadStories} />}
-      {viewingStoryGroup && <StoryViewer storyGroups={storyGroups} startUserIndex={storyGroups.indexOf(viewingStoryGroup)} currentUser={currentUser} onClose={() => setViewingStoryGroup(null)} />}
+      {viewingStoryGroup && (
+        <StoryViewer
+          key={viewingStoryGroup.author_id}
+          storyGroups={storyGroups}
+          startUserIndex={storyGroups.findIndex((group) => group.author_id === viewingStoryGroup.author_id)}
+          currentUser={currentUser}
+          onClose={() => setViewingStoryGroup(null)}
+        />
+      )}
       <NotificationCenter
         open={showNotifications}
         onClose={() => {

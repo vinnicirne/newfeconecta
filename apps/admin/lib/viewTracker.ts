@@ -48,7 +48,7 @@ export function hasViewedPostRecently(postId: string): boolean {
  * Registra a visualização no padrão Big Tech:
  * - Valida a janela de 24 horas (impede múltiplos views por F5).
  * - Persiste o timestamp localmente.
- * - Executa incremento atômico no banco de dados via RPC ou UPDATE seguro.
+ * - Atualiza o cache local apenas depois da confirmação da RPC atômica.
  */
 export async function trackQualifiedPostView(
   postId: string,
@@ -61,35 +61,50 @@ export async function trackQualifiedPostView(
   if (hasViewedPostRecently(postId)) {
     return false;
   }
+  if (pendingViews.has(postId)) return false;
+  pendingViews.add(postId);
 
-  // 2. Registra o timestamp no cache local
+  // Reserva a visualização antes da chamada para impedir duplicatas em cards
+  // repetidos na mesma página. A reserva é removida se o servidor falhar.
+  const reservedAt = Date.now();
   try {
     const registry = getCleanViewRegistry();
-    registry[postId] = Date.now();
+    if (registry[postId]) {
+      pendingViews.delete(postId);
+      return false;
+    }
+    registry[postId] = reservedAt;
     localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(registry));
   } catch (err) {
     console.warn("[ViewTracker] Erro ao gravar cache local:", err);
   }
 
-  // 3. Incrementa no banco de dados
-  const newCount = currentViews + 1;
-  onSuccess?.(newCount);
-
   try {
-    const { error: rpcError } = await supabase.rpc("increment_view", {
+    // A RPC deve incrementar no banco atomicamente; UPDATE com um valor
+    // calculado no cliente perde incrementos quando chegam acessos juntos.
+    const { data, error } = await supabase.rpc("increment_view", {
       p_post_id: postId,
     });
 
-    if (rpcError) {
-      await supabase
-        .from("posts")
-        .update({ views_count: newCount })
-        .eq("id", postId);
-    }
+    if (error) throw error;
+
+    const newCount = typeof data === "number" ? data : currentViews + 1;
+    onSuccess?.(newCount);
 
     return true;
   } catch (err) {
     console.error("[ViewTracker] Erro ao incrementar visualização:", err);
+    try {
+      const registry = getCleanViewRegistry();
+      if (registry[postId] === reservedAt) {
+        delete registry[postId];
+        localStorage.setItem(VIEW_STORAGE_KEY, JSON.stringify(registry));
+      }
+    } catch {}
     return false;
+  } finally {
+    pendingViews.delete(postId);
   }
 }
+
+const pendingViews = new Set<string>();

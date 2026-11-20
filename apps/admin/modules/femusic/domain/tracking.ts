@@ -91,12 +91,14 @@ export async function recordUserPlayback(track: MusicTrack): Promise<void> {
 
     if (histError) {
       console.warn('[Tracking] Direct insert falhou, acionando fallback /api/music/playback:', histError.message);
-      // Fallback via endpoint de servidor (executa com service_role)
-      if (typeof window !== 'undefined') {
+      // O fallback usa service role e, portanto, só pode ser chamado com sessão validável.
+      if (typeof window !== 'undefined' && userId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || session.user.id !== userId) return;
         fetch('/api/music/playback', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ track, userId }),
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ track }),
         }).catch((apiErr) => console.warn('[Tracking] Fallback API error:', apiErr));
       }
     } else {
@@ -104,12 +106,14 @@ export async function recordUserPlayback(track: MusicTrack): Promise<void> {
     }
   } catch (err) {
     console.warn('[Tracking] Erro geral ao registrar playback:', err);
-    // Tentativa final via API
+    // Tentativa final via API somente com identidade autenticada validada.
     if (typeof window !== 'undefined') {
       try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
         fetch('/api/music/playback', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
           body: JSON.stringify({ track }),
         }).catch(() => {});
       } catch (_) {}

@@ -10,12 +10,16 @@ export async function GET(request: Request) {
     const user = await requireAuth(request).catch(() => null);
     const service = new EventService();
 
-    const events = await service.listEvents({
-      is_public: true,
-      author_id: user?.id,
-    });
+    const [publicEvents, ownEvents] = await Promise.all([
+      service.listEvents({ is_public: true, user_id: user?.id }),
+      user ? service.listEvents({ author_id: user.id, user_id: user.id }) : Promise.resolve([]),
+    ]);
+    const eventsById = new Map([...publicEvents, ...ownEvents].map((event) => [event.id, event]));
+    const events = Array.from(eventsById.values()).sort(
+      (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime()
+    );
 
-    return NextResponse.json(events);
+    return NextResponse.json({ events });
   } catch (error) {
     return handleApiError(error, "GET /api/fe-eventos");
   }

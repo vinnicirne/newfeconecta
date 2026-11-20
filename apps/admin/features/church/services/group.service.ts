@@ -34,15 +34,7 @@ export const GroupService = {
       
     if (error) throw error;
     
-    // Add the leader to group members automatically
-    if (data?.leader_id) {
-      await supabase.from('church_group_members').insert({
-        group_id: data.id,
-        user_id: data.leader_id,
-        role: 'leader'
-      });
-    }
-    
+    // The database trigger registers the leader atomically with the group.
     return data;
   },
 

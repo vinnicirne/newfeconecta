@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
-  Search, ChevronRight, ChevronLeft, Heart, Send,
+  Search, ChevronRight, ChevronLeft, ArrowLeft, Heart, Send,
   X, FileText, ChevronDown, Sparkles, Plus, Check, Columns3, Loader2, Highlighter, Eraser, Play, Square, Trash2, Globe, Lock,
   Share2, Copy, CheckSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useBibleInteractions } from "@/hooks/useBibleInteractions";
 import { useBibleChapter } from "@/hooks/useBibleChapter";
 import { useBibleTTS } from "@/hooks/useBibleTTS";
@@ -127,6 +128,8 @@ function BibleContent() {
 
   useEffect(() => {
     setHighlightPickerVerse(null);
+    setSelectedVerses([]);
+    setShowMultiHighlight(false);
   }, [selectedBook, selectedChapter]);
 
   useEffect(() => {
@@ -323,15 +326,24 @@ function BibleContent() {
       <div className="sticky top-0 z-[60] pt-[env(safe-area-inset-top)] bg-white/80 dark:bg-[#0A0A0A]/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5">
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            <Link
+              href="/"
+              aria-label="Voltar ao Feed"
+              title="Voltar ao Feed"
+              className="h-9 shrink-0 inline-flex items-center gap-1.5 rounded-xl px-2 text-sm font-bold text-gray-500 hover:bg-gray-100 hover:text-whatsapp-teal dark:text-gray-400 dark:hover:bg-white/10 transition-colors"
+            >
+              <ArrowLeft size={18} />
+              <span>Feed</span>
+            </Link>
             <button onClick={() => { setSelectorStep('books'); setShowSelector(true); }} className="text-lg font-black dark:text-white flex items-center gap-1 hover:text-whatsapp-teal transition-colors">
               {selectedBookName} {selectedChapter} <ChevronDown size={18} className="ml-1 opacity-50" />
             </button>
-            <button onClick={toggleTTS} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-whatsapp-teal hover:bg-whatsapp-teal hover:text-white transition-all active:scale-90">
+            <button onClick={toggleTTS} aria-label={isSpeaking ? "Parar leitura em voz alta" : "Ouvir capítulo"} className="w-8 h-8 rounded-full bg-gray-100 dark:bg-white/10 flex items-center justify-center text-whatsapp-teal hover:bg-whatsapp-teal hover:text-white transition-all active:scale-90">
               {isSpeaking ? <Square fill="currentColor" size={12} /> : <Play fill="currentColor" size={14} className="ml-0.5" />}
             </button>
           </div>
           <div className="flex items-center gap-2" ref={versionPickerRef}>
-            <button onClick={() => setShowVersionPicker(v => !v)} className="px-3 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all border" style={{ color: selectedVersion.color, borderColor: `${selectedVersion.color}30`, backgroundColor: `${selectedVersion.color}10` }}>
+            <button onClick={() => setShowVersionPicker(v => !v)} aria-label={`Selecionar versão da Bíblia. Atual: ${selectedVersion.name}`} className="px-3 py-2 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all border" style={{ color: selectedVersion.color, borderColor: `${selectedVersion.color}30`, backgroundColor: `${selectedVersion.color}10` }}>
               {selectedVersion.name}
             </button>
             {showVersionPicker && (
@@ -344,19 +356,19 @@ function BibleContent() {
                 ))}
               </div>
             )}
-            <button onClick={() => router.push('/bible/search')} className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 hover:text-whatsapp-teal"><Search size={20} /></button>
+            <button onClick={() => router.push('/bible/search')} aria-label="Buscar na Bíblia" className="w-10 h-10 rounded-2xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-gray-400 hover:text-whatsapp-teal"><Search size={20} /></button>
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6 md:py-10 pb-[calc(env(safe-area-inset-bottom)+100px)]">
         <div className="flex items-center justify-between mb-8 md:mb-16 px-2">
-          <button disabled={selectedChapter === 1} onClick={() => setSelectedChapter(prev => prev - 1)} className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-white/5 text-gray-400 hover:text-whatsapp-teal disabled:opacity-0 transition-all border"><ChevronLeft /></button>
+          <button disabled={isFirstChapterOverall} onClick={goToPrevChapter} aria-label="Capítulo anterior" className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-white/5 text-gray-400 hover:text-whatsapp-teal disabled:opacity-0 transition-all border"><ChevronLeft /></button>
           <div className="flex flex-col items-center">
             <span className="text-[9px] font-black uppercase tracking-[0.4em] text-whatsapp-teal/60 mb-2">Capítulo</span>
             <span className="text-3xl font-black dark:text-white">{selectedChapter}</span>
           </div>
-          <button disabled={selectedChapter === maxChapters} onClick={() => setSelectedChapter(prev => prev + 1)} className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-white/5 text-gray-400 hover:text-whatsapp-teal disabled:opacity-0 transition-all border"><ChevronRight /></button>
+          <button disabled={isLastChapterOverall} onClick={goToNextChapter} aria-label="Próximo capítulo" className="w-10 h-10 rounded-full flex items-center justify-center bg-white dark:bg-white/5 text-gray-400 hover:text-whatsapp-teal disabled:opacity-0 transition-all border"><ChevronRight /></button>
         </div>
 
         <div className={cn("space-y-8 transition-all", loading ? "opacity-20 blur-md" : "opacity-100")}>
@@ -661,13 +673,24 @@ function BibleContent() {
             <h2 className="text-2xl font-black dark:text-white">
               {selectorStep === 'books' ? 'Livros' : selectedBookName}
             </h2>
-            <button onClick={() => setShowSelector(false)} className="w-10 h-10 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center text-gray-500 active:scale-95 transition-all">
+            <button onClick={() => setShowSelector(false)} aria-label="Fechar seletor de livros" className="w-10 h-10 bg-gray-50 dark:bg-white/10 rounded-full flex items-center justify-center text-gray-500 active:scale-95 transition-all">
               <X size={20} />
             </button>
           </div>
 
           {selectorStep === 'books' ? (
             <div className="flex flex-col h-full overflow-hidden mt-6">
+              <label className="flex items-center gap-3 px-4 mb-4 rounded-2xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 focus-within:border-whatsapp-teal">
+                <Search size={18} className="text-gray-400 shrink-0" />
+                <input
+                  type="search"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Buscar livro da Bíblia"
+                  aria-label="Buscar livro da Bíblia"
+                  className="w-full py-3 bg-transparent text-sm text-gray-900 dark:text-white outline-none placeholder:text-gray-400"
+                />
+              </label>
               <div className="flex bg-gray-50 dark:bg-white/5 p-1 rounded-2xl mb-4 shrink-0">
                 <button 
                   onClick={() => setActiveTestamentTab('VT')} 
@@ -683,7 +706,9 @@ function BibleContent() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto pb-32 space-y-2 pr-2">
-                {(activeTestamentTab === 'VT' ? vtBooks : ntBooks).map(b => (
+                {(activeTestamentTab === 'VT' ? vtBooks : ntBooks).length === 0 ? (
+                  <p className="py-10 text-center text-sm text-gray-500">Nenhum livro encontrado neste testamento.</p>
+                ) : (activeTestamentTab === 'VT' ? vtBooks : ntBooks).map(b => (
                   <button 
                     key={b.abbrev} 
                     onClick={() => { setSelectedBook(b.abbrev); setSelectedBookName(b.name); setMaxChapters(b.chapters); setSelectorStep('chapters'); }} 
@@ -697,6 +722,12 @@ function BibleContent() {
             </div>
           ) : (
             <div className="flex flex-col h-full overflow-hidden mt-6">
+              <button
+                onClick={() => setSelectorStep('books')}
+                className="self-start mb-5 inline-flex items-center gap-2 text-sm font-bold text-whatsapp-teal"
+              >
+                <ChevronLeft size={18} /> Voltar aos livros
+              </button>
               <h3 className="text-xs text-gray-400 font-bold uppercase tracking-widest mb-4">Escolha o Capítulo</h3>
               <div className="grid grid-cols-5 gap-3 overflow-y-auto pb-32 pr-2">
                 {Array.from({ length: maxChapters }, (_, i) => i + 1).map(num => (

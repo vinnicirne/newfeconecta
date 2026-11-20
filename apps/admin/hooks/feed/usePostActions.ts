@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { NotificationService } from "@/lib/notifications";
 import { toast } from "sonner";
@@ -14,9 +14,11 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
 
   // States
   const [likes, setLikes] = useState<string[]>(Array.isArray(post.likes) ? post.likes : []);
+  const [likesCount, setLikesCount] = useState(Math.max(Number(post.likes_count) || 0, Array.isArray(post.likes) ? post.likes.length : 0));
+  const [likedByMe, setLikedByMe] = useState(Boolean(post.viewer_state?.liked ?? (userId && post.likes?.includes(userId))));
   const [repostsCount, setRepostsCount] = useState(Number(post.reposts_count) || 0);
-  const [isReposted, setIsReposted] = useState(post.is_reposted || false);
-  const [isSaved, setIsSaved] = useState(post.viewer_state?.saved || false);
+  const [isReposted, setIsReposted] = useState(Boolean(post.viewer_state?.reposted ?? post.is_reposted));
+  const [isSaved, setIsSaved] = useState(Boolean(post.viewer_state?.saved ?? post.is_saved));
   const [isFollowing, setIsFollowing] = useState(post.viewer_state?.following || false);
   const [commentCount, setCommentCount] = useState(Number(post.comments_count) || 0);
   const [isEditing, setIsEditing] = useState(false);
@@ -29,8 +31,21 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
   const [showLikesModal, setShowLikesModal] = useState(false);
   const [postLikers, setPostLikers] = useState<any[]>([]);
   const [isFetchingLikers, setIsFetchingLikers] = useState(false);
+  const likeRequestRef = useRef(false);
+  const repostRequestRef = useRef(false);
+  const saveRequestRef = useRef(false);
 
-  const isLiked = userId ? likes.includes(userId) : false;
+  const isLiked = Boolean(userId && likedByMe);
+
+  useEffect(() => {
+    const postLikes = Array.isArray(post.likes) ? post.likes : [];
+    setLikes(postLikes);
+    setLikesCount(Math.max(Number(post.likes_count) || 0, postLikes.length));
+    setLikedByMe(Boolean(post.viewer_state?.liked ?? (userId && postLikes.includes(userId))));
+    setIsSaved(Boolean(post.viewer_state?.saved ?? post.is_saved));
+    setIsReposted(Boolean(post.viewer_state?.reposted ?? post.is_reposted));
+    setCommentCount(Number(post.comments_count) || 0);
+  }, [post.id, post.likes, post.likes_count, post.viewer_state?.liked, post.viewer_state?.saved, post.viewer_state?.reposted, post.is_saved, post.is_reposted, post.comments_count, userId]);
 
   useEffect(() => {
     setRepostsCount(Number(post.reposts_count) || 0);
@@ -93,6 +108,8 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
       toast.error("Faça login para salvar");
       return;
     }
+    if (saveRequestRef.current) return;
+    saveRequestRef.current = true;
 
     const oldSaved = isSaved;
     setIsSaved(!oldSaved);
@@ -104,10 +121,13 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
         const { error } = await supabase.from("saved_posts").insert({ post_id: post.id, user_id: userId });
         if (error) throw error;
       }
+      onUpdated?.({ ...post, viewer_state: { ...post.viewer_state, saved: !oldSaved } });
       mutate(`profile_full:${userId}`);
     } catch (err) {
       setIsSaved(oldSaved);
       toast.error("Erro ao salvar publicação.");
+    } finally {
+      saveRequestRef.current = false;
     }
   };
 
@@ -116,6 +136,8 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
       toast.error("Faça login para republicar");
       return;
     }
+    if (repostRequestRef.current) return;
+    repostRequestRef.current = true;
 
     const oldReposted = isReposted;
     const oldLocalCount = repostsCount;
@@ -144,12 +166,15 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
       onUpdated?.({
         ...post,
         reposts_count: oldReposted ? Math.max(0, oldLocalCount - 1) : oldLocalCount + 1,
+        viewer_state: { ...post.viewer_state, reposted: !oldReposted },
       });
     } catch (err) {
       console.error("Error toggling repost:", err);
       setIsReposted(oldReposted);
       setRepostsCount(oldLocalCount);
       toast.error("Erro ao processar republicação.");
+    } finally {
+      repostRequestRef.current = false;
     }
   };
 
@@ -158,12 +183,17 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
       toast.error("Faça login para curtir");
       return;
     }
+    if (likeRequestRef.current) return;
+    likeRequestRef.current = true;
 
     const wasLiked = isLiked;
     const oldLikes = [...likes];
     const newLikes = wasLiked ? likes.filter((id: string) => id !== userId) : [...likes, userId];
+    const nextCount = Math.max(0, likesCount + (wasLiked ? -1 : 1));
 
     setLikes(newLikes);
+    setLikedByMe(!wasLiked);
+    setLikesCount(nextCount);
     
     if (!wasLiked) {
       impactLight(); // Vibração leve (Amém)
@@ -177,6 +207,12 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
 
       if (error) throw error;
 
+      const confirmedLikes = isNowLiked ? Array.from(new Set([...newLikes, userId])) : newLikes.filter((id) => id !== userId);
+      const confirmedCount = Math.max(0, likesCount + (Boolean(isNowLiked) === wasLiked ? 0 : isNowLiked ? 1 : -1));
+      setLikes(confirmedLikes);
+      setLikedByMe(Boolean(isNowLiked));
+      setLikesCount(confirmedCount);
+
       if (isNowLiked) {
         await NotificationService.notify({
           recipientId: post.author_id,
@@ -188,13 +224,18 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
 
       onUpdated?.({
         ...post,
-        likes: newLikes,
-        likes_count: newLikes.length,
+        likes: confirmedLikes,
+        likes_count: confirmedCount,
+        viewer_state: { ...post.viewer_state, liked: Boolean(isNowLiked) },
       });
     } catch (err) {
       console.error("Error updating likes:", err);
       setLikes(oldLikes);
+      setLikedByMe(wasLiked);
+      setLikesCount(likesCount);
       toast.error("Não foi possível processar sua curtida");
+    } finally {
+      likeRequestRef.current = false;
     }
   };
 
@@ -208,11 +249,17 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
 
   const openLikesModal = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (likes.length === 0) return;
+    if (likesCount === 0) return;
     setShowLikesModal(true);
     setIsFetchingLikers(true);
     try {
-      const { data, error } = await supabase.from("profiles").select("id, username, full_name, avatar_url").in("id", likes);
+      let likerIds = likes;
+      if (likerIds.length === 0) {
+        const { data: postData, error: postError } = await supabase.from("posts").select("likes").eq("id", post.id).maybeSingle();
+        if (postError) throw postError;
+        likerIds = Array.isArray(postData?.likes) ? postData.likes.filter((id: unknown): id is string => typeof id === "string") : [];
+      }
+      const { data, error } = await supabase.from("profiles").select("id, username, full_name, avatar_url").in("id", likerIds);
       if (error) throw error;
       setPostLikers(data || []);
     } catch (err) {
@@ -300,7 +347,7 @@ export function usePostActions(post: any, currentUser: any, onUpdated?: (post: a
   return {
     isOwner, isAuthor, isAdmin,
     likes, isLiked, toggleLike, handleDoubleClickLike, showLikeAnim,
-    repostsCount, isReposted, toggleRepost,
+    likesCount, repostsCount, isReposted, toggleRepost,
     isSaved, toggleSave,
     isFollowing, toggleFollow,
     commentCount, setCommentCount,

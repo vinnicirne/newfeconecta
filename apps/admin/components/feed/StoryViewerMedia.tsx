@@ -10,8 +10,6 @@ export default function StoryViewerMedia() {
     actions: { togglePause, videoRef, audioRef, isBufferingRef, dispatch, advance },
   } = useStoryViewer();
 
-  if (!story) return null;
-
   const group = storyGroups[userIdx];
   const nextStory = group
     ? storyIdx < group.stories.length - 1
@@ -103,6 +101,8 @@ export default function StoryViewerMedia() {
       advance();
     }
   }, [clipStart, clipDuration, dispatch, advance, videoRef]);
+
+  if (!story) return null;
 
   return (
     <div className="absolute inset-0 z-0 overflow-hidden bg-black" onClick={togglePause}>
@@ -223,6 +223,8 @@ export default function StoryViewerMedia() {
               muted={isMuted}
               preload="metadata"
               controls={false}
+              disablePictureInPicture
+              controlsList="nodownload noremoteplayback"
               onWaiting={handleWaiting}
               onPlaying={handlePlayingOrCanPlay}
               onCanPlay={handlePlayingOrCanPlay}
@@ -238,7 +240,7 @@ export default function StoryViewerMedia() {
                 setMediaError(true);
                 setTimeout(() => advance(), 2000);
               }}
-              className="absolute inset-0 w-full h-full object-cover object-center bg-black
+              className="fc-inline-video absolute inset-0 w-full h-full object-cover object-center bg-black
                          [&::-webkit-media-controls]:!hidden
                          [&::-webkit-media-controls-start-playback-button]:!hidden
                          [&::-webkit-media-controls-overlay-play-button]:!hidden

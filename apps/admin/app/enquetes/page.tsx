@@ -5,7 +5,6 @@ import Link from "next/link";
 import { PlusCircle, BarChart2, Filter, Loader2, ArrowLeft } from "lucide-react";
 import { Poll } from "@/domain/polls/types";
 import PollCard from "@/components/polls/PollCard";
-import BottomNav from "@/components/feed/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import moment from "moment";
@@ -28,10 +27,13 @@ export default function PollsListPage() {
   async function loadPolls() {
     try {
       setIsLoading(true);
-      const res = await fetch("/api/polls");
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch("/api/polls", {
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
       if (!res.ok) throw new Error("Erro ao carregar enquetes");
       const data = await res.json();
-      setPolls(Array.isArray(data) ? data : []);
+      setPolls(Array.isArray(data) ? data : data.polls ?? []);
     } catch (err: any) {
       toast.error(err.message || "Falha ao carregar enquetes.");
     } finally {
@@ -43,8 +45,13 @@ export default function PollsListPage() {
     if (!confirm("Deseja realmente excluir esta enquete?")) return;
 
     try {
-      const res = await fetch(`/api/polls/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Erro ao excluir enquete");
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Entre na sua conta para excluir esta enquete.");
+      const res = await fetch(`/api/polls/${id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) { const data = await res.json(); throw new Error(data.error || "Erro ao excluir enquete"); }
 
       setPolls((prev) => prev.filter((p) => p.id !== id));
       toast.success("Enquete excluída!");
@@ -110,7 +117,8 @@ export default function PollsListPage() {
             <button
               key={f.id}
               onClick={() => setFilter(f.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+              aria-pressed={filter === f.id}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal whitespace-nowrap ${
                 filter === f.id
                   ? "bg-whatsapp-teal text-white shadow-md shadow-whatsapp-teal/20"
                   : "bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white"
@@ -159,7 +167,6 @@ export default function PollsListPage() {
         )}
       </main>
 
-      <BottomNav />
     </div>
   );
 }

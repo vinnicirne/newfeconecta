@@ -12,16 +12,24 @@ interface EventFormProps {
   initialData?: Partial<CreateEventDto>;
   onSubmit: (dto: CreateEventDto) => void;
   isSaving: boolean;
+  allowItems?: boolean;
 }
 
-export default function EventForm({ initialData, onSubmit, isSaving }: EventFormProps) {
+function toDateTimeLocal(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
+}
+
+export default function EventForm({ initialData, onSubmit, isSaving, allowItems = true }: EventFormProps) {
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [description, setDescription] = useState(initialData?.description ?? "");
   const [churchId, setChurchId] = useState<string>(initialData?.church_id ?? "");
   const [userChurches, setUserChurches] = useState<any[]>([]);
   const [loadingChurches, setLoadingChurches] = useState(true);
-  const [startsAt, setStartsAt] = useState(initialData?.starts_at ?? "");
-  const [endsAt, setEndsAt] = useState(initialData?.ends_at ?? "");
+  const [startsAt, setStartsAt] = useState(() => toDateTimeLocal(initialData?.starts_at));
+  const [endsAt, setEndsAt] = useState(() => toDateTimeLocal(initialData?.ends_at));
   const [location, setLocation] = useState(initialData?.location ?? "");
   const [onlineLink, setOnlineLink] = useState(initialData?.online_link ?? "");
   const [isPublic, setIsPublic] = useState(initialData?.is_public ?? true);
@@ -98,41 +106,47 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!title.trim()) { toast.error("Informe o titulo do evento"); return; }
-    if (!startsAt) { toast.error("Informe a data de inicio"); return; }
+    if (!title.trim()) { toast.error("Informe o título do evento."); return; }
+    if (!startsAt) { toast.error("Informe a data de início."); return; }
+    if (endsAt && new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
+      toast.error("O término precisa ser depois do início.");
+      return;
+    }
 
     const validItems = enableItems ? items.filter((i) => i.name.trim().length > 0) : undefined;
 
     onSubmit({
       title: title.trim(),
       description: description.trim() || undefined,
-      church_id: churchId || undefined,
+      church_id: churchId || null,
       cover_url: coverUrl || undefined,
       location: location.trim() || undefined,
       online_link: onlineLink.trim() || undefined,
-      starts_at: startsAt,
-      ends_at: endsAt || undefined,
+      starts_at: new Date(startsAt).toISOString(),
+      ends_at: endsAt ? new Date(endsAt).toISOString() : undefined,
       is_public: isPublic,
       items: validItems,
     });
   }
 
   const inputClass =
-    "w-full bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-whatsapp-teal/30 text-gray-900 dark:text-white placeholder:text-gray-400 transition-all";
+    "w-full bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/50 text-gray-900 dark:text-white placeholder:text-gray-400 transition-colors";
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Cover upload */}
       <div className="relative">
-        <div
+        <button
+          type="button"
           onClick={() => fileRef.current?.click()}
+          aria-label={coverPreview ? "Trocar imagem de capa do evento" : "Adicionar imagem de capa do evento"}
           className={cn(
-            "w-full aspect-video rounded-xl overflow-hidden cursor-pointer border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center bg-gray-50 dark:bg-white/5 transition hover:border-whatsapp-teal/50 group",
+            "w-full aspect-video rounded-xl overflow-hidden cursor-pointer border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center bg-gray-50 dark:bg-white/5 transition-colors hover:border-whatsapp-teal/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal group",
             coverPreview && "border-none"
           )}
         >
           {coverPreview ? (
-            <img src={coverPreview} alt="Capa" className="w-full h-full object-cover" />
+            <img src={coverPreview} alt="Prévia da capa do evento" width={1280} height={720} className="w-full h-full object-cover" />
           ) : (
             <div className="flex flex-col items-center gap-2 text-gray-400 group-hover:text-whatsapp-teal transition">
               {uploadingCover ? (
@@ -150,11 +164,14 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
               <Loader2 className="w-8 h-8 text-white animate-spin" />
             </div>
           )}
-        </div>
+        </button>
         <input
           ref={fileRef}
+          id="event-cover-upload"
+          name="cover"
           type="file"
           accept="image/*"
+          aria-label="Escolher imagem de capa do evento"
           className="hidden"
           onChange={handleCoverChange}
         />
@@ -162,10 +179,12 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
 
       {/* Promovido por (Igreja / Perfil Pessoal) */}
       <div>
-        <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
+        <label htmlFor="event-church" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide flex items-center gap-1.5">
           <Church className="w-3.5 h-3.5 text-indigo-400" /> Promovido por
         </label>
-        <select
+          <select
+          id="event-church"
+          name="church_id"
           value={churchId}
           onChange={(e) => setChurchId(e.target.value)}
           className={inputClass}
@@ -184,12 +203,13 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
       </div>
 
       {/* Visibilidade */}
-      <div className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 rounded-xl p-1 w-fit border border-gray-200/50 dark:border-white/5">
+      <div role="group" aria-label="Visibilidade do evento" className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 rounded-xl p-1 w-fit border border-gray-200/50 dark:border-white/5">
         <button
           type="button"
           onClick={() => setIsPublic(true)}
+          aria-pressed={isPublic}
           className={cn(
-            "px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all",
+            "px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
             isPublic
               ? "bg-white dark:bg-whatsapp-darkLighter shadow-sm text-whatsapp-teal"
               : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -200,8 +220,9 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
         <button
           type="button"
           onClick={() => setIsPublic(false)}
+          aria-pressed={!isPublic}
           className={cn(
-            "px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-all",
+            "px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
             !isPublic
               ? "bg-white dark:bg-whatsapp-darkLighter shadow-sm text-amber-500"
               : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
@@ -212,30 +233,43 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
       </div>
 
       {/* Titulo */}
+      <div>
+      <label htmlFor="event-title" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">Título *</label>
       <input
-        placeholder="Titulo do evento *"
+        id="event-title"
+        name="title"
+        autoComplete="off"
+        placeholder="Ex.: Culto de jovens…"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         className={inputClass}
         required
       />
+      </div>
 
       {/* Descricao */}
+      <div>
+      <label htmlFor="event-description" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">Descrição (opcional)</label>
       <textarea
-        placeholder="Descricao (opcional)"
+        id="event-description"
+        name="description"
+        placeholder="Conte mais sobre o evento…"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
         rows={4}
         className={cn(inputClass, "resize-none")}
       />
+      </div>
 
       {/* Datas */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
-            Inicio *
+          <label htmlFor="event-starts-at" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
+            Início *
           </label>
           <input
+            id="event-starts-at"
+            name="starts_at"
             type="datetime-local"
             value={startsAt}
             onChange={(e) => setStartsAt(e.target.value)}
@@ -244,12 +278,15 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
           />
         </div>
         <div>
-          <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
-            Termino
+          <label htmlFor="event-ends-at" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5 uppercase tracking-wide">
+            Término
           </label>
           <input
+            id="event-ends-at"
+            name="ends_at"
             type="datetime-local"
             value={endsAt}
+            min={startsAt || undefined}
             onChange={(e) => setEndsAt(e.target.value)}
             className={inputClass}
           />
@@ -257,22 +294,32 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
       </div>
 
       {/* Local e Link */}
+      <div>
+      <label htmlFor="event-location" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">Local (opcional)</label>
       <input
-        placeholder="Local fisico (ex: Igreja Central, Av. Brasil 100)"
+        id="event-location"
+        name="location"
+        placeholder="Ex.: Igreja Central, Av. Brasil, 100…"
         value={location}
         onChange={(e) => setLocation(e.target.value)}
         className={inputClass}
       />
+      </div>
+      <div>
+      <label htmlFor="event-online-link" className="block text-xs font-bold text-gray-500 dark:text-gray-400 mb-1.5">Link online (opcional)</label>
       <input
-        placeholder="Link online (ex: https://meet.google.com/...)"
+        id="event-online-link"
+        name="online_link"
+        placeholder="https://…"
         value={onlineLink}
         onChange={(e) => setOnlineLink(e.target.value)}
         className={inputClass}
         type="url"
       />
+      </div>
 
       {/* Lista de Contribuição Opcional */}
-      <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200/60 dark:border-white/10 space-y-4">
+      {allowItems && <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-200/60 dark:border-white/10 space-y-4">
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 cursor-pointer">
             <input
@@ -296,21 +343,27 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
             {items.map((item, index) => (
               <div key={index} className="flex flex-wrap sm:flex-nowrap gap-2 items-center">
                 <input
-                  placeholder="Categoria (ex: Cantina)"
+                  aria-label={`Categoria do item ${index + 1}`}
+                  name={`items.${index}.category`}
+                  placeholder="Ex.: Cantina…"
                   value={item.category}
                   onChange={(e) => updateItem(index, "category", e.target.value)}
                   className="w-full sm:w-1/3 bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-white"
                 />
                 <input
-                  placeholder="Nome do Item (ex: Massa de Pastel)"
+                  aria-label={`Nome do item ${index + 1}`}
+                  name={`items.${index}.name`}
+                  placeholder="Ex.: massa de pastel…"
                   value={item.name}
                   onChange={(e) => updateItem(index, "name", e.target.value)}
                   className="w-full sm:flex-1 bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-white"
                 />
                 <input
+                  aria-label={`Quantidade necessária do item ${index + 1}`}
+                  name={`items.${index}.quantity`}
                   type="number"
                   min="1"
-                  placeholder="Qtd"
+                  placeholder="Qtd."
                   value={item.needed_quantity}
                   onChange={(e) => updateItem(index, "needed_quantity", parseInt(e.target.value) || 1)}
                   className="w-20 bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-xs text-gray-900 dark:text-white"
@@ -318,6 +371,7 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
                 <button
                   type="button"
                   onClick={() => removeItem(index)}
+                  aria-label={`Remover item ${item.name || index + 1}`}
                   className="p-2 text-red-500 hover:bg-red-500/10 rounded-lg text-xs"
                 >
                   ✕
@@ -334,16 +388,16 @@ export default function EventForm({ initialData, onSubmit, isSaving }: EventForm
             </button>
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Botao salvar */}
       <button
         type="submit"
         disabled={isSaving || uploadingCover}
-        className="w-full py-3 rounded-xl bg-whatsapp-teal text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-whatsapp-tealLight transition-all active:scale-[0.98] disabled:opacity-60"
+        className="w-full py-3 rounded-xl bg-whatsapp-teal text-white font-bold text-sm flex items-center justify-center gap-2 hover:bg-whatsapp-tealLight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2 active:scale-[0.98] disabled:opacity-60"
       >
         {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-        {isSaving ? "Salvando..." : "Salvar Evento"}
+        {isSaving ? "Salvando…" : "Salvar evento"}
       </button>
     </form>
   );

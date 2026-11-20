@@ -4,7 +4,12 @@ import crypto from 'crypto';
 
 // Conexão com privilégio administrativo (Service Role)
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+const VERIFICATION_LABELS = new Set([
+  'Bispo', 'Apóstolo', 'Pastor', 'Missionário', 'Evangelista',
+  'Diácono', 'Presbítero', 'Líder', 'Levita', 'Igreja', 'Membro',
+]);
 
 let supabaseAdmin: any = null;
 if (supabaseUrl && supabaseKey) {
@@ -12,10 +17,13 @@ if (supabaseUrl && supabaseKey) {
 }
 
 export async function POST(request: Request) {
+  const token = process.env.KIWIFY_WEBHOOK_TOKEN;
+  if (!token) {
+    return NextResponse.json({ error: 'Webhook authentication is not configured.' }, { status: 503 });
+  }
+
   if (!supabaseAdmin) {
-    return NextResponse.json({ 
-      error: 'SUPABASE_SERVICE_ROLE_KEY não configurada no servidor. O Webhook precisa dessa chave para ter permissão de administrador.' 
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Webhook processing is not configured.' }, { status: 503 });
   }
 
   try {
@@ -23,8 +31,6 @@ export async function POST(request: Request) {
     const url = new URL(request.url);
     const queryToken = url.searchParams.get('token') || url.searchParams.get('signature');
     const signature = request.headers.get('x-kiwify-signature') || request.headers.get('signature') || queryToken;
-    const token = process.env.KIWIFY_WEBHOOK_TOKEN;
-
     let payload: any = {};
     try {
       payload = JSON.parse(rawBody);
@@ -32,22 +38,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
     }
 
-    // 🔒 Validação de Assinatura Kiwify (quando configurado o token no ambiente)
-    if (token) {
-      const calculatedSignature = crypto
-        .createHmac('sha1', token)
-        .update(rawBody)
-        .digest('hex');
+    const calculatedSignature = crypto
+      .createHmac('sha1', token)
+      .update(rawBody)
+      .digest('hex');
 
-      const isDirectTokenMatch = signature === token || payload.signature === token || queryToken === token;
-      const isHmacMatch = calculatedSignature === signature;
+    const isDirectTokenMatch = signature === token || payload.signature === token || queryToken === token;
+    const isHmacMatch = signature === calculatedSignature;
 
-      if (!isDirectTokenMatch && !isHmacMatch) {
-        console.error('[KIWIFY SECURITY] Assinatura ou token inválido. Tentativa não autorizada.');
-        return NextResponse.json({ error: 'Unauthorized: Invalid signature' }, { status: 401 });
-      }
-    } else {
-      console.warn('[KIWIFY] Aviso: KIWIFY_WEBHOOK_TOKEN não definido. Operando em modo de desenvolvimento.');
+    if (!isDirectTokenMatch && !isHmacMatch) {
+      console.error('[KIWIFY SECURITY] Assinatura ou token inválido. Tentativa não autorizada.');
+      return NextResponse.json({ error: 'Unauthorized: Invalid signature' }, { status: 401 });
     }
 
     // Identificação flexível dos campos do webhook da Kiwify
@@ -102,18 +103,21 @@ export async function POST(request: Request) {
       }, { status: 200 });
     }
 
-    const targetRole = role || 'Membro';
+    const targetRole = typeof role === 'string' && VERIFICATION_LABELS.has(role) ? role : null;
 
     // 1. COMPRA APROVADA / PAGA
     if (status === 'approved' || status === 'paid') {
-      console.log(`[KIWIFY] ✅ Aprovando verificação: Usuário ${userId} | Cargo: ${targetRole}`);
+      if (!targetRole) {
+        return NextResponse.json({ error: 'Cargo de verificação inválido.' }, { status: 400 });
+      }
+      console.log(`[KIWIFY] ✅ Aprovando verificação: Usuário ${userId} | Selo: ${targetRole}`);
 
-      // Atualiza Perfil do usuário com selo verificado e cargo
+      // A role controla permissões. Dados de checkout só podem definir o selo público.
       const { error: profileError } = await supabaseAdmin
         .from('profiles')
         .update({
           is_verified: true,
-          role: targetRole,
+          verification_label: targetRole,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId);
@@ -160,7 +164,7 @@ export async function POST(request: Request) {
         .from('profiles')
         .update({
           is_verified: false,
-          role: 'Membro',
+          verification_label: null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId);

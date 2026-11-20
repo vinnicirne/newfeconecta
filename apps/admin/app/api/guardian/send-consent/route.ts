@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
+import { requireAuth } from '@/lib/auth-server';
 
 /**
  * POST /api/guardian/send-consent
@@ -13,38 +14,51 @@ import crypto from 'crypto';
  */
 export async function POST(request: Request) {
   try {
-    let { user_id, minor_name, guardian_email } = await request.json();
-
-    if (!guardian_email) {
-      return NextResponse.json({ error: 'E-mail do responsável é obrigatório' }, { status: 400 });
+    const user = await requireAuth(request);
+    const body: unknown = await request.json().catch(() => ({}));
+    const requestedUserId = (body as { user_id?: unknown } | null)?.user_id;
+    if (requestedUserId && requestedUserId !== user.id) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json({ error: 'Serviço de consentimento indisponível' }, { status: 503 });
+    }
     const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      supabaseUrl,
+      serviceKey,
+      { auth: { persistSession: false, autoRefreshToken: false } }
     );
 
-    // Se user_id ou minor_name não foram passados (ex: botão de reenvio), busca pelo guardian_email
-    if (!user_id || !minor_name) {
-      const { data: profile, error: pErr } = await supabase
-        .from('profiles')
-        .select('id, full_name, first_name')
-        .eq('guardian_email', guardian_email.toLowerCase().trim())
-        .eq('is_minor', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+    const { data: profile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id, first_name, full_name, is_minor, guardian_email, guardian_token, guardian_token_expires_at')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile || profile.is_minor !== true || !profile.guardian_email) {
+      return NextResponse.json({ error: 'Perfil de menor ou responsável não encontrado' }, { status: 403 });
+    }
 
-      if (pErr || !profile) {
-        return NextResponse.json({ error: 'Cadastro do menor não encontrado para este e-mail' }, { status: 404 });
-      }
-
-      user_id = profile.id;
-      minor_name = profile.first_name || profile.full_name || 'Seu filho(a)';
+    const guardian_email = String(profile.guardian_email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardian_email) || guardian_email === user.email?.toLowerCase()) {
+      return NextResponse.json({ error: 'E-mail do responsável inválido' }, { status: 400 });
+    }
+    const minor_name = String(profile.first_name || profile.full_name || 'Seu filho(a)')
+      .replace(/[\r\n\u0000-\u001f]/g, ' ')
+      .slice(0, 100)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const previousExpiry = profile.guardian_token_expires_at ? new Date(profile.guardian_token_expires_at).getTime() : 0;
+    const tokenIssuedAt = previousExpiry - 7 * 24 * 60 * 60 * 1000;
+    if (profile.guardian_token && previousExpiry > Date.now() && Date.now() - tokenIssuedAt < 60_000) {
+      return NextResponse.json({ error: 'Aguarde um minuto antes de solicitar outro e-mail.' }, { status: 429 });
     }
 
     // Gerar token único e seguro (válido por 7 dias)
     const token = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
 
@@ -52,11 +66,12 @@ export async function POST(request: Request) {
     const { error: updateError } = await supabase
       .from('profiles')
       .update({
-        guardian_token: token,
+        guardian_token: tokenHash,
+        guardian_token_hash_version: true,
         guardian_token_expires_at: expiresAt.toISOString(),
         guardian_approved: false,
       })
-      .eq('id', user_id);
+      .eq('id', user.id);
 
     if (updateError) {
       console.error('[GuardianConsent] Erro ao salvar token:', updateError);
@@ -175,7 +190,7 @@ export async function POST(request: Request) {
         text: `${minor_name} se cadastrou no FéConecta e precisa da sua autorização. Acesse: ${approvalLink}`,
       });
     } else if (resendApiKey) {
-      await fetch('https://api.resend.com/emails', {
+      const emailResponse = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -185,6 +200,9 @@ export async function POST(request: Request) {
           html,
         }),
       });
+      if (!emailResponse.ok) {
+        throw new Error(`Falha no provedor de e-mail (${emailResponse.status})`);
+      }
     } else {
       console.warn('[GuardianConsent] Nenhum provedor de e-mail configurado.');
       return NextResponse.json({ error: 'Provedor de e-mail não configurado' }, { status: 500 });
@@ -194,6 +212,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
+    if (typeof error?.message === 'string' && error.message.startsWith('Não autorizado:')) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
     console.error('[GuardianConsent] Erro:', error);
     return NextResponse.json({ error: error.message || 'Erro interno' }, { status: 500 });
   }

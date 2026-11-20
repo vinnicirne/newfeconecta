@@ -228,7 +228,7 @@ export default function StoriesPage() {
                       <img src={latestStory.media_url?.split('#')[0]} className="w-full h-full object-cover" alt="" />
                     )}
                     {latestStory?.media_type === 'video' && (
-                      <video src={latestStory.media_url?.split('#')[0]} className="w-full h-full object-cover" muted />
+              <video src={latestStory.media_url?.split('#')[0]} className="fc-inline-video w-full h-full object-cover" muted controls={false} playsInline webkit-playsinline="true" />
                     )}
                     {latestStory?.media_type === 'text' && (
                       <div className="w-full h-full flex items-center justify-center p-4 text-center font-bold text-xs" style={{ backgroundColor: latestStory.background_color || '#075E54' }}>

@@ -72,24 +72,25 @@ export default function PollForm({ onSubmit, isSaving }: PollFormProps) {
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Pergunta */}
       <div className="space-y-2">
-        <label className="block text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+        <label htmlFor="poll-question" className="block text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
           Pergunta da Enquete *
         </label>
         <textarea
+          id="poll-question"
           rows={3}
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="Ex: Qual o seu horário preferido para o culto de oração?"
-          className="w-full rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#0c0c0c] px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-whatsapp-teal focus:outline-none font-medium leading-relaxed"
+          className="w-full rounded-2xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#0c0c0c] px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus-visible:border-whatsapp-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/40 font-medium leading-relaxed"
         />
       </div>
 
       {/* Opções */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <label className="block text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
+          <span id="poll-options-label" className="block text-xs font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
             Opções de Resposta (mínimo 2, máximo 8) *
-          </label>
+          </span>
           <span className="text-xs text-gray-500 font-bold">{options.length}/8</span>
         </div>
 
@@ -99,14 +100,17 @@ export default function PollForm({ onSubmit, isSaving }: PollFormProps) {
               <span className="w-6 text-center text-xs font-bold text-gray-400">{idx + 1}.</span>
               <input
                 type="text"
+                aria-label={`Opção ${idx + 1}`}
+                name={`option-${idx + 1}`}
                 value={opt}
                 onChange={(e) => handleOptionChange(idx, e.target.value)}
                 placeholder={`Opção ${idx + 1}`}
-                className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#0c0c0c] px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-whatsapp-teal focus:outline-none font-medium"
+                className="flex-1 rounded-xl border border-black/10 dark:border-white/10 bg-white dark:bg-[#0c0c0c] px-4 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus-visible:border-whatsapp-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/40 font-medium"
               />
               {options.length > 2 && (
                 <button
                   type="button"
+                  aria-label={`Remover opção ${idx + 1}`}
                   onClick={() => handleRemoveOption(idx)}
                   className="p-2.5 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
                 >
@@ -121,7 +125,7 @@ export default function PollForm({ onSubmit, isSaving }: PollFormProps) {
           <button
             type="button"
             onClick={handleAddOption}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-black/20 dark:border-white/20 hover:border-whatsapp-teal text-xs font-bold text-whatsapp-teal transition-all w-full justify-center bg-whatsapp-teal/5 hover:bg-whatsapp-teal/10"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-black/20 dark:border-white/20 hover:border-whatsapp-teal text-xs font-bold text-whatsapp-teal transition-colors w-full justify-center bg-whatsapp-teal/5 hover:bg-whatsapp-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
           >
             <Plus className="w-4 h-4" />
             <span>Adicionar outra opção</span>
@@ -177,7 +181,7 @@ export default function PollForm({ onSubmit, isSaving }: PollFormProps) {
       <button
         type="submit"
         disabled={isSaving}
-        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-whatsapp-teal hover:bg-whatsapp-teal/90 text-white font-bold text-sm shadow-lg shadow-whatsapp-teal/20 transition-all active:scale-[0.99] disabled:opacity-50 cursor-pointer"
+        className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-whatsapp-teal hover:bg-whatsapp-teal/90 text-white font-bold text-sm shadow-lg shadow-whatsapp-teal/20 transition-colors active:scale-[0.99] disabled:opacity-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2"
       >
         {isSaving ? (
           <>

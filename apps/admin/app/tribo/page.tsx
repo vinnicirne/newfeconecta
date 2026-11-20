@@ -68,7 +68,7 @@ const ReelItem = React.memo(({
                     {externalMedia.platform.startsWith('youtube') && externalMedia.id ? (
                       <img src={`https://img.youtube.com/vi/${externalMedia.id}/hqdefault.jpg`} alt="" className="h-full w-full object-cover opacity-60" loading="lazy" />
                     ) : null}
-                    <Play className="absolute h-14 w-14 fill-white text-white drop-shadow-lg" />
+                    <Play className="absolute h-8 w-8 fill-white text-white drop-shadow-lg" aria-hidden="true" />
                   </div>
                 )}
               </div>
@@ -91,7 +91,10 @@ const ReelItem = React.memo(({
               poster={reel.thumbnail_url || undefined}
               onLoadedData={() => { setVideoReady(true); setVideoFailed(false); }}
               onError={() => { setVideoFailed(true); setVideoReady(true); }}
-              className="absolute inset-0 w-full h-full object-cover cursor-pointer"
+              controls={false}
+              disablePictureInPicture
+              controlsList="nodownload noremoteplayback"
+              className="fc-inline-video absolute inset-0 w-full h-full object-cover cursor-pointer"
             />
           ) : (
             <div 
@@ -137,13 +140,16 @@ const ReelItem = React.memo(({
       <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-black/70 via-black/20 to-transparent pointer-events-none" />
       <div className="absolute inset-x-0 bottom-0 h-80 bg-gradient-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
-      {/* Play Icon Feedback */}
+      {/* Compact play control while this reel is paused */}
       {!isPlaying && isActive && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
-          <div className="w-20 h-20 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center animate-out zoom-out-50 duration-300">
-            <Play className="w-10 h-10 text-white fill-white ml-2" />
-          </div>
-        </div>
+        <button
+          type="button"
+          aria-label="Reproduzir vídeo"
+          onClick={(event) => { event.stopPropagation(); onPlayToggle(reel.id); }}
+          className="absolute left-1/2 top-1/2 z-20 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-white/25 bg-black/55 text-white shadow-lg backdrop-blur-sm transition-opacity duration-150 hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+        >
+          <Play className="ml-0.5 h-6 w-6 fill-current" aria-hidden="true" />
+        </button>
       )}
 
       {/* Info Lateral / Bottom */}

@@ -8,6 +8,8 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
+const hasCompleteProfile = (profile: { username?: string | null; full_name?: string | null; accepted_terms?: boolean | null } | null | undefined) =>
+  Boolean(profile?.username || (profile?.full_name && profile.accepted_terms));
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
@@ -17,7 +19,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const [isSyncingProfile, setIsSyncingProfile] = useState(true);
   const [isProfileComplete, setIsProfileComplete] = useState<boolean>(() => {
     const cached = getStoredProfile();
-    return Boolean(cached?.username || cached?.full_name || cached?.id);
+    return hasCompleteProfile(cached);
   });
   const initialized = useRef(false);
   const pathname = usePathname();
@@ -30,7 +32,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       const p = e.detail;
       if (p) {
         if (p.role) setUserRole(p.role);
-        setIsProfileComplete(true);
+        setIsProfileComplete(hasCompleteProfile(p));
         setIsSyncingProfile(false);
       }
     };
@@ -60,7 +62,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       if (profile) {
         setStoredProfile(profile);
         setUserRole(profile.role);
-        setIsProfileComplete(Boolean(profile.username || profile.full_name || profile.id));
+        setIsProfileComplete(hasCompleteProfile(profile));
 
         // 🔒 LGPD Art. 14 — Bloqueio de menores sem aprovação parental
         // guardian_approved = false significa que o responsável ainda não autorizou
@@ -73,18 +75,23 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         }
         // Disparo/Garantia de e-mail de boas-vindas em background (idempotente)
         if (profile.email) {
-          fetch('/api/emails/welcome', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              user_id: profile.id,
-              email: profile.email,
-              name: profile.full_name || profile.username || 'Membro'
-            })
+          void supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            if (!session?.access_token || session.user.id !== userId) return;
+            return fetch('/api/emails/welcome', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+              body: JSON.stringify({
+                user_id: profile.id,
+                email: profile.email,
+                name: profile.full_name || profile.username || 'Membro'
+              })
+            });
           }).catch(() => {});
         }
       } else if (profileError) {
         console.warn("[AuthGuard] Erro ao carregar perfil:", profileError.message);
+        const cached = getStoredProfile();
+        setIsProfileComplete(cached?.id === userId && hasCompleteProfile(cached));
       }
 
       // Serviços em background
@@ -126,7 +133,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           setAuthorized(true);
           setUserId(cached.id);
           if (cached.role) setUserRole(cached.role);
-          setIsProfileComplete(true);
+          setIsProfileComplete(hasCompleteProfile(cached));
         }
 
         // Busca a sessão com race de tempo de 3s
@@ -220,11 +227,22 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       router.replace("/login");
       return;
     }
+
+    const isCompleteProfileRoute = pathname === '/complete-profile';
+    if (authorized && !isSyncingProfile && !isProfileComplete && !isCompleteProfileRoute && !isGuardianRoute && !isPostRoute) {
+      router.replace('/complete-profile');
+      return;
+    }
+
+    if (authorized && isCompleteProfileRoute && !isSyncingProfile && isProfileComplete) {
+      router.replace('/');
+      return;
+    }
     
     if (authorized && isEntryRoute) {
       router.replace("/");
     }
-  }, [pathname, authorized, loading, router]);
+  }, [pathname, authorized, loading, isProfileComplete, isSyncingProfile, router]);
 
 
   // 5. Batimento Cardíaco (Presença Real)

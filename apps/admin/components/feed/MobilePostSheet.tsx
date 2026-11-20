@@ -1,10 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Type, Image, Camera, Mic, X, CheckCircle2, Music } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { Type, Image, Camera, Mic, X, CheckCircle2 } from 'lucide-react';
 import UnifiedComposer from './UnifiedComposer';
-import MusicComposerModal from './MusicComposerModal';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
@@ -12,9 +10,7 @@ import { NotificationService } from '@/lib/notifications';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
 
 export default function MobilePostSheet({ open, onClose, user, onPostCreated, onPostStart }: any) {
-  const router = useRouter();
   const [composerOpen, setComposerOpen] = useState(false);
-  const [musicComposerOpen, setMusicComposerOpen] = useState(false);
   const [initialMode, setInitialMode] = useState<any>('text');
   const [posted, setPosted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -233,17 +229,6 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
         />
       )}
 
-      {musicComposerOpen && (
-        <MusicComposerModal 
-          isOpen={musicComposerOpen}
-          onClose={() => setMusicComposerOpen(false)}
-          onSuccess={() => {
-             setMusicComposerOpen(false);
-             onClose();
-             onPostCreated?.();
-          }}
-        />
-      )}
     </>
   );
 }

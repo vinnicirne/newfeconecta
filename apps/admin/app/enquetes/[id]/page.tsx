@@ -6,7 +6,6 @@ import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, BarChart2, Loader2 } from "lucide-react";
 import { Poll } from "@/domain/polls/types";
 import PollCard from "@/components/polls/PollCard";
-import BottomNav from "@/components/feed/BottomNav";
 import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 
@@ -34,7 +33,7 @@ export default function PollDetailPage() {
       const res = await fetch(`/api/polls/${id}`);
       if (!res.ok) throw new Error("Erro ao carregar enquete");
       const data = await res.json();
-      setPoll(data);
+      setPoll(data.poll ?? data);
     } catch (err: any) {
       toast.error(err.message || "Falha ao buscar detalhes da enquete.");
     } finally {
@@ -46,7 +45,12 @@ export default function PollDetailPage() {
     if (!confirm("Deseja realmente excluir esta enquete?")) return;
 
     try {
-      const res = await fetch(`/api/polls/${pollId}`, { method: "DELETE" });
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error("Sua sessão expirou. Entre novamente para excluir a enquete.");
+      const res = await fetch(`/api/polls/${pollId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       if (!res.ok) throw new Error("Erro ao excluir enquete");
 
       toast.success("Enquete excluída!");
@@ -63,6 +67,7 @@ export default function PollDetailPage() {
         <div className="max-w-2xl mx-auto flex items-center gap-3">
           <Link
             href="/enquetes"
+            aria-label="Voltar para enquetes"
             className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -103,7 +108,6 @@ export default function PollDetailPage() {
         )}
       </main>
 
-      <BottomNav />
     </div>
   );
 }

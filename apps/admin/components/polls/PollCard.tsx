@@ -6,6 +6,8 @@ import { CheckCircle2, Circle, Clock, Vote, Trash2 } from "lucide-react";
 import moment from "moment";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
+import Link from "next/link";
 
 interface PollCardProps {
   poll: Poll;
@@ -42,9 +44,11 @@ export default function PollCard({ poll, currentUserId, onVoted, onDelete }: Pol
 
     try {
       setIsSubmitting(true);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Entre na sua conta para votar.");
       const res = await fetch(`/api/polls/${poll.id}/vote`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ option_ids: selectedOptions }),
       });
 
@@ -53,7 +57,8 @@ export default function PollCard({ poll, currentUserId, onVoted, onDelete }: Pol
         throw new Error(err.error || "Erro ao registrar voto");
       }
 
-      const updatedPoll = await res.json();
+      const response = await res.json();
+      const updatedPoll = response.poll ?? response;
       toast.success("Voto registrado com sucesso!");
       if (onVoted) onVoted(updatedPoll);
     } catch (err: any) {
@@ -96,6 +101,7 @@ export default function PollCard({ poll, currentUserId, onVoted, onDelete }: Pol
         {isAuthor && onDelete && (
           <button
             onClick={() => onDelete(poll.id)}
+                aria-label="Excluir enquete"
             className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
             title="Excluir enquete"
           >
@@ -155,9 +161,11 @@ export default function PollCard({ poll, currentUserId, onVoted, onDelete }: Pol
             <button
               key={opt.id}
               onClick={() => handleToggleOption(opt.id)}
+              disabled={!currentUserId || isSubmitting}
+              aria-pressed={isSelected}
               type="button"
               className={cn(
-                "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left text-sm font-bold transition-all active:scale-[0.99]",
+                "w-full flex items-center gap-3 p-3.5 rounded-xl border text-left text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal disabled:cursor-not-allowed",
                 isSelected
                   ? "border-whatsapp-teal bg-whatsapp-teal/10 text-whatsapp-teal shadow-sm"
                   : "border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 text-gray-800 dark:text-gray-200 hover:border-whatsapp-teal/50"
@@ -180,15 +188,20 @@ export default function PollCard({ poll, currentUserId, onVoted, onDelete }: Pol
           {poll.total_votes || 0} {poll.total_votes === 1 ? "voto" : "votos"}
         </span>
 
-        {!showResults && (
+        {!showResults && currentUserId && (
           <button
             onClick={handleVote}
             disabled={isSubmitting || selectedOptions.length === 0}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-whatsapp-teal hover:bg-whatsapp-teal/90 text-white font-bold text-xs shadow-md shadow-whatsapp-teal/20 transition-all active:scale-95 disabled:opacity-50 cursor-pointer"
+            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-whatsapp-teal hover:bg-whatsapp-teal/90 text-white font-bold text-xs shadow-md shadow-whatsapp-teal/20 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2 disabled:opacity-50 cursor-pointer"
           >
             <Vote className="w-4 h-4" />
             <span>{isSubmitting ? "Votando..." : "Votar"}</span>
           </button>
+        )}
+        {!showResults && !currentUserId && (
+          <Link href="/login" className="text-xs font-bold text-whatsapp-teal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
+            Entre na sua conta para votar
+          </Link>
         )}
       </div>
     </div>

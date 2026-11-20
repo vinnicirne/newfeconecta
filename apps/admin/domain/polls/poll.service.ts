@@ -84,16 +84,19 @@ export async function createPoll(
 // listPolls
 // ---------------------------------------------------------------------------
 export async function listPolls(
-  filters?: { author_id?: string }
+  filters?: { author_id?: string; user_id?: string }
 ): Promise<Poll[]> {
   let query = supabaseAdmin
     .from("polls")
     .select("*, profiles(full_name, avatar_url, username)")
-    .eq("is_public", true)
     .order("created_at", { ascending: false });
 
   if (filters?.author_id) {
     query = query.eq("author_id", filters.author_id);
+  } else if (filters?.user_id) {
+    query = query.or(`is_public.eq.true,author_id.eq.${filters.user_id}`);
+  } else {
+    query = query.eq("is_public", true);
   }
 
   const { data, error } = await query;
@@ -102,13 +105,23 @@ export async function listPolls(
   const polls = data as Poll[];
 
   // Enriquecer com resultados
+  const voteRows = filters?.user_id
+    ? await supabaseAdmin
+        .from("poll_votes")
+        .select("poll_id, option_ids")
+        .eq("user_id", filters.user_id)
+        .in("poll_id", polls.map((poll) => poll.id))
+    : { data: [], error: null };
+  if (voteRows.error) throw new Error(voteRows.error.message);
+  const myVotes = new Map((voteRows.data ?? []).map((vote) => [vote.poll_id, vote.option_ids as string[]]));
+
   const enriched = await Promise.all(
     polls.map(async (poll) => {
       const { results, total_votes } = await computeResults(
         poll.id,
         poll.options
       );
-      return { ...poll, results, total_votes };
+      return { ...poll, results, total_votes, my_vote: myVotes.get(poll.id) ?? [] };
     })
   );
 

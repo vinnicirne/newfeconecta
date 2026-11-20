@@ -202,6 +202,8 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
       setComments(prev => prev.filter(c => c.id !== id));
       toast.success("Comentário removido!");
       onCommentDeleted?.();
+    } else {
+      toast.error("Não foi possível remover o comentário.");
     }
   };
 
@@ -290,7 +292,7 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
               {isOwner && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <button className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-all">
+                    <button type="button" aria-label="Mais ações do comentário" className="p-1 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
                       <MoreHorizontal className="w-4 h-4 text-gray-400" />
                     </button>
                   </DropdownMenuTrigger>
@@ -325,7 +327,10 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
           <div className="flex items-center gap-4 mt-1.5 ml-2">
             <p className="text-[10px] text-gray-500 font-medium">{moment(c.created_at).fromNow()}</p>
             <button 
+              type="button"
               onClick={() => toggleLike(c)} 
+              aria-label={isLiked ? "Remover curtida do comentário" : "Curtir comentário"}
+              aria-pressed={Boolean(isLiked)}
               className={cn(
                 "flex items-center gap-1 text-[10px] font-bold transition-all active:scale-125",
                 isLiked ? "text-orange-500" : "text-gray-500"
@@ -334,12 +339,12 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
               <Flame className={cn("w-3 h-3", isLiked && "fill-orange-500")} />
               <span>{c.likes?.length || 0}</span>
             </button>
-            <button onClick={() => { setReplyingTo(c); setText(`@${c.author?.username || c.author?.full_name?.split(' ')[0] || 'usuario'} `); }} className="text-[10px] text-gray-500 font-bold hover:underline flex items-center gap-1">
+            <button type="button" onClick={() => { setReplyingTo(c); setText(`@${c.author?.username || c.author?.full_name?.split(' ')[0] || 'usuario'} `); }} className="text-[10px] text-gray-500 font-bold hover:underline flex items-center gap-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal rounded-sm">
               <Reply className="w-3 h-3" /> Responder
             </button>
             
             {hasReplies && (
-              <button onClick={() => toggleThread(c.id)} className="text-[10px] text-whatsapp-teal dark:text-whatsapp-green font-bold hover:underline">
+              <button type="button" onClick={() => toggleThread(c.id)} aria-expanded={Boolean(isExpanded)} className="text-[10px] text-whatsapp-teal dark:text-whatsapp-green font-bold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal rounded-sm">
                 {isExpanded ? 'Ocultar' : `Ver respostas (${replies.length})`}
               </button>
             )}
@@ -380,6 +385,8 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
         )}
         <div className={`flex gap-2 items-center bg-gray-50 dark:bg-whatsapp-dark p-1 pr-3 border border-gray-100 dark:border-white/5 transition-all ${replyingTo || editingComment ? 'rounded-b-2xl' : 'rounded-2xl'}`}>
           <Input
+            aria-label={editingComment ? "Editar comentário" : replyingTo ? "Escrever resposta" : "Escrever comentário"}
+            name="comment"
             value={text}
             onChange={e => setText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && handleSend()}
@@ -388,8 +395,10 @@ export default function CommentsSection({ postId, verseId, user, postAuthorId, o
             className="text-xs h-10 bg-transparent border-none focus-visible:ring-0"
           />
           <button 
+            type="button"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSend(); }} 
             disabled={sending || !text.trim()} 
+            aria-label={sending ? "Enviando comentário" : editingComment ? "Salvar comentário" : "Enviar comentário"}
             className="text-whatsapp-teal dark:text-whatsapp-green disabled:opacity-40 transition-all active:scale-90"
           >
             <Send className="w-4 h-4" />

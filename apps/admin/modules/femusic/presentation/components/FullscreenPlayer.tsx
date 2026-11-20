@@ -6,12 +6,11 @@ import {
   ChevronDown, Play, Pause, SkipBack, SkipForward,
   Heart, MessageCircle, Share2,
   Shuffle, Repeat, Repeat1, Music2, Video,
-  MoreVertical, ListMusic, Loader2, Plus
+  MoreVertical, ListMusic, Loader2
 } from 'lucide-react';
 import MusicShareModal from './MusicShareModal';
 import { usePlayerStore } from '@/modules/femusic/infrastructure/state/usePlayerStore';
 import { cn } from '@/lib/utils';
-import MusicComposerModal from '@/components/feed/MusicComposerModal';
 import TrackCommentsModal from './TrackCommentsModal';
 import AddToPlaylistModal from './AddToPlaylistModal';
 import { App as CapApp } from '@capacitor/app';
@@ -30,7 +29,6 @@ export default function FullscreenPlayer() {
     isLoading,
   } = usePlayerStore();
 
-  const [isComposerOpen, setIsComposerOpen] = React.useState(false);
   const [isCommentsOpen, setIsCommentsOpen] = React.useState(false);
   const [isShareOpen, setIsShareOpen] = React.useState(false);
   const [isAddToPlaylistOpen, setIsAddToPlaylistOpen] = React.useState(false);
@@ -419,12 +417,6 @@ export default function FullscreenPlayer() {
           </footer>
 
           {/* Modais Integrados */}
-          <MusicComposerModal
-            isOpen={isComposerOpen}
-            onClose={() => setIsComposerOpen(false)}
-            onSuccess={() => { setIsComposerOpen(false); }}
-            initialUrl={ytId ? `https://www.youtube.com/watch?v=${ytId}` : ''}
-          />
           <TrackCommentsModal
             isOpen={isCommentsOpen}
             onClose={() => setIsCommentsOpen(false)}

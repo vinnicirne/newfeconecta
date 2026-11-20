@@ -4,21 +4,23 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Search, Send, MessageSquare, ArrowLeft, Check, CheckCheck, Camera, Image, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { useChat } from '@/hooks/useChat';
 import { compressImage } from '@/lib/image-compression';
 
 function MessagesContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const targetUserId = searchParams.get('userId');
 
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(targetUserId);
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
@@ -57,11 +59,15 @@ function MessagesContent() {
   }, []);
 
   useEffect(() => {
-    const initAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUser(user);
-    };
-    initAuth();
+    let active = true;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (active && user) setCurrentUser(user);
+    }).catch(() => {
+      if (active) toast.error("Não foi possível verificar sua conta.");
+    }).finally(() => {
+      if (active) setIsAuthLoading(false);
+    });
+    return () => { active = false; };
   }, []);
 
   const {
@@ -76,13 +82,22 @@ function MessagesContent() {
   const handleSendMessage = async (e?: React.FormEvent, customContent?: string) => {
     e?.preventDefault();
     const contentToSend = customContent || message;
-    if (!contentToSend.trim()) return;
+    if (!contentToSend.trim() || isSending) return false;
 
-    if (!customContent) setMessage('');
-    const { error } = await sendMessage(contentToSend);
-
-    if (error) {
-      toast.error("Falha ao enviar mensagem.");
+    setIsSending(true);
+    try {
+      const { error } = await sendMessage(contentToSend);
+      if (error) {
+        toast.error("Falha ao enviar mensagem. Tente novamente.");
+        return false;
+      }
+      if (!customContent) setMessage((current) => current === contentToSend ? '' : current);
+      return true;
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Falha ao enviar mensagem. Tente novamente.");
+      return false;
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -111,7 +126,8 @@ function MessagesContent() {
         .from('avatars')
         .getPublicUrl(filePath);
 
-      await handleSendMessage(undefined, publicUrl);
+      const sent = await handleSendMessage(undefined, publicUrl);
+      if (!sent) throw new Error("Não foi possível enviar a imagem na conversa.");
       toast.success("Mídia enviada!", { id: toastId });
     } catch (err: any) {
       console.error("Erro no upload:", err);
@@ -131,6 +147,8 @@ function MessagesContent() {
   const [targetUserProfile, setTargetUserProfile] = useState<any>(null);
 
   useEffect(() => {
+    let active = true;
+    setTargetUserProfile(null);
     if (selectedId && !conversations.some((c: any) => c.id === selectedId)) {
       supabase
         .from('profiles')
@@ -138,9 +156,10 @@ function MessagesContent() {
         .eq('id', selectedId)
         .single()
         .then(({ data }) => {
-          if (data) setTargetUserProfile(data);
+          if (active && data) setTargetUserProfile(data);
         });
     }
+    return () => { active = false; };
   }, [selectedId, conversations]);
 
   const filteredConversations = useMemo(() => {
@@ -162,6 +181,20 @@ function MessagesContent() {
     } : null);
   }, [conversations, selectedId, targetUserProfile]);
 
+  if (isAuthLoading) {
+    return <main className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-[#0b141a]" aria-label="Carregando conversas"><Loader2 className="w-8 h-8 animate-spin text-whatsapp-green" /></main>;
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="min-h-[100dvh] flex flex-col items-center justify-center gap-4 bg-gray-50 dark:bg-[#0b141a] px-6 text-center">
+        <MessageSquare className="w-10 h-10 text-whatsapp-green" aria-hidden="true" />
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Entre para acessar suas conversas</h1>
+        <Link href="/login" className="rounded-xl bg-whatsapp-green px-5 py-3 font-bold text-white hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green">Entrar</Link>
+      </main>
+    );
+  }
+
   return (
     <div
       className="fixed left-0 w-full z-[110] flex bg-gray-50 dark:bg-[#0b141a] text-gray-900 dark:text-gray-100 overflow-hidden"
@@ -180,12 +213,9 @@ function MessagesContent() {
         {/* Header Sidebar */}
         <div className="p-4 bg-gray-50 dark:bg-[#202c33] flex items-center justify-between border-b border-gray-200 dark:border-transparent">
           <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push('/profile')}
-              className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-all text-gray-600 dark:text-gray-300"
-            >
+            <Link href="/profile" aria-label="Voltar ao perfil" className="p-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-full transition-colors text-gray-600 dark:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green">
               <ArrowLeft className="w-5 h-5" />
-            </button>
+            </Link>
             <h1 className="text-xl font-bold dark:text-white text-gray-900">Conversas</h1>
           </div>
           <MessageSquare className="w-5 h-5 text-gray-400" />
@@ -197,10 +227,11 @@ function MessagesContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
+              aria-label="Pesquisar conversas"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Pesquisar mensagens"
-              className="w-full bg-gray-100 dark:bg-[#202c33] rounded-lg py-2 pl-10 pr-4 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900 dark:text-white"
+              placeholder="Pesquisar mensagens…"
+              className="w-full bg-gray-100 dark:bg-[#202c33] rounded-lg py-2 pl-10 pr-4 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green placeholder:text-gray-500 text-gray-900 dark:text-white"
             />
           </div>
         </div>
@@ -212,10 +243,12 @@ function MessagesContent() {
           </div>
           <div className="flex gap-4 overflow-x-auto px-4 no-scrollbar pb-1">
             {conversations.map((chat: any) => (
-              <div
+              <button
+                type="button"
                 key={`active-${chat.id}`}
                 onClick={() => setSelectedId(chat.id)}
-                className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-all min-w-[60px]"
+                aria-label={`Abrir conversa com ${chat.name}`}
+                className="flex flex-col items-center gap-1.5 cursor-pointer hover:opacity-80 transition-opacity min-w-[60px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green rounded-xl"
               >
                 <div className="relative">
                   <div className={cn(
@@ -224,7 +257,7 @@ function MessagesContent() {
                       ? "border-whatsapp-green shadow-[0_0_10px_rgba(37,211,102,0.4)] animate-pulse"
                       : "border-gray-300 dark:border-white/10 grayscale opacity-60"
                   )}>
-                    <img src={chat.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover rounded-[14px]" alt="" />
+                    <img src={chat.avatar} width={56} height={56} loading="lazy" decoding="async" className="w-full h-full object-cover rounded-[14px]" alt="" />
                   </div>
                   {chat.is_online && (
                     <span className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-whatsapp-green border-2 border-white dark:border-[#111b21] rounded-full" />
@@ -236,7 +269,7 @@ function MessagesContent() {
                 )}>
                   {(chat?.name || '...').split(' ')[0]}
                 </span>
-              </div>
+              </button>
             ))}
           </div>
         </div>
@@ -262,11 +295,13 @@ function MessagesContent() {
             </div>
           ) : (
             filteredConversations.map((chat: any) => (
-              <div
+              <button
+                type="button"
                 key={chat.id}
                 onClick={() => setSelectedId(chat.id)}
+                aria-pressed={selectedId === chat.id}
                 className={cn(
-                  "flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#202c33] transition-all border-b border-gray-50 dark:border-transparent",
+                  "w-full text-left flex items-center gap-3 p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#202c33] transition-colors border-b border-gray-50 dark:border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-whatsapp-green",
                   selectedId === chat.id ? "bg-gray-100 dark:bg-[#2a3942]" : ""
                 )}
               >
@@ -275,7 +310,7 @@ function MessagesContent() {
                     "w-full h-full rounded-full overflow-hidden border border-black/5 dark:border-white/5 transition-all duration-500",
                     chat.is_online ? "ring-2 ring-whatsapp-green ring-offset-2 dark:ring-offset-[#111b21]" : "grayscale opacity-70"
                   )}>
-                    <img src={chat.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
+                    <img src={chat.avatar} width={48} height={48} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
                   </div>
                   {chat.is_online && (
                     <span className="absolute bottom-0 right-0 w-3 h-3 bg-whatsapp-green border-2 border-white dark:border-[#111b21] rounded-full shadow-sm" />
@@ -304,7 +339,7 @@ function MessagesContent() {
                     {chat.unread}
                   </div>
                 )}
-              </div>
+              </button>
             ))
           )}
         </div>
@@ -327,12 +362,12 @@ function MessagesContent() {
             {/* Header Chat */}
             <div className="sticky top-0 z-20 p-4 bg-white/95 dark:bg-[#202c33]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 flex items-center justify-between shadow-sm dark:shadow-lg">
               <div className="flex items-center gap-3">
-                <button onClick={() => setSelectedId(null)} className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-full">
+                 <button onClick={() => setSelectedId(null)} aria-label="Voltar para a lista de conversas" className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green">
                   <ArrowLeft className="w-5 h-5 text-gray-400" />
                 </button>
                 <div className="relative w-10 h-10 flex-shrink-0">
                   <div className="w-full h-full rounded-full border border-black/5 dark:border-white/10 overflow-hidden">
-                    <img src={selectedChat?.avatar} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
+                    <img src={selectedChat?.avatar} width={40} height={40} loading="lazy" decoding="async" className="w-full h-full object-cover" alt="" />
                   </div>
                 </div>
                 <div>
@@ -372,17 +407,20 @@ function MessagesContent() {
 
                     return (
                       <div className="mb-1 rounded-lg overflow-hidden border border-black/10">
-                        <img
-                          src={imgSrc}
-                          loading="lazy"
-                          decoding="async"
-                          alt="Imagem enviada"
-                          className="max-w-full h-auto max-h-[300px] object-cover cursor-pointer hover:opacity-90 transition-opacity"
-                          onClick={() => window.open(imgSrc, '_blank')}
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
+                        <a href={imgSrc} target="_blank" rel="noopener noreferrer" aria-label="Abrir imagem enviada em uma nova aba" className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green">
+                          <img
+                            src={imgSrc}
+                            width={1200}
+                            height={900}
+                            loading="lazy"
+                            decoding="async"
+                            alt="Imagem enviada"
+                            className="max-w-full h-auto max-h-[300px] object-cover hover:opacity-90 transition-opacity"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                        </a>
                       </div>
                     );
                   })()}
@@ -430,7 +468,8 @@ function MessagesContent() {
                     type="button"
                     disabled={isUploading}
                     onClick={() => cameraInputRef.current?.click()}
-                    className="p-2 sm:p-3 text-gray-500 hover:text-whatsapp-green hover:bg-white/5 rounded-xl transition-all"
+                    aria-label="Tirar foto para enviar"
+                    className="p-2 sm:p-3 text-gray-500 hover:text-whatsapp-green hover:bg-white/5 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green"
                   >
                     <Camera className="w-5 h-5 sm:w-6 h-6" />
                   </button>
@@ -438,7 +477,8 @@ function MessagesContent() {
                     type="button"
                     disabled={isUploading}
                     onClick={() => fileInputRef.current?.click()}
-                    className="p-2 sm:p-3 text-gray-500 hover:text-whatsapp-green hover:bg-white/5 rounded-xl transition-all"
+                    aria-label="Anexar imagem"
+                    className="p-2 sm:p-3 text-gray-500 hover:text-whatsapp-green hover:bg-white/5 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green"
                   >
                     <Image className="w-5 h-5 sm:w-6 h-6" />
                   </button>
@@ -447,7 +487,8 @@ function MessagesContent() {
                 <div className="flex-1 relative">
                   <input
                     type="text"
-                    placeholder={isUploading ? "Enviando imagem..." : "Digite uma mensagem"}
+                    aria-label="Digite uma mensagem"
+                    placeholder={isUploading ? "Enviando imagem…" : "Digite uma mensagem…"}
                     value={message}
                     disabled={isUploading}
                     onChange={(e) => setMessage(e.target.value)}
@@ -458,14 +499,16 @@ function MessagesContent() {
                         }
                       }, 300);
                     }}
-                    className="w-full bg-white dark:bg-[#2a3942] rounded-xl py-3 px-5 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900 dark:text-white border border-gray-200 dark:border-transparent focus:border-whatsapp-green/30 transition-all shadow-sm"
+                    className="w-full bg-white dark:bg-[#2a3942] rounded-xl py-3 px-5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/50 placeholder:text-gray-500 text-gray-900 dark:text-white border border-gray-200 dark:border-transparent transition-colors shadow-sm"
                   />
                 </div>
                 <button
-                  disabled={(!message.trim() && !isUploading) || isUploading}
-                  className="w-12 h-12 rounded-xl bg-whatsapp-green flex items-center justify-center text-whatsapp-dark active:scale-95 transition-all shadow-[0_4px_10px_rgba(37,211,102,0.3)] disabled:opacity-50 disabled:grayscale"
+                    type="submit"
+                    disabled={(!message.trim() && !isUploading) || isUploading || isSending}
+                  aria-label="Enviar mensagem"
+                  className="w-12 h-12 rounded-xl bg-whatsapp-green flex items-center justify-center text-whatsapp-dark active:scale-95 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green focus-visible:ring-offset-2 shadow-[0_4px_10px_rgba(37,211,102,0.3)] disabled:opacity-50 disabled:grayscale"
                 >
-                  {isUploading ? (
+                  {isUploading || isSending ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
                     <Send className="w-5 h-5 fill-current" />
@@ -494,7 +537,7 @@ function MessagesContent() {
 
 export default function MessagesPage() {
   return (
-    <React.Suspense fallback={null}>
+    <React.Suspense fallback={<main className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-[#0b141a]" role="status"><Loader2 className="w-8 h-8 animate-spin text-whatsapp-green" /><span className="sr-only">Carregando conversas…</span></main>}>
       <MessagesContent />
     </React.Suspense>
   );

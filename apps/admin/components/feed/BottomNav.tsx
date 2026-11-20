@@ -22,7 +22,8 @@ import { getStoredProfile } from "@/lib/profile-cache";
 export default function BottomNav() {
   const pathname = usePathname();
   const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
-  const [user, setUser] = React.useState<any>(() => getStoredProfile());
+  // Keep the server and first client render identical. Profile cache is read after hydration.
+  const [user, setUser] = React.useState<any>(null);
 
   // Esconde a nav em páginas de autenticação, jogos e telas imersivas
   const hiddenRoutes = ["/login", "/register", "/terms", "/privacy", "/complete-profile", "/messages"];
@@ -34,6 +35,7 @@ export default function BottomNav() {
       setUser((prev: any) => ({ ...prev, ...e.detail }));
     };
     window.addEventListener('profile-hydrated', handleHydration);
+    setUser(getStoredProfile());
 
     return () => window.removeEventListener('profile-hydrated', handleHydration);
   }, []);

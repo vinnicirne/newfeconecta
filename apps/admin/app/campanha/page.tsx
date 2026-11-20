@@ -18,6 +18,7 @@ export default function PartnerDashboardPage() {
   const [wallet, setWallet] = useState<WalletBalanceDto | null>(null);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("todos");
   const [changingStatusId, setChangingStatusId] = useState<string | null>(null);
 
@@ -25,11 +26,25 @@ export default function PartnerDashboardPage() {
     async function loadData() {
       try {
         setIsLoading(true);
-        const [walletRes, campsRes] = await Promise.all([
-          adsApiFetch<WalletBalanceDto>("/api/wallet").catch(() => null),
-          adsApiFetch<any>("/api/campaigns").catch(() => []),
+        const [walletResult, campaignsResult] = await Promise.allSettled([
+          adsApiFetch<WalletBalanceDto>("/api/wallet"),
+          adsApiFetch<any>("/api/campaigns"),
         ]);
-        if (walletRes) setWallet(walletRes);
+        if (walletResult.status === "fulfilled") {
+          setWallet(walletResult.value);
+        } else {
+          const error = walletResult.reason instanceof Error ? walletResult.reason.message : "Falha ao carregar carteira";
+          toast.error("Não foi possível carregar o saldo", { description: error });
+        }
+
+        if (campaignsResult.status === "rejected") {
+          const error = campaignsResult.reason instanceof Error ? campaignsResult.reason.message : "Falha ao carregar campanhas";
+          setLoadError(error);
+          setCampaigns([]);
+          toast.error("Erro ao carregar campanhas", { description: error });
+          return;
+        }
+        const campsRes = campaignsResult.value;
         
         // Trata retorno tanto se for array direto quanto objeto com { campaigns: [...] }
         const campaignList = Array.isArray(campsRes) 
@@ -39,9 +54,8 @@ export default function PartnerDashboardPage() {
           : [];
         setCampaigns(campaignList);
       } catch (err: any) {
-        toast.error("Erro ao carregar dados do parceiro", {
-          description: err.message,
-        });
+        toast.error("Erro ao carregar dados do parceiro", { description: err.message });
+        setLoadError(err.message || "Falha ao carregar campanhas");
         setCampaigns([]);
       } finally {
         setIsLoading(false);
@@ -49,6 +63,8 @@ export default function PartnerDashboardPage() {
     }
 
     loadData();
+  // Carregamento inicial da tela.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Métricas calculadas reais (com proteção contra não-arrays)
@@ -214,7 +230,7 @@ export default function PartnerDashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
             label="Saldo Disponível"
-            value={wallet ? formatCurrency(wallet.saldo_disponivel) : "..."}
+            value={wallet ? formatCurrency(wallet.saldo_disponivel) : isLoading ? "..." : "Indisponível"}
             description="Livre para novas campanhas ou reembolso"
             variant="primary"
             icon={Wallet}
@@ -223,7 +239,7 @@ export default function PartnerDashboardPage() {
           />
           <KpiCard
             label="Saldo Investido"
-            value={wallet ? formatCurrency(wallet.saldo_investido) : "..."}
+            value={wallet ? formatCurrency(wallet.saldo_investido) : isLoading ? "..." : "Indisponível"}
             description="Comprometido em campanhas ativas"
             icon={TrendingUp}
             linkText="Ver ativas"
@@ -231,15 +247,15 @@ export default function PartnerDashboardPage() {
           />
           <KpiCard
             label="Campanhas Ativas"
-            value={activeCampaigns}
+            value={loadError ? "Indisponível" : activeCampaigns}
             description="Veiculando no feed, stories e banners"
             icon={Megaphone}
             variant="success"
           />
           <KpiCard
             label="Total Consumido"
-            value={formatCurrency(totalGasto)}
-            description={`${percentConsumido} do orçamento alocado`}
+            value={loadError ? "Indisponível" : formatCurrency(totalGasto)}
+            description={loadError ? "Dados indisponíveis" : `${percentConsumido} do orçamento alocado`}
             tooltip="Total financeiro consumido em veiculação de anúncios em todas as suas campanhas."
             icon={Eye}
           />
@@ -249,7 +265,7 @@ export default function PartnerDashboardPage() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-white/10 pb-4">
             <h2 className="text-lg font-bold text-white tracking-tight">
-              Minhas Campanhas ({campaigns.length})
+              Minhas Campanhas ({loadError ? "—" : campaigns.length})
             </h2>
 
             <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
@@ -257,6 +273,7 @@ export default function PartnerDashboardPage() {
                 <button
                   key={status}
                   onClick={() => setStatusFilter(status)}
+                  aria-pressed={statusFilter === status}
                   className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all whitespace-nowrap ${
                     statusFilter === status
                       ? "bg-white text-zinc-950 shadow"
@@ -274,11 +291,11 @@ export default function PartnerDashboardPage() {
             data={filteredCampaigns}
             isLoading={isLoading}
             getRowKey={(c) => c.id}
-            emptyMessage={
-              statusFilter === "todos"
-                ? "Você ainda não possui campanhas. Clique em 'Nova Campanha' para criar a primeira."
-                : `Nenhuma campanha encontrada com o status "${statusFilter}".`
-            }
+            emptyMessage={loadError
+                ? "Não foi possível carregar as campanhas. Atualize a página e tente novamente."
+                : statusFilter === "todos"
+                  ? "Você ainda não possui campanhas. Clique em 'Nova Campanha' para criar a primeira."
+                  : `Nenhuma campanha encontrada com o status "${statusFilter}".`}
           />
         </div>
       </main>

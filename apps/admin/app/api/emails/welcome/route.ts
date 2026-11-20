@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import nodemailer from 'nodemailer';
+import { requireAuth } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,7 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: Request) {
   try {
+    const user = await requireAuth(request);
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -20,29 +22,28 @@ export async function POST(request: Request) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-    const body = await request.json().catch(() => ({}));
-    let { email, name, user_id } = body;
-
-    // Se temos user_id mas não temos nome/email completos, buscar no profile
-    if (user_id && (!email || !name)) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, username')
-        .eq('id', user_id)
-        .maybeSingle();
-
-      if (profile) {
-        if (!email) email = profile.email;
-        if (!name) name = profile.full_name || profile.username || 'Membro';
-      }
+    const body = await request.json().catch(() => ({})) as { email?: unknown; name?: unknown; user_id?: unknown };
+    if (body.user_id && body.user_id !== user.id) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 403 });
     }
 
-    if (!email) {
-      return NextResponse.json({ error: 'Email é obrigatório' }, { status: 400 });
+    const email = user.email?.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'E-mail da conta inválido' }, { status: 400 });
     }
 
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanName = (name || cleanEmail.split('@')[0] || 'Membro').trim();
+    const submittedName = typeof body.name === 'string' ? body.name : '';
+    const cleanName = (submittedName || user.user_metadata?.full_name || email.split('@')[0] || 'Membro')
+      .replace(/[\r\n\u0000-\u001f]/g, ' ')
+      .trim()
+      .slice(0, 100)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+    const cleanEmail = email;
+    const user_id = user.id;
 
     // 🔒 Prevenção de duplicidade: se já foi enviado e-mail de boas-vindas com sucesso, não reenviar
     const { data: existingLog } = await supabase
@@ -199,6 +200,9 @@ export async function POST(request: Request) {
     }, { status: sentSuccess ? 200 : 500 });
 
   } catch (error: any) {
+    if (typeof error?.message === 'string' && error.message.toLowerCase().includes('autorizado')) {
+      return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    }
     console.error('[Welcome Email] Erro no endpoint:', error);
     return NextResponse.json({ error: error.message || 'Erro ao processar e-mail' }, { status: 500 });
   }

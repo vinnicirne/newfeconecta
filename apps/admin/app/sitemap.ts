@@ -6,7 +6,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = SITE_URL;
   const routes = [
     '',
-    '/bible',
+    '/biblia',
     '/about',
     '/faq',
     '/terms',

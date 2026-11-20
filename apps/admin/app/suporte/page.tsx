@@ -19,6 +19,7 @@ export default function SuportePage() {
   const [authUser, setAuthUser] = useState<any>(null);
   const [subject, setSubject] = useState(SUBJECT_OPTIONS[0]);
   const [message, setMessage] = useState("");
+  const [replyEmail, setReplyEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -38,18 +39,17 @@ export default function SuportePage() {
 
     setLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch("/api/support", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           subject,
           message: message.trim(),
-          userEmail: authUser?.email ?? "Não identificado",
-          userName:
-            authUser?.user_metadata?.full_name ||
-            authUser?.user_metadata?.name ||
-            authUser?.email ||
-            "Usuário anônimo",
+          userEmail: authUser?.email ?? replyEmail.trim(),
         }),
       });
 
@@ -61,6 +61,7 @@ export default function SuportePage() {
 
       setSuccess(true);
       setMessage("");
+      setReplyEmail("");
       setSubject(SUBJECT_OPTIONS[0]);
       toast.success("Relato enviado! Nossa equipe analisará em breve.");
     } catch (err: any) {
@@ -132,13 +133,15 @@ export default function SuportePage() {
 
           {/* Categoria */}
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold dark:text-white">
+            <label htmlFor="support-subject" className="text-sm font-semibold dark:text-white">
               Categoria do problema
             </label>
             <select
+              id="support-subject"
+              name="subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm dark:text-white focus:outline-none focus:ring-2 focus:ring-whatsapp-green/40 transition"
+              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm dark:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 transition-colors"
             >
               {SUBJECT_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
@@ -150,19 +153,40 @@ export default function SuportePage() {
 
           {/* Descrição */}
           <div className="space-y-1.5">
-            <label className="text-sm font-semibold dark:text-white">
+            <label htmlFor="support-message" className="text-sm font-semibold dark:text-white">
               Descreva o problema <span className="text-red-500">*</span>
             </label>
             <textarea
+              id="support-message"
+              name="message"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               rows={6}
               required
-              placeholder="Ex: Ao tentar publicar um post com vídeo, a tela trava e o upload não termina. Isso acontece no Chrome no Android..."
-              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-whatsapp-green/40 transition resize-none"
+              minLength={10}
+              maxLength={5000}
+              aria-describedby="support-message-count"
+              placeholder="Ex.: ao publicar um vídeo, o envio para em 80% no Chrome do Android…"
+              className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm dark:text-white placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40 transition-colors resize-none"
             />
-            <p className="text-xs text-gray-400 text-right">{message.length} caracteres</p>
+            <p id="support-message-count" aria-live="polite" className="text-xs text-gray-400 text-right">{message.length}/5000 caracteres · mínimo 10</p>
           </div>
+
+          {!authUser && (
+            <div className="space-y-1.5">
+              <label htmlFor="support-email" className="text-sm font-semibold dark:text-white">E-mail para retorno (opcional)</label>
+              <input
+                id="support-email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                value={replyEmail}
+                onChange={(event) => setReplyEmail(event.target.value)}
+                placeholder="voce@exemplo.com…"
+                className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-black px-4 py-3 text-sm dark:text-white placeholder:text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green/40"
+              />
+            </div>
+          )}
 
           {/* Dica */}
           <div className="flex gap-3 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/20 rounded-xl p-4">
@@ -176,12 +200,12 @@ export default function SuportePage() {
           <button
             type="submit"
             disabled={loading || !message.trim()}
-            className="w-full flex items-center justify-center gap-2 bg-whatsapp-green hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition text-sm"
+            className="w-full flex items-center justify-center gap-2 bg-whatsapp-green hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3.5 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-green focus-visible:ring-offset-2 text-sm"
           >
             {loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Enviando relato...
+                Enviando relato…
               </>
             ) : (
               <>

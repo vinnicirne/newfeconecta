@@ -158,6 +158,19 @@ video::-webkit-media-controls-overlay-play-button,
 video::-webkit-media-controls-start-playback-button {
   display: none !important;
   opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
+  -webkit-appearance: none !important;
+}
+
+video.fc-inline-video::-webkit-media-controls,
+video.fc-inline-video::-webkit-media-controls-enclosure,
+video.fc-inline-video::-webkit-media-controls-overlay-play-button,
+video.fc-inline-video::-webkit-media-controls-start-playback-button {
+  display: none !important;
+  opacity: 0 !important;
+  width: 0 !important;
+  height: 0 !important;
   -webkit-appearance: none !important;
 }
 

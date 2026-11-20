@@ -41,6 +41,9 @@ export async function POST(request: Request) {
 
     // 4. Simulação de sandbox (teste interno sem MP)
     if (method === "sandbox_simulate") {
+      if (process.env.NODE_ENV === "production") {
+        return NextResponse.json({ error: "Método disponível apenas em desenvolvimento" }, { status: 404 });
+      }
       const paymentId = `sandbox-topup-${Date.now()}`;
       await ledger.creditRecarga(wallet.id, valor, paymentId);
       const updated = await ledger.getWalletById(wallet.id);

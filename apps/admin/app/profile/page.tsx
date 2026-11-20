@@ -228,7 +228,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen pb-32 max-w-2xl mx-auto border-x bg-white dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
+    <main className="min-h-screen w-full min-w-0 overflow-x-clip pb-[calc(6rem+env(safe-area-inset-bottom))] mx-auto max-w-2xl border-x bg-white text-gray-900 transition-colors duration-300 dark:bg-black dark:text-white">
       
       <ProfileHeader 
         user={user}
@@ -253,7 +253,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      <div className="px-5">
+      <div className="min-w-0 px-4 sm:px-5">
         <ProfileHighlights
           highlights={highlights}
           userStories={userStories}
@@ -265,7 +265,7 @@ export default function ProfilePage() {
         />
       </div>
 
-      <div className="flex border-b border-black/5 dark:border-white/5 mt-4 sticky top-14 bg-white/80 dark:bg-black/80 backdrop-blur-md z-40">
+      <div className="sticky top-14 z-40 mt-4 flex min-w-0 border-b border-black/5 bg-white/90 backdrop-blur-md dark:border-white/5 dark:bg-black/90">
         {[
           { id: 'grid', icon: Grid, label: 'Publicações' },
           { id: 'lumes', icon: PlaySquare, label: 'Vídeos' },
@@ -290,7 +290,7 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      <div className="min-h-[300px]">
+      <div className="min-h-[300px] min-w-0">
         {view === 'settings' ? (
           <div className="p-4 space-y-2">
             <h3 className="font-bold mb-4">Configurações</h3>
@@ -460,6 +460,6 @@ export default function ProfilePage() {
           isCircular={modals.cropperConfig.isCircular}
         />
       )}
-    </div>
+    </main>
   );
 }

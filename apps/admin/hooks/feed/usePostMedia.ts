@@ -1,8 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { trackQualifiedPostView } from "@/lib/viewTracker";
 import { toast } from "sonner";
+import type { RefObject } from "react";
 
-export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any) => void) {
+export function usePostMedia(
+  post: any,
+  isVideo: boolean,
+  isAudio: boolean,
+  onUpdated?: (post: any) => void,
+  postViewRef?: RefObject<HTMLElement | null>,
+) {
   const [viewsCount, setViewsCount] = useState(Number(post.views_count) || 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -24,19 +31,22 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
   };
 
   useEffect(() => {
-    if (!videoRef.current || !isVideo) return;
+    if (isAudio) return;
+    const viewTarget = isVideo ? videoRef.current : postViewRef?.current;
+    if (!viewTarget) return;
     
     // ⏱️ Padrão Big Tech: IntersectionObserver com Dwell Time de 2 segundos contínuos
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            videoRef.current?.play().catch(() => {});
+            if (isVideo) videoRef.current?.play().catch(() => {});
 
             // Inicia o contador de 2 segundos de retenção qualificada
             if (!dwellTimerRef.current) {
               dwellTimerRef.current = setTimeout(() => {
-                handlePlayMedia();
+                dwellTimerRef.current = null;
+                void handlePlayMedia();
               }, 2000);
             }
           } else {
@@ -46,7 +56,7 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
               dwellTimerRef.current = null;
             }
 
-            if (videoRef.current) {
+            if (isVideo && videoRef.current) {
               videoRef.current.pause();
               videoRef.current.muted = true; // Força mute ao sair
             }
@@ -58,15 +68,16 @@ export function usePostMedia(post: any, isVideo: boolean, onUpdated?: (post: any
       { threshold: 0.5 } // Pelo menos 50% do conteúdo visível na tela
     );
 
-    observer.observe(videoRef.current);
+    observer.observe(viewTarget);
 
     return () => {
       if (dwellTimerRef.current) {
         clearTimeout(dwellTimerRef.current);
+        dwellTimerRef.current = null;
       }
       observer.disconnect();
     };
-  }, [isVideo, post.id, viewsCount]);
+  }, [isVideo, isAudio, post.id, viewsCount, postViewRef]);
 
   const toggleAudio = async (e: React.MouseEvent) => {
     e.stopPropagation();

@@ -3,8 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import { 
-  Search, Users, Flame, Plus, Shield, Home, Church, 
-  ArrowRight, Sparkles, Building2, MapPin 
+  Search, Users, Plus, Shield, Church, ArrowRight, Building2
 } from "lucide-react";
 import Link from "next/link";
 import BottomNav from "@/components/feed/BottomNav";
@@ -13,28 +12,29 @@ import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 export default function ChurchesPage() {
   const [churches, setChurches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [userRoles, setUserRoles] = useState<any[]>([]);
-  const [currentUser, setCurrentUser] = useState<any>(() => getStoredProfile());
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadData() {
       try {
-        // 1. Carrega Perfil do Usuário com Cache
+        setLoading(true);
+        setLoadError(null);
+        // Valida o cache contra a sessão atual para não exibir vínculos de outra conta.
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError) throw authError;
         const cached = getStoredProfile();
-        let activeUser = cached;
-        if (!activeUser) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (user) {
-            const { data: p } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
-            if (p) activeUser = setStoredProfile(p);
-          }
+        let activeUser = user && cached?.id === user.id ? cached : null;
+        if (user && !activeUser) {
+          const { data: p, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle();
+          if (error) throw error;
+          if (p) activeUser = setStoredProfile(p);
         }
-        if (isMounted && activeUser) {
-          setCurrentUser(activeUser);
-        }
+        if (!isMounted) return;
 
         const activeUserId = activeUser?.id;
 
@@ -42,7 +42,7 @@ export default function ChurchesPage() {
         const [churchesRes, rolesRes] = await Promise.all([
           supabase
             .from('churches')
-            .select('id, name, slug, banner_url, avatar_url, slogan, member_count, is_verified, description')
+            .select('id, name, slug, banner_url, avatar_url, slogan, member_count, is_verified, description, church_members(count)')
             .order('created_at', { ascending: false }),
           activeUserId
             ? supabase
@@ -54,6 +54,8 @@ export default function ChurchesPage() {
         ]);
 
         if (!isMounted) return;
+        if (churchesRes.error) throw churchesRes.error;
+        if (rolesRes.error) throw rolesRes.error;
 
         if (rolesRes.data) {
           setUserRoles(rolesRes.data);
@@ -62,13 +64,14 @@ export default function ChurchesPage() {
         if (churchesRes.data) {
           const sorted = (churchesRes.data || []).map((c: any) => ({
             ...c,
-            member_count: c.member_count || 0
+            member_count: c.church_members?.[0]?.count ?? c.member_count ?? 0
           })).sort((a: any, b: any) => b.member_count - a.member_count);
           
           setChurches(sorted);
         }
       } catch (err) {
         console.error("[Igrejas] Erro ao carregar congregações:", err);
+        if (isMounted) setLoadError(err instanceof Error ? err.message : "Não foi possível carregar as igrejas.");
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -79,12 +82,12 @@ export default function ChurchesPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [retryCount]);
 
   const filtered = churches.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    (c.slogan && c.slogan.toLowerCase().includes(search.toLowerCase())) ||
-    (c.description && c.description.toLowerCase().includes(search.toLowerCase()))
+    String(c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    String(c.slogan || '').toLowerCase().includes(search.toLowerCase()) ||
+    String(c.description || '').toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -98,6 +101,7 @@ export default function ChurchesPage() {
               <div className="flex items-center gap-3 mb-4">
                 <Link 
                   href="/"
+                  aria-label="Voltar ao feed"
                   className="w-9 h-9 flex items-center justify-center rounded-2xl bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95"
                 >
                   <ArrowRight className="w-5 h-5 rotate-180" />
@@ -159,10 +163,13 @@ export default function ChurchesPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground w-5 h-5" />
           <input
             type="text"
-            placeholder="Buscar por nome da igreja, denominação ou ministério..."
+            aria-label="Buscar igrejas"
+            name="church-search"
+            autoComplete="off"
+            placeholder="Buscar por nome, slogan ou descrição…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-card border border-border rounded-2xl pl-12 pr-4 py-4 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-whatsapp-teal transition-all shadow-md text-sm sm:text-base font-medium"
+            className="w-full bg-card border border-border rounded-2xl pl-12 pr-4 py-4 text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-whatsapp-teal focus-visible:ring-2 focus-visible:ring-whatsapp-teal/40 transition-all shadow-md text-sm sm:text-base font-medium"
           />
         </div>
 
@@ -175,6 +182,17 @@ export default function ChurchesPage() {
                 <div className="h-4 bg-muted rounded-md w-1/2" />
               </div>
             ))}
+          </div>
+        ) : loadError ? (
+          <div role="alert" className="text-center py-12 bg-card rounded-3xl border border-border px-4">
+            <p className="text-sm text-muted-foreground mb-4">Não foi possível carregar a lista de igrejas.</p>
+            <button
+              type="button"
+              onClick={() => setRetryCount((count) => count + 1)}
+              className="px-5 py-2.5 bg-whatsapp-teal text-white rounded-xl font-semibold text-sm hover:bg-whatsapp-tealLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
+            >
+              Tentar novamente
+            </button>
           </div>
         ) : churches.length === 0 ? (
           <div className="text-center py-16 bg-card rounded-3xl border border-border shadow-sm px-4">
@@ -207,6 +225,9 @@ export default function ChurchesPage() {
                       <img 
                         src={church.banner_url} 
                         alt={church.name} 
+                        width={640}
+                        height={360}
+                        loading="lazy"
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                       />
                     ) : (

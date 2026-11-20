@@ -16,7 +16,6 @@ import { useRouter } from "next/navigation";
 import { useNotes } from "@/hooks/useNotes";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
 import Link from "next/link";
-import BottomNav from "@/components/feed/BottomNav";
 
 interface Note {
   id: string;
@@ -32,6 +31,7 @@ interface Note {
 export default function NotesPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   // Parser de Referências Bíblicas
   const renderNoteContent = (content: string) => {
@@ -90,8 +90,14 @@ export default function NotesPage() {
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setCurrentUser(user);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) setCurrentUser(user);
+      } catch {
+        toast.error("Não foi possível verificar sua conta.");
+      } finally {
+        setAuthLoading(false);
+      }
     };
     initAuth();
   }, []);
@@ -108,6 +114,7 @@ export default function NotesPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [isDevotional, setIsDevotional] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [isEditorExpanded, setIsEditorExpanded] = useState(false);
 
@@ -163,17 +170,20 @@ export default function NotesPage() {
   // Autosave
   useEffect(() => {
     if (!isEditorExpanded) return;
+    setSaveStatus('idle');
     if (!content.trim() && !title.trim()) return;
 
     const timeoutId = setTimeout(() => {
-      handleAutosave();
+      setSaveStatus('saving');
+      void handleAutosave();
     }, 1500);
 
     return () => clearTimeout(timeoutId);
   }, [title, content, tags, isPublic, isDevotional, isEditorExpanded]);
 
   async function handleAutosave() {
-    if (!content.trim() || !currentUser?.id) return;
+    if (!currentUser?.id || !content.trim() || saving) return false;
+    setSaving(true);
     try {
       const noteData = {
         user_id: currentUser.id,
@@ -190,13 +200,28 @@ export default function NotesPage() {
       if (!editingId && saved && saved.id) {
         setEditingId(saved.id);
       }
+      setSaveStatus('saved');
+      return true;
     } catch (error) {
       console.error("Autosave error", error);
+      setSaveStatus('error');
+      return false;
+    } finally {
+      setSaving(false);
     }
   }
 
   async function handleClose() {
-    await handleAutosave();
+    if (saving) return;
+    if ((content.trim() || title.trim()) && !content.trim()) {
+      toast.error("Escreva o conteúdo da nota antes de concluir.");
+      return;
+    }
+    const saved = await handleAutosave();
+    if ((content.trim() || title.trim()) && !saved) {
+      toast.error("Não foi possível salvar sua nota. Tente novamente antes de fechar.");
+      return;
+    }
     setIsEditorExpanded(false);
     resetEditor();
   }
@@ -209,6 +234,7 @@ export default function NotesPage() {
     setTagInput("");
     setIsPublic(false);
     setIsDevotional(false);
+    setSaveStatus('idle');
   }
 
   function startEditing(note: Note) {
@@ -237,8 +263,12 @@ export default function NotesPage() {
 
   async function deleteNote(id: string) {
     if (confirm("Remover esta nota?")) {
-      await deleteNoteHook(id);
-      toast.success("Nota removida");
+      try {
+        await deleteNoteHook(id);
+        toast.success("Nota removida");
+      } catch {
+        toast.error("Não foi possível remover a nota.");
+      }
     }
   }
 
@@ -272,8 +302,22 @@ export default function NotesPage() {
     }
   }
 
+  if (authLoading) {
+    return <main className="min-h-screen flex items-center justify-center bg-whatsapp-light dark:bg-whatsapp-dark text-gray-500" role="status">Carregando suas notas…</main>;
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center gap-4 bg-whatsapp-light dark:bg-whatsapp-dark px-6 text-center">
+        <BookOpen className="w-10 h-10 text-whatsapp-teal" aria-hidden="true" />
+        <h1 className="text-xl font-bold text-gray-900 dark:text-white">Entre para acessar suas notas</h1>
+        <Link href="/login" className="rounded-xl bg-whatsapp-teal px-5 py-3 font-bold text-white hover:bg-whatsapp-tealLight focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">Entrar</Link>
+      </main>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-whatsapp-light dark:bg-whatsapp-dark">
+    <main className="min-h-screen bg-whatsapp-light dark:bg-whatsapp-dark">
       <div className="max-w-3xl mx-auto px-4 py-8 pb-32">
         
         {/* HEADER GIGANTE PREMIUM */}
@@ -291,17 +335,16 @@ export default function NotesPage() {
         {/* EDITOR DE NOTAS (LUMINA / KEEP STYLE) */}
         <div className="mb-10 max-w-2xl mx-auto">
           {!isEditorExpanded ? (
-            <div 
-              onClick={() => setIsEditorExpanded(true)}
-              className="bg-white dark:bg-whatsapp-darkLighter rounded-[20px] p-5 shadow-sm border border-gray-200 dark:border-white/10 cursor-text flex items-center justify-between text-gray-500 hover:shadow-md transition-all"
-            >
-              <span className="font-normal text-[16px] leading-[24px] text-gray-400">Criar uma nota...</span>
+            <div className="bg-white dark:bg-whatsapp-darkLighter rounded-[20px] p-5 shadow-sm border border-gray-200 dark:border-white/10 flex items-center justify-between text-gray-500 hover:shadow-md transition-shadow">
+              <button type="button" onClick={() => setIsEditorExpanded(true)} className="flex-1 text-left font-normal text-[16px] leading-[24px] text-gray-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal rounded-md">Criar uma nota…</button>
               <div className="flex gap-4 text-gray-400">
-                <button title="Nova nota" className="hover:text-whatsapp-teal transition-colors">
-                  <Check className="w-5 h-5" />
+                <button type="button" title="Nova nota" aria-label="Criar nova nota" onClick={() => setIsEditorExpanded(true)} className="hover:text-whatsapp-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal rounded-md">
+                  <Plus className="w-5 h-5" />
                 </button>
                 <button 
+                  type="button"
                   title="Novo devocional" 
+                  aria-label="Criar novo devocional"
                   className="hover:text-amber-500 transition-colors"
                   onClick={(e) => { e.stopPropagation(); setIsDevotional(true); setIsEditorExpanded(true); setContent("📖 Versículo:\n\n💭 Reflexão:\n\n🙏 Oração:"); }}
                 >
@@ -316,9 +359,11 @@ export default function NotesPage() {
             )}>
               <div className="p-6 space-y-4">
                  {/* Visibility Toggle Pills */}
-                 <div className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 rounded-xl p-1 w-fit border border-gray-200/50 dark:border-white/5">
+                   <div role="group" aria-label="Visibilidade da nota" className="flex items-center gap-1 bg-gray-100 dark:bg-white/5 rounded-xl p-1 w-fit border border-gray-200/50 dark:border-white/5">
                    <button 
+                      type="button"
                      onClick={() => setIsPublic(true)}
+                      aria-pressed={isPublic}
                      className={cn(
                        "px-3.5 py-1.5 rounded-lg text-[14px] leading-[16px] font-semibold tracking-[0.01em] flex items-center gap-1.5 transition-all",
                        isPublic 
@@ -329,7 +374,9 @@ export default function NotesPage() {
                      <Globe className="w-4 h-4" /> Público
                    </button>
                    <button 
+                      type="button"
                      onClick={() => setIsPublic(false)}
+                      aria-pressed={!isPublic}
                      className={cn(
                        "px-3.5 py-1.5 rounded-lg text-[14px] leading-[16px] font-semibold tracking-[0.01em] flex items-center gap-1.5 transition-all",
                        !isPublic 
@@ -343,34 +390,39 @@ export default function NotesPage() {
 
                  {/* Title Input */}
                  <input
-                    placeholder="Título da nota"
+                     name="title"
+                     aria-label="Título da nota"
+                     placeholder="Título da nota…"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="w-full bg-transparent text-[24px] sm:text-[28px] md:text-[32px] leading-[30px] sm:leading-[34px] md:leading-[40px] font-semibold tracking-[-0.02em] outline-none border-none placeholder:text-gray-400 text-gray-900 dark:text-white px-0"
+                     className="w-full bg-transparent text-[24px] sm:text-[28px] md:text-[32px] leading-[30px] sm:leading-[34px] md:leading-[40px] font-semibold tracking-[-0.02em] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/50 border-none placeholder:text-gray-400 text-gray-900 dark:text-white px-0"
                   />
 
                   {/* Body Textarea */}
                   <textarea
-                    autoFocus
-                    placeholder={isDevotional ? "Preencha seu devocional..." : "Comece a escrever sua nota aqui..."}
+                    name="content"
+                    aria-label={isDevotional ? "Conteúdo do devocional" : "Conteúdo da nota"}
+                    placeholder={isDevotional ? "Preencha seu devocional…" : "Comece a escrever sua nota…"}
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
-                    className="w-full bg-transparent text-[18px] leading-[28px] font-normal outline-none min-h-[300px] resize-none border-none placeholder:text-gray-400 text-gray-800 dark:text-gray-200 px-0"
+                    className="w-full bg-transparent text-[18px] leading-[28px] font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/50 min-h-[300px] resize-none border-none placeholder:text-gray-400 text-gray-800 dark:text-gray-200 px-0"
                   />
                   
                   {/* Tags e Tag Input */}
                   <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100 dark:border-white/5">
                     {tags.map((t: string) => (
                       <span key={t} className="flex items-center gap-1 px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[12px] leading-[16px] font-semibold text-gray-700 dark:text-gray-300">
-                        #{t} <X onClick={() => removeTag(t)} className="w-3 h-3 cursor-pointer hover:text-red-500" />
+                        #{t} <button type="button" aria-label={`Remover tag ${t}`} onClick={() => removeTag(t)} className="rounded-full hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"><X className="w-3 h-3" aria-hidden="true" /></button>
                       </span>
                     ))}
                     <input
-                      placeholder="Adicionar tag..."
+                      name="tag"
+                      aria-label="Adicionar tag"
+                      placeholder="Adicionar tag…"
                       value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
                       onKeyDown={handleAddTag}
-                      className="bg-transparent text-[14px] leading-[20px] font-normal outline-none border-none w-28 focus:w-36 transition-all placeholder:text-gray-400"
+                      className="bg-transparent text-[14px] leading-[20px] font-normal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/50 border-none w-28 focus:w-36 transition-[width] placeholder:text-gray-400"
                     />
                   </div>
 
@@ -378,8 +430,10 @@ export default function NotesPage() {
                      <div className="flex items-center gap-2 text-gray-400">
                         {/* Ferramentas Inferiores */}
                         <button 
+                          type="button"
                           title="Modo Devocional" 
                           onClick={() => setIsDevotional(!isDevotional)} 
+                          aria-pressed={isDevotional}
                           className={cn(
                             "px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-colors border",
                             isDevotional 
@@ -389,13 +443,17 @@ export default function NotesPage() {
                         >
                           <Feather className="w-4 h-4" /> Devocional
                         </button>
-                        <span className="text-[12px] opacity-60 flex items-center gap-1 ml-1"><Check className="w-3.5 h-3.5 text-emerald-500"/> Salvo</span>
+                         <span role="status" aria-live="polite" className="text-[12px] opacity-75 flex items-center gap-1 ml-1">
+                           {saving || saveStatus === 'saving' ? "Salvando…" : saveStatus === 'saved' ? <><Check className="w-3.5 h-3.5 text-emerald-500" /> Salvo</> : saveStatus === 'error' ? "Falha ao salvar" : "Salvamento automático"}
+                         </span>
                      </div>
                      <button 
+                       type="button"
                        onClick={handleClose}
-                       className="px-5 py-2 text-sm font-bold bg-whatsapp-teal text-white hover:bg-whatsapp-tealLight rounded-xl transition-all shadow-md active:scale-95"
+                       disabled={saving}
+                       className="px-5 py-2 text-sm font-bold bg-whatsapp-teal text-white hover:bg-whatsapp-tealLight rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal focus-visible:ring-offset-2 shadow-md disabled:opacity-60"
                      >
-                       Concluir
+                       {saving ? "Salvando…" : "Concluir"}
                      </button>
                   </div>
               </div>
@@ -406,26 +464,27 @@ export default function NotesPage() {
         {/* BARRA DE BUSCA E FILTROS */}
         <div className="space-y-4 mb-8">
             <div className="relative">
-               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+               <Search aria-hidden="true" className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                <input 
-                 placeholder="Buscar por data (ex: 14/04), título ou #tag..."
+                 name="note-search"
+                 aria-label="Buscar notas por data, título, conteúdo ou tag"
+                 placeholder="Buscar por data, título ou #tag…"
                  value={searchQuery}
                  onChange={(e) => setSearchQuery(e.target.value)}
-                 className="w-full bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 pl-12 pr-4 py-4 rounded-[20px] shadow-sm outline-none focus:ring-2 focus:ring-whatsapp-teal/20 transition-all font-medium"
+                 className="w-full bg-white dark:bg-whatsapp-darkLighter border border-gray-100 dark:border-white/5 pl-12 pr-12 py-4 rounded-[20px] shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal/40 font-medium"
                />
                {searchQuery && (
-                 <X 
-                   onClick={() => setSearchQuery("")}
-                   className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-300 cursor-pointer hover:text-gray-500 transition-colors" 
-                 />
+                  <button type="button" aria-label="Limpar busca" onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"><X className="w-5 h-5" aria-hidden="true" /></button>
                )}
             </div>
 
             <div className="flex items-center gap-3 overflow-x-auto pb-2 no-scrollbar font-outfit">
                <button
+                  type="button"
                  onClick={() => setFilter('all')}
+                  aria-pressed={filter === 'all'}
                  className={cn(
-                   "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all border",
+                    "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
                    filter === 'all' 
                      ? "bg-whatsapp-teal border-whatsapp-teal text-white shadow-md shadow-whatsapp-teal/20" 
                      : "bg-white dark:bg-whatsapp-darkLighter border-gray-100 dark:border-white/5 text-gray-500"
@@ -434,9 +493,11 @@ export default function NotesPage() {
                  <List className="w-4 h-4" /> Tudo
                </button>
                <button
+                  type="button"
                  onClick={() => setFilter('favorites')}
+                  aria-pressed={filter === 'favorites'}
                  className={cn(
-                   "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all border",
+                    "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
                    filter === 'favorites' 
                      ? "bg-amber-500 border-amber-500 text-white shadow-md shadow-amber-500/20" 
                      : "bg-white dark:bg-whatsapp-darkLighter border-gray-100 dark:border-white/5 text-gray-500"
@@ -445,9 +506,11 @@ export default function NotesPage() {
                  <Star className="w-4 h-4" /> Favoritos
                </button>
                <button
+                  type="button"
                  onClick={() => setFilter('public')}
+                  aria-pressed={filter === 'public'}
                  className={cn(
-                   "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all border",
+                    "flex items-center gap-2 px-5 py-2.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-colors border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal",
                    filter === 'public' 
                      ? "bg-blue-500 border-blue-500 text-white shadow-md shadow-blue-500/20" 
                      : "bg-white dark:bg-whatsapp-darkLighter border-gray-100 dark:border-white/5 text-gray-400"
@@ -486,7 +549,7 @@ export default function NotesPage() {
                     key={note.id} 
                     className="break-inside-avoid bg-white dark:bg-whatsapp-darkLighter border border-gray-200 dark:border-white/10 rounded-[16px] overflow-hidden hover:shadow-lg transition-shadow group relative flex flex-col"
                   >
-                    <div className="p-5 cursor-pointer flex-1" onClick={() => startEditing(note)}>
+                    <div className="p-5 flex-1">
                       {note.title && (
                         <h3 className="font-semibold text-[17px] sm:text-[18px] text-gray-900 dark:text-white mb-2 leading-[22px] sm:leading-[24px] tracking-[-0.01em] pr-8">
                           {note.title}
@@ -511,18 +574,30 @@ export default function NotesPage() {
                     </div>
 
                     {/* Actions Hover */}
-                    <div className="px-4 py-2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-between border-t border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5">
+                    <div className="px-4 py-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 transition-opacity flex items-center justify-between border-t border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/5">
                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => startEditing(note)}
+                            aria-label="Editar nota"
+                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 text-gray-400 hover:text-whatsapp-teal transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
+                          >
+                            <Edit3 className="w-4 h-4" aria-hidden="true" />
+                          </button>
                           <button 
-                            onClick={(e) => { e.stopPropagation(); toggleFavorite(note.id, note.is_favorite); }}
-                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+                            type="button"
+                            onClick={() => toggleFavorite(note.id, note.is_favorite)}
+                            aria-label={note.is_favorite ? "Remover nota dos favoritos" : "Adicionar nota aos favoritos"}
+                            className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
                           >
                             <Star className={cn("w-4 h-4", note.is_favorite ? "fill-amber-400 text-amber-400" : "text-gray-400")} />
                           </button>
                           {note.is_public && (
                             <button 
-                              onClick={(e) => { e.stopPropagation(); shareToFeed(note); }}
-                              className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-gray-400 hover:text-blue-500"
+                              type="button"
+                              onClick={() => shareToFeed(note)}
+                              aria-label="Compartilhar nota no Feed"
+                              className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-gray-400 hover:text-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal"
                               title="Compartilhar no Feed"
                             >
                               <Share2 className="w-4 h-4" />
@@ -530,8 +605,10 @@ export default function NotesPage() {
                           )}
                        </div>
                        <button 
-                         onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
-                         className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-gray-400 hover:text-red-500"
+                          type="button"
+                          onClick={() => deleteNote(note.id)}
+                          aria-label="Excluir nota"
+                         className="p-1.5 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-gray-400 hover:text-red-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                        >
                          <Trash2 className="w-4 h-4" />
                        </button>
@@ -550,8 +627,6 @@ export default function NotesPage() {
         </div>
       </div>
       
-      {/* Menu Mobile Inferior */}
-      <BottomNav />
-    </div>
+    </main>
   );
 }

@@ -129,21 +129,27 @@ export default function PartnerWalletPage() {
     pixTimeoutRef.current = null;
   }
 
-  function startPixPolling(saldoAnterior: number) {
+  function startPixPolling(paymentId: string) {
     stopPixPolling();
     setPixExpired(false);
 
-    // Verifica saldo a cada 5 segundos
+    // Confirma este pagamento específico para não confundir outra entrada de saldo.
     pixPollingRef.current = setInterval(async () => {
       try {
-        const res = await adsApiFetch<WalletBalanceDto>("/api/wallet");
-        if (res.saldo_disponivel > saldoAnterior) {
+        const res = await adsApiFetch<{
+          success: boolean;
+          balances?: WalletBalanceDto;
+        }>("/api/wallet/topup/confirm", {
+          method: "POST",
+          body: JSON.stringify({ payment_id: paymentId }),
+        });
+        if (res.success && res.balances) {
           stopPixPolling();
-          setWallet(res);
+          setWallet(res.balances);
           setPixData(null);
           setIsTopupModalOpen(false);
-          toast.success("✅ Pagamento Pix confirmado!", {
-            description: `Novo saldo: ${formatCurrency(res.saldo_disponivel)}`,
+          toast.success("Pagamento Pix confirmado.", {
+            description: `Novo saldo: ${formatCurrency(res.balances.saldo_disponivel)}`,
           });
         }
       } catch {
@@ -180,13 +186,12 @@ export default function PartnerWalletPage() {
         body: JSON.stringify({ valor: centavos, method: "pix" }),
       });
 
-      const saldoAtual = wallet?.saldo_disponivel ?? 0;
       setPixData({
         qr_code: res.qr_code,
         qr_code_base64: res.qr_code_base64,
         payment_id: res.payment_id,
       });
-      startPixPolling(saldoAtual);
+      startPixPolling(res.payment_id);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Erro ao gerar Pix";
       toast.error("Erro ao gerar Pix", { description: msg });
@@ -559,7 +564,7 @@ export default function PartnerWalletPage() {
                       </div>
 
                       {/* Botão de simulação rápida para ambiente de teste */}
-                      <button
+                      {process.env.NODE_ENV !== "production" && <button
                         type="button"
                         onClick={async () => {
                           try {
@@ -583,8 +588,8 @@ export default function PartnerWalletPage() {
                         }}
                         className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 py-2.5 text-xs font-bold text-white transition-all cursor-pointer shadow-lg shadow-emerald-950/40"
                       >
-                        <span>⚡ Simular Confirmação e Fechar</span>
-                      </button>
+                        <span>Simular confirmação (desenvolvimento)</span>
+                      </button>}
                     </div>
                   )}
 
@@ -625,7 +630,7 @@ export default function PartnerWalletPage() {
                       <input
                         type="number"
                         min="50"
-                        step="10"
+                        step="0.01"
                         value={topupAmountReais}
                         onChange={(e) => setTopupAmountReais(Number(e.target.value))}
                         className="w-full rounded-xl border border-white/10 bg-zinc-950 pl-12 pr-4 py-3 text-base font-bold text-white focus:border-emerald-500 focus:outline-none"
@@ -681,24 +686,26 @@ export default function PartnerWalletPage() {
                       <span>Pagar com Cartão (Mercado Pago)</span>
                     </button>
 
-                    {/* Divider + Sandbox */}
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-px bg-white/10" />
-                      <span className="text-[10px] text-zinc-600 uppercase tracking-widest">Desenvolvedor</span>
-                      <div className="flex-1 h-px bg-white/10" />
-                    </div>
+                    {process.env.NODE_ENV !== "production" && <>
+                      {/* Ferramenta de crédito local, apenas em desenvolvimento */}
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className="text-[10px] text-zinc-600 uppercase tracking-widest">Desenvolvedor</span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
 
-                    <div className="flex items-center justify-between">
                       <button
                         type="button"
                         onClick={handleSandboxSimulate}
                         disabled={isTopupLoading}
-                        className="flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all"
-                        title="Credita o saldo diretamente no ledger sem depender do MP"
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3.5 py-2 text-xs font-bold text-amber-400 hover:bg-amber-500/20 transition-all"
+                        title="Credita saldo de teste sem depender do Mercado Pago"
                       >
-                        ⚡ Simular Saldo (+R$ {topupAmountReais})
+                        Simular saldo (+R$ {topupAmountReais})
                       </button>
+                    </>}
 
+                    <div className="flex justify-end">
                       <button
                         type="button"
                         onClick={() => setIsTopupModalOpen(false)}

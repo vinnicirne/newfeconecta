@@ -4,9 +4,10 @@ import * as pollService from "@/domain/polls/poll.service";
 import type { CreatePollDto } from "@/domain/polls/types";
 
 // GET /api/polls — lista enquetes públicas
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const polls = await pollService.listPolls();
+    const user = await requireAuth(request).catch(() => null);
+    const polls = await pollService.listPolls({ user_id: user?.id });
     return NextResponse.json({ polls });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro interno";

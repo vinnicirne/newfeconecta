@@ -254,50 +254,33 @@ describe("WalletLedgerService", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Teste 6: recarga cria tx no ledger com payment_id
+  // Teste 6: recarga transacional via RPC cria tx no ledger com payment_id
   // -------------------------------------------------------------------------
   describe("[Teste 6] creditRecarga", () => {
-    it("atualiza saldo e registra transação com payment_id", async () => {
+    it("usa RPC atômica para atualizar saldo e registrar payment_id", async () => {
       const mockTx = { id: "tx-4", tipo: "recarga", valor: 5000, payment_id: "mp-pay-999" };
-
-      // Sequência de chamadas: select (buscar saldo) → update → insert
-      let callCount = 0;
-      db.from = vi.fn().mockImplementation(() => {
-        callCount++;
-        if (callCount === 1) {
-          // from("wallets").select("saldo_disponivel").eq("id", ...).single()
-          return {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                single: vi.fn().mockResolvedValue({ data: { saldo_disponivel: 0 }, error: null }),
-              }),
-            }),
-          };
-        }
-        if (callCount === 2) {
-          // from("wallets").update({ saldo_disponivel: 5000 }).eq("id", ...)
-          return {
-            update: vi.fn().mockReturnValue({
-              eq: vi.fn().mockResolvedValue({ error: null }),
-            }),
-          };
-        }
-        // from("wallet_transactions").insert(...).select("*").single()
-        return {
-          insert: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnValue({
-              single: vi.fn().mockResolvedValue({ data: mockTx, error: null }),
-            }),
-          }),
-        };
-      });
+      (db.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({ data: mockTx, error: null });
 
       const result = await ledger.creditRecarga(walletId, 5000, "mp-pay-999");
 
-      expect(db.from).toHaveBeenCalledWith("wallets");
-      expect(db.from).toHaveBeenCalledWith("wallet_transactions");
+      expect(db.rpc).toHaveBeenCalledWith("wallet_credit_recarga", {
+        p_wallet_id: walletId,
+        p_valor: 5000,
+        p_payment_id: "mp-pay-999",
+      });
       expect(result.tipo).toBe("recarga");
       expect(result.payment_id).toBe("mp-pay-999");
+    });
+
+    it("propaga falha da RPC sem simular crédito", async () => {
+      (db.rpc as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: null,
+        error: { message: "Falha transacional" },
+      });
+
+      await expect(ledger.creditRecarga(walletId, 5000, "mp-pay-error")).rejects.toThrow(
+        "Erro ao creditar recarga: Falha transacional"
+      );
     });
 
     it("rejeita valor <= 0 sem chamar banco", async () => {
@@ -307,7 +290,7 @@ describe("WalletLedgerService", () => {
       await expect(ledger.creditRecarga(walletId, -50, "mp-002")).rejects.toThrow(
         "Valor de recarga deve ser > 0"
       );
-      expect(db.from).not.toHaveBeenCalled();
+      expect(db.rpc).not.toHaveBeenCalled();
     });
   });
 });

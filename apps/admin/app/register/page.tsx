@@ -359,32 +359,22 @@ export default function RegisterPage() {
 
       // Se for adolescente, disparar o e-mail de consentimento parental (LGPD Art. 14)
       if (ageCompliance.requiresConsent) {
-        fetch('/api/guardian/send-consent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            user_id: authData.user.id,
-            minor_name: formData.first_name.trim(),
-            guardian_email: guardianEmail.toLowerCase().trim(),
-          })
-        }).catch(err => console.error("Erro ao enviar consentimento parental:", err));
+        const consentToken = authData.session?.access_token;
+        if (consentToken) {
+          fetch('/api/guardian/send-consent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${consentToken}` },
+            body: JSON.stringify({ user_id: authData.user.id }),
+          }).catch(err => console.error("Erro ao enviar consentimento parental:", err));
+        } else {
+          toast.error('Não foi possível iniciar a sessão para enviar o consentimento. Entre em contato com o suporte.');
+        }
 
         // Redirecionar para tela de aguardando aprovação
         toast.success("Conta criada! Enviamos um e-mail de autorização para o responsável.");
         router.push(`/guardian/pending?email=${encodeURIComponent(guardianEmail)}`);
         return;
       }
-
-      // Disparar o e-mail de boas-vindas assíncronamente (sem bloquear o fluxo)
-      fetch('/api/emails/welcome', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: formData.email, 
-          name: formData.first_name.trim(),
-          user_id: authData.user.id,
-        })
-      }).catch(err => console.error("Erro ao disparar welcome email:", err));
 
       // Pedir notificação antes de redirecionar
       if ('Notification' in window && Notification.permission === 'default') {

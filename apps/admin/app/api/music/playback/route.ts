@@ -1,110 +1,117 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-
-const supabaseServer = createClient(supabaseUrl, serviceKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-  },
-});
+import { requireAuth } from '@/lib/auth-server';
 
 export const dynamic = 'force-dynamic';
 
+const TRACK_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+const ALLOWED_PROVIDERS = new Set(['youtube', 'spotify', 'deezer']);
+
+type PlaybackTrack = {
+  id?: unknown;
+  providerTrackId?: unknown;
+  provider?: unknown;
+  title?: unknown;
+  artist?: unknown;
+  cover?: unknown;
+  duration?: unknown;
+};
+
+function isSafeHttpsUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || value.length > 2048) return false;
+  try {
+    return new URL(value).protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { track } = body;
+    if (Number(request.headers.get('content-length') || 0) > 16_384) {
+      return NextResponse.json({ error: 'Solicitação muito grande' }, { status: 413 });
+    }
 
-    if (!track || (!track.id && !track.providerTrackId)) {
+    const user = await requireAuth(request);
+    const body: unknown = await request.json();
+    const track = (body as { track?: PlaybackTrack } | null)?.track;
+    if (!track || typeof track !== 'object') {
       return NextResponse.json({ error: 'Faixa inválida' }, { status: 400 });
     }
 
-    const trackId = track.providerTrackId || track.id;
-    const title = track.title || 'Louvor';
-    const artist = track.artist || 'Artista';
-    const cover = track.cover || (track.providerTrackId ? `https://i.ytimg.com/vi/${track.providerTrackId}/hqdefault.jpg` : null);
-    const duration = track.duration ? Math.round(track.duration) : null;
-    const provider = track.provider || 'youtube';
-
-    let finalUserId: string | null = null;
-
-    // SECURITY CHECK [SEC-003]: Extrair userId EXCLUSIVAMENTE do Auth Header/Cookie
-    try {
-      const authHeader = request.headers.get('authorization');
-        let token: string | null = null;
-        if (authHeader?.startsWith('Bearer ')) {
-          token = authHeader.replace('Bearer ', '').trim();
-        } else {
-          const cookieHeader = request.headers.get('cookie') || '';
-          const cookies = Object.fromEntries(
-            cookieHeader.split(';').map(c => {
-              const [k, ...v] = c.trim().split('=');
-              return [k, decodeURIComponent(v.join('='))];
-            })
-          );
-          const tokenCookie = Object.keys(cookies).find(k => 
-            k.includes('fc-auth-token') || k.includes('-auth-token') || k === 'sb-access-token' || k === 'supabase-auth-token'
-          );
-          if (tokenCookie && cookies[tokenCookie]) {
-            const parsed = JSON.parse(cookies[tokenCookie]);
-            token = Array.isArray(parsed) ? parsed[0] : (parsed.access_token || parsed);
-          }
-        }
-        if (token) {
-          const { data: { user } } = await supabaseServer.auth.getUser(token);
-          if (user?.id) finalUserId = user.id;
-        }
-      } catch (_) {}
-
-    // 1. Indexa em music_tracks
-    try {
-      await supabaseServer
-        .from('music_tracks')
-        .upsert({
-          provider,
-          provider_track_id: trackId,
-          title,
-          artist,
-          cover,
-          duration,
-        }, { onConflict: 'provider,provider_track_id' });
-    } catch (e) {
-      console.warn('[API Playback] Erro ao indexar music_tracks:', e);
+    const provider = typeof track.provider === 'string' ? track.provider : 'youtube';
+    const trackId = typeof track.providerTrackId === 'string'
+      ? track.providerTrackId
+      : typeof track.id === 'string' ? track.id : '';
+    if (!ALLOWED_PROVIDERS.has(provider) || !TRACK_ID_PATTERN.test(trackId)) {
+      return NextResponse.json({ error: 'Identificação da faixa inválida' }, { status: 400 });
     }
 
-    // 2. Insere no histórico de reprodução em tempo real (music_history)
-    const { data: histData, error: histError } = await supabaseServer
+    const durationValue = typeof track.duration === 'number' ? track.duration : null;
+    if (durationValue !== null && (!Number.isFinite(durationValue) || durationValue < 0 || durationValue > 21_600_000)) {
+      return NextResponse.json({ error: 'Duração da faixa inválida' }, { status: 400 });
+    }
+
+    const title = typeof track.title === 'string' ? track.title.trim().slice(0, 160) : 'Louvor';
+    const artist = typeof track.artist === 'string' ? track.artist.trim().slice(0, 160) : 'Artista';
+    const cover = isSafeHttpsUrl(track.cover)
+      ? track.cover
+      : provider === 'youtube' ? `https://i.ytimg.com/vi/${trackId}/hqdefault.jpg` : null;
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!supabaseUrl || !serviceRoleKey) {
+      return NextResponse.json({ error: 'Serviço de histórico indisponível' }, { status: 503 });
+    }
+
+    const db = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const recentCutoff = new Date(Date.now() - 60_000).toISOString();
+    const { data: recent, error: recentError } = await db
+      .from('music_history')
+      .select('id, started_at')
+      .eq('user_id', user.id)
+      .eq('provider', provider)
+      .eq('provider_track_id', trackId)
+      .gte('started_at', recentCutoff)
+      .limit(1);
+
+    if (recentError) {
+      console.error('[API Playback] Não foi possível verificar duplicatas:', recentError.message);
+      return NextResponse.json({ error: 'Não foi possível registrar a reprodução' }, { status: 500 });
+    }
+    if (recent?.length) {
+      return NextResponse.json({ success: true, duplicate: true, startedAt: recent[0].started_at });
+    }
+
+    const { data: history, error } = await db
       .from('music_history')
       .insert({
-        user_id: finalUserId,
+        user_id: user.id,
         provider,
         provider_track_id: trackId,
-        track_title: title,
-        track_artist: artist,
+        track_title: title || 'Louvor',
+        track_artist: artist || 'Artista',
         track_cover: cover,
-        track_duration: duration,
+        track_duration: durationValue === null ? null : Math.round(durationValue),
         started_at: new Date().toISOString(),
         completed: false,
       })
       .select('id, started_at')
       .single();
 
-    if (histError) {
-      console.warn('[API Playback] Falha ao inserir em music_history:', histError.message);
-      return NextResponse.json({ error: histError.message }, { status: 500 });
+    if (error) {
+      console.error('[API Playback] Falha ao registrar reprodução:', error.message);
+      return NextResponse.json({ error: 'Não foi possível registrar a reprodução' }, { status: 500 });
     }
 
-    return NextResponse.json({
-      success: true,
-      historyId: histData?.id,
-      startedAt: histData?.started_at,
-      userId: finalUserId,
-    });
-  } catch (err: any) {
-    console.error('[API Playback] Erro inesperado:', err);
-    return NextResponse.json({ error: err.message || 'Erro interno' }, { status: 500 });
+    return NextResponse.json({ success: true, historyId: history.id, startedAt: history.started_at });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erro interno';
+    const unauthorized = message.toLowerCase().includes('autorizado');
+    if (unauthorized) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+    console.error('[API Playback] Erro inesperado:', message);
+    return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }

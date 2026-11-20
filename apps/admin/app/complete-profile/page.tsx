@@ -226,15 +226,14 @@ export default function CompleteProfilePage() {
       if (error) throw error;
 
       const firstName = updateData.username.split('_')[0] || currentUser.first_name || 'Usuário';
-      fetch('/api/emails/welcome', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          email: currentUser.email, 
-          name: firstName, 
-          user_id: currentUser.id,
-        })
-      }).catch(err => console.error("Erro ao disparar welcome email:", err));
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token && session.user.id === currentUser.id) {
+        fetch('/api/emails/welcome', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ email: currentUser.email, name: firstName, user_id: currentUser.id })
+        }).catch(err => console.error("Erro ao disparar welcome email:", err));
+      }
 
       if ('Notification' in window && Notification.permission === 'default') {
         await Notification.requestPermission();

@@ -10,10 +10,19 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
+    const user = await requireAuth(request).catch(() => null);
     const service = new EventService();
 
-    const event = await service.getEventById(params.id);
-    return NextResponse.json(event);
+    const event = await service.getEventById(params.id, user?.id);
+    if (!event || (!event.is_public && event.author_id !== user?.id)) {
+      return NextResponse.json({ error: "Evento não encontrado" }, { status: 404 });
+    }
+
+    const [attendees, myRsvp] = await Promise.all([
+      service.getAttendees(params.id),
+      user ? service.getUserRSVP(params.id, user.id) : Promise.resolve(null),
+    ]);
+    return NextResponse.json({ event: { ...event, my_rsvp: myRsvp }, attendees });
   } catch (error) {
     return handleApiError(error, `GET /api/fe-eventos/${params.id}`);
   }

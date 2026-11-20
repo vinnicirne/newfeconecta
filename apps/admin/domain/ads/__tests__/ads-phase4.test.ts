@@ -23,6 +23,8 @@ function makeMockChain(resolvedValue: unknown) {
   ];
   methods.forEach((m) => { chain[m] = vi.fn(() => chain); });
   chain.single = vi.fn().mockResolvedValue(resolvedValue);
+  chain.then = (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) =>
+    Promise.resolve(resolvedValue).then(resolve, reject);
   return chain;
 }
 
@@ -67,8 +69,7 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
         updated_at: new Date().toISOString(),
       };
 
-      const chain = makeMockChain({});
-      chain.gte = vi.fn().mockResolvedValue({ data: [activeCampaign], error: null });
+      const chain = makeMockChain({ data: [activeCampaign], error: null });
       db.from = vi.fn().mockReturnValue(chain);
 
       const service = new AdServingService(db);
@@ -82,8 +83,7 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
     });
 
     it("[Teste 2] serveAd retorna null (204) se nenhuma campanha elegível existir", async () => {
-      const chain = makeMockChain({});
-      chain.gte = vi.fn().mockResolvedValue({ data: [], error: null });
+      const chain = makeMockChain({ data: [], error: null });
       db.from = vi.fn().mockReturnValue(chain);
 
       const service = new AdServingService(db);
@@ -94,8 +94,7 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
 
     it("[Teste 3] Campanha 'pausado' não é servida", async () => {
       // getEligibleCampaigns busca apenas status = 'ativa'
-      const chain = makeMockChain({});
-      chain.gte = vi.fn().mockResolvedValue({ data: [], error: null });
+      const chain = makeMockChain({ data: [], error: null });
       db.from = vi.fn().mockReturnValue(chain);
 
       const service = new AdServingService(db);
@@ -127,8 +126,7 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
         updated_at: new Date().toISOString(),
       };
 
-      const chain = makeMockChain({});
-      chain.gte = vi.fn().mockResolvedValue({ data: [exhaustedCampaign], error: null });
+      const chain = makeMockChain({ data: [exhaustedCampaign], error: null });
       db.from = vi.fn().mockReturnValue(chain);
 
       const service = new AdServingService(db);
@@ -138,16 +136,35 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
       expect(result).toBeNull();
     });
 
-    it("[Teste 5] Campanha com periodo_fim < now é filtrada pela query", async () => {
-      const chain = makeMockChain({});
-      chain.gte = vi.fn().mockResolvedValue({ data: [], error: null });
+    it("[Teste 5] Campanha com periodo_fim anterior a hoje não é servida", async () => {
+      const expiredCampaign: Campaign = {
+        id: "camp-expired",
+        partner_id: "partner-001",
+        nome: "Campanha expirada",
+        formato: "feed",
+        objetivo: "cliques",
+        orcamento: 10000,
+        gasto: 0,
+        status: "ativa",
+        periodo_inicio: "2020-01-01",
+        periodo_fim: "2020-01-02",
+        publico: {},
+        criativo_url: null,
+        criativo_tipo: null,
+        call_to_action: null,
+        texto: null,
+        motivo_reprovacao: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      const chain = makeMockChain({ data: [expiredCampaign], error: null });
       db.from = vi.fn().mockReturnValue(chain);
 
       const service = new AdServingService(db);
       const result = await service.serveAd("feed");
 
       expect(result).toBeNull();
-      expect(chain.gte).toHaveBeenCalledWith("periodo_fim", expect.any(String));
+      expect(chain.eq).toHaveBeenCalledWith("status", "ativa");
     });
   });
 
@@ -200,8 +217,8 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
 
       // Duas impressões simultâneas
       await Promise.all([
-        service.trackImpression({ campaignId: "camp-001", format: "feed" }),
-        service.trackImpression({ campaignId: "camp-001", format: "feed" }),
+        service.trackImpression({ campaignId: "camp-001", format: "feed", costCents: 1 }),
+        service.trackImpression({ campaignId: "camp-001", format: "feed", costCents: 1 }),
       ]);
 
       expect(db.rpc).toHaveBeenCalledTimes(2);
@@ -226,6 +243,7 @@ describe("Fase 4 — Ad-serving, Tracking & Auto-closing", () => {
       const result = await service.trackImpression({
         campaignId: "camp-001",
         format: "feed",
+        costCents: 1,
       });
 
       expect(result.budgetReached).toBe(true);

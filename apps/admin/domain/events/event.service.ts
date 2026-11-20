@@ -158,6 +158,7 @@ export class EventService {
     is_public?: boolean;
     author_id?: string;
     church_id?: string;
+    user_id?: string;
   }): Promise<FeEvent[]> {
     let query = this.db
       .from("events")
@@ -176,7 +177,30 @@ export class EventService {
 
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return (data ?? []) as unknown as FeEvent[];
+    const events = (data ?? []) as unknown as FeEvent[];
+    if (events.length === 0) return events;
+
+    const { data: attendeeRows, error: attendeesError } = await this.db
+      .from("event_attendees")
+      .select("event_id, user_id, status")
+      .in("event_id", events.map((event) => event.id));
+    if (attendeesError) throw new Error(attendeesError.message);
+
+    const attendeesByEvent = new Map<string, { event_id: string; user_id: string; status: string }[]>();
+    for (const attendee of attendeeRows ?? []) {
+      const current = attendeesByEvent.get(attendee.event_id) ?? [];
+      current.push(attendee);
+      attendeesByEvent.set(attendee.event_id, current);
+    }
+
+    return events.map((event) => {
+      const attendees = attendeesByEvent.get(event.id) ?? [];
+      return {
+        ...event,
+        attendees_count: attendees.filter((attendee) => attendee.status === "going").length,
+        my_rsvp: (attendees.find((attendee) => attendee.user_id === filters?.user_id)?.status as RSVPStatus | undefined) ?? null,
+      };
+    });
   }
 
   async getEventById(id: string, userId?: string): Promise<FeEvent | null> {
@@ -193,7 +217,7 @@ export class EventService {
       .from("event_attendees")
       .select("id", { count: "exact", head: true })
       .eq("event_id", id)
-      .in("status", ["going", "maybe"]);
+      .eq("status", "going");
 
     // Carrega itens de contribuição com compromissos
     const { data: rawItems } = await this.db
@@ -216,7 +240,23 @@ export class EventService {
     return { ...data, attendees_count: attendeesCount ?? 0, items } as unknown as FeEvent;
   }
 
-  async setItemCommitment(itemId: string, userId: string, quantity: number): Promise<void> {
+  async setItemCommitment(eventId: string, itemId: string, userId: string, quantity: number): Promise<void> {
+    if (!Number.isInteger(quantity) || quantity < 0) {
+      throw new Error("Quantidade de contribuição inválida");
+    }
+
+    const { data: item, error: itemError } = await this.db
+      .from("event_items")
+      .select("id, needed_quantity")
+      .eq("id", itemId)
+      .eq("event_id", eventId)
+      .maybeSingle();
+    if (itemError) throw new Error(itemError.message);
+    if (!item) throw new Error("Item não encontrado neste evento");
+    if (quantity > item.needed_quantity) {
+      throw new Error("A quantidade ultrapassa o necessário para este item");
+    }
+
     if (quantity <= 0) {
       await this.db
         .from("event_item_commitments")
@@ -237,6 +277,7 @@ export class EventService {
     const payload: Record<string, unknown> = {};
     if (updates.title !== undefined)       payload.title       = updates.title;
     if (updates.description !== undefined) payload.description = updates.description;
+    if (updates.church_id !== undefined)  payload.church_id  = updates.church_id;
     if (updates.cover_url !== undefined)   payload.cover_url   = updates.cover_url;
     if (updates.location !== undefined)    payload.location    = updates.location;
     if (updates.online_link !== undefined) payload.online_link = updates.online_link;

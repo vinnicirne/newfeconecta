@@ -5,26 +5,27 @@ import { Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
 
+function Avatar({ src, name }: { src?: string | null; name?: string | null }) {
+  const safeName = typeof name === 'string' ? name : '';
+  const isPlaceholder = typeof src === 'string' && (src.includes('avatar.vercel.sh') || src.includes('dicebear'));
+
+  return (typeof src === 'string' && src.length > 0 && !isPlaceholder)
+    ? <img src={src} className="w-full h-full object-cover" alt={safeName ? `Foto de ${safeName}` : ''} />
+    : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white font-black text-xs md:text-xl uppercase shadow-inner" aria-hidden="true">
+        {getInitials(safeName)}
+      </div>;
+}
+
+function getInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return parts[0]?.[0]?.toUpperCase() || 'U';
+}
+
 export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onAddStory, onViewGroup }: any) {
   const router = useRouter();
-
-  const getInitials = (name: string) => {
-    if (!name) return 'U';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-    return parts[0][0].toUpperCase();
-  };
-
-  const Avatar = ({ src, name }: any) => {
-    const isPlaceholder = src && (src.includes('avatar.vercel.sh') || src.includes('dicebear'));
-    return (src && !isPlaceholder)
-      ? <img src={src} className="w-full h-full object-cover" alt={name} />
-      : <div className="w-full h-full bg-gradient-to-br from-whatsapp-teal to-emerald-600 flex items-center justify-center text-white font-black text-xs md:text-xl uppercase shadow-inner">
-          {getInitials(name)}
-        </div>;
-  };
-
-  const otherStoryGroups = storyGroups.filter((g: any) => g.author_id !== currentUser?.id);
+  const safeStoryGroups = Array.isArray(storyGroups) ? storyGroups : [];
+  const otherStoryGroups = safeStoryGroups.filter((g: any) => g?.author_id && g.author_id !== currentUser?.id);
   const hasMyStories = Boolean(myStoryGroup?.stories && myStoryGroup.stories.length > 0);
 
   const handleGroupClick = (group: any) => {
@@ -49,9 +50,12 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
         style={{ scrollbarWidth: 'none' }}
       >
         {/* Meu Story (Instagram Style Circular) */}
+        <div className="relative flex flex-shrink-0 flex-col items-center gap-1.5">
         <button
+          type="button"
+          aria-label={hasMyStories ? "Ver seu story" : "Criar story"}
           onClick={hasMyStories ? () => onViewGroup(myStoryGroup) : onAddStory}
-          className="flex flex-col items-center gap-1.5 flex-shrink-0 group cursor-pointer active:scale-95 transition-transform"
+          className="flex flex-col items-center gap-1.5 group cursor-pointer active:scale-95 transition-transform"
         >
           <div className="relative">
             <div className={cn(
@@ -65,23 +69,29 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
               </div>
             </div>
 
-            {/* Botão de + Flutuante */}
-            <div 
-              onClick={(e) => { e.stopPropagation(); onAddStory(); }}
-              className="absolute bottom-0 right-0 w-5 h-5 rounded-full bg-whatsapp-teal text-white flex items-center justify-center border-2 border-background shadow-md"
-            >
-              <Plus className="w-3.5 h-3.5 stroke-[3]" />
-            </div>
           </div>
 
           <span className="text-[11px] font-medium text-foreground tracking-tight max-w-[68px] truncate text-center">
             Seu story
           </span>
         </button>
+        {hasMyStories && (
+          <button
+            type="button"
+            aria-label="Adicionar story"
+            onClick={onAddStory}
+            className="absolute right-0 top-[45px] z-10 flex h-6 w-6 items-center justify-center rounded-full border-2 border-background bg-whatsapp-teal text-white shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <Plus className="h-3.5 w-3.5 stroke-[3]" aria-hidden="true" />
+          </button>
+        )}
+        </div>
 
         {/* Stories de Outros Usuários (Instagram Style Circular) */}
         {otherStoryGroups.map((group: any) => (
           <button
+            type="button"
+            aria-label={`Ver stories de ${group.author_name || 'membro'}`}
             key={group.author_id}
             onClick={() => handleGroupClick(group)}
             className="flex flex-col items-center gap-1.5 flex-shrink-0 group cursor-pointer active:scale-95 transition-transform"
@@ -123,7 +133,10 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
         style={{ scrollbarWidth: 'none' }}
       >
         {/* Meu Story - Retangular */}
+        <div className="relative flex-shrink-0">
         <button
+          type="button"
+          aria-label={hasMyStories ? "Ver seu story" : "Criar story"}
           onClick={hasMyStories ? () => onViewGroup(myStoryGroup) : onAddStory}
           className="relative w-28 md:w-32 h-44 md:h-52 rounded-2xl overflow-hidden flex-shrink-0 group shadow-md border border-border cursor-pointer hover:opacity-95 transition-all bg-card"
         >
@@ -137,12 +150,6 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
               <span className="absolute bottom-3 left-3 right-3 text-white text-xs font-bold drop-shadow-md text-left truncate">
                 Meu status
               </span>
-              <div 
-                onClick={(e) => { e.stopPropagation(); onAddStory(); }}
-                className="absolute bottom-10 right-2 w-8 h-8 rounded-full bg-whatsapp-teal text-white flex items-center justify-center border-2 border-card shadow-lg hover:scale-110 transition-all z-20"
-              >
-                <Plus className="w-4 h-4 font-bold" />
-              </div>
             </div>
           ) : (
             <div className="w-full h-full flex flex-col">
@@ -159,10 +166,23 @@ export default function StoriesBar({ storyGroups, myStoryGroup, currentUser, onA
             </div>
           )}
         </button>
+        {hasMyStories && (
+          <button
+            type="button"
+            aria-label="Adicionar story"
+            onClick={onAddStory}
+            className="absolute bottom-10 right-2 z-20 flex h-8 w-8 items-center justify-center rounded-full border-2 border-card bg-whatsapp-teal text-white shadow-lg transition-transform hover:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <Plus className="h-4 w-4 font-bold" aria-hidden="true" />
+          </button>
+        )}
+        </div>
 
         {/* Outros Stories - Retangular */}
         {otherStoryGroups.map((group: any) => (
           <button
+            type="button"
+            aria-label={`Ver stories de ${group.author_name || 'membro'}`}
             key={group.author_id}
             onClick={() => handleGroupClick(group)}
             className="relative w-28 md:w-32 h-44 md:h-52 rounded-2xl overflow-hidden flex-shrink-0 group shadow-md border border-border cursor-pointer hover:opacity-95 transition-all"

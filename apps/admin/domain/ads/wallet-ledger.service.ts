@@ -100,47 +100,17 @@ export class WalletLedgerService {
     paymentId: string
   ): Promise<WalletTransaction> {
     if (valor <= 0) throw new Error("[WalletLedger] Valor de recarga deve ser > 0");
+    const { data, error } = await this.db.rpc("wallet_credit_recarga", {
+      p_wallet_id: walletId,
+      p_valor: valor,
+      p_payment_id: paymentId,
+    });
 
-    // 1. Busca saldo atual com lock (leitura consistente)
-    const { data: current, error: fetchErr } = await this.db
-      .from("wallets")
-      .select("saldo_disponivel")
-      .eq("id", walletId)
-      .single();
-
-    if (fetchErr || !current) {
-      throw new Error(`[WalletLedger] Carteira não encontrada: ${walletId}`);
+    if (error || !data) {
+      throw new Error(`[WalletLedger] Erro ao creditar recarga: ${error?.message ?? "RPC sem retorno"}`);
     }
 
-    const novoSaldo = (current.saldo_disponivel as number) + valor;
-
-    // 2. Atualiza saldo disponível
-    const { error: updateErr } = await this.db
-      .from("wallets")
-      .update({ saldo_disponivel: novoSaldo })
-      .eq("id", walletId);
-
-    if (updateErr) {
-      throw new Error(`[WalletLedger] Erro ao atualizar saldo: ${updateErr.message}`);
-    }
-
-    // 3. Registra transação no ledger
-    const { data: tx, error: txErr } = await this.db
-      .from("wallet_transactions")
-      .insert({
-        wallet_id: walletId,
-        tipo: "recarga" satisfies WalletTransactionType,
-        valor,
-        payment_id: paymentId,
-      })
-      .select("*")
-      .single();
-
-    if (txErr || !tx) {
-      throw new Error(`[WalletLedger] Erro ao registrar transação: ${txErr?.message}`);
-    }
-
-    return tx as WalletTransaction;
+    return data as WalletTransaction;
   }
 
   // -------------------------------------------------------------------------

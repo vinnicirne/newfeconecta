@@ -3,41 +3,19 @@ import { createClient } from '@supabase/supabase-js';
 import { generateDailyMessage } from '@/lib/gemini';
 import { requireAuth } from '@/lib/auth-server';
 import nodemailer from 'nodemailer';
+import { timingSafeEqual } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 async function handleDailyMessageDispatch(request: Request) {
   try {
-    const url = new URL(request.url);
-    const keyParam = url.searchParams.get('key');
     const authHeader = request.headers.get('authorization');
     const cronSecret = process.env.CRON_SECRET;
-    const isVercelCron = request.headers.get('user-agent')?.includes('vercel-cron');
-
-    // 1. Verifica se é a Cron da Vercel, Bearer CRON_SECRET ou param ?key=
-    let isAuthorized = 
-      isVercelCron ||
-      (cronSecret && (
-        authHeader === `Bearer ${cronSecret}` ||
-        authHeader === cronSecret ||
-        keyParam === cronSecret
-      ));
-
-    // 2. Se não for cron secret, tenta autenticar como Admin logado via token/cookies
-    if (!isAuthorized) {
-      try {
-        const user = await requireAuth(request);
-        if (user) {
-          isAuthorized = true;
-        }
-      } catch {}
-    }
-
-    if (!isAuthorized && process.env.NODE_ENV === 'production') {
-      console.warn('[CRON] Tentativa de acesso não autorizada ao disparo de devocional diário.');
-      return NextResponse.json({ error: 'Não autorizado: É necessário privilégio de administrador ou token de cron' }, { status: 401 });
-    }
+    const bearer = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1] || '';
+    const bearerBytes = Buffer.from(bearer);
+    const cronSecretBytes = Buffer.from(cronSecret || '');
+    const isCronAuthorized = Boolean(cronSecret && bearer && bearerBytes.length === cronSecretBytes.length && timingSafeEqual(bearerBytes, cronSecretBytes));
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -47,6 +25,28 @@ async function handleDailyMessageDispatch(request: Request) {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    if (!isCronAuthorized) {
+      let user;
+      try {
+        user = await requireAuth(request);
+      } catch {
+        return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
+      }
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (profileError) {
+        console.error('[CRON] Não foi possível validar o papel do usuário:', profileError.message);
+        return NextResponse.json({ error: 'Não foi possível validar as permissões' }, { status: 503 });
+      }
+      if (!profile || !['admin', 'superadmin'].includes(profile.role)) {
+        return NextResponse.json({ error: 'Acesso restrito à administração' }, { status: 403 });
+      }
+    }
 
     // 1. Gerar devocional via IA
     console.log('[CRON] Iniciando geração da mensagem do dia...');

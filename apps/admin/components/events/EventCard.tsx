@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import moment from "moment";
 import "moment/locale/pt-br";
-import { MapPin, Link2, Users, Globe, Lock, CheckCircle2, HelpCircle, XCircle } from "lucide-react";
+import { MapPin, Link2, Users, Globe, Lock, CheckCircle2, HelpCircle, XCircle, ArrowRight, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { FeEvent, RSVPStatus } from "@/domain/events/types";
 
@@ -12,7 +13,7 @@ moment.locale("pt-br");
 interface EventCardProps {
   event: FeEvent;
   currentUserId: string | null;
-  onRSVP: (id: string, status: RSVPStatus) => void;
+  onRSVP: (id: string, status: RSVPStatus) => Promise<void>;
 }
 
 const RSVP_BUTTONS: { status: RSVPStatus; label: string; icon: React.ReactNode; activeClass: string }[] = [
@@ -30,7 +31,7 @@ const RSVP_BUTTONS: { status: RSVPStatus; label: string; icon: React.ReactNode; 
   },
   {
     status: "not_going",
-    label: "Nao",
+    label: "Não",
     icon: <XCircle className="w-3.5 h-3.5" />,
     activeClass: "bg-red-500 text-white border-red-500",
   },
@@ -39,31 +40,44 @@ const RSVP_BUTTONS: { status: RSVPStatus; label: string; icon: React.ReactNode; 
 export default function EventCard({ event, currentUserId, onRSVP }: EventCardProps) {
   const [optimisticRsvp, setOptimisticRsvp] = useState<RSVPStatus | null | undefined>(event.my_rsvp);
   const [optimisticCount, setOptimisticCount] = useState<number>(event.attendees_count ?? 0);
+  const [isSavingRsvp, setIsSavingRsvp] = useState(false);
 
-  function handleRSVP(status: RSVPStatus) {
+  useEffect(() => setOptimisticRsvp(event.my_rsvp), [event.my_rsvp]);
+  useEffect(() => setOptimisticCount(event.attendees_count ?? 0), [event.attendees_count]);
+
+  async function handleRSVP(status: RSVPStatus) {
     if (!currentUserId) return;
 
     const prev = optimisticRsvp;
     const prevCount = optimisticCount;
 
-    // Atualiza otimisticamente
     setOptimisticRsvp(status);
     if (status === "going" && prev !== "going") setOptimisticCount((c) => c + 1);
     if (status !== "going" && prev === "going") setOptimisticCount((c) => Math.max(0, c - 1));
-
-    onRSVP(event.id, status);
+    setIsSavingRsvp(true);
+    try {
+      await onRSVP(event.id, status);
+    } catch {
+      setOptimisticRsvp(prev);
+      setOptimisticCount(prevCount);
+    } finally {
+      setIsSavingRsvp(false);
+    }
   }
 
   const coverGradient = "bg-gradient-to-br from-whatsapp-teal/40 to-emerald-700/40";
 
   return (
-    <div className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl overflow-hidden border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow flex flex-col">
+    <article className="bg-white dark:bg-whatsapp-darkLighter rounded-2xl overflow-hidden border border-gray-100 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow flex flex-col">
       {/* Foto de capa */}
       <div className="relative aspect-video w-full">
         {event.cover_url ? (
           <img
             src={event.cover_url}
             alt={event.title}
+            width={1280}
+            height={720}
+            loading="lazy"
             className="w-full h-full object-cover"
           />
         ) : (
@@ -100,13 +114,15 @@ export default function EventCard({ event, currentUserId, onRSVP }: EventCardPro
         )}
 
         <h3 className="font-bold text-sm text-gray-900 dark:text-white line-clamp-2 leading-snug">
-          {event.title}
+          <Link href={`/eventos/${event.id}`} className="rounded-sm hover:text-whatsapp-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
+            {event.title}
+          </Link>
         </h3>
 
         {/* Data */}
-        <p className="text-xs text-whatsapp-teal font-semibold">
+        <time dateTime={event.starts_at} className="text-xs text-whatsapp-teal font-semibold">
           {moment(event.starts_at).format("ddd, D [de] MMM [às] HH:mm")}
-        </p>
+        </time>
 
         {/* Local */}
         {event.location && (
@@ -122,7 +138,7 @@ export default function EventCard({ event, currentUserId, onRSVP }: EventCardPro
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-1 text-xs text-blue-500 truncate hover:underline"
-            onClick={(e) => e.stopPropagation()}
+            aria-label={`Acessar o evento online: ${event.title}`}
           >
             <Link2 className="w-3 h-3 shrink-0" /> Evento online
           </a>
@@ -140,19 +156,31 @@ export default function EventCard({ event, currentUserId, onRSVP }: EventCardPro
               <button
                 key={status}
                 onClick={() => handleRSVP(status)}
+                disabled={isSavingRsvp}
+                aria-pressed={optimisticRsvp === status}
                 className={cn(
-                  "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-bold border transition-all",
+                  "flex-1 flex items-center justify-center gap-1 py-1.5 rounded-xl text-[11px] font-bold border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal disabled:opacity-60",
                   optimisticRsvp === status
                     ? activeClass
                     : "border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400 hover:border-whatsapp-teal hover:text-whatsapp-teal"
                 )}
               >
-                {icon} {label}
+                {isSavingRsvp && optimisticRsvp === status ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : icon} {label}
               </button>
             ))}
           </div>
         )}
+
+        {!currentUserId && (
+          <Link href="/login" className="mt-auto pt-2 text-xs font-semibold text-whatsapp-teal hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
+            Entre para confirmar presença
+          </Link>
+        )}
+
+        <Link href={`/eventos/${event.id}`} className="inline-flex items-center gap-1 mt-2 text-xs font-bold text-gray-500 hover:text-whatsapp-teal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-whatsapp-teal">
+          Ver detalhes <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+        </Link>
       </div>
-    </div>
+    </article>
   );
 }

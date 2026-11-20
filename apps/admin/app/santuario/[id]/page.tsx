@@ -12,7 +12,6 @@ import Link from "next/link";
 import { BIBLE_BOOKS } from "@/lib/bible-data";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
-import BottomNav from "@/components/feed/BottomNav";
 import { getStoredProfile } from "@/lib/profile-cache";
 
 export default function ZenReaderPage() {
@@ -261,7 +260,7 @@ export default function ZenReaderPage() {
   if (!journey) return null;
 
   const progressPercentage = chapters.length > 0 
-    ? Math.round((completedChapters.length / chapters.length) * 100)
+    ? Math.round((chapters.filter((chapter) => completedChapters.includes(chapter.id)).length / chapters.length) * 100)
     : 0;
 
   return (
@@ -327,7 +326,7 @@ export default function ZenReaderPage() {
         <div className="mb-12 text-center">
           {journey.cover_url && (
             <div className="w-full h-48 sm:h-64 mb-8 rounded-3xl overflow-hidden relative shadow-2xl border border-border">
-              <img src={journey.cover_url} alt="Cover" className="w-full h-full object-cover" />
+              <img src={journey.cover_url} alt="Capa da jornada" width={1200} height={600} loading="lazy" decoding="async" className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
             </div>
           )}
@@ -343,7 +342,7 @@ export default function ZenReaderPage() {
           <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 mt-6">
             <div className="flex items-center gap-2.5 bg-card px-4 py-2 rounded-full border border-border shadow-sm">
               {journey.author?.avatar_url ? (
-                <img src={journey.author.avatar_url} alt="Author" className="w-8 h-8 rounded-full object-cover border border-border" />
+                <img src={journey.author.avatar_url} alt="" width={32} height={32} loading="lazy" decoding="async" className="w-8 h-8 rounded-full object-cover border border-border" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-xs font-bold">
                   {journey.author?.full_name?.[0] || 'L'}
@@ -368,7 +367,7 @@ export default function ZenReaderPage() {
         <div className="space-y-10 mb-12">
           {chapters.map((chapter, index) => {
             const isCompleted = completedChapters.includes(chapter.id);
-            const isUnlocked = index <= completedChapters.length;
+            const isUnlocked = index === 0 || completedChapters.includes(chapters[index - 1]?.id);
             const contentText = chapter.content_blocks?.[0]?.text || "";
 
             if (!isUnlocked) {
@@ -501,7 +500,6 @@ export default function ZenReaderPage() {
         )}
       </AnimatePresence>
 
-      <BottomNav />
     </div>
   );
 }

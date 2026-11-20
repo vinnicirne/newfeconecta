@@ -44,8 +44,8 @@ export default function EventDetailPage() {
     });
   }, []);
 
-  const fetchEvent = useCallback(async () => {
-    setLoading(true);
+  const fetchEvent = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const headers: HeadersInit = { "Content-Type": "application/json" };
@@ -57,28 +57,29 @@ export default function EventDetailPage() {
       setAttendees(json.attendees ?? []);
       setMyRsvp(json.event.my_rsvp ?? null);
     } catch (err) {
-      toast.error("Nao foi possivel carregar o evento");
+      toast.error("Não foi possível carregar o evento. Tente novamente.");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [id]);
 
   useEffect(() => { fetchEvent(); }, [fetchEvent]);
 
   async function handleRSVP(status: RSVPStatus) {
-    if (!currentUserId) { toast.error("Faca login para confirmar presenca"); return; }
+    if (!currentUserId) { toast.error("Faça login para confirmar presença."); return; }
     setRsvpLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Sua sessão expirou. Entre novamente para confirmar presença.");
       const res = await fetch(`/api/fe-eventos/${id}/rsvp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${session!.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) { const j = await res.json(); throw new Error(j.error); }
+      if (!res.ok) { const j = await res.json(); throw new Error(j.error || "Não foi possível registrar sua presença"); }
       const wasGoing = myRsvp === "going";
       const nowGoing = status === "going";
       setMyRsvp(status);
@@ -86,8 +87,9 @@ export default function EventDetailPage() {
         ...e,
         attendees_count: (e.attendees_count ?? 0) + (nowGoing && !wasGoing ? 1 : !nowGoing && wasGoing ? -1 : 0),
       } : e);
+      await fetchEvent(false);
     } catch (err) {
-      toast.error("Erro ao registrar presenca");
+      toast.error(err instanceof Error ? err.message : "Erro ao registrar presença.");
     } finally {
       setRsvpLoading(false);
     }
@@ -384,6 +386,7 @@ export default function EventDetailPage() {
               initialData={{
                 title: event.title,
                 description: event.description ?? undefined,
+                church_id: event.church_id ?? undefined,
                 cover_url: event.cover_url ?? undefined,
                 location: event.location ?? undefined,
                 online_link: event.online_link ?? undefined,
@@ -393,6 +396,7 @@ export default function EventDetailPage() {
               }}
               onSubmit={handleEdit}
               isSaving={isSaving}
+              allowItems={false}
             />
           </div>
         </div>

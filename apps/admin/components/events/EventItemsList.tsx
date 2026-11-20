@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Package, Plus, Check, User, HeartHandshake, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 import { toast } from "sonner";
 import type { EventItem } from "@/domain/events/types";
 
@@ -37,9 +38,14 @@ export default function EventItemsList({ eventId, items, currentUserId, onCommit
 
     setUpdatingItemId(item.id);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Faça login para contribuir com este item");
       const res = await fetch(`/api/fe-eventos/${eventId}/items/${item.id}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ quantity: newQty }),
       });
 
@@ -116,6 +122,7 @@ export default function EventItemsList({ eventId, items, currentUserId, onCommit
                       <button
                         onClick={() => handleToggleCommitment(item)}
                         disabled={updatingItemId === item.id}
+                        aria-pressed={isMyCommitted}
                         className={cn(
                           "px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shrink-0 active:scale-95",
                           isMyCommitted
@@ -140,6 +147,11 @@ export default function EventItemsList({ eventId, items, currentUserId, onCommit
                     {/* Barra de Progresso */}
                     <div className="w-full bg-gray-200 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
                       <div
+                        role="progressbar"
+                        aria-label={`Contribuições de ${item.name}`}
+                        aria-valuemin={0}
+                        aria-valuemax={needed}
+                        aria-valuenow={Math.min(total, needed)}
                         className={cn(
                           "h-full rounded-full transition-all duration-500",
                           isCompleted ? "bg-emerald-500" : "bg-whatsapp-teal"

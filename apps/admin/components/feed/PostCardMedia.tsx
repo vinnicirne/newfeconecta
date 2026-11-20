@@ -184,7 +184,10 @@ export default function PostCardMedia() {
             ref={videoRef}
             width={720}
             height={900}
-            className="absolute inset-0 z-10 h-full w-full object-contain"
+            controls={false}
+            disablePictureInPicture
+            controlsList="nodownload noremoteplayback"
+            className="fc-inline-video absolute inset-0 z-10 h-full w-full object-contain"
             src={mediaUrlForRetry(mediaUrl, retryCount).includes('#') ? mediaUrlForRetry(mediaUrl, retryCount) : `${mediaUrlForRetry(mediaUrl, retryCount)}#t=0.001`}
             poster={post.thumbnail_url || undefined}
             preload="metadata"
@@ -194,7 +197,6 @@ export default function PostCardMedia() {
             crossOrigin="anonymous"
             onPlay={() => {
               setIsPlaying(true);
-              handlePlayMedia();
             }}
             onPause={() => setIsPlaying(false)}
             onWaiting={() => setVideoBuffering(true)}

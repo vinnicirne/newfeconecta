@@ -18,6 +18,7 @@ export default function PostCardActions() {
     toggleLike,
     openLikesModal,
     likes,
+    likesCount,
     showComments,
     setShowComments,
     commentCount,
@@ -40,8 +41,6 @@ export default function PostCardActions() {
   } = usePostCardActionContext();
 
   const {
-    isAudio,
-    isVideo,
     lightboxUrl,
     setLightboxUrl,
     handleDoubleClickLike,
@@ -64,7 +63,10 @@ export default function PostCardActions() {
         <div className="flex items-center gap-4">
           <div className="flex items-center">
             <button
+              type="button"
               onClick={toggleLike}
+              aria-label={isLiked ? "Remover curtida" : "Curtir publicação"}
+              aria-pressed={isLiked}
               className={cn(
                 "flex items-center justify-center p-1.5 transition-all active:scale-125 rounded-full",
                 isLiked
@@ -75,30 +77,38 @@ export default function PostCardActions() {
               <Flame className={cn("w-5 h-5", isLiked && "fill-whatsapp-green")} />
             </button>
             <button 
+              type="button"
               onClick={openLikesModal}
+              aria-label={`${likesCount} curtidas. Ver quem curtiu`}
               className={cn(
                 "px-1.5 py-1 text-xs font-bold transition-colors hover:text-whatsapp-teal cursor-pointer",
                 isLiked ? "text-whatsapp-green" : "text-gray-500 dark:text-gray-400"
               )}
             >
-              {likes?.length || 0}
+              {likesCount}
             </button>
           </div>
 
           <button
+            type="button"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               setShowComments((prev: boolean) => !prev);
             }}
             className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-all"
+            aria-label={showComments ? "Fechar comentários" : "Abrir comentários"}
+            aria-expanded={showComments}
           >
             <MessageCircle className="w-5 h-5" />
             <span className="text-xs font-bold">{commentCount}</span>
           </button>
 
           <button
+            type="button"
             onClick={toggleRepost}
+            aria-label={isReposted ? "Desfazer republicação" : "Republicar publicação"}
+            aria-pressed={isReposted}
             className={cn(
               "flex items-center gap-1.5 transition-all active:scale-125",
               isReposted
@@ -111,22 +121,25 @@ export default function PostCardActions() {
           </button>
 
           <button
+            type="button"
             onClick={handleShare}
+            aria-label="Compartilhar publicação"
             className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 hover:text-whatsapp-teal transition-all active:scale-125"
           >
             <Share2 className="w-5 h-5" />
           </button>
 
-          {(isAudio || isVideo) && (
-            <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-white/10 pl-4 ml-1">
-              <Eye className="w-5 h-5" />
-              <span className="text-xs font-bold">{viewsCount}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 border-l border-gray-200 dark:border-white/10 pl-3 ml-1" aria-label={`${viewsCount} visualizações`}>
+            <Eye className="w-5 h-5" aria-hidden="true" />
+            <span className="text-xs font-bold">{viewsCount}</span>
+          </div>
         </div>
 
         <button
+          type="button"
           onClick={toggleSave}
+          aria-label={isSaved ? "Remover publicação dos salvos" : "Salvar publicação"}
+          aria-pressed={isSaved}
           className={cn(
             "flex items-center gap-1.5 transition-all active:scale-125",
             isSaved
@@ -267,7 +280,7 @@ export default function PostCardActions() {
               <Flame
                 className={cn("w-6 h-6", isLiked && "fill-whatsapp-green")}
               />
-              <span className="text-[10px] font-bold">{likes?.length || 0}</span>
+              <span className="text-[10px] font-bold">{likesCount}</span>
             </button>
 
             <button

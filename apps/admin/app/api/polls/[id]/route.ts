@@ -17,7 +17,7 @@ export async function GET(
     }
 
     const poll = await pollService.getPollById(params.id, userId);
-    if (!poll) {
+    if (!poll || (!poll.is_public && poll.author_id !== userId)) {
       return NextResponse.json({ error: "Enquete nao encontrada" }, { status: 404 });
     }
 

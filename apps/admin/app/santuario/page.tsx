@@ -12,7 +12,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import Image from "next/image";
 import { VerificationModal } from "@/components/profile/VerificationModal";
-import BottomNav from "@/components/feed/BottomNav";
 import { getStoredProfile, setStoredProfile } from "@/lib/profile-cache";
 
 export default function SantuarioPage() {
@@ -59,7 +58,7 @@ export default function SantuarioPage() {
         const [journeysRes, chaptersRes, progressRes] = await Promise.all([
           supabase
             .from("sanctuary_journeys")
-            .select("*, author:profiles(id, full_name, avatar_url, is_verified)")
+            .select("id, title, description, cover_url, author_id, is_published, theme, price, created_at, author:profiles(id, full_name, avatar_url, is_verified)")
             .order("created_at", { ascending: false }),
           supabase
             .from("sanctuary_chapters")
@@ -89,10 +88,16 @@ export default function SantuarioPage() {
           setTotalFlames(progress.length);
           
           const completedChapterIds = new Set(progress.map((p: any) => p.chapter_id));
+          const chaptersByJourney = new Map<string, any[]>();
+          chapters.forEach((chapter: any) => {
+            const journeyChapters = chaptersByJourney.get(chapter.journey_id) || [];
+            journeyChapters.push(chapter);
+            chaptersByJourney.set(chapter.journey_id, journeyChapters);
+          });
           const progressMap: Record<string, number> = {};
           
           published.forEach((journey: any) => {
-            const journeyChapters = chapters.filter((c: any) => c.journey_id === journey.id);
+            const journeyChapters = chaptersByJourney.get(journey.id) || [];
             const total = journeyChapters.length;
             if (total === 0) {
               progressMap[journey.id] = 0;
@@ -212,7 +217,8 @@ export default function SantuarioPage() {
 
       {/* BOTÃO FORJAR NOVA JORNADA */}
       <div className="px-4 mb-8 max-w-3xl mx-auto">
-        <div 
+        <button
+          type="button"
           onClick={() => {
             if (isVerified) {
               router.push('/santuario/create');
@@ -220,7 +226,7 @@ export default function SantuarioPage() {
               setShowVerificationModal(true);
             }
           }}
-          className="group bg-gradient-to-br from-amber-500/10 via-card to-card border-2 border-amber-500/20 dark:border-amber-500/15 rounded-3xl p-5 shadow-lg shadow-amber-500/5 hover:shadow-amber-500/10 flex items-center justify-between cursor-pointer hover:border-amber-500/40 transition-all duration-300 active:scale-[0.99]"
+          className="w-full text-left group bg-gradient-to-br from-amber-500/10 via-card to-card border-2 border-amber-500/20 dark:border-amber-500/15 rounded-3xl p-5 shadow-lg shadow-amber-500/5 hover:shadow-amber-500/10 flex items-center justify-between cursor-pointer hover:border-amber-500/40 transition-colors duration-300 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500"
         >
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-amber-500/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-inner border border-amber-500/30">
@@ -236,7 +242,7 @@ export default function SantuarioPage() {
               <Feather className="w-5 h-5" />
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* ALTAR DIGITAL (PROGRESSO DO USUÁRIO) */}
@@ -287,9 +293,9 @@ export default function SantuarioPage() {
           </h3>
           <div className="grid gap-3">
             {drafts.map((draft) => (
-              <div 
+              <Link
                 key={draft.id} 
-                onClick={() => router.push(`/santuario/${draft.id}`)}
+                href={`/santuario/${draft.id}`}
                 className="bg-card p-4 rounded-2xl shadow-sm border border-border hover:border-amber-500/50 transition-colors cursor-pointer flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
@@ -304,7 +310,7 @@ export default function SantuarioPage() {
                   </div>
                 </div>
                 <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-amber-500 transition-colors" />
-              </div>
+              </Link>
             ))}
           </div>
         </div>
@@ -328,17 +334,16 @@ export default function SantuarioPage() {
         ) : (
           <div className="grid gap-5">
             {(activeTheme === "Todos" ? journeys : journeys.filter((j) => j.theme === activeTheme)).map((journey) => (
-              <div 
+              <article
                 key={journey.id} 
-                onClick={() => router.push(`/santuario/${journey.id}`)}
-                className="bg-card p-5 rounded-3xl shadow-sm border border-border hover:border-amber-500/50 transition-all cursor-pointer group relative overflow-hidden active:scale-[0.99]"
+                className="bg-card p-5 rounded-3xl shadow-sm border border-border hover:border-amber-500/50 transition-colors group relative overflow-hidden"
               >
                 {/* Imagem de Capa */}
                 {journey.cover_url && (
-                  <div className="w-full h-36 sm:h-44 mb-4 rounded-2xl overflow-hidden relative shadow-inner">
-                    <img src={journey.cover_url} alt="Cover" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <Link href={`/santuario/${journey.id}`} aria-label={`Abrir jornada ${journey.title}`} className="block w-full h-36 sm:h-44 mb-4 rounded-2xl overflow-hidden relative shadow-inner focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                    <img src={journey.cover_url} alt="" width={720} height={360} loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                  </div>
+                  </Link>
                 )}
                 
                 {/* Linha decorativa */}
@@ -347,7 +352,7 @@ export default function SantuarioPage() {
                 <div className="flex items-start justify-between mb-3 pl-2">
                   <div className="flex items-center gap-2.5">
                     {journey.author?.avatar_url ? (
-                      <img src={journey.author.avatar_url} alt="Author" className="w-7 h-7 rounded-full object-cover border border-border" />
+                      <img src={journey.author.avatar_url} alt="" width={28} height={28} loading="lazy" decoding="async" className="w-7 h-7 rounded-full object-cover border border-border" />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-[10px] font-bold">
                         {journey.author?.full_name?.[0] || 'L'}
@@ -371,7 +376,7 @@ export default function SantuarioPage() {
                 </div>
 
                 <h4 className="text-lg sm:text-xl font-bold text-foreground mb-2 pl-2 leading-tight group-hover:text-amber-500 transition-colors font-santuario">
-                  {journey.title}
+                  <Link href={`/santuario/${journey.id}`} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">{journey.title}</Link>
                 </h4>
                 <p className="text-sm text-muted-foreground line-clamp-2 mb-4 pl-2 leading-relaxed">
                   {journey.description || 'Nenhuma descrição disponível para esta jornada.'}
@@ -394,12 +399,12 @@ export default function SantuarioPage() {
                         <Edit3 className="w-4 h-4" /> Editar
                       </button>
                     )}
-                    <button className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-500 group-hover:text-amber-400 transition-colors bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20">
+                    <Link href={`/santuario/${journey.id}`} className="flex items-center gap-1.5 text-xs sm:text-sm font-bold text-amber-500 group-hover:text-amber-400 transition-colors bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
                       {journeyProgress[journey.id] > 0 ? (journeyProgress[journey.id] === 100 ? 'Concluído' : 'Continuar') : 'Iniciar'} <Play className="w-3.5 h-3.5 fill-current" />
-                    </button>
+                    </Link>
                   </div>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
         )}
@@ -418,8 +423,6 @@ export default function SantuarioPage() {
         />
       )}
 
-      {/* Menu de Navegação no Rodapé (Mobile) */}
-      <BottomNav />
     </div>
   );
 }

@@ -143,7 +143,7 @@ export default function LiveRoomsBar() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-bold dark:text-white truncate">{room.name}</p>
-                <p className="text-[9px] text-gray-500 font-bold uppercase truncate">{room.profiles.full_name}</p>
+                <p className="text-[9px] text-gray-500 font-bold uppercase truncate">{room.profiles?.full_name || room.name || "Membro"}</p>
               </div>
             </div>
             

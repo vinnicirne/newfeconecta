@@ -16,10 +16,13 @@ export async function POST(
     }
 
     const body = await request.json();
-    const quantity = typeof body.quantity === "number" ? body.quantity : 1;
+    const quantity = body.quantity === undefined ? 1 : body.quantity;
+    if (typeof quantity !== "number" || !Number.isInteger(quantity) || quantity < 0) {
+      return NextResponse.json({ error: "Informe uma quantidade válida" }, { status: 400 });
+    }
 
     const service = new EventService();
-    await service.setItemCommitment(params.itemId, user.id, quantity);
+    await service.setItemCommitment(params.id, params.itemId, user.id, quantity);
 
     return NextResponse.json({ success: true });
   } catch (error) {

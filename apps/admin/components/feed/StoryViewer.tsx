@@ -50,19 +50,73 @@ export default function StoryViewer({
 
   const { uploadMedia, isUploading: isUploadingCover } = useMediaUpload();
 
-  const group = storyGroups[state.userIdx];
-  const story = group?.stories[state.storyIdx];
+  const group = storyGroups[state.userIdx] ?? null;
+  const story = group?.stories?.[state.storyIdx] ?? null;
+  const activeAuthorIdRef = useRef(storyGroups[startUserIndex]?.author_id ?? null);
+  const activeStoryIdRef = useRef(story?.id ?? null);
+  const previousStoryGroupsRef = useRef(storyGroups);
 
   useBodyScrollLock(true);
+
+  // Keep the viewer anchored to author/story IDs when refreshed data changes array order.
+  useEffect(() => {
+    const groupsChanged = previousStoryGroupsRef.current !== storyGroups;
+    previousStoryGroupsRef.current = storyGroups;
+
+    if (groupsChanged) {
+      const nextUserIdx = activeAuthorIdRef.current
+        ? storyGroups.findIndex((item) => item.author_id === activeAuthorIdRef.current)
+        : -1;
+
+      if (nextUserIdx < 0) {
+        onClose();
+        return;
+      }
+
+      const nextGroup = storyGroups[nextUserIdx];
+      if (!nextGroup?.stories?.length) {
+        onClose();
+        return;
+      }
+
+      const matchingStoryIdx = activeStoryIdRef.current
+        ? nextGroup.stories.findIndex((item) => item.id === activeStoryIdRef.current)
+        : -1;
+      const nextStoryIdx = matchingStoryIdx >= 0
+        ? matchingStoryIdx
+        : Math.min(state.storyIdx, nextGroup.stories.length - 1);
+      const nextStoryId = nextGroup.stories[nextStoryIdx]?.id ?? null;
+      const activeStoryChanged = nextStoryId !== activeStoryIdRef.current;
+
+      activeAuthorIdRef.current = nextGroup.author_id;
+      activeStoryIdRef.current = nextStoryId;
+      if (nextUserIdx !== state.userIdx) {
+        dispatch({ type: "SET_USER_IDX", payload: nextUserIdx });
+      }
+      if (nextStoryIdx !== state.storyIdx) {
+        dispatch({ type: "SET_STORY_IDX", payload: nextStoryIdx });
+      }
+      if (activeStoryChanged) {
+        dispatch({ type: "RESET_FOR_STORY" });
+      }
+      return;
+    }
+
+    if (group) activeAuthorIdRef.current = group.author_id;
+    if (story) activeStoryIdRef.current = story.id;
+  }, [storyGroups, state.userIdx, state.storyIdx, group, story, dispatch, onClose]);
 
   // ─── Navigation ───────────────────────────────────────────
   const advance = useCallback(() => {
     if (hasAdvancedRef.current) return;
     hasAdvancedRef.current = true;
 
-    if (state.storyIdx < (group?.stories.length ?? 0) - 1) {
+    if (state.storyIdx < (group?.stories?.length ?? 0) - 1) {
+      activeStoryIdRef.current = group?.stories?.[state.storyIdx + 1]?.id ?? null;
       dispatch({ type: "SET_STORY_IDX", payload: state.storyIdx + 1 });
     } else if (state.userIdx < storyGroups.length - 1) {
+      activeAuthorIdRef.current = storyGroups[state.userIdx + 1]?.author_id ?? null;
+      activeStoryIdRef.current = storyGroups[state.userIdx + 1]?.stories?.[0]?.id ?? null;
       dispatch({ type: "SET_USER_IDX", payload: state.userIdx + 1 });
       dispatch({ type: "SET_STORY_IDX", payload: 0 });
     } else {
@@ -73,17 +127,25 @@ export default function StoryViewer({
   const prev = useCallback(() => {
     hasAdvancedRef.current = false;
     if (state.storyIdx > 0) {
+      activeStoryIdRef.current = group?.stories?.[state.storyIdx - 1]?.id ?? null;
       dispatch({ type: "SET_STORY_IDX", payload: state.storyIdx - 1 });
     } else if (state.userIdx > 0) {
       const prevGroup = storyGroups[state.userIdx - 1];
+      if (!prevGroup?.stories?.length) {
+        onClose();
+        return;
+      }
+      activeAuthorIdRef.current = prevGroup.author_id;
+      activeStoryIdRef.current = prevGroup.stories[prevGroup.stories.length - 1]?.id ?? null;
       dispatch({ type: "SET_USER_IDX", payload: state.userIdx - 1 });
       dispatch({ type: "SET_STORY_IDX", payload: prevGroup.stories.length - 1 });
     } else {
+      activeStoryIdRef.current = group?.stories?.[0]?.id ?? null;
       dispatch({ type: "SET_STORY_IDX", payload: 0 });
       dispatch({ type: "SET_PROGRESS", payload: 0 });
       elapsed.current = 0;
     }
-  }, [state.storyIdx, state.userIdx, storyGroups, dispatch, elapsed, hasAdvancedRef]);
+  }, [state.storyIdx, state.userIdx, group?.stories, storyGroups, dispatch, elapsed, hasAdvancedRef, onClose]);
 
   // ─── Timer ────────────────────────────────────────────────
   const startTimer = useCallback(() => {
@@ -125,7 +187,7 @@ export default function StoryViewer({
 
   // Reset when story changes
   useEffect(() => {
-    if (!story?.id) return;
+    if (!story?.id || group?.author_id !== activeAuthorIdRef.current || story.id !== activeStoryIdRef.current) return;
     hasAdvancedRef.current = false;
     elapsed.current = 0;
     dispatch({ type: "RESET_FOR_STORY" });
@@ -151,17 +213,18 @@ export default function StoryViewer({
     return () => {
       if (viewTimeout) clearTimeout(viewTimeout);
     };
-  }, [story?.id]);
+  }, [story?.id, group?.author_id]);
 
   // Timer control
   useEffect(() => {
-    if (!story) return;
+    if (!story || group?.author_id !== activeAuthorIdRef.current || story.id !== activeStoryIdRef.current) return;
     startTimer();
     return clearTimer;
-  }, [state.userIdx, state.storyIdx, state.currentMediaDuration, startTimer, state.paused]);
+  }, [state.userIdx, state.storyIdx, state.currentMediaDuration, startTimer, state.paused, story, group?.author_id, clearTimer]);
 
   // Native media play/pause
   useEffect(() => {
+    if (group?.author_id !== activeAuthorIdRef.current || story?.id !== activeStoryIdRef.current) return;
     const video = videoRef.current;
     if (story?.media_type === "video" && video) {
       if (state.paused) {
@@ -183,11 +246,11 @@ export default function StoryViewer({
       if (state.paused) audioRef.current.pause();
       else audioRef.current.play().catch(() => {});
     }
-  }, [state.paused, story?.media_type, story?.id, state.storyIdx, state.isMuted]);
+  }, [state.paused, story?.media_type, story?.id, state.storyIdx, state.isMuted, group?.author_id]);
 
   // Duration + fragment seeking
   useEffect(() => {
-    if (!story) return;
+    if (!story || group?.author_id !== activeAuthorIdRef.current || story.id !== activeStoryIdRef.current) return;
     const mediaRef =
       story.media_type === "video"
         ? videoRef.current
@@ -225,11 +288,11 @@ export default function StoryViewer({
       mediaRef.addEventListener("loadedmetadata", handleMetadata);
       return () => mediaRef.removeEventListener("loadedmetadata", handleMetadata);
     }
-  }, [story?.id]);
+  }, [story?.id, group?.author_id]);
 
   // Like sync
   useEffect(() => {
-    if (!story?.id || !currentUser?.id) return;
+    if (!story?.id || !currentUser?.id || group?.author_id !== activeAuthorIdRef.current || story.id !== activeStoryIdRef.current) return;
     const cacheKey = `${story.id}-${currentUser.id}`;
     if (likesCache.has(cacheKey)) {
       dispatch({ type: "SET_LIKED", payload: likesCache.get(cacheKey) || false });
@@ -246,7 +309,7 @@ export default function StoryViewer({
         likesCache.set(cacheKey, liked);
         dispatch({ type: "SET_LIKED", payload: liked });
       });
-  }, [story?.id, currentUser?.id]);
+  }, [story?.id, currentUser?.id, group?.author_id]);
 
   // ─── Handlers ─────────────────────────────────────────────
   const togglePause = () => {
@@ -505,7 +568,7 @@ export default function StoryViewer({
     }
   }, [storyGroups, group, story, onClose]);
 
-  if (!group || !story) return null;
+  if (!group || !story || group.author_id !== activeAuthorIdRef.current || story.id !== activeStoryIdRef.current) return null;
 
   const ctxValue = {
     data: { storyGroups, currentUser, onClose, group, story },

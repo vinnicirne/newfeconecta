@@ -76,16 +76,11 @@ export async function POST(request: Request) {
 
     // SECURITY CHECK [SEC-001]: Validar se o pagamento pertence de fato a esta carteira
     const externalRef: string = payment.external_reference ?? "";
-    if (!externalRef.startsWith("topup:")) {
+    if (externalRef !== `topup:${wallet.id}:${user.id}`) {
       return NextResponse.json({ error: "Pagamento inválido (referência incorreta)" }, { status: 400 });
     }
-
-    const refParts = externalRef.split(":");
-    const paymentWalletId = refParts[1];
-
-    if (paymentWalletId !== wallet.id) {
-      console.error(`[SEC-001] CRITICAL: Tentativa de IDOR! Payment=${payment_id}, ReqWallet=${wallet.id}, MPWallet=${paymentWalletId}`);
-      return NextResponse.json({ error: "Transação inválida ou pertencente a outra carteira." }, { status: 403 });
+    if (payment.currency_id !== "BRL" || !Number.isFinite(payment.transaction_amount) || payment.transaction_amount <= 0) {
+      return NextResponse.json({ error: "Valor ou moeda do pagamento inválidos" }, { status: 400 });
     }
 
     const valorCentavos = Math.round(payment.transaction_amount * 100);

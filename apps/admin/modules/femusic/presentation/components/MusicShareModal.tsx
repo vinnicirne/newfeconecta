@@ -3,7 +3,7 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MessageCircle, Share2, Copy, ExternalLink } from 'lucide-react';
+import { X, MessageCircle, Share2, Copy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
@@ -41,12 +41,13 @@ export default function MusicShareModal({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { toast.error('Você precisa estar logado.'); return; }
 
-      await supabase.from('posts').insert([{
+      const { error } = await supabase.from('posts').insert([{
         author_id: user.id,
         user_id: user.id,
         content: `🎵 Estou sendo abençoado por esse louvor!\n\n**${trackTitle}** — ${trackArtist}\n\n${youtubeUrl}`,
         post_type: 'text',
       }]);
+      if (error) throw error;
       toast.success('Compartilhado no Feed FéConecta! 🙏');
       onClose();
     } catch (err) {
