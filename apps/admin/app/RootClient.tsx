@@ -45,6 +45,7 @@ import { useTheme } from "next-themes";
 import { Virtuoso } from 'react-virtuoso';
 import dynamic from "next/dynamic";
 
+const CreatePost = dynamic(() => import("@/components/feed/CreatePost"), { ssr: false });
 import PostCard from "@/components/feed/PostCard";
 import FollowSuggestions from "@/components/feed/FollowSuggestions";
 import SponsoredAdCard from "@/components/feed/SponsoredAdCard";
@@ -59,6 +60,7 @@ const FenamoroBanner = dynamic(() => import("@/components/feed/FenamoroBanner"),
 const GlobalSearch = dynamic(() => import("@/components/feed/GlobalSearch"), { ssr: false });
 
 import { supabase } from "@/lib/supabase";
+import { getPostCarouselUrls } from "@/modules/post-carousel/domain/carousel-media.service";
 import { NotificationService } from "@/lib/notifications";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { TrustedSiteBadge } from "@/components/TrustedSiteBadge";
@@ -173,7 +175,7 @@ export default function RootPage() {
       display_date: post.created_at,
       content: (post.content || '').trim(),
       media_url: post.media_url,
-      media_urls: post.media_urls || null,
+      media_urls: getPostCarouselUrls(post),
       media_type: post.media_type || 'text',
       post_type: post.post_type || post.media_type || 'text',
       metadata: post.metadata || {},
@@ -398,6 +400,7 @@ export default function RootPage() {
       const mappedPosts = pagedFeed.map((item: any, idx: number) => {
         const profile = profilesMap[item.user_id] || {};
         const reposter = item.is_repost ? profilesMap[item.reposter_id] : null;
+        const mediaUrls = getPostCarouselUrls(item);
 
         return {
           id: item.original_post_id || item.id,
@@ -410,8 +413,11 @@ export default function RootPage() {
           display_date: item.display_date,
           content: (item.content || '').trim(),
           media_url: item.media_url,
+          media_urls: mediaUrls,
           media_type: item.media_type || 'text',
           post_type: item.post_type || item.media_type || 'text',
+          metadata: item.metadata || {},
+          thumbnail_url: item.thumbnail_url || null,
           likes: item.likes || [],
           likes_count: item.likes_count || (item.likes ? item.likes.length : 0),
           comments_count: item.comments_count || 0,
@@ -1345,6 +1351,17 @@ export default function RootPage() {
                 } else {
                   setViewingStoryGroup(group);
                 }
+              }}
+            />
+          </div>
+
+          {/* Composer global do feed: continua disponível na web. */}
+          <div className="order-5 lg:order-2 mt-2 px-4 hidden lg:block">
+            <CreatePost
+              user={currentUser}
+              onPostCreated={(newPost?: any) => {
+                if (newPost) handleNewPost(newPost);
+                else loadInitialPosts(true);
               }}
             />
           </div>

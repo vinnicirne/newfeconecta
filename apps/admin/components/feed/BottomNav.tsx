@@ -5,16 +5,19 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
+  PlusSquare,
   UserCircle2,
   Swords,
   Flame
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import MobilePostSheet from "./MobilePostSheet";
 import { supabase } from "@/lib/supabase";
 import { getStoredProfile } from "@/lib/profile-cache";
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const [isPostSheetOpen, setIsPostSheetOpen] = React.useState(false);
   // Keep the server and first client render identical. Profile cache is read after hydration.
   const [user, setUser] = React.useState<any>(null);
 
@@ -38,6 +41,7 @@ export default function BottomNav() {
   const navItems = [
     { id: 'home', icon: Home, href: "/", label: "Home" },
     { id: 'room', icon: Swords, href: "/room", label: "Sala" },
+    { id: 'post', icon: PlusSquare, href: "#", label: "Postar", action: () => setIsPostSheetOpen(true) },
     { id: 'tribo', icon: Flame, href: "/tribo", label: "Tribo" },
     { id: 'profile', icon: UserCircle2, href: "/profile", label: "Perfil" },
   ];
@@ -52,6 +56,19 @@ export default function BottomNav() {
           {navItems.map((item) => {
             const isActive = item.href === "/" ? pathname === "/" : pathname === item.href;
             const Icon = item.icon;
+
+            if (item.action) {
+              return (
+                <div key={item.id} className="relative -mt-12">
+                  <button
+                    onClick={item.action}
+                    className="w-16 h-16 rounded-full bg-whatsapp-teal text-white flex items-center justify-center shadow-2xl shadow-whatsapp-teal/40 active:scale-90 transition-all border-4 border-white dark:border-black"
+                  >
+                    <PlusSquare className="w-8 h-8" />
+                  </button>
+                </div>
+              );
+            }
 
             return (
               <Link
@@ -89,6 +106,11 @@ export default function BottomNav() {
         </div>
       </div>
 
+      <MobilePostSheet
+        open={isPostSheetOpen}
+        onClose={() => setIsPostSheetOpen(false)}
+        user={user}
+      />
     </>
   );
 }

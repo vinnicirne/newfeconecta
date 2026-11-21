@@ -1,6 +1,6 @@
 "use client";
 
-import { Type, Camera, Mic, Image as ImageIcon, Smile, Images } from 'lucide-react';
+import { Type, Camera, Mic, Image as ImageIcon, Smile } from 'lucide-react';
 import { ComposerMode } from '../../UnifiedComposer';
 import { cn } from '@/lib/utils';
 
@@ -17,8 +17,7 @@ export function ComposerToolbar({ mode, onSetMode, onShowEmoji, onShowGif, disab
   const isAllowed = (m: ComposerMode) => !allowedModes || allowedModes.includes(m);
 
   const primaryActions = [
-    { id: 'gallery', icon: ImageIcon, label: 'Foto/vídeo', color: 'text-green-500', action: () => onSetMode('gallery'), active: mode === 'gallery', allowed: isAllowed('gallery') },
-    { id: 'carousel', icon: Images, label: 'Carrossel', color: 'text-pink-500', action: () => onSetMode('carousel'), active: mode === 'carousel', allowed: isAllowed('carousel') },
+    { id: 'gallery', icon: ImageIcon, label: 'Galeria', color: 'text-green-500', action: () => onSetMode('gallery'), active: mode === 'gallery', allowed: isAllowed('gallery') },
     { id: 'photo', icon: Camera, label: 'Câmera', color: 'text-blue-500', action: () => onSetMode('photo'), active: mode === 'photo', allowed: isAllowed('photo') },
     { id: 'audio', icon: Mic, label: 'Áudio', color: 'text-orange-500', action: () => onSetMode('audio'), active: mode === 'audio', allowed: isAllowed('audio') },
   ].filter(a => a.allowed);
