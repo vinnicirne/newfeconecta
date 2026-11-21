@@ -1,3 +1,5 @@
+import { getPostCarouselUrls } from '@/modules/post-carousel/domain/carousel-media.service';
+
 export function getPostMediaInfo(post: any) {
   const mediaUrl = post.media_url === "null" || !post.media_url ? null : post.media_url;
   const postType = post.post_type === "null" ? "text" : post.post_type;
@@ -7,7 +9,7 @@ export function getPostMediaInfo(post: any) {
   
   const isAudio = postType === "audio" || post.media_type === "audio" || !!mediaUrl?.match(/\.(mp3|wav|m4a|ogg|aac|flac|opus|weba)/i) || isAudioBucket;
   const isVideo = !isAudio && (postType === "video" || post.media_type === "video" || !!mediaUrl?.match(/\.(mp4|webm|mov|mkv)/i) || isVideoBucket) && postType !== "external_media" && !mediaUrl?.match(/\.(jpg|jpeg|png|gif|webp)/i);
-  const isCarousel = !isAudio && !isVideo && Array.isArray(post.metadata?.media_urls) && post.metadata.media_urls.length > 1;
+  const isCarousel = !isAudio && !isVideo && getPostCarouselUrls(post).length > 1;
   
   const isShortText = post.content && post.content.length < 90 && !post.content.includes("\n") && !mediaUrl;
   const urlMatch = post.content?.match(/(https?:\/\/[^\s]+|www\.[^\s]+)/);

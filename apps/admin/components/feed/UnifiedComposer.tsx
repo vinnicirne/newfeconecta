@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useReducer } from 'react';
 import { toast } from 'sonner';
 import { 
   X, Type, Image as ImageIcon, Camera, Mic, RotateCcw, SwitchCamera, Zap,
-  Play, Square, Users, ChevronDown, Images
+  Play, Square, Users, ChevronDown
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,7 @@ import { useMediaCapture } from '@/hooks/useMediaCapture';
 
 const MAX_VIDEO_SECONDS = 60;
 
-export type ComposerMode = 'text' | 'photo' | 'video' | 'audio' | 'gallery' | 'carousel';
+export type ComposerMode = 'text' | 'photo' | 'video' | 'audio' | 'gallery';
 
 export interface MediaCapture {
   type: 'photo' | 'video' | 'audio';
@@ -207,9 +207,13 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
   const { 
     state, setMode, setContent, setBg, setCaptured, setIsSubmitting, clearDraft, reset 
   } = useComposerState(open, initialMode, initialFile, initialFiles);
-  
+
   const { mode, content, bg, captured, isSubmitting } = state;
-  const captureMode = mode === 'carousel' ? 'gallery' : mode;
+  useEffect(() => () => {
+    captured?.imageUrls?.forEach((imageUrl) => URL.revokeObjectURL(imageUrl));
+  }, [captured]);
+  const composerAllowedModes: ComposerMode[] = allowedModes ?? ['text', 'photo', 'video', 'audio', 'gallery'];
+  const captureMode = mode;
 
   const {
     videoRef, streamRef, recording, seconds,
@@ -266,7 +270,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
       return;
     }
 
-    if (mode === 'text' || mode === 'gallery' || mode === 'carousel' || captured) {
+    if (mode === 'text' || mode === 'gallery' || captured) {
       stopCamera();
       if (mode !== 'audio') stopAudioPreview();
     } else if (mode === 'photo' || mode === 'video' || mode === 'audio') {
@@ -285,25 +289,15 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
       return;
     }
 
-    if (files.length > 1 || mode === 'carousel') {
-      if (files.length < 2 || files.length > 10) {
-        toast.error('Escolha de 2 a 10 imagens para o carrossel.');
-        return;
-      }
-      if (files.some((file) => !file.type.startsWith('image/'))) {
-        toast.error('O carrossel aceita somente imagens. Selecione novamente.');
-        return;
-      }
-      const oversized = files.find((file) => file.size > 20 * 1024 * 1024);
-      if (oversized) {
-        toast.error('Cada imagem precisa ter até 20 MB.');
-        return;
-      }
-      if (captured?.imageUrls) captured.imageUrls.forEach((url) => URL.revokeObjectURL(url));
-      else if (captured?.url?.startsWith('blob:')) URL.revokeObjectURL(captured.url);
-      const imageUrls = files.map((file) => URL.createObjectURL(file));
-      setCaptured({ type: 'photo', url: imageUrls[0], blob: files[0], files, imageUrls });
-      setMode('photo');
+    const isMultiImage = files.length > 1;
+    if (isMultiImage && (files.length > 10 || files.some((file) => !file.type.startsWith('image/')))) {
+      toast.error(files.length > 10 ? 'O carrossel aceita até 10 imagens.' : 'O carrossel aceita somente imagens.');
+      setMode(prevModeRef.current);
+      return;
+    }
+    if (isMultiImage && files.some((file) => file.size > 20 * 1024 * 1024)) {
+      toast.error('Cada imagem do carrossel precisa ter até 20 MB.');
+      setMode(prevModeRef.current);
       return;
     }
 
@@ -321,10 +315,12 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
         return;
     }
 
-    if (captured?.url) URL.revokeObjectURL(captured.url);
-    const url = URL.createObjectURL(file);
+    if (captured?.imageUrls) captured.imageUrls.forEach((imageUrl) => URL.revokeObjectURL(imageUrl));
+    else if (captured?.url) URL.revokeObjectURL(captured.url);
+    const imageUrls = isMultiImage ? files.map((image) => URL.createObjectURL(image)) : undefined;
+    const url = imageUrls?.[0] ?? URL.createObjectURL(file);
     const type = file.type.startsWith('video/') ? 'video' : 'photo';
-    setCaptured({ type, url, blob: file });
+    setCaptured({ type, url, blob: file, files: isMultiImage ? files : undefined, imageUrls });
     setMode(type === 'video' ? 'video' : 'photo');
   };
 
@@ -362,7 +358,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
   };
 
   const handleClearCapture = useCallback(() => {
-    const wasCapturing = captured?.files?.length ? 'carousel' : captured?.type;
+    const wasCapturing = captured?.type;
     setCaptured(null);
     // Só inicia câmera se estava capturando mídia
     if (wasCapturing === 'photo' || wasCapturing === 'video') {
@@ -846,20 +842,6 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
               {mode === 'audio' && renderAudioRecorder()}
             </>
           )}
-          {(!showEmojiPicker && mode === 'carousel' && !captured) && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-5 px-8 py-12 text-center">
-              <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-pink-500/20 bg-pink-500/10 text-pink-500">
-                <Images className="h-9 w-9" />
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Carrossel de fotos</h3>
-                <p className="max-w-xs text-sm text-gray-500 dark:text-gray-400">Selecione de 2 a 10 imagens. As pessoas poderão deslizar para ver cada foto.</p>
-              </div>
-              <button onClick={() => fileInputRef.current?.click()} className="rounded-full bg-pink-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-pink-600/20 hover:bg-pink-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-400">
-                Selecionar fotos
-              </button>
-            </div>
-          )}
           {(!showEmojiPicker && mode === 'gallery') && (
             <div className="flex flex-col items-center justify-center py-16 gap-5">
               <div className="w-16 h-16 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center">
@@ -902,7 +884,7 @@ export default function UnifiedComposer({ open, onClose, onSubmit, user, initial
               }}
               onShowEmoji={() => setShowEmojiPicker(true)}
               disabled={isSubmitting} 
-              allowedModes={allowedModes}
+              allowedModes={composerAllowedModes}
             />
           </div>
         )}

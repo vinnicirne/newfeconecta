@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Type, Image, Images, Camera, Mic, X, CheckCircle2, Music } from 'lucide-react';
+import { Type, Image, Camera, Mic, X, CheckCircle2, Music } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import UnifiedComposer from './UnifiedComposer';
 import MusicComposerModal from './MusicComposerModal';
@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { NotificationService } from '@/lib/notifications';
 import { useMediaUpload } from '@/hooks/useMediaUpload';
+import { uploadCarouselImages } from '@/modules/post-carousel/application/upload-carousel-images';
 
 export default function MobilePostSheet({ open, onClose, user, onPostCreated, onPostStart }: any) {
   const router = useRouter();
@@ -21,7 +22,6 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
   const [selectedFile, setSelectedFile] = useState<File | Blob | null>(null);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const carouselInputRef = React.useRef<HTMLInputElement>(null);
   const cameraInputRef = React.useRef<HTMLInputElement>(null);
 
   const { uploadMedia } = useMediaUpload();
@@ -45,12 +45,7 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
       let mediaUrl = data.media_url;
       let metadata = data.metadata || null;
       if (Array.isArray(data.images) && data.images.length > 1) {
-         const imageUrls: string[] = [];
-         for (let index = 0; index < data.images.length; index += 1) {
-           const uploadedUrl = await uploadMedia(data.images[index], { bucket: 'posts', folder: 'images' });
-           if (!uploadedUrl) throw new Error(`Não foi possível enviar a foto ${index + 1}. Tente novamente.`);
-           imageUrls.push(uploadedUrl);
-         }
+         const imageUrls = await uploadCarouselImages(data.images, (file) => uploadMedia(file, { bucket: 'posts', folder: 'images' }));
          mediaUrl = imageUrls[0];
          metadata = { ...(metadata || {}), media_layout: 'carousel', media_urls: imageUrls };
       } else if (data.blob) {
@@ -130,17 +125,16 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
   const actions = [
     { icon: Type, label: 'Texto', color: 'bg-violet-100 text-violet-600 dark:bg-violet-500/20', onClick: () => openComposer('text') },
     { icon: Image, label: 'Galeria', color: 'bg-blue-100 text-blue-600 dark:bg-blue-500/20', onClick: () => fileInputRef.current?.click() },
-    { icon: Images, label: 'Carrossel', color: 'bg-pink-100 text-pink-600 dark:bg-pink-500/20', onClick: () => carouselInputRef.current?.click() },
     { icon: Camera, label: 'Câmera', color: 'bg-green-100 text-green-600 dark:bg-green-500/20', onClick: () => openComposer('photo') },
     { icon: Mic, label: 'Áudio', color: 'bg-orange-100 text-orange-600 dark:bg-orange-500/20', onClick: () => openComposer('audio') },
   ];
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, mode: 'gallery' | 'photo' | 'carousel') => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
     if (!files.length) return;
 
-    if (mode === 'carousel' || files.length > 1) {
+    if (files.length > 1) {
       if (files.length > 10 || files.some((file) => !file.type.startsWith('image/'))) {
         toast.error('Para um carrossel, escolha de 2 a 10 imagens.');
         return;
@@ -151,7 +145,7 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
       }
       setSelectedFiles(files);
       setSelectedFile(null);
-      setInitialMode('carousel');
+      setInitialMode('photo');
       setComposerOpen(true);
       return;
     }
@@ -200,7 +194,7 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
                   <p className="text-sm font-black uppercase tracking-widest dark:text-white">Sucesso!</p>
                </div>
              ) : (
-               <div className="grid grid-cols-5 items-start gap-2 py-4">
+               <div className="grid grid-cols-4 items-start gap-2 py-4">
                   {actions.map(({ icon: Icon, label, color, onClick }) => (
                     <button
                       key={label}
@@ -225,15 +219,14 @@ export default function MobilePostSheet({ open, onClose, user, onPostCreated, on
             className="hidden" 
             accept="image/*,video/*"
             multiple
-            onChange={(e) => handleFileChange(e, 'gallery')}
+            onChange={handleFileChange}
           />
-          <input type="file" ref={carouselInputRef} className="hidden" accept="image/*" multiple onChange={(e) => handleFileChange(e, 'carousel')} />
           <input 
             type="file" 
             ref={cameraInputRef} 
             className="hidden" 
             capture="environment"
-            onChange={(e) => handleFileChange(e, 'photo')}
+            onChange={handleFileChange}
           />
         </div>
       )}
