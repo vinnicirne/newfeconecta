@@ -15,7 +15,8 @@ self.addEventListener('activate', (event) => {
     await Promise.all(clients.map((client) => {
       try {
         const url = new URL(client.url);
-        return url.origin === self.location.origin
+        const isLocalDevelopment = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+        return url.origin === self.location.origin && !isLocalDevelopment
           ? client.navigate(client.url).catch(() => null)
           : Promise.resolve(null);
       } catch {

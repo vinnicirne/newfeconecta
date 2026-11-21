@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 
 const CACHE_VERSION_KEY = 'feconecta:pwa-cache-version';
-const CACHE_VERSION = 'feed-carousel-modular-20261120-v1';
+const CACHE_VERSION = 'feed-carousel-drag-zoom-20261120-v2';
 const LEGACY_WORKER_PATHS = new Set(['/sw.js', '/service-worker.js']);
 
 export function LegacyPwaCacheReset() {
@@ -52,7 +52,10 @@ export function LegacyPwaCacheReset() {
         // Avoid a reload loop when storage is disabled.
       }
 
-      if (changed && canRememberVersion) window.location.reload();
+      const isLocalDevelopment = process.env.NODE_ENV === 'development'
+        || window.location.hostname === 'localhost'
+        || window.location.hostname === '127.0.0.1';
+      if (changed && canRememberVersion && !isLocalDevelopment) window.location.reload();
     })().catch(() => undefined);
   }, []);
 

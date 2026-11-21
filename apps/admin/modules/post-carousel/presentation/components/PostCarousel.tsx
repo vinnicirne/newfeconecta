@@ -1,9 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 type PostCarouselProps = {
@@ -23,21 +24,43 @@ function mediaUrlForRetry(url: string, retry: number) {
 export default function PostCarousel({ urls, priority = false, onDoubleClick }: PostCarouselProps) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startScrollLeft: number; moved: boolean } | null>(null);
+  const suppressClickUntilRef = useRef(0);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [failedUrls, setFailedUrls] = useState<Set<string>>(() => new Set());
   const [retryCounts, setRetryCounts] = useState<Record<string, number>>({});
+  const [imageRatios, setImageRatios] = useState<Record<string, number>>({});
   const slidesKey = urls.join('\u0000');
+  const activeRatio = imageRatios[urls[activeIndex]];
 
   useEffect(() => {
     setActiveIndex(0);
     setFailedUrls(new Set());
     setRetryCounts({});
+    setImageRatios({});
+    setIsZoomed(false);
     viewportRef.current?.scrollTo({ left: 0 });
   }, [slidesKey]);
 
   useEffect(() => () => {
     if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
   }, []);
+
+  useEffect(() => {
+    if (!isZoomed) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsZoomed(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isZoomed]);
 
   const handleScroll = useCallback(() => {
     if (animationFrameRef.current !== null) cancelAnimationFrame(animationFrameRef.current);
@@ -63,16 +86,51 @@ export default function PostCarousel({ urls, priority = false, onDoubleClick }: 
 
   return (
     <section
-      className="group/post-carousel relative aspect-[4/5] w-full overflow-hidden bg-black"
+      className="group/post-carousel relative w-full overflow-hidden"
+      style={{ aspectRatio: activeRatio || 0.8 }}
       role="region"
       aria-roledescription="carrossel"
       aria-label={`Publicação com ${urls.length} imagens`}
       onDoubleClick={onDoubleClick}
+      onClick={() => {
+        if (performance.now() < suppressClickUntilRef.current) return;
+        setIsZoomed(current => !current);
+      }}
     >
       <div
         ref={viewportRef}
-        className="flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={cn('flex h-full w-full snap-x snap-mandatory overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', isDragging ? 'cursor-grabbing snap-none' : 'md:cursor-grab')}
         onScroll={handleScroll}
+        onPointerDown={(event) => {
+          if (event.pointerType !== 'mouse' || event.button !== 0 || (event.target as HTMLElement).closest('button')) return;
+          const viewport = viewportRef.current;
+          if (!viewport) return;
+          dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startScrollLeft: viewport.scrollLeft, moved: false };
+          setIsDragging(true);
+          viewport.setPointerCapture(event.pointerId);
+          event.preventDefault();
+        }}
+        onPointerMove={(event) => {
+          const drag = dragRef.current;
+          const viewport = viewportRef.current;
+          if (!drag || drag.pointerId !== event.pointerId || !viewport) return;
+          const distance = event.clientX - drag.startX;
+          if (Math.abs(distance) > 4) drag.moved = true;
+          if (drag.moved) viewport.scrollLeft = drag.startScrollLeft - distance;
+        }}
+        onPointerUp={(event) => {
+          const drag = dragRef.current;
+          if (!drag || drag.pointerId !== event.pointerId) return;
+          if (drag.moved) suppressClickUntilRef.current = performance.now() + 250;
+          dragRef.current = null;
+          setIsDragging(false);
+          if (viewportRef.current?.hasPointerCapture(event.pointerId)) viewportRef.current.releasePointerCapture(event.pointerId);
+        }}
+        onPointerCancel={() => {
+          dragRef.current = null;
+          setIsDragging(false);
+        }}
+        onDragStart={(event) => event.preventDefault()}
         aria-live="polite"
       >
         {urls.map((url, index) => (
@@ -97,6 +155,12 @@ export default function PostCarousel({ urls, priority = false, onDoubleClick }: 
                 className="select-none object-contain"
                 alt={`Imagem ${index + 1} da publicação`}
                 draggable={false}
+                onLoad={(event) => {
+                  const image = event.currentTarget;
+                  if (!image.naturalWidth || !image.naturalHeight) return;
+                  const ratio = image.naturalWidth / image.naturalHeight;
+                  setImageRatios(current => current[url] === ratio ? current : { ...current, [url]: ratio });
+                }}
                 onError={() => {
                   const retry = retryCounts[url] || 0;
                   if (retry < 1) setRetryCounts(current => ({ ...current, [url]: retry + 1 }));
@@ -138,6 +202,36 @@ export default function PostCarousel({ urls, priority = false, onDoubleClick }: 
             ))}
           </div>
         </>
+      )}
+
+      {isZoomed && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[10000] flex cursor-zoom-out items-center justify-center bg-black/95 p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Imagem ampliada da publicação"
+          onClick={() => setIsZoomed(false)}
+        >
+          <Image
+            src={mediaUrlForRetry(urls[activeIndex], retryCounts[urls[activeIndex]] || 0)}
+            fill
+            unoptimized
+            priority
+            sizes="100vw"
+            className="select-none object-contain"
+            alt={`Imagem ampliada ${activeIndex + 1} de ${urls.length}`}
+            draggable={false}
+          />
+          <button
+            type="button"
+            aria-label="Fechar zoom"
+            className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/65 text-white hover:bg-black/85 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            onClick={(event) => { event.stopPropagation(); setIsZoomed(false); }}
+          >
+            <X size={22} aria-hidden="true" />
+          </button>
+        </div>,
+        document.body,
       )}
     </section>
   );
