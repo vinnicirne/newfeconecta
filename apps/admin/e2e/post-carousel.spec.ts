@@ -34,6 +34,15 @@ test('o feed preserva as fotos salvas e a galeria aceita várias imagens', async
     await route.fulfill({ json: rows });
   });
 
+  // Keep the local HTTP app reachable in WebKit when testing production build output.
+  await page.route('http://localhost:3001/', async (route) => {
+    const response = await route.fetch();
+    const headers = response.headers();
+    const policy = headers['content-security-policy'];
+    if (policy) headers['content-security-policy'] = policy.replace(/\s*upgrade-insecure-requests\s*;?/g, '');
+    await route.fulfill({ response, headers });
+  });
+
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto('/');
   const carousel = page.getByRole('region', { name: 'Publicação com 3 imagens' });
